@@ -78,9 +78,10 @@ struct AddWinSheet: View {
     @State private var categoryChosen = false
     @State private var showCamera = false
     @State private var choosingSource = false
-    /// **A doodle instead of a photograph** (`BlockDoodleSheet`): its strokes
-    /// and the canvas they were drawn on, until the win is saved.
+    /// **A doodle instead of a photograph** (`BlockDoodleSheet`): its strokes,
+    /// its stickers and the canvas they were drawn on, until the win is saved.
     @State private var doodle: PKDrawing?
+    @State private var doodleStickers: [InkSticker] = []
     @State private var doodleCanvas: CGSize = .zero
     @State private var doodleChanged = false
     @State private var doodling = false
@@ -408,8 +409,8 @@ struct AddWinSheet: View {
         .fullScreenCover(isPresented: $peeking) { peekCover }
         .sheet(isPresented: $doodling) {
             BlockDoodleSheet(aspect: doodleAspect, colour: category, towerHeight: towerBlockHeight,
-                             drawing: doodle, drawnOn: doodleCanvas) { drawing, canvas in
-                keepDoodle(drawing, canvas: canvas)
+                             drawing: doodle, stickers: doodleStickers, drawnOn: doodleCanvas) { drawn in
+                keepDoodle(drawn)
             }
         }
         // A block is a photograph OR a doodle: a photograph put on, from
@@ -417,6 +418,7 @@ struct AddWinSheet: View {
         .onChange(of: photo) { _, now in
             if now != nil, doodle != nil {
                 doodle = nil
+                doodleStickers = []
                 doodleChanged = true
             }
         }
@@ -699,15 +701,16 @@ struct AddWinSheet: View {
 
     /// Done in the doodle sheet. Nothing drawn takes a doodle off; a drawing
     /// takes a photograph off, because a block is one or the other.
-    private func keepDoodle(_ drawing: PKDrawing, canvas: CGSize) {
+    private func keepDoodle(_ drawn: InkDoodle) {
         withAnimation(GridConstants.motionSnappy) {
             stripPosition = Self.blockInStrip
-            if drawing.strokes.isEmpty {
-                if doodle != nil { doodle = nil; doodleChanged = true }
+            if drawn.isEmpty {
+                if doodle != nil { doodle = nil; doodleStickers = []; doodleChanged = true }
                 return
             }
-            doodle = drawing
-            doodleCanvas = canvas
+            doodle = drawn.drawing
+            doodleStickers = drawn.stickers
+            doodleCanvas = drawn.canvas
             doodleChanged = true
             if photo != nil {
                 photo = nil
@@ -1158,6 +1161,12 @@ struct AddWinSheet: View {
                             .clipped()
                     } else {
                         Rectangle().fill(EtherealFill.fill(category.style.baseColor))
+                        if doodle != nil, !doodleStickers.isEmpty {
+                            // In their own colours, under the white ink.
+                            InkStickersStill(stickers: doodleStickers, canvas: doodleCanvas)
+                                .aspectRatio(doodleCanvas.width / max(doodleCanvas.height, 1), contentMode: .fit)
+                                .frame(width: w, height: h)
+                        }
                         if let picture = doodlePicture {
                             Image(uiImage: picture)
                                 .renderingMode(.template)
@@ -1483,6 +1492,7 @@ struct AddWinSheet: View {
                 Task { photo = await ImageManager.shared.loadFullImage(fileName: name) }
             } else if let name = editingLog?.doodleFileName, let kept = BlockDoodles.drawing(for: name) {
                 doodle = kept.drawing
+                doodleStickers = kept.stickers
                 doodleCanvas = kept.canvas
             }
         } else {
@@ -1630,7 +1640,8 @@ struct AddWinSheet: View {
     private func writeDoodle(to log: HabitLog) -> Bool {
         guard doodleChanged else { return true }
         if let doodle {
-            guard let name = BlockDoodles.save(doodle, canvas: doodleCanvas, replacing: log.doodleFileName)
+            guard let name = BlockDoodles.save(doodle, stickers: doodleStickers, canvas: doodleCanvas,
+                                               replacing: log.doodleFileName)
             else { return false }
             log.doodleFileName = name
         } else if let old = log.doodleFileName {

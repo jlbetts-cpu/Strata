@@ -28,6 +28,11 @@ import UIKit
 final class InkController {
     /// The drawing, as it stands after the last stroke.
     private(set) var drawing: PKDrawing
+    /// **The stickers on it** (the owner, 2026-10-06: "make it so you can add
+    /// stickers to doodles when you are drawing them"), in the order they were
+    /// put on, the last on top. They sit UNDER the ink, as a sticker on paper
+    /// does once you draw over it.
+    private(set) var stickers: [InkSticker] = []
     /// The line's width as seen, in canvas points. `InkPen.width` everywhere except
     /// the month editor, which draws on a bigger canvas than the page shows
     /// and scales the pen so the line lands at the house width on the page.
@@ -39,19 +44,43 @@ final class InkController {
     }
     private(set) var canUndo = false
 
+    /// The well's size in canvas points (the canvas at a zoom of 1), and
+    /// where the canvas is zoomed and panned to, so the stickers, which are
+    /// not PencilKit's, move with the page under them.
+    var canvasSize: CGSize = .zero
+    private(set) var viewport = Viewport()
+    /// The sticker a finger is moving, which lifts a little while it does.
+    private(set) var holding: InkSticker.ID?
+    /// The sticker just put on, which pops in; one already there when the
+    /// editor opened does not.
+    private(set) var fresh: InkSticker.ID?
+
+    struct Viewport: Equatable {
+        var scale: CGFloat = 1
+        var offset: CGPoint = .zero
+    }
+
+    /// One step of undo: the drawing and the stickers as they were before it.
+    private struct Step {
+        var drawing: PKDrawing
+        var stickers: [InkSticker]
+    }
+
     @ObservationIgnored private weak var canvas: OwnUndoCanvas?
     /// What each undo goes back to, the most recent last.
-    @ObservationIgnored private var history: [PKDrawing] = []
+    @ObservationIgnored private var history: [Step] = []
     /// When the last step was recorded and whether it added one tiny stroke,
     /// for the dot a two-finger tap's first finger can leave.
     @ObservationIgnored private var lastStep: (at: Date, stray: Bool) = (.distantPast, false)
 
-    init(drawing: PKDrawing = PKDrawing(), penWidth: CGFloat = InkPen.width) {
+    init(drawing: PKDrawing = PKDrawing(), stickers: [InkSticker] = [], penWidth: CGFloat = InkPen.width) {
         self.drawing = drawing
+        self.stickers = stickers
         self.penWidth = penWidth
     }
 
-    var isEmpty: Bool { drawing.strokes.isEmpty }
+    /// Nothing drawn and nothing stuck on.
+    var isEmpty: Bool { drawing.strokes.isEmpty && stickers.isEmpty }
 
     /// How many steps undo can take back.
     var undoDepth: Int { history.count }
@@ -61,24 +90,31 @@ final class InkController {
         PKInkingTool(.monoline, color: InkPen.colour, width: InkPen.toolWidth(forLine: penWidth))
     }
 
+    /// Takes back the last step, a stroke or a sticker alike: one history,
+    /// so the undo button and a two-finger tap never disagree about what
+    /// "last" was.
     func undo() {
         guard let before = history.popLast() else { return }
         lastStep = (.distantPast, false)
-        show(before)
+        stickers = before.stickers
+        show(before.drawing)
     }
 
     /// A drawing from somewhere else (a saved sketch, opened to edit): the
     /// canvas shows it and its undo starts empty, so undo cannot reach back
     /// past what was saved.
-    func load(_ drawing: PKDrawing) {
+    func load(_ drawing: PKDrawing, stickers: [InkSticker]? = nil) {
         history.removeAll()
         lastStep = (.distantPast, false)
+        if let stickers { self.stickers = stickers }
+        fresh = nil
         show(drawing)
     }
 
-    /// A step: `before` is what undoing it gives back.
+    /// A step: `before` is what undoing it gives back. The stickers stay as
+    /// they stand: a stroke does not move them.
     func record(_ before: PKDrawing, stray: Bool = false) {
-        history.append(before)
+        history.append(Step(drawing: before, stickers: stickers))
         lastStep = (Date(), stray)
         refresh()
     }
@@ -88,6 +124,79 @@ final class InkController {
     func dropStray(within window: TimeInterval) {
         guard lastStep.stray, Date().timeIntervalSince(lastStep.at) <= window else { return }
         undo()
+    }
+
+    // MARK: Stickers
+
+    /// The size a sticker is put on at: big enough to read as a sticker on
+    /// the page, small enough to leave the drawing room.
+    static let stickerShare: CGFloat = 0.36
+
+    /// **Puts a sticker on, in the middle of what you can see**, at a third
+    /// of the well and leaning a hair, as a sticker pressed on by hand does.
+    /// Each one after the first lands a little down and to the right of the
+    /// last, so two never hide each other exactly. One step of undo.
+    @discardableResult
+    func place(_ name: String, aspect: CGSize? = nil) -> InkSticker {
+        let well = canvasSize.width > 0 ? canvasSize : CGSize(width: 300, height: 300)
+        let scale = max(viewport.scale, 1)
+        let seen = CGPoint(x: (viewport.offset.x + well.width / 2) / scale,
+                           y: (viewport.offset.y + well.height / 2) / scale)
+        let nudge = CGFloat(stickers.count % 4) * 14
+        let lean = [-0.07, 0.05, -0.03, 0.08][stickers.count % 4]
+        let sticker = InkSticker(name: name, x: seen.x + nudge, y: seen.y + nudge,
+                                 size: min(well.width, well.height) * Self.stickerShare / scale,
+                                 rotation: lean).clamped(toCanvas: well)
+        step()
+        stickers.append(sticker)
+        fresh = sticker.id
+        refresh()
+        return sticker
+    }
+
+    /// A finger has started moving a sticker: that is one step, however
+    /// long it moves for.
+    func beginMoving(_ id: InkSticker.ID) {
+        guard holding != id else { return }
+        step()
+        holding = id
+        refresh()
+    }
+
+    /// Where the moving sticker is now. Not a step of its own.
+    func move(_ sticker: InkSticker) {
+        guard let i = stickers.firstIndex(where: { $0.id == sticker.id }) else { return }
+        stickers[i] = sticker.clamped(toCanvas: canvasSize.width > 0 ? canvasSize : .init(width: 300, height: 300))
+    }
+
+    /// The finger lifted. **Let go off the page and the sticker comes off**,
+    /// its centre past the well's edge, which is how a sticker is peeled
+    /// away by hand. Already a step: undo puts it back where it was.
+    func endMoving(_ id: InkSticker.ID) {
+        holding = nil
+        guard let sticker = stickers.first(where: { $0.id == id }), isOffPage(sticker) else { return }
+        stickers.removeAll { $0.id == id }
+        HapticsEngine.lightTap()
+    }
+
+    /// Past the well's edge: let go here and it comes off.
+    func isOffPage(_ sticker: InkSticker) -> Bool {
+        guard canvasSize.width > 0, canvasSize.height > 0 else { return false }
+        return sticker.x < 0 || sticker.y < 0 || sticker.x > canvasSize.width || sticker.y > canvasSize.height
+    }
+
+    /// Hold, Remove. One step.
+    func remove(_ id: InkSticker.ID) {
+        guard stickers.contains(where: { $0.id == id }) else { return }
+        step()
+        stickers.removeAll { $0.id == id }
+        refresh()
+    }
+
+    /// A sticker step: what undoing it gives back is everything as it stands.
+    private func step() {
+        history.append(Step(drawing: drawing, stickers: stickers))
+        lastStep = (.distantPast, false)
     }
 
     fileprivate func attach(_ canvas: OwnUndoCanvas) {
@@ -102,6 +211,12 @@ final class InkController {
     fileprivate func changed(_ drawing: PKDrawing) {
         self.drawing = drawing
         refresh()
+    }
+
+    /// The page was zoomed or panned.
+    fileprivate func scrolled(_ scrollView: UIScrollView) {
+        let now = Viewport(scale: scrollView.zoomScale, offset: scrollView.contentOffset)
+        if now != viewport { viewport = now }
     }
 
     /// Puts `drawing` on the canvas without it counting as a step.
@@ -164,11 +279,18 @@ struct InkCanvas<Accessory: View>: View {
     @ViewBuilder
     private var well: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let surface = InkSurface(controller: controller, lightInk: lightInk)
-            .background(Rectangle().fill(ground))
-            .clipShape(shape)
-            .accessibilityLabel("Drawing")
-            .accessibilityHint("Draw with one finger")
+        // The stickers are drawn under the ink and answer a finger over it:
+        // a line drawn across a sticker lands on top of it, and a finger
+        // that starts on one moves it (`InkStickerLayer`).
+        let surface = ZStack {
+            InkStickerLayer(controller: controller, interactive: false)
+            InkSurface(controller: controller, lightInk: lightInk)
+                .accessibilityLabel("Drawing")
+                .accessibilityHint("Draw with one finger")
+            InkStickerLayer(controller: controller, interactive: true)
+        }
+        .background(Rectangle().fill(ground))
+        .clipShape(shape)
         if let aspectRatio {
             surface.aspectRatio(aspectRatio, contentMode: .fit)
         } else {
@@ -186,10 +308,13 @@ extension InkCanvas where Accessory == EmptyView {
     }
 }
 
-/// The eraser and undo, on glass, and the caller's accessory at the end.
+/// The eraser, undo and a sticker, on glass, and the caller's accessory at
+/// the end.
 struct InkControls<Accessory: View>: View {
     let controller: InkController
     @ViewBuilder var accessory: Accessory
+
+    @State private var choosingSticker = false
 
     var body: some View {
         HStack(spacing: GridConstants.gapTight) {
@@ -207,9 +332,39 @@ struct InkControls<Accessory: View>: View {
             }
             .disabled(!controller.canUndo)
             .opacity(controller.canUndo ? 1 : 0.4)
+            // **A sticker of your own, on the drawing** (the owner,
+            // 2026-10-06). Your stickers and New Sticker, and no Emoji: an
+            // emoji is the day's mark, not something drawn on.
+            GlassIconButton(systemName: "face.smiling", onPage: true,
+                            accessibilityLabel: "Add a sticker") {
+                choosingSticker = true
+            }
+            .popover(isPresented: $choosingSticker) {
+                StickerPicker(current: nil, purpose: .drawing, onPick: { symbol in
+                    choosingSticker = false
+                    // It pops in where it lands (`InkStickerSprite`).
+                    guard let name = StickerStore.name(in: symbol) else { return }
+                    controller.place(name)
+                })
+                .presentationCompactAdaptation(.popover)
+            }
             Spacer(minLength: 0)
             accessory
         }
+        #if DEBUG
+        // `-strataInkSticker drop|picker`: a sticker put on the canvas (the
+        // sample sunflower if there are none), or the picker opened, so
+        // either can be photographed. A simulator cannot lift one.
+        .task {
+            guard let which = DebugHarness.inkSticker else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            if which == "picker" { choosingSticker = true; return }
+            if StickerStore.shared.names.isEmpty, let sample = StickerMaker.sample() {
+                StickerStore.shared.add(sample)
+            }
+            if let name = StickerStore.shared.names.first { controller.place(name) }
+        }
+        #endif
     }
 }
 
@@ -360,6 +515,15 @@ private struct InkSurface: UIViewRepresentable {
             movedAt = Date()
         }
 
+        /// The stickers follow the page as it zooms and pans.
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            controller.scrolled(scrollView)
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            controller.scrolled(scrollView)
+        }
+
         // MARK: The drawing
 
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
@@ -453,6 +617,11 @@ final class OwnUndoCanvas: PKCanvasView {
 /// (a PNG decode is small, but a list of them is not) and shown as a template
 /// image tinted with `tint`, so black ink on a transparent ground follows
 /// dark mode the way the owner's drawings do.
+///
+/// **Its stickers in their own colours, under the tinted ink** (2026-10-06):
+/// a picture saved with stickers carries which pixels are ink (`InkLayers`),
+/// so a sticker is never tinted to a silhouette. The crew chat shows a doodle
+/// through this, so a friend sees the stickers too.
 struct InkImage: View {
     let url: URL
     var tint: Color = AppColors.drawingInk
@@ -463,20 +632,28 @@ struct InkImage: View {
     /// (`JournalSketches.shownHeight`) and must not be blown up to the width.
     var natural = false
 
-    @State private var image: UIImage?
+    @State private var picture: InkPicture?
 
     var body: some View {
         Group {
-            if let image, natural {
-                Image(uiImage: image)
-                    .renderingMode(.template)
-                    .foregroundStyle(tint)
-            } else if let image {
-                Image(uiImage: image)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(tint)
+            if let picture, natural {
+                ZStack {
+                    if let stickers = picture.stickers { Image(uiImage: stickers) }
+                    Image(uiImage: picture.ink)
+                        .renderingMode(.template)
+                        .foregroundStyle(tint)
+                }
+            } else if let picture {
+                ZStack {
+                    if let stickers = picture.stickers {
+                        Image(uiImage: stickers).resizable().scaledToFit()
+                    }
+                    Image(uiImage: picture.ink)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(tint)
+                }
             } else if natural {
                 Color.clear.frame(height: 0)
             } else {
@@ -485,8 +662,8 @@ struct InkImage: View {
         }
         .task(id: url) {
             let url = url, scale = scale
-            image = await Task.detached(priority: .userInitiated) {
-                InkImageCache.image(at: url, scale: scale)
+            picture = await Task.detached(priority: .userInitiated) {
+                InkImageCache.picture(at: url, scale: scale)
             }.value
         }
     }
@@ -495,15 +672,23 @@ struct InkImage: View {
 /// Decoded ink pictures, by path. Ink files are written under a new name each
 /// time they change, so a path never needs invalidating.
 nonisolated enum InkImageCache {
-    private static let cache = NSCache<NSString, UIImage>()
+    private static let cache = NSCache<NSString, InkPicture>()
 
-    static func image(at url: URL, scale: CGFloat) -> UIImage? {
+    /// The picture's ink and its stickers (`InkLayers`).
+    static func picture(at url: URL, scale: CGFloat) -> InkPicture? {
         let key = url.path as NSString
         if let hit = cache.object(forKey: key) { return hit }
         guard let data = try? Data(contentsOf: url),
-              let decoded = UIImage(data: data, scale: scale)?.preparingForDisplay() else { return nil }
-        cache.setObject(decoded, forKey: key)
-        return decoded
+              let decoded = InkLayers.decode(data, scale: scale) else { return nil }
+        let ready = InkPicture(ink: decoded.ink.preparingForDisplay() ?? decoded.ink,
+                               stickers: decoded.stickers.map { $0.preparingForDisplay() ?? $0 })
+        cache.setObject(ready, forKey: key)
+        return ready
+    }
+
+    /// The picture's ink.
+    static func image(at url: URL, scale: CGFloat) -> UIImage? {
+        picture(at: url, scale: scale)?.ink
     }
 
     /// The size a file draws at, in points, without keeping the picture.

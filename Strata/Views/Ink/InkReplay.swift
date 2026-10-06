@@ -17,6 +17,12 @@ import SwiftUI
 /// Drawn in a `Canvas` in the page's ink, so it follows dark mode the way the
 /// owner's drawings do; the PNG beside it is the still copy for everywhere
 /// else (`MonthDrawingStore.pictureURL`).
+///
+/// **Its stickers pop in once the lines are drawn** (2026-10-06), under the
+/// ink, each a beat after the last (`InkReplayTiming.pop`): a small grow to
+/// their size, nothing that moves after. Under Reduce Motion they arrive
+/// with the fade, and with "Bring It to Life" off they are simply there. A
+/// sticker whose file is not on this phone is left out.
 struct InkReplay: View {
     let drawing: MonthDrawing
     /// The drawing's height at most, as `Illustration`'s.
@@ -26,6 +32,8 @@ struct InkReplay: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lines: [Line] = []
+    /// The stickers that are on this phone, under the ink, with their pictures.
+    @State private var stickers: [(sticker: InkSticker, image: UIImage)] = []
     @State private var timing = InkReplayTiming(lengths: [])
     /// When the current play began; nil at rest.
     @State private var playedAt: Date?
@@ -87,6 +95,12 @@ struct InkReplay: View {
     private func ink(at t: Double) -> some View {
         Canvas { context, size in
             let scale = size.width / max(drawing.canvasWidth, 1)
+            for (index, placed) in stickers.enumerated() {
+                let pop = timing.pop(of: index, at: t)
+                guard pop > 0 else { continue }
+                InkStickers.draw(placed.sticker, image: placed.image, in: context, scale: scale,
+                                 pop: InkReplayTiming.popScale(pop), opacity: min(1, pop * 3))
+            }
             for (index, line) in lines.enumerated() {
                 let progress = timing.progress(of: index, at: t)
                 guard progress > 0, !line.points.isEmpty else { continue }
@@ -126,9 +140,12 @@ struct InkReplay: View {
 
     /// The strokes, as points along each, and the clock they play on.
     private func load() {
+        stickers = (drawing.stickers ?? []).compactMap { sticker in
+            InkStickers.image(sticker.name).map { (sticker, $0) }
+        }
         guard let pk = try? PKDrawing(data: drawing.strokes) else { lines = []; return }
         lines = Self.lines(of: pk)
-        timing = InkReplayTiming(lengths: lines.map(Self.length))
+        timing = InkReplayTiming(lengths: lines.map(Self.length), stickers: stickers.count)
     }
 
     static func lines(of drawing: PKDrawing) -> [Line] {

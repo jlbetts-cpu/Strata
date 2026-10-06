@@ -10,6 +10,11 @@ import UIKit
 ///
 /// A block holds a photograph OR a doodle, never both (the owner's pick,
 /// 2026-10-06, "Photo or doodle").
+///
+/// **Stickers on a doodle** (the owner, 2026-10-06: "make it so you can add
+/// stickers to doodles when you are drawing them") are kept in the strokes'
+/// file beside them, and drawn into the picture in their own colours under
+/// the ink (`InkLayers`), so the block tints only the ink white.
 @MainActor
 enum BlockDoodles {
     /// Pixels a point: crisp on a Deep block, small on disk.
@@ -19,6 +24,8 @@ enum BlockDoodles {
         var strokes: Data
         var width: Double
         var height: Double
+        /// Optional, so a doodle kept before there were stickers still reads.
+        var stickers: [InkSticker]? = nil
     }
 
     static func drawingName(for png: String) -> String {
@@ -26,14 +33,18 @@ enum BlockDoodles {
     }
 
     /// Writes the doodle and returns its name, removing `old`. Nil for an
-    /// empty drawing, which removes `old` too: rubbed out is no doodle.
-    static func save(_ drawing: PKDrawing, canvas: CGSize, replacing old: String?,
-                     files: InkFiles = .shared) -> String? {
-        guard !drawing.strokes.isEmpty, canvas.width > 0, canvas.height > 0,
-              let png = InkExport.png(of: drawing, in: CGRect(origin: .zero, size: canvas), scale: scale),
+    /// empty drawing, which removes `old` too: rubbed out is no doodle. A
+    /// sticker alone is a doodle.
+    static func save(_ drawing: PKDrawing, stickers: [InkSticker] = [], canvas: CGSize,
+                     replacing old: String?, files: InkFiles = .shared,
+                     images: (String) -> UIImage? = InkStickers.image) -> String? {
+        guard !drawing.strokes.isEmpty || !stickers.isEmpty, canvas.width > 0, canvas.height > 0,
+              let png = InkExport.png(of: drawing, stickers: stickers,
+                                      in: CGRect(origin: .zero, size: canvas), scale: scale, images: images),
               let strokes = try? JSONEncoder().encode(
                 Strokes(strokes: drawing.dataRepresentation(),
-                        width: canvas.width, height: canvas.height))
+                        width: canvas.width, height: canvas.height,
+                        stickers: stickers.isEmpty ? nil : stickers))
         else {
             if let old { remove(old, files: files) }
             return nil
@@ -52,12 +63,13 @@ enum BlockDoodles {
         return name
     }
 
-    /// The strokes and the canvas they were drawn on, to edit.
-    static func drawing(for png: String, files: InkFiles = .shared) -> (drawing: PKDrawing, canvas: CGSize)? {
+    /// The strokes, their stickers and the canvas they were drawn on, to edit.
+    static func drawing(for png: String, files: InkFiles = .shared)
+        -> (drawing: PKDrawing, canvas: CGSize, stickers: [InkSticker])? {
         guard let data = files.read(drawingName(for: png)),
               let kept = try? JSONDecoder().decode(Strokes.self, from: data),
               let drawing = try? PKDrawing(data: kept.strokes) else { return nil }
-        return (drawing, CGSize(width: kept.width, height: kept.height))
+        return (drawing, CGSize(width: kept.width, height: kept.height), kept.stickers ?? [])
     }
 
     static func remove(_ png: String, files: InkFiles = .shared) {
@@ -66,15 +78,21 @@ enum BlockDoodles {
         cache.removeObject(forKey: png as NSString)
     }
 
-    /// The picture, decoded once and kept: a tower draws many blocks.
-    static func image(_ png: String, files: InkFiles = .shared) -> UIImage? {
+    /// The picture, decoded once and kept: a tower draws many blocks. Its
+    /// ink to tint white, and its stickers as they are (`InkLayers`).
+    static func picture(_ png: String, files: InkFiles = .shared) -> InkPicture? {
         if let hit = cache.object(forKey: png as NSString) { return hit }
-        guard let image = UIImage(contentsOfFile: files.url(png).path) else { return nil }
-        cache.setObject(image, forKey: png as NSString)
-        return image
+        guard let data = files.read(png), let picture = InkLayers.decode(data, scale: 1) else { return nil }
+        cache.setObject(picture, forKey: png as NSString)
+        return picture
     }
 
-    private static let cache = NSCache<NSString, UIImage>()
+    /// The picture's ink.
+    static func image(_ png: String, files: InkFiles = .shared) -> UIImage? {
+        picture(png, files: files)?.ink
+    }
+
+    private static let cache = NSCache<NSString, InkPicture>()
 
     /// **The doodled block as one picture, for a crew** (the owner,
     /// 2026-10-06: "make doodles show on crew tower and replays too"). A
@@ -89,7 +107,7 @@ enum BlockDoodles {
         guard size.width > 0, size.height > 0 else { return nil }
         let block = ZStack {
             Rectangle().fill(EtherealFill.fill(colour.style.baseColor))
-            BlockDoodleImage(fileName: png)
+            BlockDoodleImage(fileName: png, files: files)
         }
         .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: block)

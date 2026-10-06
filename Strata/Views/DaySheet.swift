@@ -283,6 +283,8 @@ struct DaySheet: View {
     /// The full-screen editor is up, on `sketchAtOpen`.
     @State private var sketching = false
     @State private var sketchAtOpen = PKDrawing()
+    /// Its stickers (`JournalSketches.stickers`).
+    @State private var sketchStickersAtOpen: [InkSticker] = []
     #if DEBUG
     @State private var journalHarnessRan = false
     #endif
@@ -339,8 +341,8 @@ struct DaySheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         .fullScreenCover(isPresented: $sketching) {
-            JournalSketchEditor(title: title, drawing: sketchAtOpen) { drawing, canvas in
-                keepSketch(drawing, canvas: canvas)
+            JournalSketchEditor(title: title, drawing: sketchAtOpen, stickers: sketchStickersAtOpen) { drawn in
+                keepSketch(drawn)
             }
         }
         // Saved a beat after typing stops, so a note survives the app being
@@ -554,7 +556,7 @@ struct DaySheet: View {
                 let w = UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
                 let canvas = CGSize(width: w, height: w / JournalSketchEditor.aspect)
                 let pen = InkPen.width
-                keepSketch(InkSamples.sunOverHill(in: canvas, width: pen), canvas: canvas)
+                keepSketch(InkDoodle(drawing: InkSamples.sunOverHill(in: canvas, width: pen), canvas: canvas))
             }
             if sketch == "open" { openEditor() }
         }
@@ -768,6 +770,7 @@ struct DaySheet: View {
         guard tab == .journal else { return }
         writing = false
         sketchAtOpen = sketchName.flatMap { JournalSketches.drawing(for: $0) } ?? PKDrawing()
+        sketchStickersAtOpen = sketchName.map { JournalSketches.stickers(for: $0) } ?? []
         sketching = true
     }
 
@@ -776,13 +779,15 @@ struct DaySheet: View {
     /// with nothing done, nothing is written, so a sketch whose strokes are
     /// not on this phone (made on another one) is never replaced by the empty
     /// canvas it opened as.
-    private func keepSketch(_ drawing: PKDrawing, canvas: CGSize) {
-        guard loaded, drawing.dataRepresentation() != sketchAtOpen.dataRepresentation() else { return }
-        let name = JournalSketches.save(drawing, width: canvas.width, day: dateString,
-                                        replacing: sketchName,
-                                        shownScale: JournalSketches.shownScale(canvasHeight: canvas.height))
+    private func keepSketch(_ drawn: InkDoodle) {
+        guard loaded, drawn.drawing.dataRepresentation() != sketchAtOpen.dataRepresentation()
+                || drawn.stickers != sketchStickersAtOpen else { return }
+        let name = JournalSketches.save(drawn.drawing, stickers: drawn.stickers, width: drawn.canvas.width,
+                                        day: dateString, replacing: sketchName,
+                                        shownScale: JournalSketches.shownScale(canvasHeight: drawn.canvas.height))
         sketchName = name
-        sketchAtOpen = drawing
+        sketchAtOpen = drawn.drawing
+        sketchStickersAtOpen = drawn.stickers
         DayNotes.setSketch(name, for: dateString, context: modelContext)
     }
 

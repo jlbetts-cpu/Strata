@@ -211,6 +211,13 @@ enum DebugHarness {
     /// a screenshot.
     static var penLine: CGFloat? { argument("-strataPenLine").flatMap(Double.init).map { CGFloat($0) } }
 
+    /// A sticker on every ink canvas as it opens, from `-strataInkSticker
+    /// drop` (the sample sunflower, `StickerMaker.sample`, if there are no
+    /// stickers yet), or the canvas's sticker picker opened, from `picker`.
+    /// A simulator can neither lift a sticker nor reach the popover from a
+    /// script reliably.
+    static var inkSticker: String? { argument("-strataInkSticker") }
+
     /// Presses the journal's Suggest once it opens, from `-strataJournalAsk`.
     static var journalAsks: Bool { ProcessInfo.processInfo.arguments.contains("-strataJournalAsk") }
 

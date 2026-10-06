@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PencilKit
+import UIKit
 
 /// **Your own drawing for a month** (spec section 4, approved 2026-10-05).
 ///
@@ -29,6 +30,12 @@ nonisolated struct MonthDrawing: Codable, Equatable, Sendable {
     /// quote"). Optional, so a drawing saved before there were lines still
     /// reads.
     var line: String? = nil
+    /// **Stickers on it** (the owner, 2026-10-06: "make it so you can add
+    /// stickers to doodles when you are drawing them"), in canvas points.
+    /// Drawn into `picture` under the ink, and popped in by the replay once
+    /// the lines are drawn. Optional, so a drawing saved before stickers
+    /// still reads.
+    var stickers: [InkSticker]? = nil
 
     var canvasSize: CGSize { CGSize(width: canvasWidth, height: canvasHeight) }
 }
@@ -73,20 +80,22 @@ final class MonthDrawingStore {
     /// Keeps a drawing for the month, replacing any before it. An empty
     /// drawing keeps nothing and removes what was there: drawn and rubbed
     /// out is the original again.
-    func save(_ drawing: PKDrawing, canvas: CGSize, bringsToLife: Bool, line: String? = nil,
-              for month: String) {
-        guard !drawing.strokes.isEmpty, canvas.width > 0, canvas.height > 0 else {
+    func save(_ drawing: PKDrawing, stickers: [InkSticker] = [], canvas: CGSize, bringsToLife: Bool,
+              line: String? = nil, for month: String,
+              images: (String) -> UIImage? = InkStickers.image) {
+        guard !drawing.strokes.isEmpty || !stickers.isEmpty, canvas.width > 0, canvas.height > 0 else {
             remove(month)
             return
         }
         let old = self.drawing(for: month)
         let picture = "month-\(month)-\(UUID().uuidString.prefix(8)).png"
-        guard let png = InkExport.png(of: drawing, in: CGRect(origin: .zero, size: canvas),
-                                      scale: JournalSketches.scale) else { return }
+        guard let png = InkExport.png(of: drawing, stickers: stickers, in: CGRect(origin: .zero, size: canvas),
+                                      scale: JournalSketches.scale, images: images) else { return }
         let record = MonthDrawing(strokes: drawing.dataRepresentation(),
                                   canvasWidth: canvas.width, canvasHeight: canvas.height,
                                   bringsToLife: bringsToLife, picture: picture,
-                                  line: DrawingLine.kept(line))
+                                  line: DrawingLine.kept(line),
+                                  stickers: stickers.isEmpty ? nil : stickers)
         do {
             try files.write(png, named: picture)
             try files.write(try JSONEncoder().encode(record), named: Self.recordName(month))
@@ -129,10 +138,19 @@ nonisolated struct InkReplayTiming: Equatable, Sendable {
     /// then holds perfectly still. The settle that swung it about its foot
     /// and the three-frame jitter while it drew are both gone.
 
+    /// **Stickers pop in once the lines are drawn** (2026-10-06): each grows
+    /// from a little under its size to its size over `stickerPop`, a beat
+    /// after the one before, so they land like stickers pressed on in turn.
+    static let stickerPop: Double = 0.34
+    static let stickerStagger: Double = 0.09
+
     let durations: [Double]
     let starts: [Double]
+    /// How many stickers pop in after the lines.
+    let stickers: Int
 
-    init(lengths: [Double], total: Double = Self.total, cap: Double = Self.perStrokeCap) {
+    init(lengths: [Double], stickers: Int = 0, total: Double = Self.total, cap: Double = Self.perStrokeCap) {
+        self.stickers = stickers
         // A dot has no length and still has to appear: a floor of a point.
         let weights = lengths.map { max($0, 1) }
         var durations = Array(repeating: 0.0, count: weights.count)
@@ -157,8 +175,25 @@ nonisolated struct InkReplayTiming: Equatable, Sendable {
 
     /// When the last stroke is finished.
     var drawDuration: Double { zip(starts, durations).map { $0 + $1 }.max() ?? 0 }
-    /// The whole play: the drawing, and nothing after it.
-    var playDuration: Double { drawDuration }
+    /// The whole play: the drawing, then its stickers, and nothing after.
+    var playDuration: Double {
+        stickers == 0 ? drawDuration
+            : drawDuration + Self.stickerStagger * Double(stickers - 1) + Self.stickerPop
+    }
+
+    /// How far sticker `index` has popped in at `t`, 0 to 1.
+    func pop(of index: Int, at t: Double) -> Double {
+        let start = drawDuration + Self.stickerStagger * Double(index)
+        return min(max((t - start) / Self.stickerPop, 0), 1)
+    }
+
+    /// The sticker's size at pop `p`, a little under its own to its own,
+    /// overshooting by a hair on the way (an ease out with a small back).
+    static func popScale(_ p: Double) -> Double {
+        guard p < 1 else { return 1 }
+        let c = 1.4, q = p - 1
+        return 0.7 + 0.3 * (1 + (c + 1) * q * q * q + c * q * q)
+    }
 
     /// How much of a stroke shows at `t`, 0 to 1.
     func progress(of stroke: Int, at t: Double) -> Double {

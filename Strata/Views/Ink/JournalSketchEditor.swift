@@ -15,11 +15,11 @@ import SwiftUI
 /// (`JournalSketches.shownHeight`), so the pen is widened by that ratio and
 /// the line lands at `InkPen.width` on the page.
 ///
-/// Cancel keeps nothing. Done hands back the drawing and the canvas it was
-/// made on; the journal decides whether anything changed.
+/// Cancel keeps nothing. Done hands back the drawing, its stickers and the
+/// canvas it was made on; the journal decides whether anything changed.
 struct JournalSketchEditor: View {
     let title: String
-    let onDone: (_ drawing: PKDrawing, _ canvas: CGSize) -> Void
+    let onDone: (InkDoodle) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var ink: InkController
@@ -27,10 +27,11 @@ struct JournalSketchEditor: View {
 
     static var aspect: CGFloat { MonthDrawingEditor.aspect }
 
-    init(title: String, drawing: PKDrawing, onDone: @escaping (_ drawing: PKDrawing, _ canvas: CGSize) -> Void) {
+    init(title: String, drawing: PKDrawing, stickers: [InkSticker] = [],
+         onDone: @escaping (InkDoodle) -> Void) {
         self.title = title
         self.onDone = onDone
-        _ink = State(initialValue: InkController(drawing: drawing))
+        _ink = State(initialValue: InkController(drawing: drawing, stickers: stickers))
     }
 
     var body: some View {
@@ -66,7 +67,7 @@ struct JournalSketchEditor: View {
 
     private func done() {
         HapticsEngine.lightTap()
-        onDone(ink.drawing, canvasSize)
+        onDone(InkDoodle(drawing: ink.drawing, stickers: ink.stickers, canvas: canvasSize))
         dismiss()
     }
 }

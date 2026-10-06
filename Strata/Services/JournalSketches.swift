@@ -1,6 +1,7 @@
 import Foundation
 import PencilKit
 import SwiftData
+import UIKit
 
 /// **The day's sketch, as files.** A journal entry names its sketch by the
 /// PNG's file name (`MoodLog.sketchFileName`); beside it, under the same stem,
@@ -21,8 +22,21 @@ import SwiftData
 /// picture is WRITTEN at that shown scale, so its natural size in points is
 /// its size on the page and the line lands at `InkPen.width` there. A sketch
 /// from the old inline strip was written at 1:1 and still shows at 1:1.
+///
+/// **Stickers on the sketch** (the owner, 2026-10-06: "make it so you can add
+/// stickers to doodles when you are drawing them") are drawn into the picture
+/// in their own colours, under the ink (`InkLayers`), and kept with the
+/// strokes: a sketch with stickers keeps its `.drawing` as `Kept`, strokes and
+/// stickers together; one without is the bare `PKDrawing` it always was, so
+/// every sketch saved before reads as it did.
 @MainActor
 enum JournalSketches {
+    /// The strokes and their stickers, for a sketch that has stickers.
+    private struct Kept: Codable {
+        var strokes: Data
+        var stickers: [InkSticker]
+    }
+
     /// Pixels a point: the phone's own, so the sketch is crisp at 1:1.
     static let scale: CGFloat = 3
 
@@ -45,9 +59,12 @@ enum JournalSketches {
     }
 
     /// The part of the canvas a sketch keeps: its full width, and from the top
-    /// of its ink to the bottom.
-    static func frame(of drawing: PKDrawing, width: CGFloat) -> CGRect {
-        let ink = InkExport.inkBounds(of: drawing)
+    /// of its ink (or a sticker) to the bottom.
+    static func frame(of drawing: PKDrawing, width: CGFloat, stickers: [InkSticker] = [],
+                      images: (String) -> UIImage? = InkStickers.image) -> CGRect {
+        var ink = drawing.strokes.isEmpty ? CGRect.null : InkExport.inkBounds(of: drawing)
+        ink = ink.union(InkStickers.bounds(of: stickers, images: images))
+        guard !ink.isNull else { return CGRect(x: 0, y: 0, width: max(width, 1), height: 1) }
         let top = max(0, ink.minY)
         return CGRect(x: 0, y: top, width: max(width, 1), height: max(ink.maxY - top, 1))
     }
@@ -55,19 +72,24 @@ enum JournalSketches {
     /// Writes the sketch and returns its new name, removing `old`. Nil for an
     /// empty drawing, which removes `old` too: a sketch rubbed out is no
     /// sketch.
-    static func save(_ drawing: PKDrawing, width: CGFloat, day: String, replacing old: String?,
-                     shownScale: CGFloat = 1, files: InkFiles = .shared) -> String? {
-        guard !drawing.strokes.isEmpty else {
+    static func save(_ drawing: PKDrawing, stickers: [InkSticker] = [], width: CGFloat, day: String,
+                     replacing old: String?, shownScale: CGFloat = 1, files: InkFiles = .shared,
+                     images: (String) -> UIImage? = InkStickers.image) -> String? {
+        guard !drawing.strokes.isEmpty || !stickers.isEmpty else {
             if let old { remove(old, files: files) }
             return nil
         }
         let stem = "sketch-\(day)-\(UUID().uuidString.prefix(8))"
         let png = stem + ".png"
-        guard let picture = InkExport.png(of: drawing, in: frame(of: drawing, width: width),
-                                          scale: scale * shownScale)
+        let strokes = stickers.isEmpty ? drawing.dataRepresentation()
+            : try? JSONEncoder().encode(Kept(strokes: drawing.dataRepresentation(), stickers: stickers))
+        guard let strokes,
+              let picture = InkExport.png(of: drawing, stickers: stickers,
+                                          in: frame(of: drawing, width: width, stickers: stickers, images: images),
+                                          scale: scale * shownScale, images: images)
         else { return old }
         do {
-            try files.write(drawing.dataRepresentation(), named: drawingName(for: png))
+            try files.write(strokes, named: drawingName(for: png))
             try files.write(picture, named: png)
         } catch {
             NSLog("[journal] the sketch did not save: \(error)")
@@ -80,7 +102,14 @@ enum JournalSketches {
 
     /// The strokes behind a saved sketch, to edit.
     static func drawing(for png: String, files: InkFiles = .shared) -> PKDrawing? {
-        files.read(drawingName(for: png)).flatMap { try? PKDrawing(data: $0) }
+        guard let data = files.read(drawingName(for: png)) else { return nil }
+        if let kept = try? JSONDecoder().decode(Kept.self, from: data) { return try? PKDrawing(data: kept.strokes) }
+        return try? PKDrawing(data: data)
+    }
+
+    /// The stickers on a saved sketch, to edit: none for one saved without.
+    static func stickers(for png: String, files: InkFiles = .shared) -> [InkSticker] {
+        files.read(drawingName(for: png)).flatMap { try? JSONDecoder().decode(Kept.self, from: $0) }?.stickers ?? []
     }
 
     static func remove(_ png: String, files: InkFiles = .shared) {

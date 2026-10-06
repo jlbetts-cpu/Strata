@@ -6,11 +6,21 @@ import SwiftUI
 /// Your stickers, newest first; New Sticker lifts one out of a photograph;
 /// Emoji opens the keyboard, as the button always did. Choosing the day's
 /// own mark again takes it off, as with an emoji.
+///
+/// **And a sticker for a drawing** (the owner, 2026-10-06: "make it so you
+/// can add stickers to doodles when you are drawing them"): the same grid and
+/// New Sticker from the ink canvas's row (`InkControls`), without Emoji,
+/// because an emoji is the day's mark and not something drawn on.
 struct StickerPicker: View {
+    /// What a chosen sticker is for: the day's mark, or a drawing.
+    enum Purpose { case day, drawing }
+
     /// The day's symbol as it stands.
     let current: String?
+    var purpose: Purpose = .day
     let onPick: (_ symbol: String) -> Void
-    let onEmoji: () -> Void
+    /// Emoji, for the day's mark. Nil leaves the button out.
+    var onEmoji: (() -> Void)? = nil
 
     @State private var store = StickerStore.shared
     @State private var choosingPhoto = false
@@ -44,11 +54,13 @@ struct StickerPicker: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Button { onEmoji() } label: {
-                    Label("Emoji", systemImage: "face.smiling")
-                        .frame(minHeight: GlassIconButton.defaultSide)
+                if let onEmoji {
+                    Button { onEmoji() } label: {
+                        Label("Emoji", systemImage: "face.smiling")
+                            .frame(minHeight: GlassIconButton.defaultSide)
+                    }
+                    Spacer(minLength: GridConstants.gapItem)
                 }
-                Spacer(minLength: GridConstants.gapItem)
                 Button {
                     failed = false
                     choosingPhoto = true
@@ -57,6 +69,7 @@ struct StickerPicker: View {
                         .frame(minHeight: GlassIconButton.defaultSide)
                 }
                 .disabled(making)
+                if onEmoji == nil { Spacer(minLength: 0) }
             }
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
@@ -94,7 +107,8 @@ struct StickerPicker: View {
             Button("Delete Sticker", systemImage: "trash", role: .destructive) { store.remove(name) }
         }
         .accessibilityLabel(symbol == current ? "Sticker, chosen" : "Sticker")
-        .accessibilityHint(symbol == current ? "Takes it off the day" : "Puts it on the day")
+        .accessibilityHint(purpose == .drawing ? "Puts it on the drawing"
+                           : symbol == current ? "Takes it off the day" : "Puts it on the day")
     }
 
     private var makingTile: some View {

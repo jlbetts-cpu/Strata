@@ -7,13 +7,17 @@ import SwiftUI
 /// same thing a reply says about where it goes and how long it lasts: into
 /// the crew's day chat, quoting the win (2026-10-05).
 ///
-/// Nothing is drawn for you and nothing is chosen: one ink, the eraser, undo.
+/// Nothing is drawn for you and nothing is chosen: one ink, the eraser, undo,
+/// and a sticker of your own if you want one (the owner, 2026-10-06: "make it
+/// so you can add stickers to doodles when you are drawing them").
 /// While there is ink on it a swipe does not throw it away; Cancel does.
 struct DoodleSheet: View {
     /// Whoever posted the win, by name.
     let owner: String
-    /// Hands the drawing back; the panel exports and sends it.
-    let send: (PKDrawing) -> Void
+    /// Hands the drawing and its stickers back; the panel exports it
+    /// (`InkExport.doodlePNG`, which takes the stickers into the one picture
+    /// it sends) and sends it.
+    let send: (InkDoodle) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var ink = InkController()
@@ -40,7 +44,8 @@ struct DoodleSheet: View {
                                 onCancel: { dismiss() },
                                 onConfirm: {
                                     HapticsEngine.lightTap()
-                                    send(ink.drawing)
+                                    send(InkDoodle(drawing: ink.drawing, stickers: ink.stickers,
+                                                   canvas: ink.canvasSize))
                                     dismiss()
                                 })
             }

@@ -19,6 +19,10 @@ import TipKit
 /// the very type the page sets it in (`DrawingLine`), centred where it will
 /// sit, so what you write is what Memories shows.
 ///
+/// **Stickers of your own on it** (the owner, 2026-10-06: "make it so you can
+/// add stickers to doodles when you are drawing them"), from the canvas's
+/// row, kept in the record and popped in by the replay once the lines are on.
+///
 /// Done with nothing drawn is the original again (`MonthDrawingStore.save`).
 struct MonthDrawingEditor: View {
     /// "2026-10".
@@ -32,8 +36,9 @@ struct MonthDrawingEditor: View {
     @State private var line: String
     @State private var canvasSize: CGSize = .zero
     /// The strokes as they were when the editor opened, at this canvas's
-    /// size, to tell an edit from a look.
+    /// size, to tell an edit from a look; and the stickers, likewise.
     @State private var baseline = Data()
+    @State private var baselineStickers: [InkSticker] = []
     private let saved: MonthDrawing?
 
     /// The month art's shape: the owner's drawings are 2:3 (October is 580 by
@@ -48,7 +53,7 @@ struct MonthDrawingEditor: View {
         let saved = (store ?? .shared).drawing(for: month)
         self.saved = saved
         let strokes = saved.flatMap { try? PKDrawing(data: $0.strokes) } ?? PKDrawing()
-        _ink = State(initialValue: InkController(drawing: strokes))
+        _ink = State(initialValue: InkController(drawing: strokes, stickers: saved?.stickers ?? []))
         _bringsToLife = State(initialValue: saved?.bringsToLife ?? true)
         _line = State(initialValue: saved?.line ?? "")
     }
@@ -105,8 +110,10 @@ struct MonthDrawingEditor: View {
         if !ink.canUndo, let saved, let strokes = try? PKDrawing(data: saved.strokes) {
             let k = size.width / saved.canvasWidth
             ink.load(abs(k - 1) < 0.001 ? strokes
-                     : strokes.transformed(using: CGAffineTransform(scaleX: k, y: k)))
+                     : strokes.transformed(using: CGAffineTransform(scaleX: k, y: k)),
+                     stickers: (saved.stickers ?? []).map { $0.scaled(by: k) })
             baseline = ink.drawing.dataRepresentation()
+            baselineStickers = ink.stickers
         }
     }
 
@@ -114,11 +121,11 @@ struct MonthDrawingEditor: View {
         HapticsEngine.lightTap()
         // Opened and closed with nothing changed writes nothing.
         let untouched = saved.map {
-            baseline == ink.drawing.dataRepresentation() && $0.bringsToLife == bringsToLife
-                && $0.line == DrawingLine.kept(line)
+            baseline == ink.drawing.dataRepresentation() && baselineStickers == ink.stickers
+                && $0.bringsToLife == bringsToLife && $0.line == DrawingLine.kept(line)
         } ?? ink.isEmpty
         if !untouched {
-            MonthDrawingStore.shared.save(ink.drawing, canvas: canvasSize,
+            MonthDrawingStore.shared.save(ink.drawing, stickers: ink.stickers, canvas: canvasSize,
                                           bringsToLife: bringsToLife, line: line, for: month)
         }
         dismiss()
