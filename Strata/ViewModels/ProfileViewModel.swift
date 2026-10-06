@@ -37,10 +37,10 @@ final class ProfileViewModel {
             barsByUnit[unit] = WinTrend.bars(dayCounts: counts, unit: unit, today: today)
             summaryByUnit[unit] = WinTrend.summary(dayCounts: counts, unit: unit, today: today)
         }
-        currentStreak = Streaks.current(among: counts.keys, today: today)
+        currentStreak = Streaks.current(among: counts.keys, today: today, restsPerWeek: Streaks.Rest.profile)
         // Best can never read lower than current. They are the same run on
         // the day a record is being set, and a "best" under "current" would
         // be the page contradicting itself.
-        bestStreak = max(Streaks.longest(among: counts.keys), currentStreak)
+        bestStreak = max(Streaks.longest(among: counts.keys, restsPerWeek: Streaks.Rest.profile), currentStreak)
     }
 }

@@ -74,9 +74,9 @@ struct CohesionPassTests {
     @Test("the streak line is the rule, or everyone in, and never a name")
     func streakLineHasNoNames() {
         #expect(CrewStats.streakLine(people: 3, waiting: 0) == "Everyone's in today.")
-        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "A day counts when everyone posts a win.")
-        #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when everyone posts a win.")
-        #expect(CrewStats.streakLine(people: 1, waiting: 0) == "A day counts when everyone posts a win.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "A day counts when everyone posts a win. Two days off a week are fine.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when everyone posts a win. Two days off a week are fine.")
+        #expect(CrewStats.streakLine(people: 1, waiting: 0) == "A day counts when everyone posts a win. Two days off a week are fine.")
     }
 
     @Test("no crew screen says who is still to post")

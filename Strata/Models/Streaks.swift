@@ -22,7 +22,9 @@ enum Streaks {
     /// the neighbour test below can be a string comparison rather than a
     /// calendar computation.
     static func longest(among dayKeys: some Sequence<String>,
-                        calendar: Calendar = .current) -> Int {
+                        calendar: Calendar = .current,
+                        restsPerWeek: Int = 0) -> Int {
+        if restsPerWeek > 0 { return Rest.longest(Set(dayKeys), restsPerWeek: restsPerWeek) }
         let days = Set(dayKeys).sorted()
         guard !days.isEmpty else { return 0 }
 
@@ -48,9 +50,11 @@ enum Streaks {
     /// lost something you had not.
     static func current(among dayKeys: some Sequence<String>,
                         today: Date = Date(),
-                        calendar: Calendar = .current) -> Int {
+                        calendar: Calendar = .current,
+                        restsPerWeek: Int = 0) -> Int {
         let days = Set(dayKeys)
         let todayKey = DateUtils.dateString(from: today)
+        if restsPerWeek > 0 { return Rest.current(days, today: todayKey, restsPerWeek: restsPerWeek) }
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return 0 }
         let yesterdayKey = DateUtils.dateString(from: yesterday)
 
@@ -100,11 +104,12 @@ enum Streaks {
 
         mutating func current(among dayKeys: some Sequence<String>,
                               today: Date = Date(),
-                              calendar: Calendar = .current) -> Int {
+                              calendar: Calendar = .current,
+                              restsPerWeek: Int = 0) -> Int {
             let days = Set(dayKeys)
             let sig = Self.signature(of: days, today: today)
             if sig != signature {
-                value = Streaks.current(among: days, today: today, calendar: calendar)
+                value = Streaks.current(among: days, today: today, calendar: calendar, restsPerWeek: restsPerWeek)
                 signature = sig
             }
             return value
@@ -179,5 +184,82 @@ enum Streaks {
             return false
         }
         return DateUtils.dateString(from: next) == day
+    }
+}
+
+// MARK: - Rest days
+
+extension Streaks {
+    /// **Rest days** (2026-10-06, the retention pass the owner asked for:
+    /// "building the habit of coming back and the ritual of winning
+    /// together").
+    ///
+    /// An all-or-nothing streak is the loudest way an app can tell someone
+    /// with ADHD they failed, and the research is plain that a broken streak
+    /// makes people stop rather than start again. So a missed day is a rest
+    /// day, free, as long as a week holds no more than a few of them: one for
+    /// your own streak, two for a crew's, because a crew needs everyone on
+    /// the same day. Nothing is paid for, nothing is restored by hand, and
+    /// nothing says a day was missed. A rest day bridges a run; it is never
+    /// counted in it, so the number is still days you won.
+    ///
+    /// "A week" is any seven days in a row, not a calendar week, so a run
+    /// cannot save up rest days at the end of one week and spend them at the
+    /// start of the next.
+    enum Rest {
+        static let profile = 1
+        static let crew = 2
+
+        /// The run still alive. Today is open, so it is never a rest day:
+        /// the walk starts today if today is won, otherwise yesterday.
+        static func current(_ keys: Set<String>, today: String, restsPerWeek: Int) -> Int {
+            let days = Set(keys.compactMap(ordinal))
+            guard let now = ordinal(today) else { return 0 }
+            return run(endingAt: days.contains(now) ? now : now - 1, in: days, restsPerWeek: restsPerWeek)
+        }
+
+        /// The longest run there has been, rest days bridging it.
+        static func longest(_ keys: Set<String>, restsPerWeek: Int) -> Int {
+            let days = Set(keys.compactMap(ordinal))
+            // A run can only end on a won day whose next day was not won.
+            return days.filter { !days.contains($0 + 1) }
+                .map { run(endingAt: $0, in: days, restsPerWeek: restsPerWeek) }
+                .max() ?? 0
+        }
+
+        /// Won days counted back from `end`. A day not won is a rest while
+        /// the seven days from it onward hold fewer than `restsPerWeek` rests
+        /// already, and while there is a won day before it to bridge to.
+        static func run(endingAt end: Int, in days: Set<Int>, restsPerWeek: Int) -> Int {
+            guard let first = days.min() else { return 0 }
+            var count = 0
+            var rests: [Int] = []
+            var day = end
+            while day >= first {
+                if days.contains(day) {
+                    count += 1
+                } else {
+                    rests.removeAll { $0 > day + 6 }
+                    guard rests.count < restsPerWeek else { break }
+                    rests.append(day)
+                }
+                day -= 1
+            }
+            return count
+        }
+
+        /// A `yyyy-MM-dd` key as a day number, so neighbours are one apart
+        /// without a `Calendar` (days from civil, proleptic Gregorian).
+        static func ordinal(_ key: String) -> Int? {
+            let parts = key.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3 else { return nil }
+            let m = parts[1], d = parts[2]
+            let y = parts[0] - (m <= 2 ? 1 : 0)
+            let era = (y >= 0 ? y : y - 399) / 400
+            let yoe = y - era * 400
+            let doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1
+            let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+            return era * 146_097 + doe
+        }
     }
 }

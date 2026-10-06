@@ -72,14 +72,23 @@ struct CrewHistoryTests {
         #expect(history.totals == ["2026-09-20": 1])
     }
 
+    /// The break was one missed day until rest days (2026-10-06): a crew
+    /// keeps two a week, so it takes three missed days in a row to end a run.
     @Test func aBreakEndsTheCurrentStreakNotTheBest() {
         var history = CrewHistory()
         let members = [member(jayden, joined: "2026-09-01")]
-        let days = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-05"]
-        history.record(days.map { win(jayden, on: $0) }, from: "2026-09-01", through: "2026-09-05")
+        let days = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-07"]
+        history.record(days.map { win(jayden, on: $0) }, from: "2026-09-01", through: "2026-09-07")
         let full = history.fullDays(members: members, zone: zone)
-        #expect(CrewHistory.streak(full, today: "2026-09-05", zone: zone) == 1)
+        #expect(CrewHistory.streak(full, today: "2026-09-07", zone: zone) == 1)
         #expect(CrewHistory.best(full, zone: zone) == 3)
+    }
+
+    @Test func twoDaysOffAWeekKeepTheCrewsStreak() {
+        let full: Set<String> = ["2026-09-01", "2026-09-02", "2026-09-04", "2026-09-06", "2026-09-07"]
+        // The 3rd and the 5th are rest days: five days won, one run.
+        #expect(CrewHistory.streak(full, today: "2026-09-07", zone: zone) == 5)
+        #expect(CrewHistory.best(full, zone: zone) == 5)
     }
 
     @Test func aCrewDayIsOneReplayDay() throws {

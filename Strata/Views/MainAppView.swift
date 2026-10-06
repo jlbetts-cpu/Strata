@@ -2634,13 +2634,13 @@ struct MainAppView: View {
         switch widgetPublisher.days.advance(lifetime: lifetime, todayKey: dayKey) {
         case .current:
             if let days = widgetPublisher.days.days {
-                return widgetPublisher.streak.current(among: days, today: today)
+                return widgetPublisher.streak.current(among: days, today: today, restsPerWeek: Streaks.Rest.profile)
             }
         case .needsNewestKey:
             if let newest = Self.fetchNewestDayKey(context: modelContext) {
                 widgetPublisher.days.insert(newestKey: newest, lifetime: lifetime, todayKey: dayKey)
                 if let days = widgetPublisher.days.days {
-                    return widgetPublisher.streak.current(among: days, today: today)
+                    return widgetPublisher.streak.current(among: days, today: today, restsPerWeek: Streaks.Rest.profile)
                 }
             }
         case .needsFetch:
@@ -2650,7 +2650,7 @@ struct MainAppView: View {
         if widgetPublisher.days.days == nil {
             if let days = Self.fetchDayKeys(context: modelContext, horizon: horizon) {
                 widgetPublisher.days.replace(days: days, lifetime: lifetime, todayKey: dayKey)
-                return widgetPublisher.streak.current(among: days, today: today)
+                return widgetPublisher.streak.current(among: days, today: today, restsPerWeek: Streaks.Rest.profile)
             }
             return widgetPublisher.streak.value
         }

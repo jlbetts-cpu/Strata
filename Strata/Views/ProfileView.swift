@@ -453,6 +453,11 @@ struct ProfileView: View {
             if vm.currentStreak == 0 {
                 Text("Log a win to start one.")
                     .formFooter()
+            } else {
+                // Rest days (`Streaks.Rest`): said once, here, so a day off
+                // is known to be allowed before it is taken.
+                Text("A day off a week won't break it.")
+                    .formFooter()
             }
         }
     }

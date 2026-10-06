@@ -67,28 +67,17 @@ nonisolated struct CrewHistory: Codable, Equatable, Sendable {
 
     /// Days in a row everyone posted, ending today, or yesterday while today
     /// is still open: a streak is not broken by a morning.
+    ///
+    /// Two rest days in any seven bridge it (`Streaks.Rest`): a crew needs
+    /// everyone on the same day, and one person's bad day should never be the
+    /// crew's loss.
     static func streak(_ full: Set<String>, today: String, zone: TimeZone) -> Int {
-        var day = full.contains(today) ? today : (CrewDay.day(today, offsetBy: -1, in: zone) ?? today)
-        var count = 0
-        while full.contains(day) {
-            count += 1
-            guard let before = CrewDay.day(day, offsetBy: -1, in: zone) else { break }
-            day = before
-        }
-        return count
+        Streaks.Rest.current(full, today: today, restsPerWeek: Streaks.Rest.crew)
     }
 
     /// The longest run there has been.
     static func best(_ full: Set<String>, zone: TimeZone) -> Int {
-        var best = 0
-        var run = 0
-        var previous: String?
-        for day in full.sorted() {
-            if let previous, CrewDay.day(previous, offsetBy: 1, in: zone) == day { run += 1 } else { run = 1 }
-            best = max(best, run)
-            previous = day
-        }
-        return best
+        Streaks.Rest.longest(full, restsPerWeek: Streaks.Rest.crew)
     }
 
     /// The people who have not posted yet today, in the order they joined.

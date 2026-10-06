@@ -237,4 +237,61 @@ struct StreaksTests {
         #expect(days.lifetime == 5)
         #expect(days.days == ["2026-09-14"])
     }
+
+    // MARK: - Rest days
+
+    /// 2026-10-06: a missed day is a free rest day, one a week for your own
+    /// streak and two for a crew's. A rest bridges a run and is never counted
+    /// in it.
+    @Test("one day off a week bridges your streak, and is not counted")
+    func oneRestBridges() {
+        let days = ["2026-10-01", "2026-10-02", "2026-10-04", "2026-10-05"]
+        #expect(Streaks.Rest.current(Set(days), today: "2026-10-05", restsPerWeek: 1) == 4)
+        #expect(Streaks.Rest.longest(Set(days), restsPerWeek: 1) == 4)
+    }
+
+    @Test("two days off inside a week end your streak")
+    func twoRestsBreak() {
+        let days = ["2026-10-01", "2026-10-02", "2026-10-04", "2026-10-06"]
+        #expect(Streaks.Rest.current(Set(days), today: "2026-10-06", restsPerWeek: 1) == 2)
+        #expect(Streaks.Rest.longest(Set(days), restsPerWeek: 1) == 3)
+    }
+
+    @Test("a week is any seven days, so a rest a week apart is fine")
+    func restsAWeekApart() {
+        // Rests on the 3rd and the 10th: seven days apart, never two in seven.
+        let won = (1...12).filter { $0 != 3 && $0 != 10 }.map { String(format: "2026-10-%02d", $0) }
+        #expect(Streaks.Rest.current(Set(won), today: "2026-10-12", restsPerWeek: 1) == 10)
+    }
+
+    @Test("today is open: missing yesterday is the rest, and the run is alive")
+    func yesterdayIsTheRest() {
+        let days = ["2026-10-02", "2026-10-03", "2026-10-04"]
+        #expect(Streaks.Rest.current(Set(days), today: "2026-10-06", restsPerWeek: 1) == 3)
+        #expect(Streaks.Rest.current(Set(days), today: "2026-10-07", restsPerWeek: 1) == 0)
+    }
+
+    @Test("nothing won is no streak, rest days or not")
+    func nothingIsNothing() {
+        #expect(Streaks.Rest.current([], today: "2026-10-06", restsPerWeek: 2) == 0)
+        #expect(Streaks.Rest.longest([], restsPerWeek: 2) == 0)
+    }
+
+    @Test("day numbers are one apart across a month, a year and a leap day")
+    func ordinals() {
+        let o = Streaks.Rest.ordinal
+        #expect(o("2026-10-01")! - o("2026-09-30")! == 1)
+        #expect(o("2027-01-01")! - o("2026-12-31")! == 1)
+        #expect(o("2028-03-01")! - o("2028-02-29")! == 1)
+        #expect(o("2028-02-29")! - o("2028-02-28")! == 1)
+    }
+
+    @Test("Profile and the widget keep one rest day a week, a crew two")
+    func wired() throws {
+        let profile = SourceSweep.code(try SourceSweep.read("Strata/ViewModels/ProfileViewModel.swift"))
+        #expect(profile.contains("restsPerWeek: Streaks.Rest.profile"))
+        let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
+        #expect(main.components(separatedBy: "restsPerWeek: Streaks.Rest.profile").count == 4)
+        #expect(Streaks.Rest.profile == 1 && Streaks.Rest.crew == 2)
+    }
 }

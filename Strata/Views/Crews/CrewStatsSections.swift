@@ -42,7 +42,9 @@ struct CrewStats: Equatable {
     /// itself otherwise. The waiting list is still counted (`waiting`); only
     /// its emptiness is ever said out loud.
     static func streakLine(people: Int, waiting: Int) -> String {
-        people > 1 && waiting == 0 ? "Everyone's in today." : "A day counts when everyone posts a win."
+        // The rule says rest days are free, so a quiet day reads as allowed
+        // rather than as a streak quietly at risk (`Streaks.Rest`).
+        people > 1 && waiting == 0 ? "Everyone's in today." : "A day counts when everyone posts a win. Two days off a week are fine."
     }
 
     static func make(_ inputs: Inputs) -> CrewStats {
