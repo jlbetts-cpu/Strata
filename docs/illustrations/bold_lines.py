@@ -6,8 +6,9 @@ and makeing sure you arent removing any key things").
 Run from docs/illustrations: reads originals/*.png (his drawings as he drew
 them) and writes the app's assets in Strata/Assets.xcassets.
 
-- Every line thickens by the same amount, at 4x and scaled back down, so the
-  weight is even and every edge is one crisp edge. (Thickening only the sparse
+- Two weights, like the logo: the outside line thickens more than the lines
+  inside it, easing between the two along a line. At 4x and scaled back
+  down, so every edge is one crisp edge. (Thickening only the sparse
   outlines was tried: the weight changed along a stroke and the ends beaded.)
 - October's scarecrow loses only the pieces that stand apart from the figure:
   the shirt and trouser patches (but not the leg line the trouser patch
@@ -20,7 +21,7 @@ them) and writes the app's assets in Strata/Assets.xcassets.
 import os
 from collections import deque
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 UP = 4
 ASSETS = '../../Strata/Assets.xcassets'
@@ -55,7 +56,32 @@ def pieces(alpha):
                 sizes[n] = count
     return lab, sizes
 
-def bold(img, r, remove=None, spare=None):
+def dilate(mask, px):
+    g = mask
+    for _ in range(int(round(px))):
+        g = g.filter(ImageFilter.MaxFilter(3))
+    return g
+
+def outside_of(ink, close):
+    """Background reachable from the edge, once gaps up to 2 x close are shut."""
+    shut = np.array(dilate(Image.fromarray(ink.astype(np.uint8) * 255), close)) > 0
+    pad = Image.fromarray(np.pad(~shut, 1, constant_values=True).astype(np.uint8) * 128).copy()
+    ImageDraw.floodfill(pad, (0, 0), 255)
+    return (np.array(pad) == 255)[1:-1, 1:-1]
+
+def blur(arr, sigma):
+    im = Image.fromarray(np.clip(arr * 255, 0, 255).astype(np.uint8))
+    return np.array(im.filter(ImageFilter.GaussianBlur(sigma))).astype(float) / 255
+
+def bold(img, r_out, r_in, remove=None, spare=None, close=6, ease=10, steps=6):
+    """Two weights, as the logo has them (the owner, 2026-10-06: "notice how
+    the outside line is thicker than the inside line... two weight strokes,
+    thick and a still thick but a bit thinner"): the line that traces the
+    figure's outside thickens by r_out, every line inside it by r_in.
+
+    Where a line turns from the outside inward the weight eases along it
+    over about `ease` pixels, rather than stepping: the share of the ink
+    around a point that is outside line sets its radius."""
     a = np.array(img.getchannel('A')).astype(float) / 255
     if remove:
         lab, sizes = pieces(np.array(img.getchannel('A')))
@@ -67,13 +93,22 @@ def bold(img, r, remove=None, spare=None):
         for k, from_x in (spare or {}).items():
             keep |= (lab == k) & (columns >= from_x)
         a[grow(np.isin(lab, list(gone)) & ~keep, 3) & ~keep] = 0
+    ink = a > 0.5
+    near = np.array(dilate(Image.fromarray(outside_of(ink, close).astype(np.uint8) * 255), close + 3)) > 0
+    outer = ink & near
+    w = np.clip(blur(outer.astype(float), ease) / np.maximum(blur(ink.astype(float), ease), 1e-3), 0, 1)
     A = Image.fromarray((a * 255).astype(np.uint8))
     big = A.resize((A.width * UP, A.height * UP), Image.BICUBIC)
-    g = Image.fromarray(((np.array(big) >= 128) * 255).astype(np.uint8))
-    for _ in range(int(round(r * UP))):
-        g = g.filter(ImageFilter.MaxFilter(3))
+    g = np.array(big) >= 128
+    W = np.array(Image.fromarray((w * 255).astype(np.uint8)).resize(big.size, Image.BILINEAR)).astype(float) / 255
+    acc = np.zeros(g.shape, np.uint8)
+    for i in range(steps + 1 if r_out != r_in else 1):
+        t = i / steps
+        sel = g & (W >= t - 1e-6) if i else g
+        acc = np.maximum(acc, np.array(dilate(Image.fromarray(sel.astype(np.uint8) * 255),
+                                              (r_in + (r_out - r_in) * t) * UP)))
     out = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    out.putalpha(g.resize(img.size, Image.LANCZOS))
+    out.putalpha(Image.fromarray(acc).resize(img.size, Image.LANCZOS))
     return out
 
 # Pieces of the scarecrow that stand apart from the figure (see the module note).
@@ -85,22 +120,25 @@ OCTOBER_EXTRAS = {2, 3, 8, 10, 12, 13, 14, 15, 16, 17, 20, 21, 23, 25}
 # and one meets the line at 391-392, which left a nub there.
 OCTOBER_SPARE = {17: 393}
 
+# (name, outside line, inside lines, pieces removed, part spared). The crows
+# keep their lighter pen, at the same two-to-one; the mouth and the cheer's
+# marks are inside lines only, at one weight.
 JOBS = [
-    ('MonthOctober', 1.5, OCTOBER_EXTRAS, OCTOBER_SPARE),
-    ('MonthOctoberCrow', 1.1, None, None),
-    ('MonthOctoberCrowDown', 1.1, None, None),
-    ('MonthOctoberCrowHead', 1.1, None, None),
-    ('MonthOctoberCrowOut', 1.1, None, None),
-    ('MonthOctoberMouth', 1.0, None, None),
-    ('CrewsTogether', 1.5, None, None),
-    ('CrewsTogetherCheer', 1.0, None, None),
+    ('MonthOctober', 3.0, 1.5, OCTOBER_EXTRAS, OCTOBER_SPARE),
+    ('MonthOctoberCrow', 2.2, 1.1, None, None),
+    ('MonthOctoberCrowDown', 2.2, 1.1, None, None),
+    ('MonthOctoberCrowHead', 2.2, 1.1, None, None),
+    ('MonthOctoberCrowOut', 2.2, 1.1, None, None),
+    ('MonthOctoberMouth', 1.0, 1.0, None, None),
+    ('CrewsTogether', 3.0, 1.5, None, None),
+    ('CrewsTogetherCheer', 1.0, 1.0, None, None),
 ]
 
 if __name__ == '__main__':
-    for name, r, remove, spare in JOBS:
+    for name, r_out, r_in, remove, spare in JOBS:
         src = Image.open(f'originals/{name}.png').convert('RGBA')
-        out = bold(src, r, remove, spare)
+        out = bold(src, r_out, r_in, remove, spare)
         folder = f'{ASSETS}/{name}.imageset'
         target = [f for f in os.listdir(folder) if f.endswith('.png')][0]
         out.save(f'{folder}/{target}')
-        print(name, r)
+        print(name, r_out, r_in)
