@@ -1039,9 +1039,33 @@ final class SocialStore {
 
     /// Whether a friend has said something in the crew's chat today that you
     /// have not opened.
+    ///
+    /// **And a friend's reaction to one of your lines** (the owner,
+    /// 2026-10-06: "the chat notification changes like understand the
+    /// connection of all the elements"). A reaction is something new in the
+    /// chat as much as a line is, so it lights the same dot, and through it
+    /// the crew's row, the Crews button and the app's badge.
     func hasUnreadChat(_ crewID: CrewID) -> Bool {
         let seen = Set(chatSeen[crewID.rawValue] ?? [])
-        return messages(in: crewID).contains { $0.senderProfileID != me && !seen.contains($0.messageID.uuidString) }
+        return chatNews(in: crewID).contains { !seen.contains($0) }
+    }
+
+    /// Everything a friend has put in today's chat, as the keys the seen list
+    /// keeps: their lines, and their reactions to your lines.
+    private func chatNews(in crewID: CrewID) -> [String] {
+        let lines = messages(in: crewID)
+        let mine = Set(lines.filter { $0.senderProfileID == me }.map(\.messageID))
+        let theirLines = lines.filter { $0.senderProfileID != me }.map(\.messageID.uuidString)
+        let reactions = messageReactions(in: crewID)
+            .filter { mine.contains($0.key) }
+            .flatMap(\.value)
+            .filter { $0.profileID != me }
+            .map(Self.seenKey)
+        return theirLines + reactions
+    }
+
+    private static func seenKey(_ reaction: Reaction) -> String {
+        "r:\(reaction.winID.uuidString):\(reaction.profileID.uuidString):\(reaction.emoji)"
     }
 
     /// The chat is open: everything in it now has been seen. **Kept per
@@ -1050,9 +1074,11 @@ final class SocialStore {
     /// so the list stays a day long.
     func markChatSeen(_ crewID: CrewID) {
         var seen = chatSeen
-        seen[crewID.rawValue] = messages(in: crewID).map(\.messageID.uuidString)
+        seen[crewID.rawValue] = messages(in: crewID).map(\.messageID.uuidString) + chatNews(in: crewID)
         defaults.set(seen, forKey: Self.chatSeenKey)
         if unreadChats.contains(crewID) { unreadChats.remove(crewID) }
+        // The badge on the app's icon follows at once, as the dots do.
+        updateBadge()
         if announces { CrewNotifications.chatOpened(crewID) }
     }
 
@@ -1531,7 +1557,9 @@ final class SocialStore {
     /// own store sets it; a test's never does.
     private func updateBadge() {
         guard announces else { return }
-        let count = unread.count
+        // Crews with anything new: a win or a reaction to yours, or a line or
+        // a reaction in the chat. The same set the Crews button's dot reads.
+        let count = unread.union(unreadChats).count
         Task { try? await UNUserNotificationCenter.current().setBadgeCount(count) }
     }
 

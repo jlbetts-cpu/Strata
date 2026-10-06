@@ -280,4 +280,38 @@ struct ChatReactionTests {
         #expect(!bar.contains(".shadow("), "chrome casts no shadow")
         #expect(!bar.contains(".buttonStyle(.plain)"), "a sticker tile is not glass")
     }
+
+    /// The owner, 2026-10-06: "understand the connection of all the
+    /// elements". A friend reacting to your line is news in the chat, so it
+    /// lights the chat's dot (and through it the crew's row, the Crews
+    /// button and the app's badge), and opening the chat puts it out.
+    @Test("a friend's reaction to your line lights the chat, and opening it puts it out")
+    func reactionIsNews() async throws {
+        let (a, b, crew, line) = try await pairWithALine()
+        a.markChatSeen(crew.id)
+        #expect(!a.hasUnreadChat(crew.id))
+        await b.react(.emoji("🔥"), toMessage: line.messageID, in: crew.id)
+        await a.refresh()
+        #expect(a.hasUnreadChat(crew.id))
+        #expect(a.unreadChats == [crew.id])
+        a.markChatSeen(crew.id)
+        #expect(!a.hasUnreadChat(crew.id))
+        #expect(a.unreadChats.isEmpty)
+        // Your own reaction to their line is never news to you.
+        await b.send("you too", in: crew.id)
+        await a.refresh()
+        a.markChatSeen(crew.id)
+        let theirs = try #require(a.messages(in: crew.id).first { $0.senderProfileID == sam })
+        await a.react(.emoji("👏"), toMessage: theirs.messageID, in: crew.id)
+        await a.refresh()
+        #expect(!a.hasUnreadChat(crew.id))
+    }
+
+    @Test("the app's badge counts crews with a new chat, and opening one updates it")
+    func badgeCountsChats() throws {
+        let code = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))
+        #expect(code.contains("let count = unread.union(unreadChats).count"))
+        let seen = try #require(code.range(of: "func markChatSeen"))
+        #expect(code[seen.lowerBound...].prefix(600).contains("updateBadge()"))
+    }
 }
