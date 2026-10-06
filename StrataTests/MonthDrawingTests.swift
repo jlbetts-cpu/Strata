@@ -163,23 +163,30 @@ struct MonthDrawingTests {
         #expect(rows == rows.sorted())
         let lengths = lines.map(InkReplay.length)
         #expect(lengths[2] > lengths[0] && lengths[0] > lengths[1])
-        // `InkTests.drawing` records each point at the size given (2.5), so
-        // the replay draws the line PencilKit draws for that size.
+        // `InkTests.drawing` records each point at the size given
+        // (`InkPen.width`, 1.5 since 2026-10-05; it was 2.5), so the replay
+        // draws the line PencilKit draws for that size.
         #expect(lines.allSatisfy { abs($0.width - InkPen.lineWidth(forPointSize: InkPen.width)) < 0.01 })
     }
 
     @Test("the tool is set so the line drawn is the house width")
     func penCalibration() {
-        // Measured on the simulator: a point records at the tool's width plus
-        // 2, and draws about 1.35 times its size less 1.6. The round trip
-        // lands the line at 2.5.
+        // A point records at the tool's width plus 2, and draws twice the
+        // tool's width. The round trip lands the line at the house width
+        // (1.5 since 2026-10-05, when the owner's own drawings measured 1.3
+        // to 1.7pt on screen; it was 2.5).
         let tool = InkPen.toolWidth(forLine: InkPen.width)
         #expect(abs(InkPen.lineWidth(forPointSize: tool + 2) - InkPen.width) < 0.01)
         #expect(abs(InkPen.lineWidth(forPointSize: InkPen.pointSize(forLine: 4)) - 4) < 0.01)
-        // The measured points it was fitted to, within a third of a point.
-        #expect(abs(InkPen.lineWidth(forPointSize: 4.5) - 4.2) < 0.33)
-        #expect(abs(InkPen.lineWidth(forPointSize: 6.8) - 7) < 0.33)
-        #expect(tool < InkPen.width, "a tool at the house width drew a 4.2pt line")
+        // **The measured points it is fitted to**, within 0.15pt. These were
+        // (4.5 -> 4.2) and (6.8 -> 7) under the first fit, which re-measuring
+        // on 2026-10-05 did not reproduce: four widths with real touches on
+        // the simulator, recorded size read from the saved drawing, line
+        // width off a 3x screenshot (`InkPen.toolWidth` has the method).
+        for (size, drawn) in [(2.71, 1.43), (3.45, 2.92), (4.17, 4.35), (5.30, 6.61)] as [(CGFloat, CGFloat)] {
+            #expect(abs(InkPen.lineWidth(forPointSize: size) - drawn) < 0.15, "recorded \(size) drew \(drawn)")
+        }
+        #expect(tool < InkPen.width, "a tool at the house width draws a line twice as wide")
     }
 
     @Test("a drawing fitted to a bigger canvas replays its lines bigger too")

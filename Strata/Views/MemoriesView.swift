@@ -737,7 +737,7 @@ struct MemoriesView: View {
             if !MonthDrawingStore.shared.hasDrawing(for: key) {
                 let canvas = CGSize(width: 300, height: 450)
                 MonthDrawingStore.shared.save(
-                    InkSamples.sunOverHill(in: canvas, width: InkPen.width * 450 / MonthDrawingEditor.shownHeight),
+                    InkSamples.sunOverHill(in: canvas, width: InkPen.width(onCanvasOfHeight: 450, shownAt: MonthDrawingEditor.shownHeight)),
                     canvas: canvas, bringsToLife: which != "still", for: key)
             }
             if which == "edit" {

@@ -9,9 +9,10 @@ import TipKit
 ///
 /// **The pen is scaled to the page, not to the editor.** The canvas here is
 /// larger than the drawing is shown (`MemoriesView` gives it 290pt of height
-/// at most), so a 2.5pt line drawn here would land thinner than the owner's
-/// own drawings. The pen is widened by the same ratio, and the line arrives
-/// on the page at the house width.
+/// at most), so a line drawn here at the house width would land thinner than
+/// the owner's own drawings. The pen is widened by the same ratio
+/// (`InkPen.width(onCanvasOfHeight:shownAt:)`), and the line arrives on the
+/// page at the house width.
 ///
 /// Done with nothing drawn is the original again (`MonthDrawingStore.save`).
 struct MonthDrawingEditor: View {
@@ -82,7 +83,7 @@ struct MonthDrawingEditor: View {
         let size = CGSize(width: width, height: width / Self.aspect)
         guard size.width > 0, size != canvasSize else { return }
         canvasSize = size
-        ink.penWidth = InkPen.width * size.height / Self.shownHeight
+        ink.penWidth = InkPen.width(onCanvasOfHeight: size.height, shownAt: Self.shownHeight)
         if !ink.canUndo, let saved, let strokes = try? PKDrawing(data: saved.strokes) {
             let k = size.width / saved.canvasWidth
             ink.load(abs(k - 1) < 0.001 ? strokes

@@ -72,30 +72,53 @@ nonisolated struct InkFiles: Sendable {
 
 /// **The pen, in one place.** Every ink surface in the app draws with this
 /// and nothing else: one black monoline at the house width, which is the
-/// weight of the owner's month drawings (about 2.5pt at the size they show).
-/// There is no colour and no width to choose (spec section 4, "Do not: a
-/// colour picker"), so there is no `PKToolPicker` either.
+/// weight of the owner's own drawings at the size they show. There is no
+/// colour and no width to choose (spec section 4, "Do not: a colour
+/// picker"), so there is no `PKToolPicker` either.
 nonisolated enum InkPen {
-    /// The line as it is SEEN, in points at the canvas's own size.
-    static let width: CGFloat = 2.5
+    /// The line as it is SEEN, in points where the drawing is shown.
+    ///
+    /// **1.5, and it was 2.5** (2026-10-05, the owner: a thinner pen
+    /// everywhere). His own drawings, measured on screen: the October
+    /// scarecrow's lines are about 1.3pt (4px at 3x) and the crews drawing's
+    /// about 1.7pt, so 2.5 drew nearly twice his weight. 1.5 sits between the
+    /// two. It needs a tool of 0.75, inside the calibration below (between
+    /// its 0.71 and 1.46 measurements) and clear of the 0.5 floor.
+    static let width: CGFloat = 1.5
+
+    /// **The pen for a canvas drawn bigger than it is shown**, so the line
+    /// lands at `width` where it is seen: the month editor (shown at 290) and
+    /// the journal's sketch editor (shown at `JournalSketches.shownHeight`).
+    static func width(onCanvasOfHeight canvas: CGFloat, shownAt shown: CGFloat) -> CGFloat {
+        guard canvas > 0, shown > 0 else { return width }
+        return width * canvas / shown
+    }
 
     /// **The tool is not set to the line it draws, and that was measured.**
-    /// A monoline `PKInkingTool` of width 2.5 drew a finger's line about
-    /// 4.2pt wide: each point is recorded at the tool's width plus 2, and the
-    /// line drawn from a point is about 1.35 times its size less 1.6.
-    /// Measured on the iOS 26.3 simulator with finger input, three widths
-    /// (tool 0.5, 2.5 and 4.8 recorded 2.5, 4.5 and 6.8, and drew 1.3, 4.2
-    /// and 7pt), 2026-10-05. Unverified on a device, where a finger may
-    /// record differently: check `lineWidth` there before trusting it.
-    static func toolWidth(forLine line: CGFloat) -> CGFloat { max(0.5, line / 1.35 + 1.6 - 2) }
+    /// Each point is recorded at the tool's width plus 2, and PencilKit draws
+    /// a line TWICE the tool's width: twice the recorded size less 2.
+    ///
+    /// **Re-measured 2026-10-05, and the first fit was wrong.** It read
+    /// `1.35 * (size - 1.6)` off three widths (tool 0.5, 2.5 and 4.8 drawing
+    /// 1.3, 4.2 and 7pt), and set to a 1.5pt line it drew 1.87 where the
+    /// sketch is shown. Measured again on the iOS 26.3 simulator with real
+    /// touches (`-strataPenLine` on the sketch editor, the recorded size read
+    /// back from the saved `.drawing`, the line's width read off a 3x
+    /// screenshot weighted by coverage): tool 0.71, 1.46, 2.17 and 3.30
+    /// recorded 2.71, 3.45, 4.17 and 5.30 and drew 1.43, 2.92, 4.35 and
+    /// 6.61pt, which is 2.0 times the tool to within 0.03pt at every one, and
+    /// did not change with the stroke's speed. Every pen the app sets (1.5 on
+    /// a doodle, up to about 3.5 in the two editors) is inside that range.
+    /// Unverified on a device: check `lineWidth` there before trusting it.
+    static func toolWidth(forLine line: CGFloat) -> CGFloat { max(0.5, line / 2) }
 
     /// The line PencilKit draws for a point of this recorded size, so the
     /// replay (`InkReplay`) lands at the weight the picture does.
-    static func lineWidth(forPointSize size: CGFloat) -> CGFloat { max(0.5, 1.35 * (size - 1.6)) }
+    static func lineWidth(forPointSize size: CGFloat) -> CGFloat { max(0.5, 2 * (size - 2)) }
 
     /// The size a point is recorded at for a line of this width: for drawings
     /// made in code (`InkSamples`), so they look like a finger's.
-    static func pointSize(forLine line: CGFloat) -> CGFloat { line / 1.35 + 1.6 }
+    static func pointSize(forLine line: CGFloat) -> CGFloat { line / 2 + 2 }
 
     static var tool: PKInkingTool {
         PKInkingTool(.monoline, color: .black, width: toolWidth(forLine: width))
