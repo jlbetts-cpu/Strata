@@ -82,3 +82,14 @@ light = solid(paper); light.paste(solid(ink), (0, 0), mask); light.save('AppIcon
 dark = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0)); dark.paste(Image.new('RGBA', (SIZE, SIZE), warm_white + (255,)), (0, 0), mask); dark.save('AppIcon-dark.png')
 tint = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0)); tint.paste(Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255)), (0, 0), mask); tint.save('AppIcon-tinted.png')
 print('ok', glyph.size)
+
+# The mark alone, for the launch and Settings: a template the code colours,
+# 128pt wide (the launch S was 122 x 128), holes and all.
+full = Image.fromarray(((smooth(silhouette, SMOOTH) & ~smooth(holes, HOLES)) * 255).astype(np.uint8))
+full = full.crop(full.getbbox())
+for scale in (2, 3):
+    w = 128 * scale
+    g = full.resize((w, round(full.height * w / full.width)), Image.LANCZOS)
+    black = Image.new('L', g.size, 0)
+    Image.merge('RGBA', [black, black, black, g]).save(f'BrandCamera@{scale}x.png')
+print('mark', g.size)

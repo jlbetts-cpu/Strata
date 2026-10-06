@@ -267,9 +267,10 @@ struct StrataMark: View {
     /// 0.52 it sits well inside a block that still reads as a block. Past
     /// about 0.6 it starts to touch the rim and the two stop being separate
     /// objects.
-    private static let capRatio: CGFloat = 0.52
-    /// From the drawing's viewBox: 38 x 40.
-    private static let aspect: CGFloat = 38.0 / 40.0
+    private static let capRatio: CGFloat = 0.48
+    /// **His drawn camera now** (the owner, 2026-10-06, "switch them to the
+    /// camera"), `BrandCamera`: 594 wide to 550 tall.
+    private static let aspect: CGFloat = 594.0 / 550.0
 
     var body: some View {
         BlockSurface(
@@ -280,7 +281,7 @@ struct StrataMark: View {
         }
         .frame(width: side, height: side)
         .overlay {
-            Image("StrataSMark")
+            Image("BrandCamera")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()

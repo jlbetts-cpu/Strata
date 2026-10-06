@@ -1,6 +1,10 @@
 import SwiftUI
 
-/// The launch: the icon's S tumbles in, lands white in the centre, and lets go.
+/// The launch: the icon's mark, white in the centre, held a beat, and let go.
+///
+/// **The mark is his drawn camera** (the owner, 2026-10-06: the logo is a
+/// camera now, "yes switch them to the camera"), `BrandCamera`, upright: the
+/// S's resting angle belonged to the S.
 ///
 /// The static launch screen is only `LaunchBlack` (Info.plist
 /// `UILaunchScreen`), the camera's own ground at 0.031 in both appearances,
@@ -67,7 +71,6 @@ struct LaunchHandoff: View {
         ZStack {
             Color("LaunchBlack")
             mark(f.fill)
-                .rotationEffect(.degrees(f.restAngle))
                 .frame(width: LaunchRoll.side, height: LaunchRoll.side)
                 .rotationEffect(.degrees(f.tilt), anchor: .bottomTrailing)
                 .offset(x: f.offset)
@@ -83,15 +86,13 @@ struct LaunchHandoff: View {
     @ViewBuilder
     private func mark(_ fill: Int) -> some View {
         if fill >= LaunchRoll.rolls {
-            Image("LaunchS").renderingMode(.template).foregroundStyle(.white)
+            Image("BrandCamera").renderingMode(.template).foregroundStyle(.white)
         } else {
             ZStack {
-                Image("LaunchS").renderingMode(.template)
+                Image("BrandCamera").renderingMode(.template)
                     .foregroundStyle(Self.palette[fill % Self.palette.count])
-                Image("LaunchS").renderingMode(.template)
+                Image("BrandCamera").renderingMode(.template)
                     .foregroundStyle(Self.wash)
-                Image("LaunchSRim").renderingMode(.template)
-                    .foregroundStyle(Self.rim)
             }
         }
     }
