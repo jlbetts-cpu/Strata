@@ -813,6 +813,54 @@ final class SocialStore {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    /// **Replies to a win**: each reaction's line, for whoever posted the win
+    /// and for the one who wrote it, and only on the crew day it was
+    /// written. "Replies clear when the day ends."
+    func replies(to winID: UUID, in crewID: CrewID) -> [Reaction] {
+        let owner = winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
+        return reactions(to: winID, in: crewID).filter { reaction in
+            reaction.line != nil && (owner == me || reaction.profileID == me)
+                && isToday(reaction.createdAt, in: crewID)
+        }
+    }
+
+    /// Whether this phone may write replies: not for someone whose age is
+    /// unknown or who chose not to say (the research: free text off for a
+    /// declined age, reactions on).
+    @ObservationIgnored var canReply: () -> Bool = {
+        let age = CrewAge.current
+        return age == .adult || age == .teen
+    }
+
+    enum ReplyOutcome { case sent, refusedWords, notAllowed }
+
+    /// An emoji and a short line on a friend's win, seen only by them. The
+    /// words are checked here first (`CrewWords`); the line clears when the
+    /// crew's day ends (`prune`).
+    @discardableResult
+    func reply(_ line: String, emoji: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        let text = String(line.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Reaction.lineLimit))
+        guard canReply(), isEnabled(), crew(crewID) != nil,
+              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me else { return .notAllowed }
+        guard CrewWords.isAcceptable(text) else { return .refusedWords }
+        let name = Reaction.name(winID: winID, profileID: me)
+        var list = reactionsByCrew[crewID] ?? []
+        list.removeAll { $0.id == name }
+        var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
+        reaction.line = text.isEmpty ? nil : text
+        list.append(reaction)
+        reactionsByCrew[crewID] = list
+        enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        await flush()
+        return .sent
+    }
+
+    private func isToday(_ date: Date, in crewID: CrewID) -> Bool {
+        guard let zone = crew(crewID)?.timeZone else { return false }
+        return CrewDay.string(for: date, in: zone) == CrewDay.string(for: now(), in: zone)
+    }
+
     func myReaction(to winID: UUID, in crewID: CrewID) -> String? {
         reactionsByCrew[crewID]?.first { $0.winID == winID && $0.profileID == me }?.emoji
     }
@@ -832,7 +880,9 @@ final class SocialStore {
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
         } else {
-            let reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
+            var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
+            // A new emoji keeps today's reply under it.
+            if let previous, let line = previous.line, isToday(previous.createdAt, in: crewID) { reaction.line = line }
             list.append(reaction)
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
@@ -1068,6 +1118,17 @@ final class SocialStore {
                 for reaction in orphans where reaction.profileID == me {
                     enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
                 }
+            }
+            // **Replies clear when the day ends.** Only the writer's phone may
+            // change a reaction record, so each phone clears its own; the
+            // reading side already shows no line from another day.
+            for (index, reaction) in (reactionsByCrew[crew.id] ?? []).enumerated()
+            where reaction.profileID == me && reaction.line != nil
+                && CrewDay.string(for: reaction.createdAt, in: crew.timeZone) < today {
+                var cleared = reaction
+                cleared.line = nil
+                reactionsByCrew[crew.id]?[index] = cleared
+                enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: CrewRecords.fields(cleared)))
             }
             let old = (winsByCrew[crew.id] ?? []).filter { $0.crewDay < cutoff }
             guard !old.isEmpty else { continue }

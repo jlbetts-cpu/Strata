@@ -189,8 +189,15 @@ nonisolated struct Reaction: Identifiable, Codable, Equatable, Sendable {
     let profileID: UUID
     var emoji: String
     var createdAt: Date
+    /// **A reply**: a short line with the emoji, shown only to whoever posted
+    /// the win (and to you), and only on the crew day it was written
+    /// (`SocialStore.replies`). Nil for a plain reaction.
+    var line: String? = nil
 
     var id: String { Self.name(winID: winID, profileID: profileID) }
+
+    /// The longest a reply can be: a line, not a message.
+    static let lineLimit = 80
 
     static func name(winID: UUID, profileID: UUID) -> String {
         "\(winID.uuidString)-\(profileID.uuidString)"

@@ -77,7 +77,7 @@ nonisolated enum CrewRecords {
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
-    static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt"]
+    static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
@@ -129,8 +129,10 @@ nonisolated enum CrewRecords {
     // MARK: Reaction
 
     static func fields(_ reaction: Reaction) -> RecordFields {
-        ["winID": .uuid(reaction.winID), "profileID": .uuid(reaction.profileID),
-         "emoji": .string(reaction.emoji), "createdAt": .date(reaction.createdAt)]
+        var fields: RecordFields = ["winID": .uuid(reaction.winID), "profileID": .uuid(reaction.profileID),
+                                    "emoji": .string(reaction.emoji), "createdAt": .date(reaction.createdAt)]
+        if let line = reaction.line, !line.isEmpty { fields["line"] = .string(line) }
+        return fields
     }
 
     static func reaction(_ fields: RecordFields, crew: CrewID) -> Reaction? {
@@ -138,8 +140,13 @@ nonisolated enum CrewRecords {
               let emoji = fields["emoji"]?.string, !emoji.isEmpty else { return nil }
         // One grapheme, whatever a record claims: a reaction is an emoji,
         // never a message.
+        // A reply's line, as long as a line and no longer, and only if it
+        // passes the same words check the sender's phone made.
+        let line = fields["line"]?.string
+            .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Reaction.lineLimit)) }
+            .flatMap { $0.isEmpty || !CrewWords.isAcceptable($0) ? nil : $0 }
         return Reaction(winID: win, crewID: crew, profileID: who, emoji: String(emoji.prefix(1)),
-                        createdAt: fields["createdAt"]?.date ?? .distantPast)
+                        createdAt: fields["createdAt"]?.date ?? .distantPast, line: line)
     }
 
     // MARK: Crew

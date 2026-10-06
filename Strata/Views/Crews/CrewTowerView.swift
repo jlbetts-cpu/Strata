@@ -422,14 +422,9 @@ struct CrewTowerView: View {
                 GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Crews") { onBack() }
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
-                // Adding a win straight into this tower. Add People lives in
-                // Crew Info, one tap away, so this corner does the thing a
-                // crew is for (the owner, 2026-10-02).
-                GlassIconButton(systemName: "plus", onPage: true,
-                                accessibilityLabel: "Add a win to \(crew?.displayName(excluding: store.me) ?? "this crew")") {
-                    onAddWin()
-                }
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
+                // **No "+" here any more** (the owner, 2026-10-05: "kinda
+                // useless because there is already a + block"). The tower's
+                // own next slot adds a win, and holding it opens Add Win.
             }
             if let crew {
                 let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)

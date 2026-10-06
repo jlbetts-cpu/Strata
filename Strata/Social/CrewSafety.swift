@@ -30,6 +30,8 @@ enum CrewSafety {
         case win(SharedWin)
         case person(CrewMember)
         case crew(Crew)
+        /// A reply's line (`Reaction.line`), seen by the win's owner.
+        case reply(Reaction)
     }
 
     /// A report goes to Some Wins, never to the crew: a `Report` record in the
@@ -65,6 +67,11 @@ enum CrewSafety {
             fields["title"] = "Person: " + (member.firstName.isEmpty ? "(no name)" : member.firstName)
             fields["senderAccount"] = cloud?.account(of: member.profileID, in: crew)
             photo = member.photo
+        case .reply(let reaction):
+            fields["winID"] = reaction.winID.uuidString
+            fields["sender"] = reaction.profileID.uuidString
+            fields["title"] = "Reply: " + (reaction.line ?? "")
+            fields["senderAccount"] = cloud?.account(of: reaction.profileID, in: crew)
         case .crew(let c):
             fields["title"] = "Crew: " + (c.name.isEmpty ? "(no name)" : c.name)
             fields["senderAccount"] = cloud?.lastEditor(of: crew)

@@ -298,13 +298,24 @@ struct CrewReactionsPanel: View {
     var onDark = false
 
     @State private var open = false
+    @State private var replying = false
+    @State private var draft = ""
+    @State private var refused = false
+    @State private var reportingReply: Reaction?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var store: SocialStore { SocialStore.shared }
 
+    /// Whoever posted the win, by name, for the reply's words.
+    private var owner: String {
+        let id = store.winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
+        return id.map { CrewReactionsPanel.name($0, crewID: crewID) } ?? "them"
+    }
+
     var body: some View {
         let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
         let myReaction = store.myReaction(to: winID, in: crewID)
+        let replies = store.replies(to: winID, in: crewID)
         VStack(spacing: 10) {
             if open, !mine {
                 ReactionBar(mine: myReaction, onDark: onDark) { emoji in
@@ -312,10 +323,48 @@ struct CrewReactionsPanel: View {
                     withAnimation(motion) { open = false }
                 }
                 .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+                // **Reply**: an emoji and a few words, for the owner only, in
+                // place of a chat (the owner, 2026-10-05, from the research:
+                // talk that hangs off a win lasts; a general chat in an app
+                // about something else does not).
+                if store.canReply() {
+                    Button {
+                        draft = replies.first { $0.profileID == store.me }?.line ?? ""
+                        replying = true
+                    } label: {
+                        Text("Reply")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .glassCapsule(onPage: !onDark)
+                    }
+                    .buttonStyle(.pressSurface)
+                    .transition(.opacity)
+                }
             }
             if open, let crew = store.visible(crewID), !reactions.isEmpty {
                 ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            if open, !replies.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(replies) { reply in
+                        Text("\(CrewReactionsPanel.name(reply.profileID, crewID: crewID)) \(reply.emoji)  \(reply.line ?? "")")
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkSecondary)
+                            .multilineTextAlignment(.center)
+                            .contextMenu {
+                                if reply.profileID != store.me {
+                                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
+                                        reportingReply = reply
+                                    }
+                                }
+                            }
+                    }
+                }
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .transition(.opacity)
             }
             if !reactions.isEmpty || !mine {
                 Button {
@@ -344,6 +393,35 @@ struct CrewReactionsPanel: View {
         }
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
+        .alert("Reply to \(owner)", isPresented: $replying) {
+            TextField("A few words", text: $draft)
+            Button("Send") {
+                let text = draft
+                Task {
+                    let outcome = await store.reply(text, emoji: myReaction ?? Reaction.doubleTap,
+                                                    to: winID, in: crewID)
+                    if outcome == .refusedWords { refused = true }
+                }
+                withAnimation(motion) { open = false }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Only \(owner) sees it. Replies clear when the day ends.")
+        }
+        .alert("Try other words", isPresented: $refused) {
+            Button("OK", role: .cancel) {}
+        }
+        .confirmationDialog("Report this reply?",
+                            isPresented: Binding(get: { reportingReply != nil }, set: { if !$0 { reportingReply = nil } }),
+                            titleVisibility: .visible, presenting: reportingReply) { reply in
+            ForEach(CrewSafety.Reason.allCases) { reason in
+                Button(reason.words) {
+                    Task { await CrewSafety.report(.reply(reply), in: crewID, reason: reason) }
+                }
+            }
+        } message: { _ in
+            Text("Your report goes to Some Wins. Nobody in the crew is told.")
+        }
     }
 
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }

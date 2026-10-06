@@ -34,7 +34,68 @@ struct CrewReactionTests {
     }
 
     @Test func theReactionKeysAreExactly() {
-        #expect(CrewRecords.reactionKeys == ["winID", "profileID", "emoji", "createdAt"])
+        // "line" since 2026-10-05: a reply, seen only by the win's owner.
+        #expect(CrewRecords.reactionKeys == ["winID", "profileID", "emoji", "createdAt", "line"])
+    }
+
+    /// A reply is for the win's owner (and its writer), and nobody else in
+    /// the crew sees the words.
+    @Test func aReplyIsSeenOnlyByTheOwnerAndTheWriter() async throws {
+        let (a, b, crew) = try await pair()
+        let run = win("Run")
+        await a.post(run, to: [crew.id])
+        await b.refresh()
+        b.canReply = { true }
+        #expect(await b.reply("nice one", emoji: "🔥", to: run.winID, in: crew.id) == .sent)
+        await a.refresh()
+        #expect(a.replies(to: run.winID, in: crew.id).map(\.line) == ["nice one"])
+        #expect(b.replies(to: run.winID, in: crew.id).map(\.line) == ["nice one"])
+        // A third person sees the emoji and not the words.
+        let c = store(UUID())
+        c.adopt(crews: a.crews, wins: a.winsByCrew)
+        for reaction in a.reactionsByCrew[crew.id] ?? [] { c.receive(reaction) }
+        #expect(c.replies(to: run.winID, in: crew.id).isEmpty)
+        #expect(c.reactions(to: run.winID, in: crew.id).map(\.emoji) == ["🔥"])
+    }
+
+    @Test func aReplyWithRefusedWordsIsNotSent() async throws {
+        let (a, b, crew) = try await pair()
+        let run = win("Run")
+        await a.post(run, to: [crew.id])
+        await b.refresh()
+        b.canReply = { true }
+        #expect(await b.reply("k y s", emoji: "🔥", to: run.winID, in: crew.id) == .refusedWords)
+        #expect(await b.reply("you r3tard", emoji: "🔥", to: run.winID, in: crew.id) == .refusedWords)
+        #expect(CrewWords.isAcceptable("first class run"))
+        await a.refresh()
+        #expect(a.replies(to: run.winID, in: crew.id).isEmpty)
+    }
+
+    @Test func aDeclinedAgeCannotReply() async throws {
+        let (a, b, crew) = try await pair()
+        let run = win("Run")
+        await a.post(run, to: [crew.id])
+        await b.refresh()
+        b.canReply = { false }
+        #expect(await b.reply("nice", emoji: "🔥", to: run.winID, in: crew.id) == .notAllowed)
+    }
+
+    @Test func aReplyClearsWhenTheDayEnds() async throws {
+        let (a, b, crew) = try await pair()
+        let run = win("Run")
+        await a.post(run, to: [crew.id])
+        await b.refresh()
+        b.canReply = { true }
+        await b.reply("nice one", emoji: "🔥", to: run.winID, in: crew.id)
+        let tomorrow = Date().addingTimeInterval(86_400)
+        a.now = { tomorrow }
+        b.now = { tomorrow }
+        #expect(a.replies(to: run.winID, in: crew.id).isEmpty)
+        b.prune()
+        await b.flush()
+        await a.refresh()
+        #expect(a.reactionsByCrew[crew.id]?.first?.line == nil)
+        #expect(a.reactionsByCrew[crew.id]?.first?.emoji == "🔥")
     }
 
     @Test func aReactionReplacesAndTheSameOneTakesItBack() async throws {

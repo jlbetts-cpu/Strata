@@ -29,8 +29,31 @@ current, extra, out = (open(p).read() if i < 2 else p for i, p in enumerate(sys.
 have = set(re.findall(r'RECORD TYPE\s+"?([\w.]+)"?', current))
 blocks = re.split(r'(?=\n\s*(?://[^\n]*\n\s*)*RECORD TYPE )', extra)
 add = [b for b in blocks if (m := re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b)) and m.group(1) not in have]
+# New FIELDS on a type that is already there (a reply's "line", 2026-10-05):
+# each one missing from the current type is inserted before its first GRANT.
+added_fields = []
+for b in blocks:
+    m = re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b)
+    if not m or m.group(1) not in have:
+        continue
+    name = m.group(1)
+    cm = re.search(r'(RECORD TYPE\s+"?' + re.escape(name) + r'"?\s*\()(.*?)(\n\s*\);)', current, re.S)
+    if not cm:
+        continue
+    body = cm.group(2)
+    have_fields = set(re.findall(r'^\s*"?([\w.]+)"?\s+[A-Z]', body, re.M))
+    new = [l for l in re.findall(r'^\s*"?[\w.]+"?\s+(?:STRING|TIMESTAMP|INT64|DOUBLE|ASSET|REFERENCE|BYTES)[^\n]*,\s*$', b, re.M)
+           if re.match(r'\s*"?([\w.]+)"?', l).group(1) not in have_fields]
+    if not new:
+        continue
+    added_fields += [name + '.' + re.match(r'\s*"?([\w.]+)"?', l).group(1) for l in new]
+    g = re.search(r'\n(\s*)GRANT', body)
+    insert = '\n' + '\n'.join('        ' + l.strip() for l in new)
+    body = body[:g.start()] + insert + body[g.start():] if g else body.rstrip() + ',' + insert.rstrip(',')
+    current = current[:cm.start(2)] + body + current[cm.end(2):]
 open(out, 'w').write(current.rstrip() + '\n' + '\n'.join(add) + '\n')
-print('adding:', [re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b).group(1) for b in add] or 'nothing, all present')
+print('adding:', [re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b).group(1) for b in add] or 'no new types')
+print('adding fields:', added_fields or 'none')
 PY
 if ! xcrun cktool import-schema --team-id $TEAM --container-id $CONTAINER --environment development \
     --validate --file $WORK/merged.ckdb; then
