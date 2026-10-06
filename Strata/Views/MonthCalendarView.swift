@@ -378,7 +378,7 @@ struct MonthCalendarCell: View {
             // under it, because the press is a transform and not a redraw.
             .buttonStyle(.pressSurface)
             .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")"
-                                + (symbol.map { ", \($0)" } ?? ""))
+                                + (symbol.map { ", \($0)" } ?? (hasNote ? ", written" : "")))
         } else if hasNote, !isFuture {
             // **A day with a note and no wins opens** (the cohesion pass,
             // 2026-10-05). It was drawn as a blank day with an emoji in its
@@ -394,7 +394,7 @@ struct MonthCalendarCell: View {
                 HapticsEngine.lightTap()
                 onSelect(dateString)
             } label: {
-                empty.overlay(alignment: .topTrailing) { badge }
+                empty.overlay(alignment: .topTrailing) { badge(onBlock: false) }
             }
             .buttonStyle(.pressSurface)
             .accessibilityLabel(symbol.map { "\(day), \($0), written" } ?? "\(day), written")
@@ -407,7 +407,7 @@ struct MonthCalendarCell: View {
             // is a fact about that day. A sighted person skips the future in
             // one glance; this is the same skip.
             empty
-                .overlay(alignment: .topTrailing) { badge }
+                .overlay(alignment: .topTrailing) { badge(onBlock: false) }
                 .accessibilityLabel(symbol.map { "\(day), \($0)" } ?? "\(day), nothing")
                 .accessibilityHidden(isFuture)
         }
@@ -422,16 +422,36 @@ struct MonthCalendarCell: View {
     /// 49pt cell it is a mark in the corner rather than a second picture. Top
     /// and trailing, because the numeral holds the bottom leading corner. Not
     /// a button: the day opens from the cell, and its note from the day.
+    ///
+    /// **A note with no emoji is a tiny ink dot in the same corner** (the
+    /// owner's exact rule, 2026-10-05, `JournalMark`). A day with an emoji
+    /// shows the emoji and nothing extra. The dot is centred where the
+    /// emoji's own box centres, so the two marks sit on one point of the
+    /// cell. White on a block, where every mark is white (the day numeral, a
+    /// block's label); the secondary ink on an empty well. Lock Journal hides
+    /// both, upstream: `MemoriesView` hands this cell no emoji and no written
+    /// days while the journal is locked.
     @ViewBuilder
-    private var badge: some View {
-        if let symbol {
+    private func badge(onBlock: Bool) -> some View {
+        switch JournalMark.forDay(symbol: symbol, written: hasNote) {
+        case .emoji(let symbol):
             Text(symbol)
                 .font(Typography.screenSubtitle)
                 .padding(3)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+        case .dot:
+            JournalDot(ink: onBlock ? .white.opacity(0.92) : AppColors.inkSecondary)
+                .frame(width: Self.badgeBox, height: Self.badgeBox)
+                .padding(3)
+        case .none:
+            EmptyView()
         }
     }
+
+    /// The box a 15pt emoji takes in the corner, measured off the built
+    /// calendar, so the dot centres where the emoji does.
+    private static let badgeBox: CGFloat = 18
 
     /// A day with wins: the app's own block, at calendar size.
     private func filled(_ block: MonthTower.Block) -> some View {
@@ -458,7 +478,7 @@ struct MonthCalendarCell: View {
         .frame(width: side, height: side)
         .overlay(alignment: .bottomLeading) { number(.white.opacity(0.92), onPhoto: !block.photoFileNames.isEmpty) }
         // Inside the button's label, so it gives with the press.
-        .overlay(alignment: .topTrailing) { badge }
+        .overlay(alignment: .topTrailing) { badge(onBlock: true) }
         .modifier(DayTransitionSource(id: block.dateString, namespace: transitionNamespace))
     }
 
