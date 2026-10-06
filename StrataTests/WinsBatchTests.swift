@@ -314,3 +314,27 @@ extension SharedWin {
                   cropX: nil, cropY: nil, createdAt: Date(), updatedAt: Date())
     }
 }
+
+/// A block drawn out of the slot waits for the sheet's confirm before any crew
+/// sees it (the owner, 2026-10-05).
+@MainActor
+@Suite("Crew hold")
+struct CrewHoldTests {
+    @Test func aHeldWinIsKeptUntilReleased() {
+        let defaults = UserDefaults(suiteName: "crew-hold-\(UUID().uuidString)")!
+        let id = UUID()
+        #expect(!CrewHold.isHeld(id, defaults: defaults))
+        CrewHold.hold(id, defaults: defaults)
+        #expect(CrewHold.isHeld(id, defaults: defaults))
+        CrewHold.release(id, defaults: defaults)
+        #expect(!CrewHold.isHeld(id, defaults: defaults))
+    }
+
+    @Test func theListStaysSmall() {
+        let defaults = UserDefaults(suiteName: "crew-hold-\(UUID().uuidString)")!
+        let ids = (0..<80).map { _ in UUID() }
+        for id in ids { CrewHold.hold(id, defaults: defaults) }
+        #expect(!CrewHold.isHeld(ids[0], defaults: defaults))
+        #expect(CrewHold.isHeld(ids[79], defaults: defaults))
+    }
+}

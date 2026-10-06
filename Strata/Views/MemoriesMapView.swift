@@ -238,11 +238,35 @@ struct MemoriesMapView: View {
             return
         }
         location.start(for: Self.locationHolder)
-        guard let fix = location.fix(maxAge: 600, maxAccuracy: 1000) else {
-            didFrame = false
-            frameOnYourPlaces()
+        if let fix = location.fix(maxAge: 600, maxAccuracy: 1000) {
+            centre(on: fix)
             return
         }
+        // **Wait for the first fix rather than giving up on it** (the owner,
+        // 2026-10-05: "it focuses on you only the second time you click it").
+        // Location only runs while the map is open, so the first press had no
+        // position yet and framed your places instead; by the second press one
+        // had arrived. A short wait, polled rather than observed, because
+        // observing `latest` here re-drew the whole map on every update (see
+        // `RecentreButton`). Your places only if nothing comes.
+        recentreWait?.cancel()
+        recentreWait = Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+                if let fix = location.fix(maxAge: 600, maxAccuracy: 1000) {
+                    centre(on: fix)
+                    return
+                }
+            }
+            didFrame = false
+            frameOnYourPlaces()
+        }
+    }
+
+    @State private var recentreWait: Task<Void, Never>?
+
+    private func centre(on fix: CLLocation) {
         withAnimation(GridConstants.motionSnappy) {
             camera = .region(MKCoordinateRegion(
                 center: fix.coordinate,

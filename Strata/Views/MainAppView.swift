@@ -1909,7 +1909,7 @@ struct MainAppView: View {
         }
     }
 
-    private func logWin(size: BlockSize = .small, photo: UIImage? = nil) {
+    private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false) {
         do {
             // The colour the slot has been showing, not a fresh roll.
             let win = try QuickWinService.logWin(
@@ -1923,7 +1923,9 @@ struct MainAppView: View {
             // (crews, spec 2.6). Its photograph follows on the save below,
             // which `CrewSync` sees and sends as an edit.
             if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
-                CrewSync.post(log)
+                // Drawn out of the slot: your tower only, until the sheet's
+                // confirm sends it (`CrewHold`).
+                if holdFromCrews { CrewHold.hold(log.id) } else { CrewSync.post(log) }
             }
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.
@@ -3062,7 +3064,7 @@ struct MainAppView: View {
                     cornerRadius: cornerRadius,
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
-                    action: { logWin(size: $0) },
+                    action: { logWin(size: $0, holdFromCrews: true) },
                     onOpenMenu: { winDraft = WinDraft() }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
@@ -3186,7 +3188,7 @@ struct MainAppView: View {
             cornerRadius: cornerRadius,
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
-            action: { logWin(size: $0) },
+            action: { logWin(size: $0, holdFromCrews: true) },
             onOpenMenu: { winDraft = WinDraft() }
         )
         .frame(width: f.width, height: f.height)

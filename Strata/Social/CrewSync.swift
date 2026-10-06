@@ -16,6 +16,31 @@ import os
 ///   deletes every copy. So an edit, a new photo, a removed photo or a delete
 ///   cannot be missed by some path that forgot to call this.
 @MainActor
+/// **Wins drawn out of the slot wait for a yes before a crew sees them** (the
+/// owner, 2026-10-05: "when dragging to create a block on the home i noticed
+/// it instantly shows up on the crews I would prefer if it only showed up if
+/// you clicked the check mark first"). A dragged block lands on your tower
+/// only; opening it and confirming the sheet sends it, with the crews you
+/// usually choose already ticked. Kept by log id, on this phone.
+enum CrewHold {
+    private static let key = "crews.heldWins"
+
+    static func hold(_ id: UUID, defaults: UserDefaults = .standard) {
+        var held = defaults.stringArray(forKey: key) ?? []
+        held.append(id.uuidString)
+        defaults.set(Array(held.suffix(60)), forKey: key)
+    }
+
+    static func isHeld(_ id: UUID, defaults: UserDefaults = .standard) -> Bool {
+        (defaults.stringArray(forKey: key) ?? []).contains(id.uuidString)
+    }
+
+    static func release(_ id: UUID, defaults: UserDefaults = .standard) {
+        let held = (defaults.stringArray(forKey: key) ?? []).filter { $0 != id.uuidString }
+        defaults.set(held, forKey: key)
+    }
+}
+
 enum CrewSync {
     private static let log = Logger(subsystem: "Strata", category: "crews.sync")
     private static var token: NSObjectProtocol?

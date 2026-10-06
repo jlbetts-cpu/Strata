@@ -1141,7 +1141,11 @@ struct AddWinSheet: View {
             title = initialTitle
         }
         if CrewsFlag.isOn {
-            crewChoice = editingLog.map { SocialStore.shared.crews(holding: $0.id) } ?? initialCrews ?? CrewChoice.load()
+            // A win drawn out of the slot is waiting for this confirm before any
+            // crew sees it (`CrewHold`): your usual crews come ticked.
+            crewChoice = editingLog.map { log in
+                CrewHold.isHeld(log.id) ? CrewChoice.load() : SocialStore.shared.crews(holding: log.id)
+            } ?? initialCrews ?? CrewChoice.load()
         }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
@@ -1209,9 +1213,11 @@ struct AddWinSheet: View {
                     return
                 }
             }
-            if let log = editingLog ?? savedLog, editingLog == nil || crewChoiceTouched {
+            if let log = editingLog ?? savedLog,
+               editingLog == nil || crewChoiceTouched || CrewHold.isHeld(log.id) {
                 if editingLog == nil { CrewChoice.save(crewChoice) }
                 CrewSync.setCrews(for: log, to: crewChoice, with: editingLog == nil ? withPeople : [])
+                CrewHold.release(log.id)
             }
             finish(habit)
             return
