@@ -11,19 +11,37 @@ import SwiftData
 /// (`InkImageCache`), so writing over the same name would leave the old one
 /// on screen. The old pair is removed once the new one is safely written.
 ///
-/// The PNG is the strip's full width and only as tall as its ink, so it sits
+/// The PNG is the canvas's full width and only as tall as its ink, so it sits
 /// under the words exactly where it was drawn, left to right.
+///
+/// **Drawn big, shown small** (2026-10-05). The sketch is drawn in a full
+/// screen editor (`JournalSketchEditor`, the owner: "a little bigger canvas
+/// for the journal like it is in the month") and shown under the note with
+/// the whole canvas fitted to `shownHeight`, the month drawing's model. The
+/// picture is WRITTEN at that shown scale, so its natural size in points is
+/// its size on the page and the line lands at `InkPen.width` there. A sketch
+/// from the old inline strip was written at 1:1 and still shows at 1:1.
 @MainActor
 enum JournalSketches {
     /// Pixels a point: the phone's own, so the sketch is crisp at 1:1.
     static let scale: CGFloat = 3
+
+    /// The height a whole canvas is shown at under the note: room for a
+    /// drawing to read, with the note still the page's subject. A sketch only
+    /// as tall as its ink takes less.
+    static let shownHeight: CGFloat = 240
+
+    /// Shown points per canvas point, for a canvas this tall.
+    static func shownScale(canvasHeight: CGFloat) -> CGFloat {
+        canvasHeight > 0 ? shownHeight / canvasHeight : 1
+    }
 
     /// "sketch-2026-10-05-1A2B3C4D.png" for "…drawing" and back.
     static func drawingName(for png: String) -> String {
         (png as NSString).deletingPathExtension + ".drawing"
     }
 
-    /// The part of the strip a sketch keeps: its full width, and from the top
+    /// The part of the canvas a sketch keeps: its full width, and from the top
     /// of its ink to the bottom.
     static func frame(of drawing: PKDrawing, width: CGFloat) -> CGRect {
         let ink = InkExport.inkBounds(of: drawing)
@@ -35,14 +53,15 @@ enum JournalSketches {
     /// empty drawing, which removes `old` too: a sketch rubbed out is no
     /// sketch.
     static func save(_ drawing: PKDrawing, width: CGFloat, day: String, replacing old: String?,
-                     files: InkFiles = .shared) -> String? {
+                     shownScale: CGFloat = 1, files: InkFiles = .shared) -> String? {
         guard !drawing.strokes.isEmpty else {
             if let old { remove(old, files: files) }
             return nil
         }
         let stem = "sketch-\(day)-\(UUID().uuidString.prefix(8))"
         let png = stem + ".png"
-        guard let picture = InkExport.png(of: drawing, in: frame(of: drawing, width: width), scale: scale)
+        guard let picture = InkExport.png(of: drawing, in: frame(of: drawing, width: width),
+                                          scale: scale * shownScale)
         else { return old }
         do {
             try files.write(drawing.dataRepresentation(), named: drawingName(for: png))

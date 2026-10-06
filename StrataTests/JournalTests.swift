@@ -102,9 +102,10 @@ struct JournalTests {
 
     @Test("the journal's glyph is one constant, and hollow")
     func hollowGlyph() {
-        // The owner, 2026-10-05: hollow, never filled, on Wins and on a past
-        // day alike, and his pick is `text.alignleft`, to sit with the Plan's
-        // `checklist`.
+        // The owner, 2026-10-05: hollow, never filled, and his pick is
+        // `text.alignleft`. Since the day became one page (2026-10-05) it is
+        // the glyph in a past day's corner only: the Wins header's one button
+        // is the day's, `DayIcon` (`checklist`), pinned in `DaySheetTests`.
         #expect(!JournalIcon.name.hasSuffix(".fill"))
         #expect(JournalIcon.name == "text.alignleft")
     }
@@ -281,6 +282,26 @@ struct JournalTests {
         #expect(JournalSketches.save(PKDrawing(), width: 358, day: "2026-10-05",
                                      replacing: second, files: files) == nil)
         #expect(files.all().isEmpty)
+    }
+
+    /// **The editor is full screen now** (the owner, 2026-10-05: "wish it
+    /// could be a little bigger canvas for the journal like it is in the
+    /// month"), and the sketch is still shown under the note at a comfortable
+    /// size. So the picture is written at the size it is SHOWN: a canvas
+    /// drawn at 555pt tall shown at `shownHeight` is written at that scale,
+    /// and its natural size in points is its size on the page.
+    @Test("a sketch from the big canvas is written at the size it is shown under the note")
+    func sketchWrittenAtShownSize() throws {
+        let files = InkTests.folder()
+        let k = JournalSketches.shownScale(canvasHeight: 555)
+        let name = try #require(JournalSketches.save(InkTests.drawing(strokes: [200]), width: 370,
+                                                     day: "2026-10-05", replacing: nil,
+                                                     shownScale: k, files: files))
+        let bytes = try #require(files.read(name))
+        let picture = try #require(UIImage(data: bytes, scale: JournalSketches.scale))
+        #expect(abs(picture.size.width - 370 * k) < 1, "the picture is the canvas's width at the shown scale")
+        // And the strokes are kept at the canvas's own size, to edit again.
+        #expect(JournalSketches.drawing(for: name, files: files)?.bounds.width ?? 0 > 190)
     }
 
     @Test("a sketch alone is a note: the day gets a row, and clearing it leaves the words")

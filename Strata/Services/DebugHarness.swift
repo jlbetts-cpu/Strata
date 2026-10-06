@@ -196,8 +196,15 @@ enum DebugHarness {
 
     /// The journal's sketch, from `-strataJournalSketch seed|open`: `seed`
     /// writes `InkSamples.sunOverHill` as the day's sketch and shows it under
-    /// the words; `open` opens the strip on it. A simulator cannot draw.
+    /// the words; `open` opens the full-screen editor on it. A simulator cannot draw.
     static var journalSketch: String? { argument("-strataJournalSketch") }
+
+    /// The sketch editor's pen as a line width in canvas points, from
+    /// `-strataPenLine <pt>`, overriding the scaled house width. For
+    /// re-measuring `InkPen`'s calibration: draw at a few widths, read the
+    /// recorded point size from the saved `.drawing` and the drawn width off
+    /// a screenshot.
+    static var penLine: CGFloat? { argument("-strataPenLine").flatMap(Double.init).map { CGFloat($0) } }
 
     /// Presses the journal's Suggest once it opens, from `-strataJournalAsk`.
     static var journalAsks: Bool { ProcessInfo.processInfo.arguments.contains("-strataJournalAsk") }

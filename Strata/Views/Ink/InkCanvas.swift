@@ -75,7 +75,7 @@ final class InkController {
 
 // MARK: - The canvas
 
-/// **The one ink canvas.** The journal's sketch strip, a crew doodle and the
+/// **The one ink canvas.** The journal's sketch editor, a crew doodle and the
 /// month drawing all draw here, so they are one pen with one feel (spec
 /// section 4, "The ink canvas"): PencilKit with `drawingPolicy = .anyInput`
 /// so a finger draws, one black monoline (`InkPen`), an eraser toggle and
@@ -208,17 +208,27 @@ struct InkImage: View {
     var tint: Color = AppColors.inkPrimary
     /// The scale the file was written at, so its natural size is in points.
     var scale: CGFloat = 3
+    /// Drawn at its natural size rather than fitted to the space it is
+    /// given: the journal's sketch, which is written at the size it is shown
+    /// (`JournalSketches.shownHeight`) and must not be blown up to the width.
+    var natural = false
 
     @State private var image: UIImage?
 
     var body: some View {
         Group {
-            if let image {
+            if let image, natural {
+                Image(uiImage: image)
+                    .renderingMode(.template)
+                    .foregroundStyle(tint)
+            } else if let image {
                 Image(uiImage: image)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(tint)
+            } else if natural {
+                Color.clear.frame(height: 0)
             } else {
                 Color.clear
             }
@@ -255,7 +265,7 @@ nonisolated enum InkImageCache {
 // MARK: - A sheet's bar
 
 /// Cancel and a confirm word, for a sheet that holds the canvas (a doodle's
-/// Send, the month editor's Done). Typed `ToolbarContent`, as `PlanSheet`'s
+/// Send, the month editor's Done). Typed `ToolbarContent`, as `DaySheet`'s
 /// is, and words through `sheetAction` like every sheet in the app.
 struct InkSheetToolbar: ToolbarContent {
     let confirm: String
@@ -263,7 +273,7 @@ struct InkSheetToolbar: ToolbarContent {
     let onCancel: () -> Void
     let onConfirm: () -> Void
 
-    /// Without the system's own glass behind the words, as `PlanSheet` and
+    /// Without the system's own glass behind the words, as `DaySheet` and
     /// the journal do: inside iOS 26's toolbar capsule a word was cut to
     /// "Cance" (seen on the doodle sheet, 2026-10-05).
     @ToolbarContentBuilder

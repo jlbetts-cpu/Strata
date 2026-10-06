@@ -66,12 +66,62 @@ struct InkTests {
     @Test("the pen is one black monoline at the house width")
     func thePen() {
         #expect(InkPen.tool.inkType == .monoline)
-        #expect(InkPen.width == 2.5)
+        // **1.5, and it was 2.5** (2026-10-05). The owner's own drawings,
+        // measured on screen: the October scarecrow's lines about 1.3pt (4px
+        // at 3x) and the crews drawing about 1.7pt. 2.5 drew a line nearly
+        // twice his; 1.5 sits between the two.
+        #expect(InkPen.width == 1.5)
         let controller = InkController()
         #expect(controller.penWidth == InkPen.width)
-        // The tool is set to DRAW 2.5, not to 2.5 (`InkPen.toolWidth`).
+        // The tool is set to DRAW 1.5, not to 1.5 (`InkPen.toolWidth`).
         #expect(controller.pen.width == InkPen.toolWidth(forLine: InkPen.width))
         #expect(controller.isEmpty)
+    }
+
+    /// **1.5 is inside the calibration, not past its end.** The tool-to-line
+    /// fit was measured (re-measured on 2026-10-05, see `InkPen.toolWidth`)
+    /// at tool widths 0.71, 1.46, 2.17 and 3.30. A 1.5pt line needs a tool of
+    /// 0.75: between the first two measurements, so interpolated, and clear
+    /// of the 0.5 floor that would clamp it.
+    @Test("the house width is interpolated inside the measured tool widths")
+    func penIsInsideTheCalibration() {
+        let tool = InkPen.toolWidth(forLine: InkPen.width)
+        #expect(tool > 0.5, "the tool is at its floor: the line is clamped, not set")
+        #expect(tool >= 0.71 && tool <= 1.46, "the tool is outside the two measurements it is interpolated between")
+        #expect(abs(InkPen.lineWidth(forPointSize: tool + 2) - InkPen.width) < 0.01)
+        // The injection: a width under the calibration's floor clamps.
+        #expect(InkPen.toolWidth(forLine: 0.5) == 0.5)
+    }
+
+    /// **A bigger canvas draws a wider pen, so the line LANDS at the house
+    /// width where it is shown.** The month editor and the journal's sketch
+    /// editor both draw on a canvas taller than the page shows the drawing,
+    /// so the pen is widened by the same ratio.
+    @Test("the pen scales with the canvas, and lands at 1.5 where it is shown")
+    func penScalesToWhereItIsShown() {
+        // The month: a 555pt canvas shown at 290.
+        let month = InkPen.width(onCanvasOfHeight: 555, shownAt: MonthDrawingEditor.shownHeight)
+        #expect(abs(month * MonthDrawingEditor.shownHeight / 555 - 1.5) < 0.001)
+        // The journal: a canvas shown at `JournalSketches.shownHeight`.
+        let journal = InkPen.width(onCanvasOfHeight: 555, shownAt: JournalSketches.shownHeight)
+        #expect(abs(journal * JournalSketches.shownHeight / 555 - 1.5) < 0.001)
+        // A canvas shown at its own size draws the house width itself.
+        #expect(InkPen.width(onCanvasOfHeight: 290, shownAt: 290) == InkPen.width)
+        // The editors' widest pens are still inside the measured tools (3.30
+        // at most): a tall phone's 600pt canvas asks the month for a 3.1pt
+        // line and the journal for 3.75, tools 1.55 and 1.88.
+        #expect(InkPen.toolWidth(forLine: InkPen.width(onCanvasOfHeight: 600, shownAt: 290)) <= 3.30)
+        #expect(InkPen.toolWidth(forLine: InkPen.width(onCanvasOfHeight: 600,
+                                                       shownAt: JournalSketches.shownHeight)) <= 3.30)
+    }
+
+    /// The saved journal sketch is written at the scale it is shown at, so
+    /// its picture's natural size is its size under the note.
+    @Test("a journal sketch's picture is written at the size it is shown")
+    func sketchShownScale() {
+        let k = JournalSketches.shownScale(canvasHeight: 555)
+        #expect(abs(k - JournalSketches.shownHeight / 555) < 0.0001)
+        #expect(JournalSketches.shownScale(canvasHeight: 0) == 1, "an unmeasured canvas is shown as drawn")
     }
 
     @Test("a doodle is cropped to its ink and never longer than 1080 pixels")
