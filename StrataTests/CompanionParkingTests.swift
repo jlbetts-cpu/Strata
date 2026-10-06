@@ -30,12 +30,21 @@ struct CompanionParkingTests {
         #expect(GlassIconButton.defaultSide - CompanionParking.parkedSide >= 8)
     }
 
-    @Test("the bubble sits directly left of the Plan button, in the header row")
+    /// **Reversed by the owner on 2026-10-05.** This pinned the bubble
+    /// "directly left of the Plan button" (his call, 2026-10-02); he then took
+    /// it off the Wins header: "remove the head from the main home screen
+    /// because i feel like it would make too many buttons there since we
+    /// added the journal component." So it now pins the opposite, and that
+    /// with no bubble nothing can park him out of sight.
+    @Test("the Wins header has no head bubble, and with no bubble he is never parked")
     func placement() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
         let row = header.components(separatedBy: "headerPlan").first ?? ""
-        #expect(row.contains("CompanionDock()"))
+        #expect(!row.contains("CompanionDock()"), "the bubble is back in the Wins header, which the owner removed")
+        #expect(row.contains("JournalButton("))
+        #expect(!CompanionParking.hasDock)
+        #expect(!CompanionParking.shared.parked, "parked with no bubble on screen is a head that has vanished")
         #expect(row.contains("HStack(alignment: .center, spacing: GridConstants.gapTight)"))
         #expect(!header.prefix(1500).contains(".headerGlassGroup"), "one glass group fused the two into a peanut")
     }
@@ -85,11 +94,13 @@ struct CompanionParkingTests {
         #expect(layer.contains("let box = CGRect(x: -arena.minX, y: -arena.minY + ceiling,"))
     }
 
-    @Test("VoiceOver can reach him, change his face, park him, and pop the bubble")
+    /// "Park him" came out on 2026-10-05 with the bubble (see `placement`):
+    /// an action that parks him into a place that is not on screen hides him.
+    @Test("VoiceOver can reach him and change his face, and is not offered a bubble that is gone")
     func voiceOver() throws {
         let layer = try MorningSource.read("Views/TowerCompanionLayer.swift")
         #expect(layer.contains(".accessibilityLabel(\"Your head\")"))
-        #expect(layer.contains(".accessibilityAction(named: \"Park in the bubble\") { parkWithoutCarrying() }"))
+        #expect(!layer.contains(".accessibilityAction(named: \"Park in the bubble\")"))
         let dock = try MorningSource.read("Views/CompanionDock.swift")
         #expect(dock.contains(".accessibilityAction { pop() }"))
     }

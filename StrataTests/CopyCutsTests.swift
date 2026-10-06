@@ -138,14 +138,15 @@ struct CopyCutsTests {
     // MARK: - Cut 17: the notification bodies
 
     /// `docs/copy-audit.md` cut 17. The bodies described the feature their own
-    /// titles announce. They are trimmed rather than deleted, and the reason is
-    /// on `ReplayReminder.whereToLook`: there is no notification-response
-    /// handler in the app, so a tap lands on the Wins tower with nothing on it
-    /// saying where to look.
+    /// titles announce. They were trimmed to "Find it in Memories." while a
+    /// tap landed on the Wins tower; since the cohesion pass (2026-10-05) a
+    /// tap opens Memories with the replay playing (`NotificationRoute`), so
+    /// that line is cut too, as `ReplayReminder.whereToLook` said it should be.
     @Test("a notification body does not describe the thing its title announces")
     func replayBodiesDoNotDescribeTheFeature() throws {
         let reminder = try SourceSweep.code(SourceSweep.read("Strata/Services/ReplayReminder.swift"))
         #expect(!reminder.contains("stacked into one tower"))
+        #expect(!reminder.contains("\"Find it in Memories.\""), "the tap lands there now; the body need not say so")
         // Both halves: the titles are the news and they stay.
         #expect(reminder.contains("Your week is ready"))
         #expect(reminder.contains("is ready"))
