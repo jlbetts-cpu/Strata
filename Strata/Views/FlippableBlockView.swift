@@ -264,7 +264,8 @@ struct FlippableBlockView: View {
             // stopped showing timestamps, and the parameter that carried it is
             // gone rather than being passed `nil` through two views.
             showOverlay: showOverlay,
-            aim: aim
+            aim: aim,
+            doodle: block.look.doodleFileName
         ) {
             if let shared = block.look.sharedPhoto {
                 // A friend's photograph, from the crew's cache. Never through

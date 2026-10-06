@@ -34,6 +34,8 @@ struct PlacedBlock: Identifiable, Equatable {
         let category: HabitCategory
         let blockSize: BlockSize
         let imageFileName: String?
+        /// A doodle in white ink instead of a photograph (`BlockDoodles`).
+        var doodleFileName: String? = nil
         let cropX: Double?
         let cropY: Double?
         /// The day the win belongs to, `yyyy-MM-dd`.
@@ -67,6 +69,7 @@ struct PlacedBlock: Identifiable, Equatable {
             category = habit.category
             blockSize = habit.blockSize
             imageFileName = log.imageFileName
+            doodleFileName = log.imageFileName == nil ? log.doodleFileName : nil
             cropX = log.cropPositionX
             cropY = log.cropPositionY
             dateString = log.dateString

@@ -132,12 +132,25 @@ struct InkCanvas<Accessory: View>: View {
     let controller: InkController
     /// The well's width over its height, or nil to fill what it is given.
     var aspectRatio: CGFloat? = nil
+    /// What the well is: the page's quiet fill, or a block's own colour for
+    /// a doodle on a block (`BlockDoodleSheet`).
+    var ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill)
+    var cornerRadius: CGFloat = GridConstants.blockCornerRadius
+    /// The ink drawn white, as it will be on the block. The strokes are the
+    /// one black pen as everywhere; the canvas is shown as in dark mode,
+    /// where PencilKit draws black ink white.
+    var lightInk = false
     var accessory: Accessory
 
     init(controller: InkController, aspectRatio: CGFloat? = nil,
+         ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
+         cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false,
          @ViewBuilder accessory: () -> Accessory) {
         self.controller = controller
         self.aspectRatio = aspectRatio
+        self.ground = ground
+        self.cornerRadius = cornerRadius
+        self.lightInk = lightInk
         self.accessory = accessory()
     }
 
@@ -150,9 +163,9 @@ struct InkCanvas<Accessory: View>: View {
 
     @ViewBuilder
     private var well: some View {
-        let shape = RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
-        let surface = InkSurface(controller: controller)
-            .background(AppColors.quietFill)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let surface = InkSurface(controller: controller, lightInk: lightInk)
+            .background(Rectangle().fill(ground))
             .clipShape(shape)
             .accessibilityLabel("Drawing")
             .accessibilityHint("Draw with one finger")
@@ -165,8 +178,11 @@ struct InkCanvas<Accessory: View>: View {
 }
 
 extension InkCanvas where Accessory == EmptyView {
-    init(controller: InkController, aspectRatio: CGFloat? = nil) {
-        self.init(controller: controller, aspectRatio: aspectRatio) { EmptyView() }
+    init(controller: InkController, aspectRatio: CGFloat? = nil,
+         ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
+         cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false) {
+        self.init(controller: controller, aspectRatio: aspectRatio, ground: ground,
+                  cornerRadius: cornerRadius, lightInk: lightInk) { EmptyView() }
     }
 }
 
@@ -203,6 +219,7 @@ struct InkControls<Accessory: View>: View {
 /// to undo. None of them has a button: "scarcity", no new chrome.
 private struct InkSurface: UIViewRepresentable {
     let controller: InkController
+    var lightInk = false
 
     /// How far the canvas zooms in. One finger always draws; two pan and
     /// pinch. At 1 the page is exactly the well, so nothing scrolls.
@@ -215,6 +232,7 @@ private struct InkSurface: UIViewRepresentable {
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
+        if lightInk { canvas.overrideUserInterfaceStyle = .dark }
         // Scrolling is on so that a zoomed page can be panned; at a scale of
         // 1 the content is the well's own size (`OwnUndoCanvas.layoutSubviews`)
         // and there is nowhere to go. The strokes stay in the page's own

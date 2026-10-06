@@ -42,7 +42,7 @@ final class HabitLog {
     /// than inline in the record. Kept exactly as it is.
     @Attribute(.externalStorage) var imageData: Data? // Retained temporarily for migration
     var imageFileName: String?
-    var imageURL: String?       // Deprecated — retained for schema compatibility
+    var imageURL: String?       // Deprecated — retained for schema compatibility; holds `doodleFileName`
     var videoURL: String?       // Deprecated — retained for schema compatibility
     var imageFlipped: Bool = false  // Deprecated — retained for schema compatibility
     /// **Which part of the photograph the block shows**, as a fraction away
@@ -157,5 +157,19 @@ final class HabitLog {
     func markIncomplete() {
         completed = false
         completedAt = nil
+    }
+}
+
+extension HabitLog {
+    /// **A doodle on the block, in white ink** (the owner, 2026-10-06: "should
+    /// we add doodling on the colored blocks... alternative to adding a
+    /// picture"; his picks, "Photo or doodle" and "White ink"). A PNG in
+    /// `InkFiles` by name (`BlockDoodles`). Stored in `imageURL`, a dead
+    /// column, as the journal's sketch is in `MoodLog.imageURL`, so it needs
+    /// no CloudKit schema change. **The name syncs and the file does not**:
+    /// another phone draws the block's colour, never a broken picture.
+    var doodleFileName: String? {
+        get { imageURL.flatMap { $0.isEmpty ? nil : $0 } }
+        set { imageURL = newValue.flatMap { $0.isEmpty ? nil : $0 } }
     }
 }

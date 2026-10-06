@@ -28,6 +28,9 @@ struct BlockFace<Photo: View>: View {
     /// The title overlay's opacity. Only a replay changes it, to fade titles
     /// out as its camera pulls back; everywhere else it is 1.
     var overlayOpacity: Double = 1
+    /// A doodle on the block, drawn white over its colour (`BlockDoodles`).
+    /// Only on a block with no photograph: a block is one or the other.
+    var doodle: String? = nil
     @ViewBuilder var photo: () -> Photo
 
     var body: some View {
@@ -73,6 +76,11 @@ struct BlockFace<Photo: View>: View {
             // It is an ELLIPSE, so it sizes itself to whatever it fills and
             // needs no `GeometryReader` here. See `EtherealFill`.
             Rectangle().fill(EtherealFill.fill(category.style.baseColor, aim: aim))
+
+            if !hasPhoto, let doodle {
+                BlockDoodleImage(fileName: doodle)
+                    .frame(width: width, height: height)
+            }
 
             if hasPhoto {
                 photo()

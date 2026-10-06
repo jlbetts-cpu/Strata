@@ -26,6 +26,7 @@ enum WinDeletion {
         let copy = WinCopy(habit)
         // Read before the rows go, or there is nothing left to read them from.
         let names = copy.logs.compactMap(\.imageFileName)
+        let doodles = copy.logs.compactMap(\.doodleFileName)
         do {
             try context.transaction {
                 for log in habit.logs ?? [] { context.delete(log) }
@@ -43,6 +44,7 @@ enum WinDeletion {
             },
             finish: {
                 for name in names { ImageManager.shared.deleteImage(fileName: name) }
+                for name in doodles { BlockDoodles.remove(name) }
             }
         )
     }
@@ -55,6 +57,8 @@ private struct WinCopy {
     struct Log {
         let id: UUID, dateString: String, completed: Bool, completedAt: Date?
         let note: String?, caption: String, imageFileName: String?
+        /// The doodle on the block (`HabitLog.doodleFileName`).
+        var doodleFileName: String? = nil
         let cropX: Double?, cropY: Double?, surgeMode: Bool, pendingXP: Int?, xpCollected: Bool
         let isBonusBlock: Bool, skipped: Bool, verifiedByHealthKit: Bool, subtasks: [SubTask]
         let towerOrder: Int?, latitude: Double?, longitude: Double?, locationAccuracy: Double?
@@ -85,6 +89,7 @@ private struct WinCopy {
         logs = (h.logs ?? []).map { l in
             Log(id: l.id, dateString: l.dateString, completed: l.completed, completedAt: l.completedAt,
                 note: l.note, caption: l.caption, imageFileName: l.imageFileName,
+                doodleFileName: l.doodleFileName,
                 cropX: l.cropPositionX, cropY: l.cropPositionY, surgeMode: l.surgeMode,
                 pendingXP: l.pendingXP, xpCollected: l.xpCollected, isBonusBlock: l.isBonusBlock,
                 skipped: l.skipped, verifiedByHealthKit: l.verifiedByHealthKit, subtasks: l.subtasks,
@@ -112,6 +117,7 @@ private struct WinCopy {
             let l = HabitLog(habit: h, dateString: c.dateString, completed: c.completed)
             l.id = c.id; l.completedAt = c.completedAt; l.note = c.note; l.caption = c.caption
             l.imageFileName = c.imageFileName; l.cropPositionX = c.cropX; l.cropPositionY = c.cropY
+            l.doodleFileName = c.doodleFileName
             l.surgeMode = c.surgeMode; l.pendingXP = c.pendingXP; l.xpCollected = c.xpCollected
             l.isBonusBlock = c.isBonusBlock; l.skipped = c.skipped
             l.verifiedByHealthKit = c.verifiedByHealthKit; l.subtasks = c.subtasks

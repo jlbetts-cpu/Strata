@@ -87,7 +87,7 @@ struct WinsSideSecondPassTests {
 
     @Test("each failure has one short sentence in the app's voice")
     func failureCopy() {
-        let all: [AddWinFailure] = [.win, .photo, .removal, .deletion]
+        let all: [AddWinFailure] = [.win, .photo, .removal, .doodle, .deletion]
         for f in all {
             #expect(!SourceSweep.longDash(f.message), "a long dash in \(f.message)")
             #expect(f.message.count <= 46, "\(f.message) is \(f.message.count) characters: one line at 15pt is the budget")
@@ -105,7 +105,7 @@ struct WinsSideSecondPassTests {
         #expect(AddWinFailure.win.retry == "Try Again")
         #expect(AddWinFailure.win.dismissal == "Cancel")
         #expect(!AddWinFailure.win.winIsSaved)
-        for f in [AddWinFailure.photo, .removal] {
+        for f in [AddWinFailure.photo, .removal, .doodle] {
             #expect(f.winIsSaved)
             #expect(f.dismissal == "Done", "Cancel cannot undo a win that is already saved")
         }

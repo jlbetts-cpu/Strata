@@ -100,6 +100,18 @@ nonisolated enum InkPen {
     /// that ratio (about 2.3pt under the finger) and lands at his weight.
     static let monthLine: CGFloat = 1.3
 
+    /// **A doodle's line on the tower's block.** White on a colour, at a
+    /// block's size, needs a little more than the page's 1.5 to read. The
+    /// doodle sheet draws the block much bigger than the tower shows it (a
+    /// Quick block's canvas is about four times its tower height), so its
+    /// pen is wider by that ratio and the line lands at this on the tower.
+    static let blockLine: CGFloat = 1.8
+
+    static func blockWidth(onCanvasOfHeight canvas: CGFloat, shownAt shown: CGFloat) -> CGFloat {
+        guard canvas > 0, shown > 0 else { return blockLine }
+        return blockLine * canvas / shown
+    }
+
     static func monthWidth(onCanvasOfHeight canvas: CGFloat, shownAt shown: CGFloat) -> CGFloat {
         guard canvas > 0, shown > 0 else { return monthLine }
         return monthLine * canvas / shown

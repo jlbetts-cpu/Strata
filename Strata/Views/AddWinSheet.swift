@@ -1,3 +1,4 @@
+import PencilKit
 import Photos
 import PhotosUI
 import SwiftData
@@ -77,6 +78,14 @@ struct AddWinSheet: View {
     @State private var categoryChosen = false
     @State private var showCamera = false
     @State private var choosingSource = false
+    /// **A doodle instead of a photograph** (`BlockDoodleSheet`): its strokes
+    /// and the canvas they were drawn on, until the win is saved.
+    @State private var doodle: PKDrawing?
+    @State private var doodleCanvas: CGSize = .zero
+    @State private var doodleChanged = false
+    @State private var doodling = false
+    /// The block's width over its height when the doodle sheet opened.
+    @State private var doodleAspect: CGFloat = 1
     /// Looking at the photograph this win already has.
     @State private var peeking = false
     @State private var pickerItem: PhotosPickerItem?
@@ -149,7 +158,7 @@ struct AddWinSheet: View {
     /// is nothing left to lose, and Done never asks.
     private var hasUnsavedEdits: Bool {
         guard let opening, failure?.winIsSaved != true else { return false }
-        return photoChanged || !withPeople.isEmpty || asItStands != opening
+        return photoChanged || doodleChanged || !withPeople.isEmpty || asItStands != opening
     }
 
     /// A win from today or yesterday: anything older is past every crew's day.
@@ -387,6 +396,7 @@ struct AddWinSheet: View {
         .confirmationDialog(Text(verbatim: ""), isPresented: $choosingSource, titleVisibility: .hidden) {
             Button("Take Photo") { showCamera = true }
             Button("Choose from Library") { showLibrary = true }
+            Button("Doodle") { doodling = true }
             if photo != nil {
                 Button("Remove Photo", role: .destructive) {
                     photo = nil
@@ -396,6 +406,20 @@ struct AddWinSheet: View {
             Button("Cancel", role: .cancel) { }
         }
         .fullScreenCover(isPresented: $peeking) { peekCover }
+        .sheet(isPresented: $doodling) {
+            BlockDoodleSheet(aspect: doodleAspect, colour: category, towerHeight: towerBlockHeight,
+                             drawing: doodle, drawnOn: doodleCanvas) { drawing, canvas in
+                keepDoodle(drawing, canvas: canvas)
+            }
+        }
+        // A block is a photograph OR a doodle: a photograph put on, from
+        // anywhere, takes the doodle off.
+        .onChange(of: photo) { _, now in
+            if now != nil, doodle != nil {
+                doodle = nil
+                doodleChanged = true
+            }
+        }
         .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -617,6 +641,7 @@ struct AddWinSheet: View {
             LazyHStack(alignment: .top, spacing: GridConstants.spacing) {
                 photoWell(pageWidth: pageWidth, visibleHeight: visibleHeight)
                     .id(Self.blockInStrip)
+                doodleTile(well)
                 if showsTodaysPhotos, photoAccess == .notAsked {
                     askTile(well)
                 }
@@ -648,6 +673,62 @@ struct AddWinSheet: View {
         // inset, and it faded the crew names above the strip.
         .modifier(NoScrollEdgeEffect())
         .task(id: photoAccess) { loadTodaysPhotos() }
+    }
+
+    /// **The pen, first beside the block** (the owner's pick, 2026-10-06):
+    /// the ask tile's quiet shape with a pen in it. Draws on the block, in
+    /// white, instead of a photograph.
+    private func doodleTile(_ well: (size: CGSize, radius: CGFloat)) -> some View {
+        Button {
+            HapticsEngine.lightTap()
+            doodleAspect = well.size.width / max(well.size.height, 1)
+            doodling = true
+        } label: {
+            RoundedRectangle(cornerRadius: well.radius, style: .continuous)
+                .fill(AppColors.inkPrimary.opacity(0.05))
+                .frame(width: well.size.width, height: well.size.height)
+                .overlay {
+                    Image(systemName: "scribble")
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(AppColors.inkTertiary)
+                }
+        }
+        .buttonStyle(.pressSurface)
+        .accessibilityLabel(doodle == nil ? "Doodle on the block" : "Edit the doodle")
+    }
+
+    /// Done in the doodle sheet. Nothing drawn takes a doodle off; a drawing
+    /// takes a photograph off, because a block is one or the other.
+    private func keepDoodle(_ drawing: PKDrawing, canvas: CGSize) {
+        withAnimation(GridConstants.motionSnappy) {
+            stripPosition = Self.blockInStrip
+            if drawing.strokes.isEmpty {
+                if doodle != nil { doodle = nil; doodleChanged = true }
+                return
+            }
+            doodle = drawing
+            doodleCanvas = canvas
+            doodleChanged = true
+            if photo != nil {
+                photo = nil
+                photoAssetID = nil
+                photoChanged = true
+            }
+        }
+    }
+
+    /// The block's height on the tower, for the doodle's pen.
+    private var towerBlockHeight: CGFloat {
+        let cell = GridConstants.cellSize(
+            forGridWidth: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2)
+        let rows = CGFloat(size.rowSpan)
+        return rows * cell + (rows - 1) * GridConstants.spacing
+    }
+
+    /// The doodle as the block in the sheet shows it.
+    private var doodlePicture: UIImage? {
+        guard let doodle, doodleCanvas.width > 0 else { return nil }
+        return InkExport.image(of: doodle, in: CGRect(origin: .zero, size: doodleCanvas), scale: 2)
     }
 
     /// Before the library has been asked: one quiet tile beside the block,
@@ -1011,7 +1092,14 @@ struct AddWinSheet: View {
             // replacing or removing moves to a long press — which is where
             // iOS puts a secondary action on something you are mainly looking
             // at.
-            if photo == nil { choosingSource = true } else { peeking = true }
+            if photo != nil {
+                peeking = true
+            } else if doodle != nil {
+                doodleAspect = w / max(h, 1)
+                doodling = true
+            } else {
+                choosingSource = true
+            }
         } label: {
             ZStack {
                 // **THE WELL IS THE BLOCK, NOT A HOLE WHERE ONE GOES.**
@@ -1070,11 +1158,19 @@ struct AddWinSheet: View {
                             .clipped()
                     } else {
                         Rectangle().fill(EtherealFill.fill(category.style.baseColor))
+                        if let picture = doodlePicture {
+                            Image(uiImage: picture)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(.white)
+                                .frame(width: w, height: h)
+                        }
                     }
                 }
                 .frame(width: w, height: h)
 
-                if photo == nil {
+                if photo == nil, doodle == nil {
                     // **THE GLYPH NEEDS A GROUND, AND WHITE ALONE CANNOT GIVE
                     // IT ONE.**
                     //
@@ -1385,6 +1481,9 @@ struct AddWinSheet: View {
             size = habit.blockSize
             if let name = editingLog?.imageFileName {
                 Task { photo = await ImageManager.shared.loadFullImage(fileName: name) }
+            } else if let name = editingLog?.doodleFileName, let kept = BlockDoodles.drawing(for: name) {
+                doodle = kept.drawing
+                doodleCanvas = kept.canvas
             }
         } else {
             titleFocused = true
@@ -1451,6 +1550,10 @@ struct AddWinSheet: View {
                     return
                 }
             }
+            if let log = editingLog ?? savedLog, !writeDoodle(to: log) {
+                fail(.doodle)
+                return
+            }
             if let log = editingLog ?? savedLog,
                editingLog == nil || crewChoiceTouched || CrewHold.isHeld(log.id) {
                 if editingLog == nil { CrewChoice.save(crewChoice) }
@@ -1509,10 +1612,39 @@ struct AddWinSheet: View {
         // attached. Next time's choice too, unless the sheet was opened from
         // a crew, whose choice is that crew's.
         if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+            guard writeDoodle(to: log) else {
+                savedHabit = win.habit
+                savedLog = log
+                fail(.doodle)
+                return
+            }
             if initialCrews == nil { CrewChoice.save(crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
         }
         finish(win.habit)
+    }
+
+    /// The doodle onto the win, when it changed: its files written and its
+    /// name on the log, or both taken off. False when it could not be kept,
+    /// which the sheet says as it says a photograph it could not keep.
+    private func writeDoodle(to log: HabitLog) -> Bool {
+        guard doodleChanged else { return true }
+        if let doodle {
+            guard let name = BlockDoodles.save(doodle, canvas: doodleCanvas, replacing: log.doodleFileName)
+            else { return false }
+            log.doodleFileName = name
+        } else if let old = log.doodleFileName {
+            BlockDoodles.remove(old)
+            log.doodleFileName = nil
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            NSLog("[strata] could not keep the doodle: \(error)")
+            return false
+        }
+        doodleChanged = false
+        return true
     }
 
     private func finish(_ habit: Habit) {
@@ -1752,6 +1884,8 @@ enum AddWinFailure: String, Equatable {
     case photo
     /// The win saved; the photograph would not come off it.
     case removal
+    /// The win saved; its doodle did not write (`BlockDoodles`).
+    case doodle
     /// The win would not delete. Nothing changed, photographs included.
     case deletion
 
@@ -1760,6 +1894,7 @@ enum AddWinFailure: String, Equatable {
         case .win: return "Couldn't save this win. Nothing is lost."
         case .photo: return "Couldn't save the photo. The win is saved."
         case .removal: return "Couldn't remove the photo. The win is saved."
+        case .doodle: return "Couldn't save the doodle. The win is saved."
         case .deletion: return "Couldn't delete this win. Nothing changed."
         }
     }
