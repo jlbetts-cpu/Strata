@@ -252,6 +252,10 @@ struct DaySheet: View {
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
     @State private var planFocus: UUID?
+    /// Bumped by the Plan tab's ＋; `PlanLines` starts a line on each change.
+    @State private var planAdds = 0
+    /// Counts tab choices; see `choose`.
+    @State private var choices = 0
 
     // The journal.
     @State private var text = ""
@@ -306,12 +310,16 @@ struct DaySheet: View {
     var body: some View {
         NavigationStack {
             page
-                // The title centred and alone (the owner, 2026-10-05), set as
-                // every sheet that names data rather than itself is.
-                .sheetTitle(title, drawn: false)
-                // The emoji is the Journal's, so the Plan tab's top left
-                // corner is empty (the owner, 2026-10-05).
-                .toolbar { DaySheetToolbar(emoji: emojiButton, showsEmoji: tab == .journal, done: done) }
+                // **The tabs ARE the title** on Wins (the owner, 2026-10-05:
+                // "the tabs i feel like look a little off"): a bold "Today"
+                // over a bold "Plan" was two headings, so the switch takes the
+                // title's place. A past day has no switch and keeps its date.
+                .modifier(DayTitleOrTabs(title: title, tabs: tabSet.showsSwitch ? AnyView(tabSwitch) : nil))
+                // Top left is the tab's own button: the emoji on the Journal,
+                // ＋ on the Plan (the owner, 2026-10-05: "why does there need
+                // to be the add to plan just have the + button on the top
+                // left").
+                .toolbar { DaySheetToolbar(leading: leadingButton, done: done) }
         }
         // Full height, stated; the drag indicator; the page's own ground as
         // the sheet's material. Through the default frosted glass the
@@ -349,7 +357,6 @@ struct DaySheet: View {
     /// handover has nothing under it that must not show.
     private var page: some View {
         VStack(spacing: 0) {
-            if tabSet.showsSwitch { tabSwitch }
             ZStack {
                 switch tab {
                 case .plan:
@@ -376,8 +383,6 @@ struct DaySheet: View {
                 tabWord(item)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, GridConstants.gapTight)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
     }
@@ -385,16 +390,12 @@ struct DaySheet: View {
     private func tabWord(_ item: DayTab) -> some View {
         let chosen = item == tab
         return Button { choose(item) } label: {
-            // The heading-weight word sets the width, hidden, so the pair
-            // does not shift sideways when the weight moves between them.
+            // **Both words the title's size and weight; only the ink moves**
+            // (2026-10-05). A chosen word that grew and thickened made the
+            // pair lopsided and nothing stood still.
             Text(item.title)
                 .font(Typography.headerMedium)
-                .hidden()
-                .overlay {
-                    Text(item.title)
-                        .font(chosen ? Typography.headerMedium : Typography.bodyLarge)
-                        .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
-                }
+                .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
                 .padding(.horizontal, GridConstants.gapTight)
                 .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
                 .contentShape(Rectangle())
@@ -408,13 +409,19 @@ struct DaySheet: View {
     /// The Journal asks `JournalLock` when it is chosen; the Plan never does.
     /// Refused, the sheet stays where it was.
     private func choose(_ next: DayTab) {
+        // Every choice is numbered, so a Journal unlock that answers after a
+        // later tap on Plan does not undo it: Plan, Journal, Plan in quick
+        // succession ended on the Journal, because the unlock is async even
+        // when the lock is off.
+        choices += 1
+        let ticket = choices
         guard next != tab else { return }
-        if next == .journal {
-            Task {
-                guard await JournalLock.shared.unlock() else { return }
-                show(next)
-            }
-        } else {
+        guard next == .journal, JournalLock.shared.hidesWriting else {
+            show(next)
+            return
+        }
+        Task {
+            guard await JournalLock.shared.unlock(), ticket == choices else { return }
             show(next)
         }
     }
@@ -437,7 +444,7 @@ struct DaySheet: View {
     /// foot, on a phone with Apple's model.
     private var planTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PlanLines(focused: $planFocus, onComplete: onComplete)
+            PlanLines(focused: $planFocus, addRequests: planAdds, onComplete: onComplete)
                 .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -727,6 +734,17 @@ struct DaySheet: View {
     /// invisible field the crew reaction bar's "+" uses, and changes it at any
     /// time. Two ways to take it off: hold it for Remove, or pick the same
     /// emoji again.
+    @ViewBuilder
+    private var leadingButton: some View {
+        switch tab {
+        case .journal: emojiButton
+        case .plan:
+            GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "Add to the plan") {
+                planAdds += 1
+            }
+        }
+    }
+
     private var emojiButton: some View {
         Button {
             HapticsEngine.lightTap()
@@ -808,31 +826,26 @@ struct DaySheet: View {
     }
 }
 
-/// The sheet's bar: the emoji top left, Done top right. The title is
-/// `sheetTitle`'s, in the middle.
+/// The sheet's bar: the tab's own button top left (the Journal's emoji, the
+/// Plan's ＋), Done top right. The title is the tabs, in the middle.
 ///
 /// Typed `ToolbarContent`, so the availability gate for
-/// `sharedBackgroundVisibility` can live in it: the emoji button brings its
+/// `sharedBackgroundVisibility` can live in it: the leading button brings its
 /// own glass, and inside the system's toolbar capsule it would be glass on
-/// glass. The emoji is the Journal's, so on the Plan tab the corner is empty.
-private struct DaySheetToolbar<Emoji: View>: ToolbarContent {
-    let emoji: Emoji
-    let showsEmoji: Bool
+/// glass.
+private struct DaySheetToolbar<Leading: View>: ToolbarContent {
+    let leading: Leading
     let done: () -> Void
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
         if #available(iOS 26.0, *) {
-            if showsEmoji {
-                ToolbarItem(placement: .topBarLeading) { emoji }
-                    .sharedBackgroundVisibility(.hidden)
-            }
+            ToolbarItem(placement: .topBarLeading) { leading }
+                .sharedBackgroundVisibility(.hidden)
             ToolbarItem(placement: .topBarTrailing) { doneButton }
                 .sharedBackgroundVisibility(.hidden)
         } else {
-            if showsEmoji {
-                ToolbarItem(placement: .topBarLeading) { emoji }
-            }
+            ToolbarItem(placement: .topBarLeading) { leading }
             ToolbarItem(placement: .topBarTrailing) { doneButton }
         }
     }
@@ -842,5 +855,30 @@ private struct DaySheetToolbar<Emoji: View>: ToolbarContent {
             Text("Done").sheetAction()
         }
         .buttonStyle(.pressWord)
+    }
+}
+
+/// The sheet's title, or, where there is a choice of tab, the switch standing
+/// where the title would.
+private struct DayTitleOrTabs: ViewModifier {
+    let title: String
+    let tabs: AnyView?
+
+    func body(content: Content) -> some View {
+        if let tabs {
+            content
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if #available(iOS 26.0, *) {
+                        ToolbarItem(placement: .principal) { tabs }
+                            .sharedBackgroundVisibility(.hidden)
+                    } else {
+                        ToolbarItem(placement: .principal) { tabs }
+                    }
+                }
+        } else {
+            content.sheetTitle(title, drawn: false)
+        }
     }
 }

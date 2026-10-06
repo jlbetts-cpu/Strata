@@ -36,6 +36,10 @@ struct PlanLines: View {
     /// Journal can put the keyboard away.
     @Binding var focused: UUID?
 
+    /// Bumped by the sheet's ＋ (top left on the Plan tab); each change starts
+    /// a line at the end.
+    var addRequests: Int = 0
+
     /// Called with the line when its block is pressed. The caller opens the
     /// add sheet; the line is ticked at once, and the tick is kept only once
     /// a win is actually saved, so backing out of that sheet does not spend it.
@@ -111,6 +115,7 @@ struct PlanLines: View {
 
     var body: some View {
         content
+            .onChange(of: addRequests) { withAnimation(GridConstants.motionSnappy) { addLine() } }
             .sheet(item: $detail) { item in
                 PlanItemDetailSheet(item: item)
             }
@@ -174,39 +179,15 @@ struct PlanLines: View {
                 }
             }
 
-            // **THE INVITATION STANDS WHERE THE FIRST LINE LANDS, AND IT WAS
-            // MOVED TO THE GOLDEN SECTION FOR FOUR HOURS** (2026-10-01).
-            //
-            // The owner: "I noticed you added the space way down for the plan
-            // even though it was supposed to show the bullet point". It is
-            // not an empty state's caption, it is row one: a bullet's
-            // silhouette with the words beside it, drawn exactly where the
-            // first real line will be, so that pressing it is the row filling
-            // in rather than a control somewhere else producing one somewhere
-            // else.
-            if lines.isEmpty { hint }
-            // **The tail: the next line's place, one row deep.** Pressing it
-            // starts a new line, which is what a page of bullets does. Under
-            // a written list it carries the ghost of the next bullet, the
-            // dashed outline the tower uses for "nothing here yet", because
-            // the ＋ that used to say "you can add" from the corner is gone.
-            //
-            // **Outside the branch, so the empty page and the written one are
-            // the same page** (`SheetRoomTests.bothStatesAreOnePage`). One
-            // copy of the tail is how the two states stopped disagreeing.
-            // **Words, not a dashed box** (the owner, 2026-10-05: "more
-            // minimal"). The next line's place is the invitation in the same
-            // faint ink as the note's, in the column a line's words sit in.
-            HStack(spacing: GridConstants.spacing) {
-                if !lines.isEmpty { invitation }
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, Self.textLeading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Collapsed on an empty day: the invitation above is already the
-            // place to start, and a second empty row only pushed the note away.
-            .frame(height: lines.isEmpty ? 0 : Self.tailHeight)
-            .clipped()
+            // **No words, one ＋** (the owner, 2026-10-05: "why does there
+            // need to be the add to plan just have the + button on the top
+            // left"). The "Add to the plan" row and the empty day's hint are
+            // gone; the ＋ in the sheet's top left adds a line. The tail stays
+            // as a silent place to tap, one row deep under the list and the
+            // same on an empty day, written once so the two states agree.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.tailHeight)
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
             .accessibilityElement()
@@ -215,15 +196,6 @@ struct PlanLines: View {
         }
         .padding(.top, GridConstants.gapTight)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// "Add to the plan", in the note placeholder's faint ink and size: the
-    /// day page's two parts invite you the same way.
-    private var invitation: some View {
-        Text("Add to the plan")
-            .font(Typography.bodyLarge)
-            .foregroundStyle(AppColors.inkTertiary)
-            .accessibilityHidden(true)
     }
 
     // MARK: - Suggestions
@@ -252,111 +224,6 @@ struct PlanLines: View {
         guard let line = all.first(where: { $0.id == id }) else { return }
         context.delete(line)
         StoreReset.commitDelete("taking back a suggested plan line", context: context)
-    }
-
-    /// What the page looks like before anything is written on it.
-    ///
-    /// **Show the line, not a notice.** It was two pieces of grey type in the
-    /// corner, which tells you the page is empty — something you can already
-    /// see — and gives your hand nothing to aim at. A page of bullets that is
-    /// waiting can show one waiting bullet: the same row the real lines use,
-    /// ghosted, with the invitation beside it. Tapping anywhere here starts
-    /// writing, which is what the empty space below already did and what
-    /// nobody could tell.
-    ///
-    /// **ONE waiting line, not three things in a corner.**
-    ///
-    /// It was a ghost bullet, a grey bar standing in for text, and a sentence
-    /// underneath, and measured at 402x874 the three started at three
-    /// different places: the bullet on the page margin at 16.0pt, the grey bar
-    /// at 54, and the sentence at **18.3**, which is a margin the app does not
-    /// have. The sentence was `gapItem` indented from a stack that was itself
-    /// pulled back by the bullet's target inset, so 12 - 10 came out at 2
-    /// points of nothing. An empty screen is the one somebody meets before
-    /// they know what the feature is for, and this one asked them to read
-    /// three objects to learn one thing.
-    ///
-    /// So the grey bar goes. It said "text goes here" while real text sat
-    /// twelve points under it saying the same thing in words, and at 1.20:1
-    /// against the page it was the faintest ink on the sheet, which is the
-    /// skeleton a screen shows while it is still loading rather than one that
-    /// is finished and waiting. The sentence takes its place, at `textLeading`
-    /// (54.0pt), which is the column a line's own words sit in. What is left is
-    /// a single waiting row: the bullet's silhouette, with the invitation
-    /// written where the line will be.
-    ///
-    /// **It used to sit where the first real line sits, and as of 2026-10-01
-    /// it does not.** The original fault is kept here because the arithmetic
-    /// still is: the old one carried `gapWide` of top padding against a row's
-    /// 4, so the ghost's block started at 174.0pt where a first line's bullet
-    /// starts at 154.3, and tapping it made the page jump twenty points as the
-    /// thing you pressed was replaced by the thing it was pretending to be. It
-    /// still carries the row's own vertical padding, so the ROW it draws is
-    /// still exactly a row.
-    ///
-    /// What changed is where that row stands: `content` now puts it two thirds
-    /// down the empty field, for check 11c, and the full argument and the
-    /// price are written out there. The short version is that the 20pt
-    /// discrepancy this paragraph was written to kill is a ~420pt move now and
-    /// it is paid for on purpose, with an animation, because a page whose
-    /// biggest white is a 653pt dead tail is the worse of the two faults.
-    private var hint: some View {
-        // **Centred, not baseline-aligned, and that is what lands it.**
-        //
-        // The row's `.firstTextBaseline` cannot be borrowed here. Its `-27`
-        // guide is calibrated against a `UITextField`, whose baseline SwiftUI
-        // derives from the view's own box; a `Text` reports the font's real
-        // one, which sits elsewhere, and reusing the number put the ghost
-        // eleven points off the line it was meant to stand on.
-        //
-        // Centring needs no number and is exact where it matters. The ghost's
-        // 44pt box is taller than a two-line invitation (40.6pt at the default
-        // size), so the `HStack` is 44 and the box sits flush at its top,
-        // which is where a real row's bullet box sits too, because the bullet
-        // is the tallest thing in that row as well. Measured on the built
-        // sheet: line one's bullet glyph starts at 154.3pt, and so does this.
-        HStack(spacing: GridConstants.spacing) {
-            // **A block, not a circle.** This is a ghost of the bullet
-            // beside a real line, and that bullet is a BLOCK — the whole
-            // point of the plan is that a line becomes one. A dotted
-            // circle is a ghost of something the app does not have: "why
-            // is there a circle dotted when it should be a square."
-            //
-            // Same corner rule as the real one, off the same cell size, so
-            // the outline is the exact silhouette of what will land in it.
-            // **`bulletSide`, not 22.** The comment above is the test and
-            // the outline failed it: the bullet that lands here is 24, so a
-            // 22pt ghost was the silhouette of nothing, two points off the
-            // real one and a point off the page margin with it.
-            //
-            // It failed the same test on ink and weight, which is what
-            // `PlanBullet.outlineInk` and `outlineWidth(forSide:)` are for:
-            // 0.40 at 1.5 measured 2.13:1 against this page where the real
-            // bullet measures 3.31:1, so the ghost missed the 3:1 a UI shape
-            // is held to while claiming to be the same shape.
-            // No dashed block (2026-10-05): the words alone, in the column
-            // a line's words sit in, as the note's placeholder is.
-            Text("Add to the plan")
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        // On the page margin, where the note's own placeholder starts: an
-        // empty day is one column of two invitations (2026-10-05).
-        .padding(.leading, GridConstants.horizontalPadding)
-        .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.vertical, GridConstants.spacing)
-        .contentShape(Rectangle())
-        // **Animated, because the page moves now.** The invitation stands two
-        // thirds down an empty field (see `content`) and the first real line
-        // lands at the top, so the tap is a page gathering itself into a list
-        // rather than a swap in place. `motionSmooth` is the ladder's own
-        // rung for a layout answering a press.
-        .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
-        .accessibilityElement()
-        .accessibilityLabel("Add to the plan")
-        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - A line

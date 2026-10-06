@@ -620,6 +620,11 @@ struct MainAppView: View {
                 tickAwaitingWin = item.id
                 isPlanning = false
             }
+            // **Keyed on the opening tab.** The sheet's content is built
+            // before `openDay` has picked the tab, and a `@State` keeps the
+            // first value it is given, so a day last left on the Journal
+            // reopened on the Plan. A new opening is a new sheet.
+            .id(dayOpeningTab)
         }
         .sheet(item: $winDraft, onDismiss: {
             // Closed without saving: put the line back the way it was.

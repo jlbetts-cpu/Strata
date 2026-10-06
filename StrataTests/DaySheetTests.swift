@@ -149,7 +149,12 @@ struct DaySheetTests {
         let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
         let choose = try #require(text.components(separatedBy: "private func choose(").dropFirst().first)
         let fn = choose.components(separatedBy: "private func show(").first ?? ""
-        #expect(fn.contains("if next == .journal {"))
+        // Only a Journal that is still hidden waits on the lock; everything
+        // else switches at once, so a later tap cannot be overtaken by an
+        // unlock answering late (2026-10-05).
+        #expect(fn.contains("guard next == .journal, JournalLock.shared.hidesWriting else {"))
+        #expect(fn.contains("ticket == choices"),
+                "a Journal unlock that answers after a later tap overrides it")
         #expect(fn.components(separatedBy: "JournalLock.shared.unlock()").count - 1 == 1,
                 "the switch asks for Face ID somewhere other than the Journal")
         let main = SourceSweep.code(try MorningSource.read("Views/MainAppView.swift"))
@@ -241,8 +246,13 @@ struct DaySheetTests {
             #expect(!body.contains(chrome), "the switch draws \(chrome)")
         }
         #expect(body.contains("chosen ? AppColors.inkPrimary : AppColors.inkTertiary"))
-        #expect(body.contains("chosen ? Typography.headerMedium : Typography.bodyLarge"),
-                "the switch uses a weight outside the app's two")
+        // Both words the title's size and weight since the tabs became the
+        // title (2026-10-05: "the tabs i feel like look a little off"); only
+        // the ink says which is chosen.
+        #expect(body.contains(".font(Typography.headerMedium)"),
+                "the two words are no longer one size and weight")
+        #expect(!body.contains("chosen ? Typography."),
+                "the chosen word changes size or weight again")
         #expect(body.contains("minWidth: Self.tapTarget, minHeight: Self.tapTarget"))
         #expect(body.contains(".isTabBar"))
         #expect(body.contains(".isSelected"))
@@ -259,11 +269,21 @@ struct DaySheetTests {
         #expect(bad.contains("Capsule") && bad.contains("background("))
     }
 
-    /// The emoji is the Journal's: the Plan tab's top left corner is empty.
-    @Test("the emoji's glass is on the Journal tab only")
-    func emojiOnTheJournalOnly() throws {
+    /// Top left is the tab's own button: the emoji on the Journal, ＋ on the
+    /// Plan (the owner, 2026-10-05: "why does there need to be the add to
+    /// plan just have the + button on the top left").
+    @Test("top left is the Journal's emoji and the Plan's ＋")
+    func leadingButtonPerTab() throws {
         let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
-        #expect(text.contains("DaySheetToolbar(emoji: emojiButton, showsEmoji: tab == .journal, done: done)"))
+        #expect(text.contains("DaySheetToolbar(leading: leadingButton, done: done)"))
+        let leading = try #require(text.components(separatedBy: "private var leadingButton: some View {").dropFirst().first)
+        let fn = leading.components(separatedBy: "private var emojiButton").first ?? ""
+        #expect(fn.contains("case .journal: emojiButton"))
+        #expect(fn.contains("GlassIconButton(systemName: \"plus\""))
+        #expect(fn.contains("planAdds += 1"))
+        let lines = SourceSweep.code(try MorningSource.read("Views/PlanLines.swift"))
+        #expect(lines.contains(".onChange(of: addRequests)"),
+                "the ＋ no longer reaches the plan")
     }
 
     // MARK: - The Wins header: one button where there were two

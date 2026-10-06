@@ -126,15 +126,18 @@ struct SheetRoomTests {
         // a branch cannot have its own copy of this.
         let source = try! String(contentsOfFile: planSheetPath, encoding: .utf8)
         // The tail is one row deep since the day became one page
-        // (2026-10-05): the note stands under it, so it is a fixed height
-        // rather than a minimum that took the rest of the sheet.
-        // Collapsed to nothing on an empty day since 2026-10-05 (the owner:
-        // "more minimal"), still written once.
-        let tails = source.components(separatedBy: "lines.isEmpty ? 0 : Self.tailHeight").count - 1
+        // (2026-10-05), and the same height on an empty day and a written
+        // one: since the owner's "just have the + button on the top left"
+        // (2026-10-05) neither state draws words, so there is no branch left
+        // for the two to drift apart in. The ＋ adds; the tail is a silent
+        // place to tap.
+        let tails = source.components(separatedBy: ".frame(height: Self.tailHeight)").count - 1
         #expect(tails == 1,
                 "the tap-to-write tail is written \(tails) times; two copies is how the two states drift")
-        #expect(source.contains("if lines.isEmpty { hint }"),
-                "the invitation is no longer the only thing in the empty branch")
+        #expect(!source.contains("if lines.isEmpty"),
+                "the empty day has a branch of its own again; the ＋ top left is the only invitation")
+        #expect(!source.contains("Text(\"Add to the plan\")"),
+                "the \"Add to the plan\" words are back; the owner asked for the ＋ instead")
     }
 
     @Test("A plan keeps its tail, because lines flow downward")
