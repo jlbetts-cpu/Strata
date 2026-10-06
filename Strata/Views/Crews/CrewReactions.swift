@@ -304,7 +304,6 @@ struct CrewReactionsPanel: View {
     @State private var replying = false
     @State private var draft = ""
     @State private var refused = false
-    @State private var reportingReply: Reaction?
     @State private var doodling = false
     @State private var doodleRefused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -320,8 +319,6 @@ struct CrewReactionsPanel: View {
     var body: some View {
         let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
         let myReaction = store.myReaction(to: winID, in: crewID)
-        let replies = store.replies(to: winID, in: crewID)
-        let doodles = store.doodles(to: winID, in: crewID)
         VStack(spacing: 10) {
             if open, !mine {
                 ReactionBar(mine: myReaction, onDark: onDark) { emoji in
@@ -329,17 +326,16 @@ struct CrewReactionsPanel: View {
                     withAnimation(motion) { open = false }
                 }
                 .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
-                // **Reply**: an emoji and a few words, for the owner only, in
-                // place of a chat (the owner, 2026-10-05, from the research:
-                // talk that hangs off a win lasts; a general chat in an app
-                // about something else does not).
-                // **Doodle** beside it (spec section 3): the same people see
-                // it and it lasts as long, so it is the same kind of control,
-                // side by side, and off together when replies are.
+                // **Reply** and **Doodle** post into the crew's day chat,
+                // quoting this win (the owner, 2026-10-05). They used to be a
+                // line and a drawing under the photo that only the win's owner
+                // saw; the lists that showed them here are gone, and the panel
+                // is the bar, these two words and who reacted.
+                // Off together when writing is off (`canReply`).
                 if store.canReply() {
                     HStack(spacing: GridConstants.gapTight) {
                         replyChip("Reply") {
-                            draft = replies.first { $0.profileID == store.me }?.line ?? ""
+                            draft = ""
                             replying = true
                         }
                         replyChip("Doodle") { doodling = true }
@@ -350,29 +346,6 @@ struct CrewReactionsPanel: View {
             if open, let crew = store.visible(crewID), !reactions.isEmpty {
                 ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-            if open, !replies.isEmpty {
-                VStack(spacing: 6) {
-                    ForEach(replies) { reply in
-                        Text("\(CrewReactionsPanel.name(reply.profileID, crewID: crewID)) \(reply.emoji)  \(reply.line ?? "")")
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkSecondary)
-                            .multilineTextAlignment(.center)
-                            .contextMenu {
-                                if reply.profileID != store.me {
-                                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
-                                        reportingReply = reply
-                                    }
-                                }
-                            }
-                    }
-                }
-                .padding(.horizontal, GridConstants.horizontalPadding)
-                .transition(.opacity)
-            }
-            if open, !doodles.isEmpty {
-                doodleRow(doodles)
-                    .transition(.opacity)
             }
             if !reactions.isEmpty || !mine {
                 Button {
@@ -412,15 +385,14 @@ struct CrewReactionsPanel: View {
             Button("Send") {
                 let text = draft
                 Task {
-                    let outcome = await store.reply(text, emoji: myReaction ?? Reaction.doubleTap,
-                                                    to: winID, in: crewID)
+                    let outcome = await store.reply(text, to: winID, in: crewID)
                     if outcome == .refusedWords { refused = true }
                 }
                 withAnimation(motion) { open = false }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Only \(owner) sees it. Replies clear when the day ends.")
+            Text("Your reply goes to the crew's chat. It clears when the day ends.")
         }
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
@@ -431,9 +403,8 @@ struct CrewReactionsPanel: View {
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: owner) { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
-                let emoji = myReaction ?? Reaction.doubleTap
                 Task {
-                    let outcome = await store.doodle(png, emoji: emoji, to: winID, in: crewID)
+                    let outcome = await store.doodle(png, to: winID, in: crewID)
                     if outcome == .refusedSketch { doodleRefused = true }
                 }
                 withAnimation(motion) { open = false }
@@ -449,18 +420,6 @@ struct CrewReactionsPanel: View {
             if which == "sheet", !mine { doodling = true }
         }
         #endif
-        .confirmationDialog(reportingReply?.sketch != nil && reportingReply?.line == nil
-                            ? "Report this doodle?" : "Report this reply?",
-                            isPresented: Binding(get: { reportingReply != nil }, set: { if !$0 { reportingReply = nil } }),
-                            titleVisibility: .visible, presenting: reportingReply) { reply in
-            ForEach(CrewSafety.Reason.allCases) { reason in
-                Button(reason.words) {
-                    Task { await CrewSafety.report(.reply(reply), in: crewID, reason: reason) }
-                }
-            }
-        } message: { _ in
-            Text("Your report goes to Some Wins. Nobody in the crew is told.")
-        }
     }
 
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
@@ -480,43 +439,6 @@ struct CrewReactionsPanel: View {
         // interactive glass cancelled taps on a real phone.
         .buttonStyle(.plain)
     }
-
-    /// **The doodles, under the replies**: small, in the ink of whatever
-    /// they sit on (white over a photograph, the page's ink on the page),
-    /// each with who drew it. Held, a friend's can be reported, the way a
-    /// reply's line is.
-    private func doodleRow(_ doodles: [Reaction]) -> some View {
-        HStack(alignment: .bottom, spacing: GridConstants.gapItem) {
-            ForEach(doodles) { doodle in
-                if let sketch = doodle.sketch {
-                    let who = CrewReactionsPanel.name(doodle.profileID, crewID: crewID)
-                    VStack(spacing: 4) {
-                        InkImage(url: sketch, tint: onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
-                            .frame(maxWidth: Self.doodleSide, maxHeight: Self.doodleSide)
-                        Text(who)
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkSecondary)
-                            .lineLimit(1)
-                    }
-                    .contentShape(Rectangle())
-                    .contextMenu {
-                        if doodle.profileID != store.me {
-                            Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
-                                reportingReply = doodle
-                            }
-                        }
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("A doodle from \(who)")
-                }
-            }
-        }
-        .padding(.horizontal, GridConstants.horizontalPadding)
-    }
-
-    /// A doodle's largest side on the panel: small, a mark beside the
-    /// reactions, never a second photograph.
-    static let doodleSide: CGFloat = 56
 
     /// Yours first, then in the order they came.
     static func ordered(_ reactions: [Reaction], me: UUID) -> [Reaction] {

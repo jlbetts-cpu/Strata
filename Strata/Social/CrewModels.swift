@@ -191,6 +191,37 @@ nonisolated struct OwnWin: Sendable, Equatable {
     var withPeople: [UUID] = []
 }
 
+/// **One line in a crew's day chat** (the owner, 2026-10-05).
+///
+/// Text and emoji, up to `textLimit` characters, or a doodle (`sketch`, a
+/// PNG on this phone carried as an asset). It can quote a win
+/// (`quoteWinID`): that is what Reply and Doodle on a win post now, in place
+/// of a line on a reaction only the win's owner saw.
+///
+/// **It lives for the crew's day.** `crewDay` is the crew's `yyyy-MM-dd`,
+/// in the crew's zone; no phone shows a message from another day
+/// (`SocialStore.messages(in:)`), and each phone deletes its own when the
+/// day ends (`SocialStore.prune`). No read receipts: nothing in it says who
+/// has opened it.
+nonisolated struct CrewMessage: Identifiable, Codable, Equatable, Sendable {
+    let messageID: UUID
+    let crewID: CrewID
+    let senderProfileID: UUID
+    let crewDay: String
+    /// Empty for a doodle with no words. Never longer than `textLimit`.
+    var text: String
+    /// The win a reply or a doodle answers, shown as a small quoted line.
+    var quoteWinID: UUID? = nil
+    /// A doodle, cached on this phone.
+    var sketch: URL? = nil
+    let createdAt: Date
+
+    var id: UUID { messageID }
+
+    /// A line, not a letter: the owner's 280.
+    static let textLimit = 280
+}
+
 /// One person's reaction to one win, in one crew.
 ///
 /// **One per person per win**, like a Tapback: reacting again with another
@@ -203,15 +234,16 @@ nonisolated struct Reaction: Identifiable, Codable, Equatable, Sendable {
     let profileID: UUID
     var emoji: String
     var createdAt: Date
-    /// **A reply**: a short line with the emoji, shown only to whoever posted
-    /// the win (and to you), and only on the crew day it was written
-    /// (`SocialStore.replies`). Nil for a plain reaction.
+    /// **A reply, the old way.** Until 2026-10-05 a reply was a short line
+    /// on the reaction, seen only by the win's owner. Replies post into the
+    /// crew's chat now (`CrewMessage.quoteWinID`), so nothing writes this any
+    /// more and nothing shows it. It is still READ, so a record from an older
+    /// build decodes, and the writer's phone still clears its own at the end
+    /// of the day (`SocialStore.prune`).
     var line: String? = nil
-    /// **A doodle**: a one-pen drawing on this phone (`InkCanvas`), a PNG of
-    /// at most 1080px, carried on the record's `sketch` asset. Seen like a
-    /// reply's line: by whoever posted the win and by its writer, only on the
-    /// crew day it was drawn (`SocialStore.doodles`), and cleared by the
-    /// writer's phone when that day ends (`SocialStore.prune`).
+    /// **A doodle, the old way**: the same story as `line`. Doodles are chat
+    /// messages now (`CrewMessage.sketch`); an old one is read harmlessly,
+    /// never shown, and cleared by its writer's phone at the end of the day.
     var sketch: URL? = nil
 
     var id: String { Self.name(winID: winID, profileID: profileID) }

@@ -25,10 +25,15 @@ struct CrewTowerView: View {
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
     @State private var showsInfo = false
+    /// Today's crew chat, from the glass button top right.
+    @State private var showsChat = false
     /// A photograph opened from its block, in the same viewer a past day's
     /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
     /// previous day").
     @State private var viewing: String?
+    /// The crew day the viewer is showing, when it is not today's: a win a
+    /// chat line quoted from an earlier day opens among its own day's.
+    @State private var viewingDay: String?
     @State private var reporting: SharedWin?
     /// Reported a moment ago: the thank-you and the offer to block.
     /// Double-tap hearts in the air, over the blocks they landed on.
@@ -118,6 +123,8 @@ struct CrewTowerView: View {
             // `-strataCrewSheet info|win`: the crew's sheets, for captures.
             switch DebugHarness.argument("-strataCrewSheet") {
             case "info": showsInfo = true
+            // `-strataCrewSheet chat`: today's chat, over the crew.
+            case "chat": showsChat = true
             case "win": viewing = store.today(in: crewID).last { $0.senderProfileID != store.me && $0.photo == nil }?.winID.uuidString
             case "mine": viewing = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID.uuidString
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
@@ -174,8 +181,10 @@ struct CrewTowerView: View {
             rebuild()
             store.markSeen(crewID)
             openWinFromNotification()
+            openChatFromNotification()
         }
         .onChange(of: CrewRouter.shared.openWin) { _, _ in openWinFromNotification() }
+        .onChange(of: CrewRouter.shared.openChat) { _, _ in openChatFromNotification() }
         .onChange(of: store.today(in: crewID)) { _, _ in
             rebuild()
             store.markSeen(crewID)
@@ -195,6 +204,11 @@ struct CrewTowerView: View {
         .sheet(isPresented: $showsInfo) {
             if let crew { CrewInfoSheet(crewID: crew.id, onLeft: onBack) }
         }
+        // The chat updates while it is open from the live sync above: the
+        // store is observed, and `refreshLive` keeps running under a sheet.
+        .sheet(isPresented: $showsChat) {
+            CrewChatSheet(crewID: crewID, onOpenWin: openQuotedWin)
+        }
         .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
         // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
         // told. Hung on a point at the foot of the screen, never on the whole
@@ -202,7 +216,7 @@ struct CrewTowerView: View {
         // full-screen one it never appeared (End Crew did the same).
         .overlay(alignment: .bottom) { reportAnchor }
         // "Sam added you to a win", once per win, never over another screen.
-        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || reporting != nil || reacting != nil)
+        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil || reacting != nil)
         .accessibilityAction(.escape) { onBack() }
     }
 
@@ -245,6 +259,36 @@ struct CrewTowerView: View {
         }
     }
 
+    /// A tapped chat notification: the chat, once the crew is open.
+    private func openChatFromNotification() {
+        guard CrewRouter.shared.openChat else { return }
+        CrewRouter.shared.openChat = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            showsChat = true
+        }
+    }
+
+    /// **A quote in the chat, tapped**: the chat closes and the win opens in
+    /// the viewer a tap on its block opens, among its own day's wins. After
+    /// the sheet has gone: UIKit drops a cover asked for while a sheet is
+    /// still dismissing.
+    private func openQuotedWin(_ id: UUID) {
+        guard let win = store.wins(in: crewID).first(where: { $0.winID == id }), let crew else { return }
+        showsChat = false
+        let today = CrewDay.string(for: Date(), in: crew.timeZone)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            viewingDay = win.crewDay == today ? nil : win.crewDay
+            viewing = id.uuidString
+        }
+    }
+
+    /// The wins the viewer pages through: today's, or the quoted win's day.
+    private var viewedWins: [SharedWin] {
+        viewingDay.map { store.wins(in: crewID, on: $0) } ?? store.today(in: crewID)
+    }
+
     /// A held friend's block: the reaction bar over it, and only that (the
     /// owner, 2026-10-02: "the hold... should just be to react"). Who reacted
     /// and Report are in the carousel a tap opens. Your own takes no
@@ -285,7 +329,10 @@ struct CrewTowerView: View {
     }
 
     private var viewingBinding: Binding<ViewedPhoto?> {
-        Binding(get: { viewing.map(ViewedPhoto.init) }, set: { viewing = $0?.id })
+        Binding(get: { viewing.map(ViewedPhoto.init) }, set: {
+            viewing = $0?.id
+            if $0 == nil { viewingDay = nil }
+        })
     }
 
     private func viewer(_ photo: ViewedPhoto) -> some View {
@@ -297,7 +344,7 @@ struct CrewTowerView: View {
                         // asked for while another is still dismissing.
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(450))
-                            reporting = store.today(in: crewID).first { $0.winID.uuidString == shown.id }
+                            reporting = store.wins(in: crewID).first { $0.winID.uuidString == shown.id }
                         }
                     },
                     onWithdraw: { shown in
@@ -409,7 +456,7 @@ struct CrewTowerView: View {
     /// Today's wins in the order the tower stacks them, for the carousel:
     /// photographs, and the rest as their blocks.
     private var galleryPhotos: [GalleryPhoto] {
-        CrewGallery.photos(store.today(in: crewID), crew: crew, me: store.me)
+        CrewGallery.photos(viewedWins, crew: crew, me: store.me)
     }
 
     private func rebuild() {
@@ -429,6 +476,10 @@ struct CrewTowerView: View {
                 // **No "+" here any more** (the owner, 2026-10-05: "kinda
                 // useless because there is already a + block"). The tower's
                 // own next slot adds a win, and holding it opens Add Win.
+                // **The corner is today's chat** (the owner, 2026-10-05): a
+                // hollow `bubble.left` on glass, with a small dot while a
+                // friend has said something you have not opened.
+                chatButton
             }
             if let crew {
                 let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)
@@ -498,6 +549,30 @@ struct CrewTowerView: View {
         .padding(.top, GridConstants.gapTight)
         .padding(.bottom, GridConstants.gapTight)
     }
+
+    private var chatButton: some View {
+        let unread = store.unreadChats.contains(crewID)
+        return GlassIconButton(systemName: "bubble.left", onPage: true, accessibilityLabel: "Chat") {
+            showsChat = true
+        }
+        .overlay(alignment: .topTrailing) {
+            if unread {
+                Circle()
+                    .fill(AppColors.inkPrimary)
+                    .frame(width: Self.dotSide, height: Self.dotSide)
+                    .offset(x: -Self.dotInset, y: Self.dotInset)
+                    .transition(.scale.combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: unread)
+        .accessibilityValue(unread ? "New" : "")
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
+    }
+
+    /// The unread dot: small, in ink, inside the glass circle's corner.
+    private static let dotSide: CGFloat = 8
+    private static let dotInset: CGFloat = 8
 
     /// Empty, the bubble is the crew: its details. With heads in it, a tap
     /// fans them out to choose from.

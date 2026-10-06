@@ -276,7 +276,16 @@ struct CohesionCrewTests {
         #expect(CrewNotifications.announceKeys(reaction).reply == "reply-" + reaction.id)
     }
 
-    @Test("a reaction then a reply pings twice; changing the emoji after does not ping again")
+    /// **A reply is no longer a reaction's ping** (2026-10-05). It was its
+    /// own news on the reaction kind, keyed apart from the emoji, so the
+    /// words woke the owner. Replies are lines in the crew's chat now, which
+    /// the app announces itself ("Sam: so proud" to the win's owner,
+    /// `CrewNotifications.announceMessages`, tested in `CrewChatTests`), and
+    /// a ping would need a kind and a subscription of its own; pings are
+    /// off. So the second ping this test counted is now held to NOT
+    /// happening, and the reply is held to reaching the chat instead. The
+    /// emoji half is unchanged.
+    @Test("a reaction pings once; a reply goes to the chat, and a changed emoji does not ping again")
     func aReplyIsItsOwnPing() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
@@ -286,29 +295,34 @@ struct CohesionCrewTests {
         func reactionPings() -> Int { world.pings.values.filter { $0[CrewPingRecord.kind] == "reaction" }.count }
         await b.react("🔥", to: run.winID, in: crew.id)
         #expect(reactionPings() == 1)
-        #expect(await b.reply("so proud", emoji: "🔥", to: run.winID, in: crew.id) == .sent)
-        #expect(reactionPings() == 2, "the words are news of their own")
+        #expect(await b.reply("so proud", to: run.winID, in: crew.id) == .sent)
+        #expect(reactionPings() == 1, "a reply is a chat line, not a reaction")
+        await a.refresh()
+        #expect(a.messages(in: crew.id).map(\.text) == ["so proud"], "the words are news of their own, in the chat")
         await b.react("👑", to: run.winID, in: crew.id)
-        #expect(reactionPings() == 2, "a changed emoji is not news")
+        #expect(reactionPings() == 1, "a changed emoji is not news")
     }
 
-    @Test("the same emoji again keeps a reply; with no reply it takes the reaction back")
+    /// The words survive any tap on an emoji. They used to share one record
+    /// with the reaction, so taking the emoji back took them too; a reply
+    /// is its own chat line now and no reaction gesture can reach it.
+    @Test("the same emoji again never unsends a reply; with no reply it takes the reaction back")
     func theSameEmojiNeverUnsendsAReply() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        #expect(await b.reply("so proud", emoji: "❤️", to: run.winID, in: crew.id) == .sent)
+        #expect(await b.reply("so proud", to: run.winID, in: crew.id) == .sent)
         await b.react("❤️", to: run.winID, in: crew.id)
         await a.refresh()
-        #expect(a.replies(to: run.winID, in: crew.id).map(\.line) == ["so proud"], "a double tap erased the words")
+        #expect(a.messages(in: crew.id).map(\.text) == ["so proud"], "a double tap erased the words")
         #expect(a.reactions(to: run.winID, in: crew.id).map(\.emoji) == ["❤️"])
         // A new emoji still replaces the old one and keeps the words.
         await b.react("🔥", to: run.winID, in: crew.id)
         await a.refresh()
         #expect(a.reactions(to: run.winID, in: crew.id).map(\.emoji) == ["🔥"])
-        #expect(a.replies(to: run.winID, in: crew.id).map(\.line) == ["so proud"])
+        #expect(a.messages(in: crew.id).map(\.text) == ["so proud"])
         // A plain reaction still toggles off.
         let gym = win("Gym")
         await a.post(gym, to: [crew.id])

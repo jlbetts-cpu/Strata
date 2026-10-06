@@ -39,28 +39,35 @@ struct CrewReactionTests {
         // "sketch" since the same evening: a doodle, an ASSET, seen the way a
         // reply is (spec section 3). It is added to the development schema by
         // tools/cloudkit/add-crews-schema.sh; production needs the owner's
-        // Deploy.
+        // Deploy. Both moved into the crew's chat later that day
+        // (`CrewMessage`); the keys stay so older records still read.
         #expect(CrewRecords.reactionKeys == ["winID", "profileID", "emoji", "createdAt", "line", "sketch"])
     }
 
-    /// A reply is for the win's owner (and its writer), and nobody else in
-    /// the crew sees the words.
-    @Test func aReplyIsSeenOnlyByTheOwnerAndTheWriter() async throws {
+    /// **A reply goes to the whole crew now.** Until 2026-10-05 a reply was
+    /// a line on the replier's reaction, seen only by the win's owner and its
+    /// writer, and this test held a third person to seeing the emoji and not
+    /// the words. The owner moved replies into the crew's day chat ("Reply on
+    /// a win now posts a chat message quoting the win"), so the third person
+    /// is now held to SEEING it, quoted, and the reaction is held to carrying
+    /// no words at all.
+    @Test func aReplyGoesToTheWholeCrewAsAQuotedLine() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        #expect(await b.reply("nice one", emoji: "🔥", to: run.winID, in: crew.id) == .sent)
+        #expect(await b.reply("nice one", to: run.winID, in: crew.id) == .sent)
         await a.refresh()
-        #expect(a.replies(to: run.winID, in: crew.id).map(\.line) == ["nice one"])
-        #expect(b.replies(to: run.winID, in: crew.id).map(\.line) == ["nice one"])
-        // A third person sees the emoji and not the words.
+        #expect(a.messages(in: crew.id).map(\.text) == ["nice one"])
+        #expect(b.messages(in: crew.id).map(\.text) == ["nice one"])
+        #expect(a.messages(in: crew.id).map(\.quoteWinID) == [run.winID])
+        // A third person sees the words too: it is the crew's chat.
         let c = store(UUID())
         c.adopt(crews: a.crews, wins: a.winsByCrew)
-        for reaction in a.reactionsByCrew[crew.id] ?? [] { c.receive(reaction) }
-        #expect(c.replies(to: run.winID, in: crew.id).isEmpty)
-        #expect(c.reactions(to: run.winID, in: crew.id).map(\.emoji) == ["🔥"])
+        for message in a.messagesByCrew[crew.id] ?? [] { c.receive(message) }
+        #expect(c.messages(in: crew.id).map(\.text) == ["nice one"])
+        #expect(a.reactions(to: run.winID, in: crew.id).allSatisfy { $0.line == nil }, "no words ride on a reaction")
     }
 
     @Test func aReplyWithRefusedWordsIsNotSent() async throws {
@@ -69,11 +76,11 @@ struct CrewReactionTests {
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        #expect(await b.reply("k y s", emoji: "🔥", to: run.winID, in: crew.id) == .refusedWords)
-        #expect(await b.reply("you r3tard", emoji: "🔥", to: run.winID, in: crew.id) == .refusedWords)
+        #expect(await b.reply("k y s", to: run.winID, in: crew.id) == .refusedWords)
+        #expect(await b.reply("you r3tard", to: run.winID, in: crew.id) == .refusedWords)
         #expect(CrewWords.isAcceptable("first class run"))
         await a.refresh()
-        #expect(a.replies(to: run.winID, in: crew.id).isEmpty)
+        #expect(a.messages(in: crew.id).isEmpty)
     }
 
     @Test func aDeclinedAgeCannotReply() async throws {
@@ -82,23 +89,33 @@ struct CrewReactionTests {
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { false }
-        #expect(await b.reply("nice", emoji: "🔥", to: run.winID, in: crew.id) == .notAllowed)
+        #expect(await b.reply("nice", to: run.winID, in: crew.id) == .notAllowed)
     }
 
+    /// A reply clears when the crew's day ends, from every phone, and the
+    /// reaction beside it stays. An OLD reply, a line on a reaction from a
+    /// build before 2026-10-05, is still cleared by its writer's phone.
     @Test func aReplyClearsWhenTheDayEnds() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        await b.reply("nice one", emoji: "🔥", to: run.winID, in: crew.id)
+        await b.react("🔥", to: run.winID, in: crew.id)
+        await b.reply("nice one", to: run.winID, in: crew.id)
+        // The old kind, as an older build wrote it: a line on the reaction.
+        var old = try #require(b.reactionsByCrew[crew.id]?.first)
+        old.line = "from before"
+        try await b.cloud.save(CrewRecords.fields(old), type: .reaction, name: old.id, in: crew.id)
+        await b.refresh()
         let tomorrow = Date().addingTimeInterval(86_400)
         a.now = { tomorrow }
         b.now = { tomorrow }
-        #expect(a.replies(to: run.winID, in: crew.id).isEmpty)
+        #expect(a.messages(in: crew.id).isEmpty)
         b.prune()
         await b.flush()
         await a.refresh()
+        #expect(world.records(of: .message, in: crew.id).isEmpty)
         #expect(a.reactionsByCrew[crew.id]?.first?.line == nil)
         #expect(a.reactionsByCrew[crew.id]?.first?.emoji == "🔥")
     }
@@ -199,40 +216,47 @@ struct CrewReactionTests {
         }.pngData()!
     }
 
-    @Test func aDoodleIsSeenOnlyByTheOwnerAndTheDrawer() async throws {
+    /// **A doodle goes to the whole crew now**, for the reply's reason
+    /// (2026-10-05): it is a line in the crew's day chat, quoting the win.
+    /// The third person this test held to seeing nothing is now held to
+    /// seeing it.
+    @Test func aDoodleGoesToTheWholeCrewAsAQuotedLine() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        #expect(await b.doodle(png(), emoji: "❤️", to: run.winID, in: crew.id) == .sent)
+        #expect(await b.doodle(png(), to: run.winID, in: crew.id) == .sent)
         await a.refresh()
-        let seen = a.doodles(to: run.winID, in: crew.id)
+        let seen = a.messages(in: crew.id)
         #expect(seen.count == 1)
         #expect(seen.first?.sketch.flatMap { try? Data(contentsOf: $0) } == png())
-        #expect(b.doodles(to: run.winID, in: crew.id).count == 1)
-        // Anyone else in the crew sees the emoji and not the drawing.
+        #expect(seen.first?.quoteWinID == run.winID)
+        #expect(b.messages(in: crew.id).count == 1)
         let c = store(UUID())
         c.adopt(crews: a.crews, wins: a.winsByCrew)
-        for reaction in a.reactionsByCrew[crew.id] ?? [] { c.receive(reaction) }
-        #expect(c.doodles(to: run.winID, in: crew.id).isEmpty)
-        #expect(c.reactions(to: run.winID, in: crew.id).map(\.emoji) == ["❤️"])
+        for message in a.messagesByCrew[crew.id] ?? [] { c.receive(message) }
+        #expect(c.messages(in: crew.id).count == 1)
+        #expect(a.reactions(to: run.winID, in: crew.id).isEmpty, "a doodle no longer rides on a reaction")
     }
 
+    /// A line and a doodle on the same day are two lines in the chat, and a
+    /// changed reaction touches neither.
     @Test func aDoodleAndALineKeepEachOtherOnTheDay() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        await b.reply("nice one", emoji: "🔥", to: run.winID, in: crew.id)
-        await b.doodle(png(), emoji: "🔥", to: run.winID, in: crew.id)
+        await b.reply("nice one", to: run.winID, in: crew.id)
+        await b.doodle(png(), to: run.winID, in: crew.id)
         await b.react("👑", to: run.winID, in: crew.id)
         await a.refresh()
         let mine = try #require(a.reactionsByCrew[crew.id]?.first)
         #expect(mine.emoji == "👑")
-        #expect(mine.line == "nice one")
-        #expect(mine.sketch != nil)
+        let said = a.messages(in: crew.id)
+        #expect(said.map(\.text) == ["nice one", ""])
+        #expect(said.last?.sketch != nil)
     }
 
     @Test func aDoodleTheCheckHoldsBackIsNotSent() async throws {
@@ -242,9 +266,10 @@ struct CrewReactionTests {
         await b.refresh()
         b.canReply = { true }
         b.photoCheck = { _ in false }
-        #expect(await b.doodle(png(), emoji: "🔥", to: run.winID, in: crew.id) == .refusedSketch)
+        #expect(await b.doodle(png(), to: run.winID, in: crew.id) == .refusedSketch)
         await a.refresh()
-        #expect(a.reactionsByCrew[crew.id]?.isEmpty ?? true)
+        #expect(a.messages(in: crew.id).isEmpty)
+        #expect(world.records(of: .message, in: crew.id).isEmpty)
     }
 
     @Test func aDeclinedAgeCannotDoodle() async throws {
@@ -253,7 +278,7 @@ struct CrewReactionTests {
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { false }
-        #expect(await b.doodle(png(), emoji: "🔥", to: run.winID, in: crew.id) == .notAllowed)
+        #expect(await b.doodle(png(), to: run.winID, in: crew.id) == .notAllowed)
     }
 
     /// The receiving phone checks a doodle again, as it checks a photo.
@@ -263,21 +288,21 @@ struct CrewReactionTests {
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        await b.doodle(png(), emoji: "🔥", to: run.winID, in: crew.id)
+        await b.doodle(png(), to: run.winID, in: crew.id)
         a.incomingPolicy = { .check }
         a.incomingCheck = { _ in false }
         await a.refresh()
-        #expect(a.doodles(to: run.winID, in: crew.id).isEmpty, "unchecked or flagged, never shown")
+        #expect(a.messages(in: crew.id).isEmpty, "unchecked or flagged, never shown")
         await a.checkArrivedPhotos()
-        #expect(a.doodles(to: run.winID, in: crew.id).isEmpty, "flagged stays hidden")
+        #expect(a.messages(in: crew.id).isEmpty, "flagged stays hidden")
         // The injection, so this can fail: a phone that passes it shows it.
         let d = store(jayden)
         d.adopt(crews: a.crews, wins: a.winsByCrew)
-        for reaction in a.reactionsByCrew[crew.id] ?? [] { d.receive(reaction) }
+        for message in a.messagesByCrew[crew.id] ?? [] { d.receive(message) }
         d.incomingPolicy = { .check }
         d.incomingCheck = { _ in true }
         await d.checkArrivedPhotos()
-        #expect(d.doodles(to: run.winID, in: crew.id).count == 1)
+        #expect(d.messages(in: crew.id).count == 1)
     }
 
     @Test func aDoodleClearsWhenTheDayEnds() async throws {
@@ -286,20 +311,21 @@ struct CrewReactionTests {
         await a.post(run, to: [crew.id])
         await b.refresh()
         b.canReply = { true }
-        await b.doodle(png(), emoji: "🔥", to: run.winID, in: crew.id)
-        let file = try #require(b.reactionsByCrew[crew.id]?.first?.sketch)
+        await b.react("🔥", to: run.winID, in: crew.id)
+        await b.doodle(png(), to: run.winID, in: crew.id)
+        let file = try #require(b.messagesByCrew[crew.id]?.first?.sketch)
         let tomorrow = Date().addingTimeInterval(86_400)
         a.now = { tomorrow }
         b.now = { tomorrow }
         // A reader never shows yesterday's doodle, cleared or not.
         await a.refresh()
-        #expect(a.doodles(to: run.winID, in: crew.id).isEmpty)
+        #expect(a.messages(in: crew.id).isEmpty)
         // And the drawer's phone clears its own, file and all.
         b.prune()
         await b.flush()
         #expect(!FileManager.default.fileExists(atPath: file.path))
         await a.refresh()
-        #expect(a.reactionsByCrew[crew.id]?.first?.sketch == nil)
+        #expect(world.records(of: .message, in: crew.id).isEmpty)
         #expect(a.reactionsByCrew[crew.id]?.first?.emoji == "🔥")
     }
 

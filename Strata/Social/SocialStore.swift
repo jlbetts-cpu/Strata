@@ -86,8 +86,15 @@ final class SocialStore {
     private(set) var crews: [Crew] = []
     private(set) var winsByCrew: [CrewID: [SharedWin]] = [:]
     private(set) var reactionsByCrew: [CrewID: [Reaction]] = [:]
+    /// Each crew's day chat as fetched, every day's lines it still holds.
+    /// What a screen shows is `messages(in:)`: today's, and nobody blocked.
+    private(set) var messagesByCrew: [CrewID: [CrewMessage]] = [:]
     /// Crews holding a friend's win you have not looked at.
     private(set) var unread: Set<CrewID> = []
+    /// Crews whose chat has a friend's line you have not opened. The crew
+    /// screen's chat button carries a dot for it; nothing else does, and
+    /// nothing is ever said about who has read what.
+    private(set) var unreadChats: Set<CrewID> = []
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
     /// yet" and stop saying it.
     private(set) var outboxRevision = 0
@@ -168,6 +175,8 @@ final class SocialStore {
         crews = []
         winsByCrew = [:]
         reactionsByCrew = [:]
+        messagesByCrew = [:]
+        unreadChats = []
         outbox = CrewOutbox()
         persistOutbox()
         sent = [:]
@@ -281,10 +290,12 @@ final class SocialStore {
             }
         }
         // A friend's doodle is checked on this phone too, as their photo is
-        // (spec section 3: "the receiving phone checks it again").
-        for reactions in reactionsByCrew.values {
-            for reaction in reactions where reaction.profileID != me {
-                guard let sketch = reaction.sketch, photoVerdicts[sketch.lastPathComponent] == nil,
+        // (spec section 3: "the receiving phone checks it again"). Doodles
+        // are chat messages now; an old one on a reaction is never shown,
+        // so it is never checked either.
+        for messages in messagesByCrew.values {
+            for message in messages where message.senderProfileID != me {
+                guard let sketch = message.sketch, photoVerdicts[sketch.lastPathComponent] == nil,
                       let data = try? Data(contentsOf: sketch),
                       let verdict = await incomingCheck(data) else { continue }
                 photoVerdicts[sketch.lastPathComponent] = verdict
@@ -708,6 +719,13 @@ final class SocialStore {
             }
             reactionsByCrew[crewID]?.removeAll { $0.profileID == me }
         }
+        // And every line you said.
+        for (crewID, messages) in messagesByCrew {
+            for message in messages where message.senderProfileID == me {
+                enqueue(.init(crew: crewID, type: .message, name: CrewRecords.name(of: message), fields: nil))
+            }
+            messagesByCrew[crewID]?.removeAll { $0.senderProfileID == me }
+        }
         await flush()
         await shareMyself()
     }
@@ -760,6 +778,10 @@ final class SocialStore {
         for reaction in reactionsByCrew[crewID] ?? [] where reaction.profileID == me {
             try? await cloud.delete(type: .reaction, name: reaction.id, in: crewID)
         }
+        // And your lines in its chat.
+        for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == me {
+            try? await cloud.delete(type: .message, name: CrewRecords.name(of: message), in: crewID)
+        }
         try await cloud.delete(type: .member, name: me.uuidString, in: crewID)
         try await cloud.leave(crewID)
         forget(crewID)
@@ -790,8 +812,12 @@ final class SocialStore {
         for reaction in reactionsByCrew[crewID] ?? [] where reaction.profileID == profileID {
             enqueue(.init(crew: crewID, type: .reaction, name: reaction.id, fields: nil))
         }
+        for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == profileID {
+            enqueue(.init(crew: crewID, type: .message, name: CrewRecords.name(of: message), fields: nil))
+        }
         winsByCrew[crewID]?.removeAll { $0.senderProfileID == profileID }
         reactionsByCrew[crewID]?.removeAll { $0.profileID == profileID }
+        messagesByCrew[crewID]?.removeAll { $0.senderProfileID == profileID }
         await flush()
     }
 
@@ -901,37 +927,10 @@ final class SocialStore {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// **Replies to a win**: each reaction's line, for whoever posted the win
-    /// and for the one who wrote it, and only on the crew day it was
-    /// written. "Replies clear when the day ends."
-    func replies(to winID: UUID, in crewID: CrewID) -> [Reaction] {
-        let owner = winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
-        return reactions(to: winID, in: crewID).filter { reaction in
-            reaction.line != nil && (owner == me || reaction.profileID == me)
-                && isToday(reaction.createdAt, in: crewID)
-        }
-    }
-
-    /// **Doodles on a win**: each reaction's sketch, seen exactly as a reply's
-    /// line is (spec section 3, "Like a reply"): by whoever posted the win and
-    /// by the one who drew it, and only on the crew day it was drawn, so a
-    /// reader never shows a doodle from another day even before its writer's
-    /// phone has cleared it. A friend's doodle shows only once this phone's
-    /// own photo check has passed it (`photoIsShown`), as a friend's photo
-    /// does.
-    func doodles(to winID: UUID, in crewID: CrewID) -> [Reaction] {
-        let owner = winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
-        return reactions(to: winID, in: crewID).filter { reaction in
-            guard let sketch = reaction.sketch else { return false }
-            return (owner == me || reaction.profileID == me)
-                && isToday(reaction.createdAt, in: crewID)
-                && (reaction.profileID == me || photoIsShown(sketch))
-        }
-    }
-
-    /// Whether this phone may write replies: not for someone whose age is
-    /// unknown or who chose not to say (the research: free text off for a
-    /// declined age, reactions on).
+    /// Whether this phone may write in a crew: replies, doodles and the
+    /// chat. Not for someone whose age is unknown or who chose not to say
+    /// (the research: free text off for a declined age, reactions on). They
+    /// can still read the chat.
     @ObservationIgnored var canReply: () -> Bool = {
         let age = CrewAge.current
         return age == .adult || age == .teen
@@ -940,64 +939,115 @@ final class SocialStore {
     /// `refusedSketch`: the photo check held a doodle back.
     enum ReplyOutcome { case sent, refusedWords, refusedSketch, notAllowed }
 
-    /// An emoji and a short line on a friend's win, seen only by them. The
-    /// words are checked here first (`CrewWords`); the line clears when the
-    /// crew's day ends (`prune`).
+    // MARK: The day chat
+
+    /// **A crew's chat, as this phone shows it**: today's lines only, in the
+    /// crew's zone, oldest first; nobody you blocked; and a friend's doodle
+    /// only once this phone's own photo check has passed it, as a friend's
+    /// photo is. The cloud may still hold yesterday's until each writer's
+    /// phone deletes its own; none of it is ever shown.
+    func messages(in crewID: CrewID) -> [CrewMessage] {
+        guard let crew = crew(crewID) else { return [] }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        let people = Set(crew.members.map(\.profileID))
+        return (messagesByCrew[crewID] ?? [])
+            .filter { message in
+                message.crewDay == today && people.contains(message.senderProfileID)
+                    && !blocked.contains(message.senderProfileID)
+                    && (message.text.isEmpty || CrewWords.isAcceptable(message.text))
+                    && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? true)
+            }
+            .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
+    }
+
+    /// **A line in the crew's chat.** Words only, up to 280, checked here
+    /// first (`CrewWords`); `quoting` a win in this crew makes it a reply
+    /// to it. It clears when the crew's day ends (`prune`).
     @discardableResult
-    func reply(_ line: String, emoji: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        let text = String(line.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Reaction.lineLimit))
-        guard canReply(), isEnabled(), crew(crewID) != nil,
-              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me else { return .notAllowed }
-        guard CrewWords.isAcceptable(text) else { return .refusedWords }
-        let name = Reaction.name(winID: winID, profileID: me)
-        var list = reactionsByCrew[crewID] ?? []
-        let previous = list.first { $0.id == name }
-        list.removeAll { $0.id == name }
-        var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
-        reaction.line = text.isEmpty ? nil : text
-        // Today's doodle stays under a new line.
-        if let previous, isToday(previous.createdAt, in: crewID) { reaction.sketch = previous.sketch }
-        list.append(reaction)
-        reactionsByCrew[crewID] = list
-        enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+    func send(_ text: String, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
+        let words = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(CrewMessage.textLimit))
+        guard canReply(), isEnabled(), let crew = crew(crewID), !words.isEmpty else { return .notAllowed }
+        if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
+        guard CrewWords.isAcceptable(words) else { return .refusedWords }
+        let message = CrewMessage(messageID: UUID(), crewID: crewID, senderProfileID: me,
+                                  crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: words,
+                                  quoteWinID: winID, createdAt: now())
+        keep(message)
         await flush()
         return .sent
     }
 
-    /// **A doodle on a friend's win**, seen only by them (spec section 3).
-    /// The same gate as a reply (`canReply`: off for an age not shared), and
-    /// the PNG passes the photo check before it is sent, the check a crew
-    /// photo passes (`photoCheck`, which is `CrewSafety.photoIsFine` on the
-    /// phone). Kept where this crew's photos are, and cleared when the
-    /// crew's day ends (`prune`).
+    /// **A doodle in the crew's chat**, quoting the win it was drawn for if
+    /// there is one. The PNG passes the photo check a crew photo passes
+    /// (`photoCheck`, `CrewSafety.photoIsFine` on the phone) before it is
+    /// sent, and the receiving phone checks it again (`checkArrivedPhotos`).
     @discardableResult
-    func doodle(_ png: Data, emoji: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard canReply(), isEnabled(), crew(crewID) != nil, !png.isEmpty,
-              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me else { return .notAllowed }
+    func sendDoodle(_ png: Data, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
+        guard canReply(), isEnabled(), let crew = crew(crewID), !png.isEmpty else { return .notAllowed }
+        if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
         guard await photoCheck(png) else { return .refusedSketch }
-        let name = Reaction.name(winID: winID, profileID: me)
-        let url = directory.appending(path: "Photos/\(crewID.rawValue)/\(name)-doodle-\(UUID().uuidString).png")
+        let id = UUID()
+        let url = directory.appending(path: "Photos/\(crewID.rawValue)/message-\(id.uuidString).png")
         do { try write(png, to: url) } catch {
             Self.log.error("doodle for \(crewID.rawValue, privacy: .public) not kept: \(error)")
             return .notAllowed
         }
-        var list = reactionsByCrew[crewID] ?? []
-        let previous = list.first { $0.id == name }
-        list.removeAll { $0.id == name }
-        var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
-        reaction.sketch = url
-        if let previous, isToday(previous.createdAt, in: crewID) {
-            // Today's line stays beside it; the doodle it replaces goes.
-            reaction.line = previous.line
-            if let old = previous.sketch, old != url { try? FileManager.default.removeItem(at: old) }
-        }
-        list.append(reaction)
-        reactionsByCrew[crewID] = list
-        enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        let message = CrewMessage(messageID: id, crewID: crewID, senderProfileID: me,
+                                  crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: "",
+                                  quoteWinID: winID, sketch: url, createdAt: now())
+        keep(message)
         await flush()
         return .sent
+    }
+
+    private func keep(_ message: CrewMessage) {
+        messagesByCrew[message.crewID, default: []].append(message)
+        enqueue(.init(crew: message.crewID, type: .message, name: CrewRecords.name(of: message),
+                      fields: CrewRecords.fields(message)))
+    }
+
+    /// **Reply, on a friend's win: a line in the crew's chat that quotes
+    /// it** (the owner, 2026-10-05). It used to be a line on your reaction,
+    /// seen only by the win's owner; now the crew sees it, and the owner is
+    /// still told ("Sam: so proud", `CrewNotifications`).
+    @discardableResult
+    func reply(_ line: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me else { return .notAllowed }
+        return await send(line, in: crewID, quoting: winID)
+    }
+
+    /// **Doodle, on a friend's win**: a doodle in the crew's chat that
+    /// quotes it. The same gate as a reply, and the photo check both ways.
+    @discardableResult
+    func doodle(_ png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me else { return .notAllowed }
+        return await sendDoodle(png, in: crewID, quoting: winID)
+    }
+
+    /// Whether a friend has said something in the crew's chat today that you
+    /// have not opened.
+    func hasUnreadChat(_ crewID: CrewID) -> Bool {
+        let seen = Set(chatSeen[crewID.rawValue] ?? [])
+        return messages(in: crewID).contains { $0.senderProfileID != me && !seen.contains($0.messageID.uuidString) }
+    }
+
+    /// The chat is open: everything in it now has been seen. **Kept per
+    /// crew, as the lines seen**, not as a time, so a friend whose clock
+    /// runs slow still lights the dot. Only today's lines are remembered,
+    /// so the list stays a day long.
+    func markChatSeen(_ crewID: CrewID) {
+        var seen = chatSeen
+        seen[crewID.rawValue] = messages(in: crewID).map(\.messageID.uuidString)
+        defaults.set(seen, forKey: Self.chatSeenKey)
+        if unreadChats.contains(crewID) { unreadChats.remove(crewID) }
+        if announces { CrewNotifications.chatOpened(crewID) }
+    }
+
+    private static let chatSeenKey = "crews.chatSeen"
+    private var chatSeen: [String: [String]] {
+        defaults.dictionary(forKey: Self.chatSeenKey) as? [String: [String]] ?? [:]
     }
 
     private func isToday(_ date: Date, in crewID: CrewID) -> Bool {
@@ -1077,6 +1127,7 @@ final class SocialStore {
         if announces {
             await CrewNotifications.announce(self)
             await CrewNotifications.announceReactions(self)
+            await CrewNotifications.announceMessages(self)
             await shareMyselfIfChanged()
             await CrewSafety.sendPending()
             await checkArrivedPhotos()
@@ -1167,6 +1218,21 @@ final class SocialStore {
                 let people = Set(crew.members.map(\.profileID))
                 reactions[crew.id] = held.filter { people.contains($0.profileID) }.sorted { $0.id < $1.id }
             }
+            // The day chat, the same way: a failed fetch keeps what was
+            // held, a line of ours still on its way wins, and only members'.
+            var messages: [CrewID: [CrewMessage]] = [:]
+            for crew in fetched {
+                var held = (try? await cloud.fetchMessages(in: crew.id)) ?? messagesByCrew[crew.id] ?? []
+                for entry in outbox.entries where entry.crew == crew.id && entry.type == .message {
+                    held.removeAll { $0.messageID.uuidString == entry.name }
+                    if let fields = entry.fields, let mine = CrewRecords.message(fields, crew: crew.id) {
+                        held.append(mine)
+                    }
+                }
+                let people = Set(crew.members.map(\.profileID))
+                messages[crew.id] = held.filter { people.contains($0.senderProfileID) }
+                    .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
+            }
             // Writes for crews that are gone (ended, or you were removed) can
             // never be sent: drop them rather than retry them for ever.
             // A crew made in the last minute may not be in a fetch that began
@@ -1186,6 +1252,7 @@ final class SocialStore {
             if crews != merged { crews = merged }
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
+            if messagesByCrew != messages { messagesByCrew = messages }
             recordHistory(counted, for: fetched)
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
             recomputeUnread()
@@ -1289,10 +1356,11 @@ final class SocialStore {
                     enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
                 }
             }
-            // **Replies and doodles clear when the day ends.** Only the
-            // writer's phone may change a reaction record, so each phone
-            // clears its own; the reading side already shows no line and no
-            // doodle from another day (`replies`, `doodles`).
+            // **Old replies and doodles clear when the day ends.** Nothing
+            // writes them on a reaction any more (they are chat messages
+            // now), but a record from an older build may still carry one.
+            // Only the writer's phone may change a reaction record, so each
+            // phone clears its own; no screen shows them.
             for (index, reaction) in (reactionsByCrew[crew.id] ?? []).enumerated()
             where reaction.profileID == me && (reaction.line != nil || reaction.sketch != nil)
                 && CrewDay.string(for: reaction.createdAt, in: crew.timeZone) < today {
@@ -1302,6 +1370,18 @@ final class SocialStore {
                 cleared.sketch = nil
                 reactionsByCrew[crew.id]?[index] = cleared
                 enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: CrewRecords.fields(cleared)))
+            }
+            // **The chat clears at the crew's midnight.** Each phone deletes
+            // its own lines (only a record's writer may), doodle and all;
+            // anyone else's leave this phone's list, and no screen shows
+            // another day's line before then (`messages(in:)`).
+            let ended = (messagesByCrew[crew.id] ?? []).filter { $0.crewDay < today }
+            if !ended.isEmpty {
+                messagesByCrew[crew.id]?.removeAll { $0.crewDay < today }
+                for message in ended where message.senderProfileID == me {
+                    if let sketch = message.sketch { try? FileManager.default.removeItem(at: sketch) }
+                    enqueue(.init(crew: crew.id, type: .message, name: CrewRecords.name(of: message), fields: nil))
+                }
             }
             let old = (winsByCrew[crew.id] ?? []).filter { $0.crewDay < cutoff }
             guard !old.isEmpty else { continue }
@@ -1361,6 +1441,8 @@ final class SocialStore {
             return newWin || newReaction ? crew.id : nil
         })
         if unread != fresh { unread = fresh }
+        let chats = Set(crews.map(\.id).filter { hasUnreadChat($0) })
+        if unreadChats != chats { unreadChats = chats }
         updateBadge()
     }
 
@@ -1523,7 +1605,10 @@ final class SocialStore {
             ping[CrewPingRecord.kind] = CrewPingRecord.Kind.reaction.rawValue
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
             key = Self.pingKey(winID: winID, carriesLine: fields["line"]?.string.map { !$0.isEmpty } ?? false)
-        case .crew, .member:
+        // **The chat leaves no ping.** Its alerts are the app's own, at most
+        // one a crew an hour (`CrewNotifications.announceMessages`); a ping
+        // would need its own kind and subscription, and pings are off.
+        case .crew, .member, .message:
             return
         }
         var done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
@@ -1703,6 +1788,15 @@ final class SocialStore {
         recomputeUnread()
     }
 
+    /// A friend's line arriving, as a refresh would deliver it.
+    func receive(_ message: CrewMessage) {
+        var list = messagesByCrew[message.crewID] ?? []
+        list.removeAll { $0.messageID == message.messageID }
+        list.append(message)
+        messagesByCrew[message.crewID] = list
+        recomputeUnread()
+    }
+
     /// A friend's win arriving, as a refresh would deliver it.
     func receive(_ win: SharedWin) {
         upsertLocal(win)
@@ -1727,6 +1821,8 @@ final class SocialStore {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }
         reactionsByCrew[crewID] = nil
+        messagesByCrew[crewID] = nil
+        unreadChats.remove(crewID)
         history[crewID] = nil
         unread.remove(crewID)
         outbox.drop(crew: crewID)

@@ -59,9 +59,11 @@ nonisolated enum CrewRecordType: String, Codable, Sendable, CaseIterable {
     case member = "Member"
     case sharedWin = "SharedWin"
     case reaction = "Reaction"
+    /// A line in the crew's day chat (2026-10-05).
+    case message = "CrewMessage"
 }
 
-/// The three kinds of record a crew zone holds, and EXACTLY what goes in them.
+/// The kinds of record a crew zone holds, and EXACTLY what goes in them.
 ///
 /// The key sets are the contract with every friend's phone. A note, a
 /// caption, a place, a habit id, a plan item or a mood is never in one, and
@@ -79,6 +81,9 @@ nonisolated enum CrewRecords {
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
+    /// The day chat's line: words, or a doodle, and the win it answers.
+    static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
+                                           "quoteWinID", "sketch", "createdAt"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
@@ -86,6 +91,7 @@ nonisolated enum CrewRecords {
         case .member: memberKeys
         case .sharedWin: sharedWinKeys
         case .reaction: reactionKeys
+        case .message: messageKeys
         }
     }
 
@@ -173,6 +179,43 @@ nonisolated enum CrewRecords {
         return Reaction(winID: win, crewID: crew, profileID: who, emoji: String(emoji.prefix(1)),
                         createdAt: fields["createdAt"]?.date ?? .distantPast, line: line,
                         sketch: fields["sketch"]?.asset)
+    }
+
+    // MARK: Message
+
+    static func name(of message: CrewMessage) -> String { message.messageID.uuidString }
+
+    static func fields(_ message: CrewMessage) -> RecordFields {
+        var fields: RecordFields = [
+            "messageID": .uuid(message.messageID),
+            "senderProfileID": .uuid(message.senderProfileID),
+            "crewDay": .string(message.crewDay),
+            "text": .string(message.text),
+            "createdAt": .date(message.createdAt),
+        ]
+        // Absent when there is none, as a win's photo is: a record is
+        // written whole, so absent is empty.
+        if let quote = message.quoteWinID { fields["quoteWinID"] = .uuid(quote) }
+        if let sketch = message.sketch { fields["sketch"] = .asset(sketch) }
+        return fields
+    }
+
+    /// A message as a phone may show it, whatever the record claims: words
+    /// cut to `CrewMessage.textLimit`, refused words refused here too (the
+    /// sending phone checked them, and a record written by anything else is
+    /// checked again), and never empty.
+    static func message(_ fields: RecordFields, crew: CrewID) -> CrewMessage? {
+        guard let id = fields["messageID"]?.uuid,
+              let sender = fields["senderProfileID"]?.uuid,
+              let day = fields["crewDay"]?.string,
+              let created = fields["createdAt"]?.date else { return nil }
+        let text = String((fields["text"]?.string ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(CrewMessage.textLimit))
+        let sketch = fields["sketch"]?.asset
+        guard !text.isEmpty || sketch != nil else { return nil }
+        guard text.isEmpty || CrewWords.isAcceptable(text) else { return nil }
+        return CrewMessage(messageID: id, crewID: crew, senderProfileID: sender, crewDay: day, text: text,
+                           quoteWinID: fields["quoteWinID"]?.uuid, sketch: sketch, createdAt: created)
     }
 
     // MARK: Crew

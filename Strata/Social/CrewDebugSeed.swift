@@ -13,6 +13,9 @@ import UIKit
 ///     -strataOpenCrews 1                         launch straight into the list
 ///     -strataCrewTagMe 1                         a friend's win "with" you, so
 ///                                                "Sam added you to a win" asks
+///     -strataSeedCrewChat 1                      a few lines in today's chat,
+///                                                a reply quoting your win among
+///                                                them (also with -strataCrewSheet chat)
 ///
 /// Every friend is a real `SocialStore` on the same `FakeCrewWorld`, posting
 /// through `post` exactly as a phone would, so what is seeded is a state the
@@ -151,7 +154,8 @@ extension DebugHarness {
             }
         }
         // `-strataCrewDoodle seed`: two friends doodle on your newest win, so
-        // the owner's side of a doodle can be photographed.
+        // a doodle in the chat can be photographed (doodles are chat lines
+        // since 2026-10-05).
         if argument("-strataCrewDoodle") == "seed" {
             for (k, friend) in friends.prefix(2).enumerated() {
                 await friend.refresh()
@@ -167,9 +171,14 @@ extension DebugHarness {
                     }], width: 6)
                 friend.canReply = { true }
                 if let png = InkExport.doodlePNG(drawing) {
-                    await friend.doodle(png, emoji: k == 0 ? "🔥" : "❤️", to: mine.winID, in: crew.id)
+                    await friend.doodle(png, to: mine.winID, in: crew.id)
                 }
             }
+        }
+        // `-strataSeedCrewChat 0` with the chat open: its empty state.
+        let seedChatFlag = argument("-strataSeedCrewChat")
+        if seedChatFlag == "1" || (argument("-strataCrewSheet") == "chat" && seedChatFlag != "0") {
+            await seedChat(friends: friends, me: store)
         }
         await store.refresh()
         NSLog("[strata-crew] seeded %d crews", store.crews.count)
@@ -185,6 +194,28 @@ extension DebugHarness {
             CrewRouter.shared.open = store.crews[index].id
         }
         if let every = crewDropEvery { startDropping(every: every) }
+    }
+
+    /// A morning's chat in the first crew: two friends, you, and a reply
+    /// quoting your newest win, so the quoted line can be photographed.
+    @MainActor
+    private static func seedChat(friends: [SocialStore], me: SocialStore) async {
+        guard let crew = me.crews.first else { return }
+        let inCrew = friends.filter { $0.crew(crew.id) != nil }
+        guard let first = inCrew.first else { return }
+        let second = inCrew.dropFirst().first ?? first
+        await first.refresh()
+        await first.send("morning all ☀️", in: crew.id)
+        await second.refresh()
+        await second.send("who's up for a walk after work?", in: crew.id)
+        await me.refresh()
+        await me.send("me! 6ish?", in: crew.id)
+        await first.refresh()
+        if let mine = first.today(in: crew.id).last(where: { $0.senderProfileID == me.me && !$0.title.isEmpty }) {
+            await first.reply("so proud of you 🔥", to: mine.winID, in: crew.id)
+        }
+        await second.refresh()
+        await second.send("6 works", in: crew.id)
     }
 
     @MainActor

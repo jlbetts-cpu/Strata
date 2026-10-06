@@ -17,6 +17,9 @@ final class CrewRouter {
     /// The win to open in it, when a notification about one was tapped.
     /// Cleared by the crew's tower when it has opened it.
     var openWin: UUID?
+    /// The crew's chat to open in it, when a chat notification was tapped.
+    /// Cleared by the crew's tower when it has opened it.
+    var openChat = false
     /// Something went wrong joining, in words a person can read.
     var joinProblem: String?
 }
@@ -50,10 +53,12 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         let request = response.notification.request
         guard let route = NotificationRoute.of(identifier: request.identifier,
                                                userInfo: request.content.userInfo) else { return }
+        let isChat = request.content.userInfo[CrewNotifications.chatKey] != nil
         await MainActor.run {
             if case .crew(let raw, let win) = route {
                 guard CrewsFlag.isOn else { return }
                 CrewRouter.shared.openWin = win
+                CrewRouter.shared.openChat = isChat
                 CrewRouter.shared.open = CrewID(rawValue: raw)
             } else {
                 LandingRouter.shared.land(route)

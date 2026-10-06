@@ -125,6 +125,9 @@ extension CrewSyncTests {
                      // its words live in CrewReactions now.
                      "Views/Crews/CrewReactions.swift", "Views/Crews/CrewPicker.swift", "Views/Crews/CrewSharing.swift",
                      "Views/Crews/CrewStatsSections.swift", "Views/Crews/MakeYourHead.swift",
+                     // The day chat (2026-10-05), and the doodle sheet that
+                     // posts into it.
+                     "Views/Crews/CrewChatSheet.swift", "Views/Crews/DoodleSheet.swift",
                      "Social/CrewNotifications.swift", "Social/StrataAppDelegate.swift", "Social/CrewSafety.swift"]
         for file in files {
             let text = try String(contentsOf: folder.appending(path: file), encoding: .utf8)
@@ -134,6 +137,13 @@ extension CrewSyncTests {
                 #expect(!literal.contains("\u{2014}") && !literal.contains("\u{2013}"), "\(file): \(literal)")
                 for word in ["watching", "tracking", "active now", "see what your friends"] {
                     #expect(!literal.lowercased().contains(word), "\(file): \(literal)")
+                }
+                // **No read receipts** in the chat (the owner, 2026-10-05):
+                // nothing it says may tell anyone who has opened it.
+                if file.hasSuffix("CrewChatSheet.swift") {
+                    for word in ["seen", "read by", "delivered", "typing"] {
+                        #expect(!literal.lowercased().contains(word), "\(file): \(literal)")
+                    }
                 }
             }
         }

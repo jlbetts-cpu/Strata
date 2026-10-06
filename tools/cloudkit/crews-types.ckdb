@@ -75,6 +75,27 @@
         GRANT READ TO "_world"
     );
 
+    // The crew's day chat (2026-10-05): a line, or a doodle, quoting a win
+    // when it is a reply. Each phone deletes its own at the crew's midnight.
+    RECORD TYPE CrewMessage (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        createdAt       TIMESTAMP,
+        crewDay         STRING,
+        messageID       STRING,
+        quoteWinID      STRING,
+        senderProfileID STRING,
+        sketch          ASSET,
+        text            STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE Identity (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,

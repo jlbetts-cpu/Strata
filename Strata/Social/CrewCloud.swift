@@ -45,6 +45,8 @@ protocol CrewCloud: AnyObject {
     func fetchWins(in crew: CrewID) async throws -> [SharedWin]
     /// Every reaction in a crew's zone.
     func fetchReactions(in crew: CrewID) async throws -> [Reaction]
+    /// Every line of the day chat still in a crew's zone.
+    func fetchMessages(in crew: CrewID) async throws -> [CrewMessage]
     /// Writes a record whole: a key that is absent is cleared.
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws
     func delete(type: CrewRecordType, name: String, in crew: CrewID) async throws
