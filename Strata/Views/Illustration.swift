@@ -142,7 +142,7 @@ enum IllustrationMotion {
     /// Crews: the three friends hop together, and their cheer marks burst out.
     case cheer(marks: UIImage)
 
-    enum Role { case crow, crowHead, crowDown, crowOut, eyes, nose, mouth, marks }
+    enum Role { case crow, crowHead, crowDown, crowOut, eyes, nose, mouth, smile, marks }
 
     var roles: [(Role, UIImage)] {
         switch self {
@@ -152,7 +152,9 @@ enum IllustrationMotion {
             if let down, let out { list += [(.crowDown, down), (.crowOut, out)] }
             if let eyes { list.append((.eyes, eyes)) }
             if let nose { list.append((.nose, nose)) }
-            if let mouth { list.append((.mouth, mouth)) }
+            // His mouth twice: as drawn, the frown, and turned over, the
+            // smile it fades into once the crow has landed (`Face.smile`).
+            if let mouth { list += [(.mouth, mouth), (.smile, mouth)] }
             return list
         case .cheer(let marks): return [(.marks, marks)]
         }
@@ -199,7 +201,7 @@ enum IllustrationMotion {
             return pose
         case .marks:
             pose = Cheer.marks(at: t)
-        case .eyes, .nose, .mouth:
+        case .eyes, .nose, .mouth, .smile:
             // Each feature looks toward where the crow was a beat ago (eyes
             // trail a moving thing), the eyes furthest, the nose and mouth
             // less, so the face turns as one.
@@ -218,6 +220,9 @@ enum IllustrationMotion {
             }
             if roles[index].0 == .mouth {
                 pose = Face.mouth(at: t, play: play)
+                pose.x = look.x; pose.y = look.y
+            } else if roles[index].0 == .smile {
+                pose = Face.grin(at: t, play: play)
                 pose.x = look.x; pose.y = look.y
             } else {
                 pose = look
@@ -266,7 +271,7 @@ enum IllustrationMotion {
     // MARK: The face
 
     /// The scarecrow watching the crow.
-    private enum Face {
+    enum Face {
         /// How far behind the crow the eyes are, in seconds.
         static let lag = 0.09
         /// How long after the crow lands the face holds, then looks back.
@@ -296,6 +301,22 @@ enum IllustrationMotion {
 
         /// An "oh": rounds as the crow comes close, widest just after it
         /// lands, then softens back. A small one when it takes off.
+        ///
+        /// **And the frown turns into a smile when the crow lands** (the
+        /// owner, 2026-10-06: "can we also turn the scarecrows frown into a
+        /// smile when the bird lands on him"; "make sure the animation is
+        /// really clean"). His own mouth, turned over, is the smile.
+        ///
+        /// **A swap hidden in a squash, the way a drawn face changes.** The
+        /// frown tightens, and at its smallest the smile takes its place in
+        /// one frame and springs open past full size and back. Two tries
+        /// before it, both filmed at 20fps and both wrong: a flip through
+        /// flat showed the mouth as a thin bar for a frame, a glitch; a
+        /// crossfade showed two grey mouths at once for a fifth of a second,
+        /// a ghost. Here only ever one mouth shows, and never under 60% of
+        /// its size. It stays a smile while the crow sits on his shoulder,
+        /// goes back the same way as a tap sends it off, and smiles again
+        /// when it comes back.
         static func mouth(at t: Double, play: Int) -> LayerPose {
             var oh = bump(t, rise: Crow.fly * 0.55, peak: Crow.fly + 0.12, fall: Crow.fly + 0.85)
             if play > 1 {
@@ -303,9 +324,47 @@ enum IllustrationMotion {
                     + bump(t, rise: Crow.away + Crow.fly * 0.55, peak: Crow.away + Crow.fly + 0.12,
                            fall: Crow.away + Crow.fly + 0.85)
             }
-            return LayerPose(x: 0, y: 0, scaleX: 1 + 0.16 * oh, scaleY: 1 + 0.32 * oh,
-                             rotation: 0, opacity: 1, anchor: .center)
+            let u = smile(at: t, play: play)
+            let squash = min(u / swapAt, 1)
+            let k = 1 - (1 - smallest) * squash * squash
+            return LayerPose(x: 0, y: 0, scaleX: k * (1 + 0.16 * oh), scaleY: k * (1 + 0.32 * oh),
+                             rotation: 0, opacity: u < swapAt ? 1 : 0, anchor: .center)
         }
+
+        /// The smile: his mouth turned over, springing open from where the
+        /// frown left off.
+        static func grin(at t: Double, play: Int) -> LayerPose {
+            let u = smile(at: t, play: play)
+            let open = max((u - swapAt) / (1 - swapAt), 0)
+            let k = smallest + (1 - smallest) * backOut(open)
+            return LayerPose(x: 0, y: 0, scaleX: k, scaleY: -k,
+                             rotation: 0, opacity: u < swapAt ? 0 : 1, anchor: .center)
+        }
+
+        /// How far through the turn from frown to smile: 0 the frown, 1 the
+        /// smile, at an even pace (each half eases itself).
+        static func smile(at t: Double, play: Int) -> Double {
+            let landing = Crow.fly + smileDelay
+            let ramp = { (x: Double) in min(max(x / smileTurn, 0), 1) }
+            if play <= 1 { return ramp(t - landing) }
+            // The crow is on his shoulder as a later play starts: he smiles
+            // until it takes off, then again once it is back.
+            return max(1 - ramp(t - Crow.crouch), ramp(t - Crow.away - landing))
+        }
+
+        /// A spring's overshoot, 0 to 1 by way of about 1.1.
+        static func backOut(_ x: Double) -> Double {
+            let c1 = 1.70158, c3 = c1 + 1, u = min(max(x, 0), 1) - 1
+            return 1 + c3 * u * u * u + c1 * u * u
+        }
+
+        /// After touchdown, once the "oh" has mostly closed. The whole turn,
+        /// and the point in it where the one mouth becomes the other: a
+        /// quick tighten, then a longer spring open.
+        static let smileDelay = 0.3
+        static let smileTurn = 0.36
+        static let swapAt = 0.33
+        static let smallest = 0.6
 
         static func smooth(_ x: Double) -> Double {
             let u = min(max(x, 0), 1)
@@ -348,7 +407,7 @@ enum IllustrationMotion {
     /// glide, a brake (the body tips back) just before the feet touch, and a
     /// landing that gives and springs, settling in two small wobbles. Every
     /// value is continuous across the phases, so nothing jumps.
-    private enum Crow {
+    enum Crow {
         static let fly = 1.25         // in the air
         static let settle = 0.55      // the springy touchdown
         static let arrive = fly + settle

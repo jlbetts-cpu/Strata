@@ -169,3 +169,36 @@ nonisolated struct InkReplayTiming: Equatable, Sendable {
     }
 
 }
+
+/// **Your own line under the month's original drawing** (the owner,
+/// 2026-10-06: "maybe it can be changed for those that want to keep the
+/// scarecrow but change the quote"). One a month, by "2026-10", kept on this
+/// phone. A drawing of your own carries its line in `MonthDrawing.line`.
+@MainActor
+@Observable
+final class MonthLines {
+    static let shared = MonthLines(defaults: .standard)
+
+    @ObservationIgnored private let defaults: UserDefaults
+    /// Read where a line is shown, so a change draws again.
+    private(set) var revision = 0
+
+    init(defaults: UserDefaults) { self.defaults = defaults }
+
+    nonisolated static func key(_ month: String) -> String { "monthLine.\(month)" }
+
+    func line(for month: String) -> String? {
+        _ = revision
+        return defaults.string(forKey: Self.key(month))
+    }
+
+    /// Kept as `DrawingLine.kept` shapes it; nothing left is the original.
+    func set(_ typed: String?, for month: String) {
+        if let line = DrawingLine.kept(typed) {
+            defaults.set(line, forKey: Self.key(month))
+        } else {
+            defaults.removeObject(forKey: Self.key(month))
+        }
+        revision += 1
+    }
+}

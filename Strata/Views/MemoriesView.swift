@@ -699,7 +699,7 @@ struct MemoriesView: View {
                 }
                 .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
             } else if let art = UIImage(named: "Month" + month) {
-                Illustration(art: art, line: Self.monthLine[month], height: 290,
+                Illustration(art: art, line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: 290,
                              motion: UIImage(named: "Month" + month + "Crow").map {
                                  .crowLands(crow: $0,
                                             head: UIImage(named: "Month" + month + "CrowHead"),
@@ -710,7 +710,8 @@ struct MemoriesView: View {
                                             mouth: UIImage(named: "Month" + month + "Mouth"))
                              },
                              onRest: Self.artPlayed)
-                    .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth))
+                    .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
+                                           originalLine: Self.monthLine[month]))
             }
         }
         .layoutPriority(1)
@@ -746,10 +747,11 @@ struct MemoriesView: View {
     /// off (the owner, 2026-10-03): the drawing says it. A quote is another
     /// thing, and he asked for one (2026-10-06: "should there be like a nice
     /// quote under the scarecrow drawing"), as the crews' drawing has its
-    /// "Winning is better together". The crow landing on the scarecrow is
-    /// what it says.
+    /// "Winning is better together", and then for one that motivates ("can
+    /// it be like an actually motivating quote"); his pick, "Small wins
+    /// still count". A hold on the drawing changes it (`MonthLines`).
     static let monthLine: [String: String] = [
-        "October": "Even scarecrows have friends",
+        "October": "Small wins still count",
     ]
 
     /// The chosen month's photographs, as one untitled section.
@@ -949,6 +951,12 @@ struct MonthArtHold: ViewModifier {
     let month: String
     let hasOwn: Bool
     @Binding var editing: DrawingMonth?
+    /// The original drawing's own line, to start an edit from. A drawing of
+    /// your own changes its line in its editor instead.
+    var originalLine: String? = nil
+
+    @State private var changingLine = false
+    @State private var draft = ""
 
     func body(content: Content) -> some View {
         content
@@ -957,11 +965,38 @@ struct MonthArtHold: ViewModifier {
                     MonthDrawingTip.used()
                     editing = DrawingMonth(id: month)
                 }
+                // **Keep the drawing, change the line** (the owner,
+                // 2026-10-06: "for those that want to keep the scarecrow but
+                // change the quote").
+                if !hasOwn {
+                    Button("Change Line", systemImage: "text.cursor") {
+                        draft = MonthLines.shared.line(for: month) ?? originalLine ?? ""
+                        // Once the menu has closed: asked while it is still
+                        // going, the alert never came up (simulator).
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(400))
+                            changingLine = true
+                        }
+                    }
+                }
                 if hasOwn {
                     Button("Use Original", systemImage: "arrow.uturn.backward", role: .destructive) {
                         MonthDrawingStore.shared.remove(month)
                     }
                 }
+            }
+            .alert("Line Under the Drawing", isPresented: $changingLine) {
+                TextField("Your line", text: $draft)
+                Button("Save") {
+                    HapticsEngine.lightTap()
+                    MonthLines.shared.set(draft, for: month)
+                }
+                if MonthLines.shared.line(for: month) != nil {
+                    Button("Use Original Line", role: .destructive) {
+                        MonthLines.shared.set(nil, for: month)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
             }
             .popoverTip(MonthDrawingTip(), arrowEdge: .bottom)
     }
