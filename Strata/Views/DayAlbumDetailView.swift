@@ -25,6 +25,8 @@ struct DayAlbumDetailView: View {
     @State private var vm = TowerViewModel()
     @State private var logs: [HabitLog] = []
     @State private var viewing: String?
+    /// A win with no photograph, opened to be named, recoloured or deleted.
+    @State private var editingLog: HabitLog?
 
     /// The last gap under the tower, on top of what the scroll view already
     /// reserves for the floating tab bar.
@@ -155,6 +157,16 @@ struct DayAlbumDetailView: View {
                         onClose: { viewing = nil },
                         onDelete: { _ in reload() },
                         onWinChanged: { reload() })
+        }
+        // The same sheet the tower's long press opens, in edit mode, and the
+        // same one the viewer's Edit opens for a photographed win.
+        .sheet(item: $editingLog) { log in
+            AddWinSheet(modelContext: modelContext,
+                        tower: log.habit?.tower,
+                        editing: log.habit,
+                        editingLog: log,
+                        onSaved: { _ in reload() },
+                        onDeleted: { reload() })
         }
     }
 
@@ -292,7 +304,14 @@ struct DayAlbumDetailView: View {
             modelContext: modelContext,
             width: containerWidth - GridConstants.horizontalPadding * 2,
             maxCell: 200,
-            canTapBlock: { $0.look.imageFileName != nil },
+            // **Every win on the page opens** (the QoL review, 2026-10-06).
+            // Only a photographed block took a tap, so a win logged without a
+            // picture could be looked at here and nothing else: no rename, no
+            // colour, no delete, short of finding it again on the tower that
+            // day. A photograph opens the viewer, as before; anything else
+            // opens the add sheet in edit mode, as the tower's long press
+            // does, and the page reloads when it closes on a change.
+            canTapBlock: { $0.look.imageFileName != nil || $0.log?.habit != nil },
             onTapBlock: { block in
                 // The photo is ON the block. A separate grid underneath was a
                 // second copy of the same pictures, and it pushed the tower —
@@ -305,7 +324,10 @@ struct DayAlbumDetailView: View {
                 // feedback, back to back, which reads as a stutter rather
                 // than as a press. The block owns the press; this owns what
                 // the press is for.
-                guard let name = block.look.imageFileName else { return }
+                guard let name = block.look.imageFileName else {
+                    editingLog = block.log
+                    return
+                }
                 viewing = name
             }
         )

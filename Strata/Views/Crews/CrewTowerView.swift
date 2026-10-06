@@ -531,7 +531,11 @@ struct CrewTowerView: View {
                         // Wide enough for a long name at a large text size,
                         // clear of the two buttons either side.
                         .frame(maxWidth: 240)
-                        .minimumScaleFactor(0.85)
+                        // It was `minimumScaleFactor(0.85)`, which let a long
+                        // name come down to 12.75pt at the default size, under
+                        // the app's 15pt floor. `LargeTypeFit` shrinks only as
+                        // far as 15 (the QoL review, 2026-10-06).
+                        .fitsLargeType(.subheadline)
                         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["name"] = $0 }
                         // A 44pt target round a 30pt capsule, so the press
                         // lands without hunting for the glass.

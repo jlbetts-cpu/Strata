@@ -48,7 +48,11 @@ struct MorningPassTests {
         #expect(block.contains("including: onTap == nil || onDoubleTap != nil ? .subviews : .all"))
         let album = try source("Views/DayAlbumDetailView.swift")
         // Read off `look` since crews (2026-10-02): a block may have no log.
-        #expect(album.contains("canTapBlock: { $0.look.imageFileName != nil }"))
+        // **Every win of yours has a destination now** (the QoL review,
+        // 2026-10-06, `RoughEdgesTests`): a photograph opens the viewer and
+        // anything else opens Edit. A block with neither, a log-less one,
+        // still takes no tap and so still does not press.
+        #expect(album.contains("canTapBlock: { $0.look.imageFileName != nil || $0.log?.habit != nil }"))
     }
 
     @Test("a map block says its place's name once known")

@@ -25,13 +25,16 @@ struct CameraView: View {
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
     var fillsScreen: Bool = false
-    /// The crews of the win this photo is for, when the camera is opened
-    /// from Add Win. Its ticks are the sheet's own, so a crew ticked there
-    /// (or the crew whose tower opened it) is still ticked here, and a
-    /// change here is the sheet's change. Nil from the tower's camera, which
-    /// keeps last time's choice (the owner, 2026-10-02: "it unchecks the
-    /// slot when you are adding the photo").
-    var crews: Binding<Set<CrewID>>? = nil
+    // **No crews here** (the QoL review, 2026-10-06). The review had its own
+    // `CrewPicker` and Add a win, which every shot lands on next, had the
+    // same row again: the camera asked who sees it twice. The sheet is the
+    // one place now. Nothing is lost by it: the review's ticks were the
+    // sticky `CrewChoice` (or the sheet's own, when opened from there), and
+    // the sheet opens on exactly that and saves it with the win. The owner's
+    // 2026-10-02 rule, that posting a photo is when you decide who sees it,
+    // still holds: the sheet is the posting, and it always follows Use
+    // Photo. His "it unchecks the slot when you are adding the photo" (the
+    // same day) cannot happen with no second row to disagree with the first.
 
     @State private var camera = CameraService()
     /// Whether the composition guides are drawn. Remembered, because it is a
@@ -75,10 +78,6 @@ struct CameraView: View {
     /// setting that follows you: a remembered one means the picture you take
     /// tomorrow is graded by something you chose today and forgot.
     @State private var lookRaw = FilmLook.Kind.none.rawValue
-    /// Who sees this photograph, decided where it is taken (the owner,
-    /// 2026-10-02: posting a photo is when you decide who sees it). The
-    /// sticky choice itself, so the win that follows goes where these say.
-    @State private var crewChoice: Set<CrewID> = []
     /// Whether the looks panel is open. Shut on every appearance: it is a
     /// decision, not a state to come back to.
     /// The review photograph with the chosen look on it, at screen size. The
@@ -641,14 +640,6 @@ struct CameraView: View {
                     set: { lookRaw = $0.rawValue }))
                     .padding(.bottom, GridConstants.gapWide)
 
-                CrewPicker(selection: crews ?? Binding(get: { crewChoice },
-                                                       set: { crewChoice = $0; CrewChoice.save($0) }),
-                           onDark: true, mentionsPhotos: true)
-                    .padding(.bottom, GridConstants.gapTight)
-                    // Read fresh each review: the choice may have changed in
-                    // Add Win since this view was built.
-                    .onAppear { if crews == nil { crewChoice = CrewChoice.load() } }
-
                 HStack(spacing: 0) {
                     Button {
                         HapticsEngine.tick()
@@ -692,7 +683,12 @@ struct CameraView: View {
                     }
 
                     Button {
-                        HapticsEngine.success()
+                        // **A tap, not the success.** The win is not made
+                        // here: Add on the sheet that follows is where it
+                        // lands, and that press plays the success. Both
+                        // played, two successes for one win (the QoL review,
+                        // 2026-10-06).
+                        HapticsEngine.lightTap()
                         keep(image)
                     } label: {
                         Text("Use Photo")
@@ -1778,7 +1774,11 @@ struct CameraView: View {
                     withAnimation(GridConstants.slotSnap) { drawnSize = .small }
                     return
                 }
-                HapticsEngine.success()
+                // A tap that the picture is in, not the success: that is
+                // Add's, once per win (the QoL review, 2026-10-06). The
+                // capture, Use Photo and Add each played one, so a camera win
+                // buzzed "done" three times before it was done.
+                HapticsEngine.lightTap()
                 // **The whole frame, and you at your best.** The sensor's full
                 // picture is kept, wider than the viewfinder shows, so there
                 // is room to crop it on the block (the owner, 2026-10-03,

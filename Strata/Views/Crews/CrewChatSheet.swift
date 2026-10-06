@@ -24,7 +24,9 @@ struct CrewChatSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var draft = ""
+    /// What is in the field. Seeded from `CrewDrafts` and written back to it
+    /// on every keystroke (`draftField`), so the words outlive the sheet.
+    @State private var draft: String
     @State private var refused = false
     @State private var reporting: CrewMessage?
     @State private var reported: CrewMessage?
@@ -41,6 +43,12 @@ struct CrewChatSheet: View {
     private static let faceSide: CGFloat = 28
     /// A doodle's largest side in the chat: a mark, never a second photograph.
     private static let doodleSide: CGFloat = 160
+
+    init(crewID: CrewID, onOpenWin: @escaping (UUID) -> Void = { _ in }) {
+        self.crewID = crewID
+        self.onOpenWin = onOpenWin
+        _draft = State(initialValue: CrewDrafts.chat(crewID))
+    }
 
     var body: some View {
         let crew = store.visible(crewID)
@@ -136,6 +144,7 @@ struct CrewChatSheet: View {
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkTertiary)
                         .lineLimit(1)
+                        .fitsLargeType(.subheadline)
                         .padding(.leading, GridConstants.gapLabel)
                         .accessibilityHidden(true)
                 }
@@ -193,6 +202,7 @@ struct CrewChatSheet: View {
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(quoteInk)
                     .lineLimit(1)
+                    .fitsLargeType(.subheadline)
             }
             if let sketch = message.sketch {
                 InkImage(url: sketch, tint: ink)
@@ -245,7 +255,7 @@ struct CrewChatSheet: View {
     private var composer: some View {
         if store.canReply() {
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
-                TextField("Message", text: $draft, axis: .vertical)
+                TextField("Message", text: draftField, axis: .vertical)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkPrimary)
                     .lineLimit(1...5)
@@ -263,7 +273,9 @@ struct CrewChatSheet: View {
             // 280 characters, the owner's number: the field stops there
             // rather than letting a long paste be cut on the way out.
             .onChange(of: draft) { _, text in
-                if text.count > CrewMessage.textLimit { draft = String(text.prefix(CrewMessage.textLimit)) }
+                guard text.count > CrewMessage.textLimit else { return }
+                draft = String(text.prefix(CrewMessage.textLimit))
+                CrewDrafts.keepChat(draft, for: crewID)
             }
         } else {
             // Off for an age not shared (`canReply`): the chat reads, and
@@ -279,14 +291,31 @@ struct CrewChatSheet: View {
 
     private var isEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    /// The field's binding: a keystroke is the person's own edit, so it is
+    /// the one thing that writes the kept draft. `send` empties the field
+    /// without touching it, which is how the words survive a send that does
+    /// not go.
+    private var draftField: Binding<String> {
+        Binding(get: { draft }, set: { draft = $0; CrewDrafts.keepChat($0, for: crewID) })
+    }
+
+    /// **A draft is cleared by a send that went, and by nothing else** (the
+    /// QoL review, 2026-10-06). It lived in this sheet's `@State`, so a swipe
+    /// down, a tap on a quoted win (which closes the sheet to open it) or a
+    /// sheet closed while a refused send was coming back each lost what you
+    /// had written. The field still empties at once, as Messages does; the
+    /// kept copy goes only on `.sent`, and only if nothing new was typed
+    /// since.
     private func send() {
         let text = draft
         guard !isEmpty else { return }
         draft = ""
         Task {
-            // Refused words come back to the field, to be changed.
-            if await store.send(text, in: crewID) == .refusedWords {
-                draft = text
+            if await store.send(text, in: crewID) == .sent {
+                CrewDrafts.clearChat(crewID, ifStill: text)
+            } else {
+                // Refused words come back to the field, to be changed.
+                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
                 refused = true
             }
         }
@@ -366,6 +395,7 @@ private struct ChatSheetToolbar: ToolbarContent {
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
                 .lineLimit(1)
+                .fitsLargeType(.body)
             Text("Today")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkTertiary)
@@ -379,5 +409,42 @@ private struct ChatSheetToolbar: ToolbarContent {
             Text("Done").sheetAction()
         }
         .buttonStyle(.pressWord)
+    }
+}
+
+/// **Unsent words, per crew, for as long as the app is open** (the QoL
+/// review, 2026-10-06). A chat's field and a win's Reply both lost their words
+/// to anything that closed them; these hold them until a send goes through.
+/// In memory on purpose: a draft is a sentence half written, not a record,
+/// and a relaunch clearing it is what anyone would expect of a chat.
+@MainActor
+enum CrewDrafts {
+    private static var chats: [CrewID: String] = [:]
+    private struct ReplyKey: Hashable { let crew: CrewID; let win: UUID }
+    private static var replies: [ReplyKey: String] = [:]
+
+    static func chat(_ crew: CrewID) -> String { chats[crew] ?? "" }
+
+    static func keepChat(_ text: String, for crew: CrewID) {
+        chats[crew] = text.isEmpty ? nil : text
+    }
+
+    /// Only if the kept words are still the ones that were sent: anything
+    /// typed while the send was in flight stays.
+    static func clearChat(_ crew: CrewID, ifStill sent: String) {
+        if chats[crew] == sent { chats[crew] = nil }
+    }
+
+    static func reply(_ crew: CrewID, to win: UUID) -> String {
+        replies[ReplyKey(crew: crew, win: win)] ?? ""
+    }
+
+    static func keepReply(_ text: String, for crew: CrewID, to win: UUID) {
+        replies[ReplyKey(crew: crew, win: win)] = text.isEmpty ? nil : text
+    }
+
+    static func clearReply(_ crew: CrewID, to win: UUID, ifStill sent: String) {
+        let key = ReplyKey(crew: crew, win: win)
+        if replies[key] == sent { replies[key] = nil }
     }
 }

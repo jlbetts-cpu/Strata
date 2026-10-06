@@ -399,6 +399,9 @@ struct PhotoViewer: View {
                 .foregroundStyle(AppColors.onDarkStrong.opacity(shown?.title == nil ? 0 : 1))
                 .animation(GridConstants.photoTitleFade, value: shown?.id)
                 .lineLimit(1)
+                // Shrinks before it truncates at a large text size, never
+                // under 15pt: the band is a fixed 44 (`LargeTypeFit`).
+                .fitsLargeType(.body)
                 .truncationMode(.tail)
                 // Clear of the two chrome buttons, derived rather than
                 // typed: their 44pt target plus the page margin. Typed as 64
@@ -531,6 +534,9 @@ struct PhotoViewer: View {
             }
         }
             .lineLimit(1)
+            // The band is a fixed `dateHeight`, so at a large text size the
+            // two lines shrink rather than cut off the place (`LargeTypeFit`).
+            .fitsLargeType(.subheadline)
             .truncationMode(.tail)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .animation(GridConstants.crossFade, value: currentID)

@@ -115,6 +115,42 @@ struct AddWinSheet: View {
     /// Where the strip is scrolled to, by tile.
     @State private var stripPosition: String?
     private static let blockInStrip = "block"
+    /// What the sheet held the moment it opened, so a swipe can tell a sheet
+    /// you have written on from one you only looked at. Nil until `load`.
+    @State private var opening: Opening?
+    /// Cancel was pressed on a sheet holding something: one line asks first.
+    @State private var confirmingDiscard = false
+
+    /// The four things a person changes on this sheet, as they stood at
+    /// `load`. A photograph is not in it: `photoChanged` already says whether
+    /// one was put on, taken off or handed in by the camera.
+    private struct Opening: Equatable {
+        var title: String
+        var category: HabitCategory
+        var size: BlockSize
+        var crop: CGPoint
+        var crews: Set<CrewID>
+    }
+
+    private var asItStands: Opening {
+        Opening(title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                category: category, size: size, crop: crop, crews: crewChoice)
+    }
+
+    /// **A swipe down no longer throws a win away** (the QoL review,
+    /// 2026-10-06, approved by the owner as "Rough edges + accessibility").
+    /// A typed name, a photograph, a colour or a size picked here went with
+    /// the sheet on one stray drag, and the worst case was a camera shot
+    /// handed in from the shutter, which exists nowhere else yet. So while
+    /// the sheet holds something it did not open with, the swipe is off and
+    /// Cancel asks once, as `DoodleSheet` holds its ink. A sheet nobody has
+    /// touched still swipes away, because asking about nothing is its own
+    /// rough edge. Once the win itself is saved (`failure.winIsSaved`) there
+    /// is nothing left to lose, and Done never asks.
+    private var hasUnsavedEdits: Bool {
+        guard let opening, failure?.winIsSaved != true else { return false }
+        return photoChanged || !withPeople.isEmpty || asItStands != opening
+    }
 
     /// A win from today or yesterday: anything older is past every crew's day.
     private var crewsCanTakeIt: Bool {
@@ -258,8 +294,13 @@ struct AddWinSheet: View {
                         // it would arrive in a day already gone.
                         if crewsCanTakeIt {
                             HStack(alignment: .center, spacing: GridConstants.gapItem) {
+                                // The one place a win's crews are chosen,
+                                // the camera's included, so the camera's line
+                                // about photos staying on the phone is said
+                                // here when there is a photo to say it of.
                                 CrewPicker(selection: Binding(get: { crewChoice },
-                                                              set: { crewChoice = $0; crewChoiceTouched = true }))
+                                                              set: { crewChoice = $0; crewChoiceTouched = true }),
+                                           mentionsPhotos: photo != nil)
                                 // **Who it was with, behind one tag button**
                                 // at the end of the crews (the owner,
                                 // 2026-10-06), not a second row of names
@@ -319,6 +360,9 @@ struct AddWinSheet: View {
         // cut off by the edge of a sheet is a bug.
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        // See `hasUnsavedEdits`. While saving too: a swipe mid-save closed
+        // the sheet over a write that was still landing.
+        .interactiveDismissDisabled(hasUnsavedEdits || isSaving)
         // The page's own background, not the default translucent one. Through
         // frosted glass the tower's colours bleed up behind the controls and
         // the sheet reads as muddy — and a frosted surface is the block's
@@ -765,9 +809,7 @@ struct AddWinSheet: View {
                     showCamera = false
                 },
                 onClose: { showCamera = false },
-                fillsScreen: true,
-                crews: Binding(get: { crewChoice },
-                               set: { crewChoice = $0; crewChoiceTouched = true })
+                fillsScreen: true
             )
             // No colour-scheme override on this one.
             //
@@ -856,11 +898,28 @@ struct AddWinSheet: View {
             if failure?.winIsSaved == true, let habit = editing ?? savedHabit {
                 onSaved(habit)
             }
+            // Something on the sheet would be lost: ask once, see
+            // `hasUnsavedEdits`.
+            if hasUnsavedEdits {
+                confirmingDiscard = true
+                return
+            }
             dismiss()
         } label: {
             Text(failure?.dismissal ?? "Cancel").sheetAction(.cancel)
         }
         .buttonStyle(.pressWord)
+        // One line and two answers. Hung on Cancel itself because iOS 26
+        // draws a dialog out of the view it hangs on: on the page it pointed
+        // at the size control, which was not what had been pressed. As a
+        // popover the cancel answer is a tap outside; Keep Editing is what
+        // VoiceOver and the action-sheet form read.
+        .confirmationDialog(isEditing ? "Discard your changes?" : "Discard this win?",
+                            isPresented: $confirmingDiscard,
+                            titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
+            Button("Keep Editing", role: .cancel) { }
+        }
     }
 
     /// `.disabled` is the whole of the dim: `SheetActionLabel` reads
@@ -1347,6 +1406,9 @@ struct AddWinSheet: View {
                 category = QuickWinService.spontaneousCategory(existing: existing)
             }
         }
+        // Last, after every default above has landed, so what the sheet
+        // opened with never counts as an edit (`hasUnsavedEdits`).
+        opening = asItStands
     }
 
     private func save() async {

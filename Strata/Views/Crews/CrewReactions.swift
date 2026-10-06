@@ -188,6 +188,7 @@ struct ReactorRow: View {
                                     .font(Typography.screenSubtitle)
                                     .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkSecondary)
                                     .lineLimit(1)
+                                    .fitsLargeType(.subheadline)
                             }
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("\(member.profileID == me ? "You" : member.shortName), \(reaction.emoji)")
@@ -335,7 +336,9 @@ struct CrewReactionsPanel: View {
                 if store.canReply() {
                     HStack(spacing: GridConstants.gapWide) {
                         replyChip("Reply") {
-                            draft = ""
+                            // What was written last time and not sent: a
+                            // refused reply or a Cancel keeps its words.
+                            draft = CrewDrafts.reply(crewID, to: winID)
                             replying = true
                         }
                         replyChip("Doodle") { doodling = true }
@@ -381,11 +384,17 @@ struct CrewReactionsPanel: View {
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
         .alert("Reply to \(owner)", isPresented: $replying) {
-            TextField("A few words", text: $draft)
+            TextField("A few words", text: Binding(get: { draft }, set: {
+                draft = $0
+                CrewDrafts.keepReply($0, for: crewID, to: winID)
+            }))
             Button("Send") {
                 let text = draft
                 Task {
                     let outcome = await store.reply(text, to: winID, in: crewID)
+                    // Cleared only by a reply that went (`CrewDrafts`), so
+                    // Reply again after "Try other words" opens on them.
+                    if outcome == .sent { CrewDrafts.clearReply(crewID, to: winID, ifStill: text) }
                     if outcome == .refusedWords { refused = true }
                 }
                 withAnimation(motion) { open = false }
@@ -468,6 +477,7 @@ struct CrewReactionsPanel: View {
             Text(words)
                 .font(Typography.headerSmall)
                 .lineLimit(1)
+                .fitsLargeType(.subheadline)
             // No chevron: it promised a drawer, and on your own win there is
             // nothing in it to do (the owner, 2026-10-03: "it shows the up
             // chevron even though you cant really do anything with it").

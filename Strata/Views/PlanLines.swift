@@ -398,7 +398,10 @@ struct PlanLines: View {
         // so the plan never claims a block the tower does not have.
         item.completedAt = Date()
         try? modelContext.save()
-        HapticsEngine.success()
+        // **A tap, not the success**: the tick opens Add, and Add's press is
+        // the success, once per win (the QoL review, 2026-10-06). Both used
+        // to play.
+        HapticsEngine.lightTap()
         Self.tidy(allItems, keeping: focused, context: modelContext)
         onComplete(item)
     }

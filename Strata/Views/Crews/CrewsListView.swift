@@ -151,6 +151,7 @@ struct CrewsListView: View {
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
+                        .fitsLargeType(.body)
                     // Muted, marked as Messages marks it.
                     if store.isMuted(crew.id) {
                         Image(systemName: "bell.slash.fill")

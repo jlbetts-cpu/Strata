@@ -132,7 +132,16 @@ extension CrewSyncTests {
         for file in files {
             let text = try String(contentsOf: folder.appending(path: file), encoding: .utf8)
             // Only what a person reads: string literals.
-            let literals = text.split(separator: "\"").enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            //
+            // **Empty pieces are kept** (2026-10-06). `split` drops them by
+            // default, so every `""` in a file shifted the odd/even count by
+            // one and the sweep read CODE as a literal from there on; it only
+            // worked while a file happened to hold an even number of `""`.
+            // Removing one from `CrewChatSheet` (its draft moved to
+            // `CrewDrafts`) put `markChatSeen` inside a "literal" and failed
+            // the no-read-receipts rule on a function name.
+            let literals = text.split(separator: "\"", omittingEmptySubsequences: false)
+                .enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
             for literal in literals {
                 #expect(!literal.contains("\u{2014}") && !literal.contains("\u{2013}"), "\(file): \(literal)")
                 for word in ["watching", "tracking", "active now", "see what your friends"] {
