@@ -38,6 +38,32 @@ final class CrewTowerModel {
         }
     }
 
+    /// **A block's sender line**: "Sam", or, for a shared win, "Sam with
+    /// Ana" (spec 1). Your own reads "You with Sam", and nothing at all when
+    /// nobody was tagged, as on your own tower.
+    ///
+    /// `names` is the crew as you see it: someone removed, or blocked, is not
+    /// in it and drops out of the line rather than reading "a friend".
+    /// You come last, the way people say it: "Ana, Leo & you".
+    nonisolated static func senderLine(_ win: SharedWin, me: UUID, names: [UUID: String]) -> String? {
+        let mine = win.senderProfileID == me
+        let tagged = win.withPeople.filter { $0 != me && names[$0] != nil }
+            .map { names[$0].flatMap { $0.isEmpty ? nil : $0 } ?? "a friend" }
+            + (!mine && win.withPeople.contains(me) ? ["you"] : [])
+        let who: String
+        if mine {
+            who = "You"
+        } else {
+            let name = names[win.senderProfileID] ?? ""
+            who = name.isEmpty ? "A friend" : name
+        }
+        switch tagged.count {
+        case 0: return mine ? nil : who
+        case 1: return "\(who) with \(tagged[0])"
+        default: return "\(who) with \(tagged.dropLast().joined(separator: ", ")) & \(tagged[tagged.count - 1])"
+        }
+    }
+
     /// Rebuilds from the crew's wins. A win that was not there last time falls
     /// in from above the screen, as yours do; every tenth one sets the tower
     /// dancing, which is the crew's only celebration.
@@ -45,13 +71,12 @@ final class CrewTowerModel {
         let ordered = wins.sorted { $0.createdAt < $1.createdAt }
         var entries: [TowerViewModel.TowerEntry] = []
         for win in ordered {
-            var sender: String? = nil
-            if win.senderProfileID != me {
-                let name = names[win.senderProfileID] ?? ""
-                sender = name.isEmpty ? "A friend" : name
-            }
-            entries.append(TowerViewModel.TowerEntry(
-                id: win.winID, look: PlacedBlock.Look(win: win, sender: sender, reactions: reactions(win.winID), me: me)))
+            let line = Self.senderLine(win, me: me, names: names)
+            var look = PlacedBlock.Look(win: win, sender: line, reactions: reactions(win.winID), me: me)
+            // Set, not inferred from the line: "You with Sam" is still yours.
+            look.isMine = win.senderProfileID == me
+            look.isTagged = line?.contains(" with ") == true
+            entries.append(TowerViewModel.TowerEntry(id: win.winID, look: look))
         }
         let hadBuilt = tower.hasBuiltOnce
         withAnimation(GridConstants.motionSnappy) {

@@ -18,13 +18,19 @@ struct CrewRecordTests {
                   title: "Gym", colour: .health, icon: .health, blockSize: .medium,
                   photo: photo, cropX: 0.1, cropY: -0.2,
                   createdAt: Date(timeIntervalSince1970: 1_790_000_000),
-                  updatedAt: Date(timeIntervalSince1970: 1_790_000_100))
+                  updatedAt: Date(timeIntervalSince1970: 1_790_000_100),
+                  withPeople: [UUID(), UUID()])
     }
 
     @Test func theSharedWinKeysAreExactlyTheTable() {
+        // "withPeople" since 2026-10-05: who a win was with, as up to three
+        // profile ids of people in that crew (shared wins, spec 1). Ids
+        // only, never a name or a contact: the names are already on the
+        // crew's Member records.
         #expect(CrewRecords.sharedWinKeys == [
             "winID", "senderProfileID", "crewDay", "title", "colour", "icon",
             "blockSize", "photo", "cropX", "cropY", "createdAt", "updatedAt",
+            "withPeople",
         ])
         #expect(Set(CrewRecords.fields(Self.win()).keys) == CrewRecords.sharedWinKeys)
     }

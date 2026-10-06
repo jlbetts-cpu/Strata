@@ -138,13 +138,15 @@ struct CrewDayView: View {
 enum CrewGallery {
     @MainActor
     static func photos(_ wins: [SharedWin], crew: Crew?, me: UUID) -> [GalleryPhoto] {
-        wins.sorted { $0.createdAt < $1.createdAt }.map { win in
-            let name = crew?.member(win.senderProfileID)?.shortName ?? ""
+        // The same line the block says, "Sam with Ana" on a shared win.
+        let names = Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) })
+        return wins.sorted { $0.createdAt < $1.createdAt }.map { win in
             return GalleryPhoto(fileName: win.winID.uuidString,
                                 title: win.title.isEmpty ? nil : win.title,
                                 date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
                                 file: win.photo,
-                                byline: win.senderProfileID == me ? nil : (name.isEmpty ? "A friend" : name),
+                                // Nil is how the viewer knows it is yours.
+                                byline: win.senderProfileID == me ? nil : CrewTowerModel.senderLine(win, me: me, names: names),
                                 block: win.photo == nil ? win.colour : nil)
         }
     }

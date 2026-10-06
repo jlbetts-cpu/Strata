@@ -410,7 +410,7 @@ private struct CrewBlockSpeech: ViewModifier {
     }
 
     private var label: String {
-        let who = look.sender.map { "\($0)'s win" } ?? "Your win"
+        let who = look.sender.map { look.isTagged ? $0 : "\($0)'s win" } ?? "Your win"
         let what = look.title.isEmpty ? (look.hasPhoto ? "a photo" : "untitled") : look.title
         let reactions = look.reactionCount == 0 ? ""
             : (look.reactionCount == 1 ? ", 1 reaction" : ", \(look.reactionCount) reactions")

@@ -68,7 +68,7 @@ struct LogWinIntent: AppIntent {
     }
 
     /// The tower the app has open, by the same stored id `TowerManager` uses.
-    private static func activeTower(in context: ModelContext) -> Tower? {
+    static func activeTower(in context: ModelContext) -> Tower? {
         let towers = (try? context.fetch(FetchDescriptor<Tower>(sortBy: [SortDescriptor(\.order)]))) ?? []
         if let stored = UserDefaults.standard.string(forKey: "activeTowerID").flatMap(UUID.init(uuidString:)),
            let match = towers.first(where: { $0.id == stored }) {

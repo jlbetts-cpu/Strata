@@ -31,17 +31,22 @@ enum CrewSync {
         }
     }
 
-    /// Sends a win you just logged to the crews chosen for it.
-    static func post(_ entry: HabitLog, to chosen: Set<CrewID>? = nil) {
-        guard CrewsFlag.isOn, let win = ownWin(entry) else { return }
+    /// Sends a win you just logged to the crews chosen for it, with the
+    /// people chosen on Add Win's With row, if any. Who a win was with is
+    /// never on the `HabitLog`: it exists only in the crews it went to.
+    static func post(_ entry: HabitLog, to chosen: Set<CrewID>? = nil, with people: [UUID] = []) {
+        guard CrewsFlag.isOn, var win = ownWin(entry) else { return }
         let crews = chosen ?? CrewChoice.load()
         guard !crews.isEmpty else { return }
+        win.withPeople = people
         Task { await store().post(win, to: crews) }
     }
 
-    /// The Edit screen's checkboxes.
-    static func setCrews(for entry: HabitLog, to chosen: Set<CrewID>) {
-        guard CrewsFlag.isOn, let win = ownWin(entry) else { return }
+    /// The Edit screen's checkboxes. `people` only from Add Win finishing a
+    /// win whose photo failed the first time.
+    static func setCrews(for entry: HabitLog, to chosen: Set<CrewID>, with people: [UUID] = []) {
+        guard CrewsFlag.isOn, var win = ownWin(entry) else { return }
+        win.withPeople = people
         Task { await store().setCrews(for: win, to: chosen) }
     }
 

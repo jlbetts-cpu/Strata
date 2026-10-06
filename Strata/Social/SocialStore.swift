@@ -50,6 +50,10 @@ final class SocialStore {
             return await Task.detached(priority: .utility) { CrewHeadPack.make(from: folder) }.value
         }
         store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
+        // Keep, on "Sam added you to a win": a copy into your own record,
+        // through the app's own logging path. SwiftData lives in the app
+        // layer (`TaggedWinKeeper`), never in this file.
+        store.keepTaggedWin = { await TaggedWinKeeper.keepFromCrew($0) }
         // A photo is offered first and can be added later; it is never what
         // stands between you and inviting people (the owner, 2026-10-02:
         // "why do I have to name or do a pfp to add people").
@@ -108,6 +112,12 @@ final class SocialStore {
     /// A crew must start with a photo (the owner, 2026-10-02). Off in tests
     /// that are about something else.
     @ObservationIgnored var requiresCrewPhoto = false
+    /// **Keep, on a win you were tagged in**: writes a copy into your own
+    /// record. Handed the crew's copy, photo and all; the app's `HabitLog`
+    /// work is done by whoever sets this, so this file stays beside
+    /// SwiftData and never inside it. Called once per win, however many
+    /// times Keep is pressed or however many crews it arrived in.
+    @ObservationIgnored var keepTaggedWin: (SharedWin) async -> Void = { _ in }
     /// Makes the copy of a photograph that is sent.
     @ObservationIgnored var derive: @Sendable (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
 
@@ -176,6 +186,7 @@ final class SocialStore {
         self.blocked = Set((defaults.stringArray(forKey: Self.blockedKey) ?? []).compactMap(UUID.init(uuidString:)))
         let hidden = defaults.dictionary(forKey: CrewChoicesSync.Table.hidden.rawValue) as? CrewChoicesSync.Entries ?? [:]
         self.hiddenWins = Set(hidden.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
+        self.tagAnswers = defaults.dictionary(forKey: Self.tagAnswersKey) as? [String: Bool] ?? [:]
     }
 
     // MARK: Reading
@@ -376,6 +387,54 @@ final class SocialStore {
         return name.isEmpty ? "Someone" : name
     }
 
+    // MARK: Shared wins
+
+    /// The people Add Win's With row offers: everyone in the chosen crews
+    /// but you and anyone you blocked, each once, in the crews' order. Never
+    /// your contacts (spec 1).
+    func taggable(in chosen: Set<CrewID>) -> [CrewMember] {
+        var seen: Set<UUID> = [me]
+        var people: [CrewMember] = []
+        for crew in crews where chosen.contains(crew.id) {
+            for member in visible(crew.id)?.others(than: me) ?? [] where seen.insert(member.profileID).inserted {
+                people.append(member)
+            }
+        }
+        return people
+    }
+
+    /// Answers to "Sam added you to a win", by win id: true kept, false Not
+    /// This One. On this phone only, and never sent: saying no is silent and
+    /// the tagger is never told (spec 1).
+    private(set) var tagAnswers: [String: Bool] = [:]
+    private static let tagAnswersKey = "crews.tagAnswers"
+
+    /// The first win tagging you that you have not answered, in one crew or
+    /// in any. Never your own, never one from someone you blocked, never one
+    /// you hid. One win sent to two crews you share is one question, because
+    /// the answer is kept by win id.
+    func tagToAsk(in crewID: CrewID? = nil) -> SharedWin? {
+        let held = crewID.map { [$0: winsByCrew[$0] ?? []] } ?? winsByCrew
+        return held.keys.sorted { $0.rawValue < $1.rawValue }
+            .flatMap { held[$0] ?? [] }
+            .filter {
+                $0.withPeople.contains(me) && $0.senderProfileID != me
+                    && !blocked.contains($0.senderProfileID) && !hiddenWins.contains($0.winID)
+                    && tagAnswers[$0.winID.uuidString] == nil
+            }
+            .min { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
+    }
+
+    /// Keep, or Not This One. The answer is written first, so a second press
+    /// (or the same win arriving in another crew) never makes a second copy.
+    func answer(_ win: SharedWin, keep: Bool) async {
+        let key = win.winID.uuidString
+        guard tagAnswers[key] == nil else { return }
+        tagAnswers[key] = keep
+        defaults.set(tagAnswers, forKey: Self.tagAnswersKey)
+        if keep { await keepTaggedWin(win) }
+    }
+
     /// The newest win in a crew, for its row in the list.
     func latest(in crew: CrewID) -> SharedWin? {
         winsByCrew[crew]?.max { $0.createdAt < $1.createdAt }
@@ -404,6 +463,10 @@ final class SocialStore {
         var crews: Set<CrewID>
         /// What was sent, so an edit that changed nothing sends nothing.
         var signature: String
+        /// Who the win was with, as chosen on Add Win. Kept here because an
+        /// edit is rebuilt from the `HabitLog`, which has no field for it:
+        /// without this, renaming a tagged win untagged it everywhere.
+        var with: [UUID]? = nil
     }
 
     @ObservationIgnored private var sentCache: [UUID: Sent]?
@@ -434,6 +497,7 @@ final class SocialStore {
         var entry = ledger[win.winID] ?? Sent(crews: [], signature: "")
         entry.crews.formUnion(crewIDs)
         entry.signature = Self.signature(win)
+        if !win.withPeople.isEmpty { entry.with = win.withPeople }
         ledger[win.winID] = entry
         sent = ledger
     }
@@ -726,6 +790,7 @@ final class SocialStore {
     /// was made on the checkboxes, or is the one you made last time.
     func post(_ win: OwnWin, to chosen: Set<CrewID>) async {
         guard isEnabled() else { return }
+        let win = withTags(win)
         let photo = await checkedPhoto(for: win)
         for crewID in chosen {
             guard let crew = crew(crewID) else { continue }
@@ -745,6 +810,7 @@ final class SocialStore {
         let holding = crews(holding: win.winID)
         guard !holding.isEmpty else { return }
         guard sent[win.winID]?.signature != Self.signature(win) else { return }
+        let win = withTags(win)
         let photo = await checkedPhoto(for: win)
         for crewID in holding {
             guard let crew = crew(crewID) else { continue }
@@ -767,6 +833,17 @@ final class SocialStore {
         let added = chosen.subtracting(holding)
         for crewID in holding.subtracting(chosen) { await withdraw(winID: win.winID, from: crewID) }
         if !added.isEmpty { await post(win, to: added) }
+    }
+
+    /// A win rebuilt from its `HabitLog` (an edit, or a crew ticked on the
+    /// Edit sheet) carries no tags: it gets back the ones it was sent with.
+    private func withTags(_ win: OwnWin) -> OwnWin {
+        guard win.withPeople.isEmpty else { return win }
+        var win = win
+        win.withPeople = sent[win.winID]?.with
+            ?? winsByCrew.values.lazy.compactMap { $0.first { $0.winID == win.winID } }.first?.withPeople
+            ?? []
+        return win
     }
 
     /// Unticking a crew deletes that crew's copy.
@@ -979,7 +1056,14 @@ final class SocialStore {
                     // their wins, whoever's phone had not yet deleted them
                     // (the 2026-10-03 audit: they came back as "A friend").
                     let people = Set(crew.members.map(\.profileID))
+                    // And out of every tag: someone removed from a crew is
+                    // dropped from its tags (shared wins, spec 1).
                     wins[crew.id] = held.filter { people.contains($0.senderProfileID) }
+                        .map { win -> SharedWin in
+                            var win = win
+                            win.withPeople.removeAll { !people.contains($0) }
+                            return win
+                        }
                         .sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
                     counted[crew.id] = wins[crew.id]
                 } catch {
@@ -1601,7 +1685,15 @@ final class SocialStore {
     }
 
     private func sharedWin(_ win: OwnWin, in crew: Crew, photo: URL?) -> SharedWin {
-        SharedWin(winID: win.winID,
+        // Only this crew's people, each once, never you and never anyone you
+        // blocked, and three at most: a tag of someone in another crew must
+        // not tell this one who they are (the privacy policy: "only your
+        // crew sees who a win was with").
+        var seen: Set<UUID> = []
+        let people = win.withPeople.filter {
+            $0 != me && !blocked.contains($0) && crew.member($0) != nil && seen.insert($0).inserted
+        }
+        return SharedWin(winID: win.winID,
                   crewID: crew.id,
                   senderProfileID: me,
                   crewDay: CrewDay.string(for: win.createdAt, in: crew.timeZone),
@@ -1613,6 +1705,7 @@ final class SocialStore {
                   cropX: win.cropX,
                   cropY: win.cropY,
                   createdAt: win.createdAt,
-                  updatedAt: win.updatedAt)
+                  updatedAt: win.updatedAt,
+                  withPeople: Array(people.prefix(CrewCaps.withPeople)))
     }
 }

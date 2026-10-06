@@ -122,6 +122,8 @@ struct CrewTowerView: View {
             case "mine": viewing = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID.uuidString
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
             case "fan": parking.fanned = !parking.parked.isEmpty
+            // Add Win with this crew ticked: its With row (shared wins).
+            case "add": onAddWin()
             default: break
             }
             // `-strataCrewHold 1`: a press and hold on a friend's block, so
@@ -199,6 +201,8 @@ struct CrewTowerView: View {
         // tower: iOS 26 draws a dialog from the view it hangs on, and from a
         // full-screen one it never appeared (End Crew did the same).
         .overlay(alignment: .bottom) { reportAnchor }
+        // "Sam added you to a win", once per win, never over another screen.
+        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || reporting != nil || reacting != nil)
         .accessibilityAction(.escape) { onBack() }
     }
 

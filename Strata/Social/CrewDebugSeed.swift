@@ -10,6 +10,8 @@ import UIKit
 ///     -strataCrewDropEvery 3                     a friend posts every 3 seconds
 ///     -strataOpenCrew 0                          launch straight into the first crew
 ///     -strataOpenCrews 1                         launch straight into the list
+///     -strataCrewTagMe 1                         a friend's win "with" you, so
+///                                                "Sam added you to a win" asks
 ///
 /// Every friend is a real `SocialStore` on the same `FakeCrewWorld`, posting
 /// through `post` exactly as a phone would, so what is seeded is a state the
@@ -127,6 +129,14 @@ extension DebugHarness {
                 // today, so the page has someone to wait on.
                 if seedCrewHistory != nil, crewFriends.count > 1, poster === crewFriends.last { poster = store }
                 await poster.post(win(i, minutesAgo: (seedCrewWins - i) * 23), to: [crew.id])
+            }
+            // A friend's Morning run, with you and one more of the crew, the
+            // newest block in the tower.
+            if argument("-strataCrewTagMe") == "1", let tagger = crewFriends.first {
+                await tagger.refresh()
+                var run = win(4, minutesAgo: 1)
+                run.withPeople = [store.me] + crewFriends.dropFirst().prefix(1).map(\.me)
+                await tagger.post(run, to: [crew.id])
             }
         }
         // Friends react to a few wins, yours among them.

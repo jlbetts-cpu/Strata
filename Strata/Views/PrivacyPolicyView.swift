@@ -43,7 +43,7 @@ struct PrivacyPolicyView: View {
 
                 // `inkTertiary`: `inkQuiet` is held to 3:1 because it is for
                 // glyphs, and this is a sentence (2026-10-02, design review).
-                Text("Last updated 2 October 2026")
+                Text("Last updated 5 October 2026")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkTertiary)
                     .padding(.top, GridConstants.gapTight)
@@ -115,7 +115,9 @@ struct PrivacyPolicyView: View {
          + "you logged it. The photo is a smaller copy with no place and no camera "
          + "details in it. With it, your first name, your head if it is on your tower, "
          + "and your profile photo, which is never sent if you are under 16. "
-         + "Never your notes, captions, places or mood. The crew itself has a name "
+         + "Never your notes, captions, places or mood. Tag someone and they are "
+         + "asked whether to keep a copy; only your crew sees who a win was with. "
+         + "The crew itself has a name "
          + "and a photo that anyone in it can change, and keeps the time zone of "
          + "whoever started it, so its day ends at one midnight for everyone."),
         ("Taking a win back",

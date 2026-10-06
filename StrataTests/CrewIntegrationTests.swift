@@ -15,14 +15,19 @@ struct CrewIntegrationTests {
     }
 
     @Test func everyPlaceAPersonLogsAWinSendsIt() throws {
-        #expect(try Self.source("Strata/Views/AddWinSheet.swift").contains("CrewSync.post(log, to: crewChoice)"))
+        // "with: withPeople" since 2026-10-05: Add Win sends who the win was
+        // with (shared wins). Still the one call that posts a new win.
+        #expect(try Self.source("Strata/Views/AddWinSheet.swift")
+            .contains("CrewSync.post(log, to: crewChoice, with: withPeople)"))
         #expect(try Self.source("Strata/Views/MainAppView.swift").contains("CrewSync.post(log)"))
         #expect(try Self.source("Strata/Intents/LogWinIntent.swift").contains("CrewSync.post(log)"))
     }
 
     @Test func restoringABackupNeverSendsAnything() throws {
+        // A kept copy of a friend's tagged win is yours alone: it is logged,
+        // never sent (shared wins, spec 1).
         for file in ["Strata/Services/BackupRestore.swift", "Strata/Services/BackupArchive.swift",
-                     "Strata/Services/QuickWinService.swift"] {
+                     "Strata/Services/QuickWinService.swift", "Strata/Services/TaggedWinKeeper.swift"] {
             #expect(try !Self.source(file).contains("CrewSync"), "\(file) must never post to a crew")
         }
     }

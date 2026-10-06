@@ -26,6 +26,11 @@ nonisolated struct CrewID: Hashable, Codable, Sendable, Identifiable {
 nonisolated enum CrewCaps {
     static let members = 8
     static let crews = 5
+    /// The people one win can be "with" (shared wins, the owner,
+    /// 2026-10-05: "pick up to 3"). Held in `SocialStore` where a win is
+    /// sent, and again in `CrewRecords` where one is read, so a record that
+    /// claims ten people still asks no more than three.
+    static let withPeople = 3
 }
 
 nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
@@ -153,6 +158,12 @@ nonisolated struct SharedWin: Identifiable, Codable, Equatable, Sendable {
     var cropY: Double?
     let createdAt: Date
     var updatedAt: Date
+    /// **Who it was with**: up to three people in THIS crew, by profile id
+    /// (shared wins, spec 1). Each of them is asked once whether to keep a
+    /// copy. Never a name and never a contact: a phone draws the names from
+    /// the crew's own Member records, so someone removed from the crew drops
+    /// out of every tag with nothing to rewrite.
+    var withPeople: [UUID] = []
 
     var id: UUID { winID }
 }
@@ -175,6 +186,9 @@ nonisolated struct OwnWin: Sendable, Equatable {
     var cropY: Double?
     let createdAt: Date
     var updatedAt: Date
+    /// The people chosen on Add Win's With row. Each crew is sent only the
+    /// ones who are in it (`SocialStore.sharedWin`).
+    var withPeople: [UUID] = []
 }
 
 /// One person's reaction to one win, in one crew.

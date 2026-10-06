@@ -47,6 +47,9 @@ struct PlacedBlock: Identifiable, Equatable {
         var sender: String? = nil
         /// True for your own win in a crew tower.
         var isMine = true
+        /// A shared win: `sender` already says who it was with ("Sam with
+        /// Ana"), so it is read as it stands rather than as "Sam's win".
+        var isTagged = false
         /// A crew win's reactions, drawn in its corner: up to three distinct
         /// emoji, most used first, and how many people reacted. Part of the
         /// look so `AnimatedBlockView.==` sees a new one arrive.

@@ -74,6 +74,7 @@ nonisolated enum CrewRecords {
     static let sharedWinKeys: Set<String> = [
         "winID", "senderProfileID", "crewDay", "title", "colour", "icon",
         "blockSize", "photo", "cropX", "cropY", "createdAt", "updatedAt",
+        "withPeople",
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
@@ -107,7 +108,27 @@ nonisolated enum CrewRecords {
         if let photo = win.photo { fields["photo"] = .asset(photo) }
         if let x = win.cropX { fields["cropX"] = .double(x) }
         if let y = win.cropY { fields["cropY"] = .double(y) }
+        // Absent when nobody was tagged, as a missing photo is: a record is
+        // written whole, so an absent key is an empty one.
+        if !win.withPeople.isEmpty {
+            fields["withPeople"] = .string(win.withPeople.map(\.uuidString).joined(separator: ","))
+        }
         return fields
+    }
+
+    /// The people a record says a win was with: profile ids, each once, never
+    /// the sender, and no more than `CrewCaps.withPeople` whatever the record
+    /// claims.
+    static func withPeople(_ raw: String?, sender: UUID) -> [UUID] {
+        var seen: Set<UUID> = []
+        var people: [UUID] = []
+        for part in (raw ?? "").split(separator: ",") {
+            guard let id = UUID(uuidString: part.trimmingCharacters(in: .whitespaces)),
+                  id != sender, seen.insert(id).inserted else { continue }
+            people.append(id)
+            if people.count == CrewCaps.withPeople { break }
+        }
+        return people
     }
 
     static func sharedWin(_ fields: RecordFields, crew: CrewID) -> SharedWin? {
@@ -123,7 +144,8 @@ nonisolated enum CrewRecords {
         return SharedWin(winID: winID, crewID: crew, senderProfileID: sender, crewDay: day,
                          title: title, colour: colour, icon: icon, blockSize: size,
                          photo: fields["photo"]?.asset, cropX: fields["cropX"]?.double,
-                         cropY: fields["cropY"]?.double, createdAt: created, updatedAt: updated)
+                         cropY: fields["cropY"]?.double, createdAt: created, updatedAt: updated,
+                         withPeople: withPeople(fields["withPeople"]?.string, sender: sender))
     }
 
     // MARK: Reaction

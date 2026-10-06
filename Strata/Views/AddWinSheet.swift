@@ -98,6 +98,10 @@ struct AddWinSheet: View {
     /// an Edit opened before crews had loaded saw no ticks, and saving it
     /// withdrew the win from every crew).
     @State private var crewChoiceTouched = false
+    /// Who the win was with (`CrewWithRow`): people in the ticked crews,
+    /// three at most. Only on a new win; it is sent with it and never kept
+    /// on the `HabitLog`.
+    @State private var withPeople: [UUID] = []
 
     /// A win from today or yesterday: anything older is past every crew's day.
     private var crewsCanTakeIt: Bool {
@@ -243,6 +247,12 @@ struct AddWinSheet: View {
                             CrewPicker(selection: Binding(get: { crewChoice },
                                                           set: { crewChoice = $0; crewChoiceTouched = true }))
                                 .padding(.top, GridConstants.gapSection)
+                            // Under the crew chips, and only for a win on
+                            // its way to a crew (shared wins, spec 1).
+                            if !isEditing, CrewsFlag.isOn, !crewChoice.isEmpty {
+                                CrewWithRow(crews: crewChoice, selection: $withPeople)
+                                    .padding(.top, GridConstants.gapItem)
+                            }
                         }
                         subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                             .padding(.top, GridConstants.gapSection)
@@ -1201,7 +1211,7 @@ struct AddWinSheet: View {
             }
             if let log = editingLog ?? savedLog, editingLog == nil || crewChoiceTouched {
                 if editingLog == nil { CrewChoice.save(crewChoice) }
-                CrewSync.setCrews(for: log, to: crewChoice)
+                CrewSync.setCrews(for: log, to: crewChoice, with: editingLog == nil ? withPeople : [])
             }
             finish(habit)
             return
@@ -1256,7 +1266,7 @@ struct AddWinSheet: View {
         // a crew, whose choice is that crew's.
         if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
             if initialCrews == nil { CrewChoice.save(crewChoice) }
-            CrewSync.post(log, to: crewChoice)
+            CrewSync.post(log, to: crewChoice, with: withPeople)
         }
         finish(win.habit)
     }
