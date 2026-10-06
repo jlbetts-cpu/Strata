@@ -116,8 +116,11 @@ final class MonthDrawingStore {
 nonisolated struct InkReplayTiming: Equatable, Sendable {
     static let total: Double = 1.8
     static let perStrokeCap: Double = 0.6
-    /// The sway-settle after the last stroke.
-    static let settle: Double = 1.1
+    /// **No sway and no boil** (the owner, 2026-10-06: "I dont like the
+    /// drawing animation with the shake it doesnt give off premium to me").
+    /// The drawing draws itself on once, in the order it was drawn, and
+    /// then holds perfectly still. The settle that swung it about its foot
+    /// and the three-frame jitter while it drew are both gone.
 
     let durations: [Double]
     let starts: [Double]
@@ -147,8 +150,8 @@ nonisolated struct InkReplayTiming: Equatable, Sendable {
 
     /// When the last stroke is finished.
     var drawDuration: Double { zip(starts, durations).map { $0 + $1 }.max() ?? 0 }
-    /// The whole play: the drawing, then its settle.
-    var playDuration: Double { drawDuration + Self.settle }
+    /// The whole play: the drawing, and nothing after it.
+    var playDuration: Double { drawDuration }
 
     /// How much of a stroke shows at `t`, 0 to 1.
     func progress(of stroke: Int, at t: Double) -> Double {
@@ -158,24 +161,4 @@ nonisolated struct InkReplayTiming: Equatable, Sendable {
         return min(max((t - starts[stroke]) / d, 0), 1)
     }
 
-    /// The settle: one gentle sway of the whole drawing about its foot, in
-    /// degrees, `s` seconds after the last stroke. The spring the owner's own
-    /// drawings land on (`IllustrationMotion.springOut`), small, and at rest
-    /// by `settle`.
-    static func sway(at s: Double) -> Double {
-        guard s > 0, s < settle else { return 0 }
-        let fade = 1 - s / settle
-        return 2.4 * IllustrationMotion.springOut(s, frequency: 1.5, damping: 0.3) * fade
-    }
-
-    /// The boil: while the strokes are drawing, the whole drawing steps
-    /// between three tiny offsets, eight times a second, the way a hand-drawn
-    /// frame boils. Zero at rest, always.
-    func boil(at t: Double) -> CGSize {
-        guard t > 0, t < drawDuration else { return .zero }
-        let frames: [CGSize] = [CGSize(width: 0.35, height: -0.25),
-                                CGSize(width: -0.3, height: 0.2),
-                                CGSize(width: 0.1, height: 0.35)]
-        return frames[Int(t * 8) % frames.count]
-    }
 }

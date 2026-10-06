@@ -99,7 +99,7 @@ struct MonthDrawingTests {
         }
         // Shared by length.
         #expect(abs(timing.durations[2] / timing.durations[1] - 4) < 1e-9)
-        #expect(abs(timing.playDuration - (1.8 + InkReplayTiming.settle)) < 1e-9)
+        #expect(abs(timing.playDuration - 1.8) < 1e-9, "the play is the drawing and nothing after it")
     }
 
     @Test("no stroke takes more than its cap, and what it gives up goes to the rest")
@@ -130,27 +130,15 @@ struct MonthDrawingTests {
         #expect(InkReplayTiming(lengths: []).drawDuration == 0)
     }
 
-    @Test("the settle sways once and comes to rest; the boil only boils while drawing")
-    func settleAndBoil() {
-        #expect(InkReplayTiming.sway(at: 0) == 0)
-        #expect(InkReplayTiming.sway(at: InkReplayTiming.settle) == 0)
-        #expect(InkReplayTiming.sway(at: 10) == 0, "never a loop")
-        let peak = stride(from: 0.0, to: InkReplayTiming.settle, by: 0.01).map { abs(InkReplayTiming.sway(at: $0)) }.max() ?? 0
-        #expect(peak > 0.5 && peak < 3, "gentle, and there: \(peak) degrees")
-
+    /// The owner, 2026-10-06: "I dont like the drawing animation with the
+    /// shake it doesnt give off premium to me". It draws on, and stops.
+    @Test("the replay draws on and is still: no sway, no boil")
+    func noShake() throws {
         let timing = InkReplayTiming(lengths: [100, 100, 100])
-        #expect(timing.boil(at: timing.drawDuration + 0.01) == .zero, "never at rest")
-        #expect(timing.boil(at: 0) == .zero)
-        let frames = Set(stride(from: 0.01, to: timing.drawDuration, by: 0.01).map {
-            let b = timing.boil(at: $0)
-            return "\(b.width),\(b.height)"
-        })
-        #expect(frames.count == 3)
-        let biggest = stride(from: 0.01, to: timing.drawDuration, by: 0.01).map {
-            let b = timing.boil(at: $0)
-            return hypot(b.width, b.height)
-        }.max() ?? 0
-        #expect(biggest < 0.5, "tiny jitter, a fraction of a point")
+        #expect(timing.playDuration == timing.drawDuration, "something plays after the last stroke")
+        let replay = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/InkReplay.swift"))
+        #expect(!replay.contains("rotate(by:"), "the drawing sways again")
+        #expect(!replay.contains("boil"), "the drawing boils again")
     }
 
     @Test("the replay reads the strokes in the order they were drawn")

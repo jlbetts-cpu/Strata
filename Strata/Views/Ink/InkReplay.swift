@@ -5,10 +5,9 @@ import SwiftUI
 ///
 /// The saved strokes draw themselves on in the order you drew them, each
 /// revealed along its own interpolated path (`PKStrokePath.interpolatedPoints`),
-/// time-compressed to about 1.8s with a cap per stroke (`InkReplayTiming`);
-/// then the whole drawing gives one gentle sway about its foot and settles,
-/// on the spring the owner's own drawings land on. While it draws it boils a
-/// little, three frames of tiny jitter, and at rest it is perfectly still.
+/// time-compressed to about 1.8s with a cap per stroke (`InkReplayTiming`),
+/// and then it is still. No sway and no boil: the owner, 2026-10-06, "the
+/// drawing animation with the shake it doesnt give off premium to me".
 ///
 /// **When**, as the scarecrow: once on appear and again on a tap, never a
 /// loop (nothing in this app loops; `SkeletonBlockView` has why), and only
@@ -84,12 +83,6 @@ struct InkReplay: View {
     private func ink(at t: Double) -> some View {
         Canvas { context, size in
             let scale = size.width / max(drawing.canvasWidth, 1)
-            let sway = InkReplayTiming.sway(at: t - timing.drawDuration)
-            let boil = timing.boil(at: t)
-            // About the drawing's foot, as a thing standing on the page sways.
-            context.translateBy(x: size.width / 2 + boil.width, y: size.height + boil.height)
-            context.rotate(by: .degrees(sway))
-            context.translateBy(x: -size.width / 2, y: -size.height)
             for (index, line) in lines.enumerated() {
                 let progress = timing.progress(of: index, at: t)
                 guard progress > 0, !line.points.isEmpty else { continue }
