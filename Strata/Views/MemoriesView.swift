@@ -328,7 +328,8 @@ struct MemoriesView: View {
                                 Task { await vm.reload(context: modelContext) }
                                 // A card is mostly photographs.
                                 Task { await reloadReplays(redrawsStale: true) }
-                            })
+                            },
+                            onWinChanged: { Task { await vm.reload(context: modelContext) } })
                     // Out of the thumbnail, not up from the bottom.
                     .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
             }

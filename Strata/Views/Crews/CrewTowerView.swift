@@ -188,6 +188,10 @@ struct CrewTowerView: View {
         .onChange(of: store.today(in: crewID)) { _, _ in
             rebuild()
             store.markSeen(crewID)
+            // The notification's win often arrives with the refresh the tap
+            // started, after the crew had opened: try again when it does
+            // (found 2026-10-06; it was only tried on appear).
+            openWinFromNotification()
         }
         .onChange(of: crew?.members) { _, _ in rebuild() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }

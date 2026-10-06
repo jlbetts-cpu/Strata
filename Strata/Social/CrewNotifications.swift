@@ -204,7 +204,10 @@ enum CrewNotifications {
             return
         }
         let news = chatNews(store, seen: seen, window: await reach(), now: Date(), visible: visibleCrew)
-        guard !store.pingsLive else { return }
+        // **Not gated on `pingsLive`, as wins and reactions are.** The chat
+        // leaves no ping (`SocialStore.pingIfNew`), so with pings live the
+        // guard that stood here silenced every chat and reply alert: the
+        // pings it deferred to were never sent (found 2026-10-06).
         let center = UNUserNotificationCenter.current()
         for message in news.quotedToMe {
             guard let crew = store.crew(message.crewID) else { continue }

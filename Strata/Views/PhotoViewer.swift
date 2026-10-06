@@ -27,6 +27,9 @@ struct PhotoViewer: View {
     /// Called after a photograph has been removed, so the screen underneath
     /// can drop it from its own list.
     var onDelete: (GalleryPhoto) -> Void = { _ in }
+    /// Called after a win was edited or deleted from the viewer's Edit, so
+    /// the screen underneath reloads. Both used to leave it stale.
+    var onWinChanged: () -> Void = {}
     /// Set when these are a crew's photographs (`CrewTowerView`): the menu
     /// offers Report on a friend's, and taking your own back out of the
     /// crew, instead of deleting a photograph that is not this viewer's to
@@ -245,9 +248,9 @@ struct PhotoViewer: View {
                         tower: log.habit?.tower,
                         editing: log.habit,
                         editingLog: log,
-                        onSaved: { _ in },
+                        onSaved: { _ in onWinChanged() },
                         // The win is gone, and its photograph with it.
-                        onDeleted: { onClose() })
+                        onDeleted: { onWinChanged(); onClose() })
         }
     }
 

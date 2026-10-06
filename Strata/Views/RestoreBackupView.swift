@@ -94,6 +94,9 @@ struct RestoreBackupView: View {
             .background { WarmBackground().ignoresSafeArea() }
             .sheetTitle("Restore", drawn: false)
             .toolbar { closeButton }
+            // Not swiped away while it is writing: the report of what came
+            // back would never be seen (Cancel is already disabled then).
+            .interactiveDismissDisabled(isRestoring)
             }
         }
         .task { await read() }

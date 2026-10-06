@@ -1606,8 +1606,9 @@ final class SocialStore {
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
             key = Self.pingKey(winID: winID, carriesLine: fields["line"]?.string.map { !$0.isEmpty } ?? false)
         // **The chat leaves no ping.** Its alerts are the app's own, at most
-        // one a crew an hour (`CrewNotifications.announceMessages`); a ping
-        // would need its own kind and subscription, and pings are off.
+        // one a crew an hour (`CrewNotifications.announceMessages`, which
+        // for that reason is not gated on `pingsLive`); a ping would need
+        // its own kind and subscription.
         case .crew, .member, .message:
             return
         }

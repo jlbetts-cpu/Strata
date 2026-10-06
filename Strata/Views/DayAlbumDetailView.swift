@@ -153,7 +153,8 @@ struct DayAlbumDetailView: View {
             PhotoViewer(photos: galleryPhotos,
                         startAt: photo.id,
                         onClose: { viewing = nil },
-                        onDelete: { _ in reload() })
+                        onDelete: { _ in reload() },
+                        onWinChanged: { reload() })
         }
     }
 

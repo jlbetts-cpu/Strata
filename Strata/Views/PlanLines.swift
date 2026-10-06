@@ -381,6 +381,16 @@ struct PlanLines: View {
             HapticsEngine.lightTap()
             return
         }
+        // **Ticked, unticked, ticked again: the win is already there.** An
+        // untick keeps the win it made (a win is never deleted behind your
+        // back), so the second tick only puts the line's tick back. It used
+        // to open Add and log the same thing twice.
+        if habits.contains(where: { $0.planItemID == item.id && calendar.isDateInToday($0.createdAt) }) {
+            item.completedAt = Date()
+            try? modelContext.save()
+            HapticsEngine.lightTap()
+            return
+        }
         // Checked NOW, not when the win saves: making the tick wait would
         // leave the commonest gesture in the sheet with no visible result
         // until two screens later. It is optimistic, though. Closing the add

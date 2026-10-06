@@ -87,7 +87,7 @@ struct WinsSideSecondPassTests {
 
     @Test("each failure has one short sentence in the app's voice")
     func failureCopy() {
-        let all: [AddWinFailure] = [.win, .photo, .removal]
+        let all: [AddWinFailure] = [.win, .photo, .removal, .deletion]
         for f in all {
             #expect(!SourceSweep.longDash(f.message), "a long dash in \(f.message)")
             #expect(f.message.count <= 46, "\(f.message) is \(f.message.count) characters: one line at 15pt is the budget")

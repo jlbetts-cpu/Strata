@@ -94,7 +94,8 @@ struct PhotoCollectionView: View {
             PhotoViewer(photos: sections.flatMap(\.photos),
                         startAt: photo.id,
                         onClose: { viewing = nil },
-                        onDelete: { _ in load() })
+                        onDelete: { _ in load() },
+                        onWinChanged: { load() })
                 .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
         }
     }

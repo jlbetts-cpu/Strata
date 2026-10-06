@@ -293,8 +293,14 @@ struct SettingsView: View {
                     .datePickerStyle(.compact)
                     .onChange(of: reminderTime) { _, newTime in
                         let calendar = Calendar.current
-                        reminderHour = calendar.component(.hour, from: newTime)
-                        reminderMinute = calendar.component(.minute, from: newTime)
+                        let hour = calendar.component(.hour, from: newTime)
+                        let minute = calendar.component(.minute, from: newTime)
+                        // Settings writes the stored time into the picker as
+                        // it opens; that is not a change, and it ticked and
+                        // rescheduled on every visit.
+                        guard hour != reminderHour || minute != reminderMinute else { return }
+                        reminderHour = hour
+                        reminderMinute = minute
                         HapticsEngine.tick()
                         scheduleReminder()
                     }
@@ -314,7 +320,11 @@ struct SettingsView: View {
                 }
                 .tint(AppColors.switchTrack)
                 .onChange(of: replayRemindersOn) { _, on in
-                    Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
+                    Task {
+                        guard on else { await ReplayReminder.removePending(); return }
+                        guard await notificationsAllowed() else { replayRemindersOn = false; return }
+                        await ReplayReminder.schedule(context: modelContext)
+                    }
                 }
 
                 // An evening line about a past win, only on a day with one
@@ -329,12 +339,18 @@ struct SettingsView: View {
                 }
                 .tint(AppColors.switchTrack)
                 .onChange(of: pastWinRemindersOn) { _, on in
-                    Task { on ? await PastWinReminder.schedule(context: modelContext) : await PastWinReminder.removePending() }
+                    Task {
+                        guard on else { await PastWinReminder.removePending(); return }
+                        guard await notificationsAllowed() else { pastWinRemindersOn = false; return }
+                        await PastWinReminder.schedule(context: modelContext)
+                    }
                 }
             } header: {
                 FormSectionLabel("Notifications")
             } footer: {
-                if systemNotificationsDenied && notificationsEnabled {
+                // Not also `&& notificationsEnabled`: a refusal turns that
+                // switch off, so the way to iOS Settings could never show.
+                if systemNotificationsDenied {
                     VStack(alignment: .leading, spacing: GridConstants.spacing) {
                         Text("Notifications are disabled in system settings.")
                             .formFooter()
@@ -909,6 +925,13 @@ struct SettingsView: View {
         // up presenting an empty state for one frame.
         .sheet(item: $restoreZip) { picked in
             RestoreBackupView(zip: picked.url) { discardRestoreCopy() }
+                // Swiped away rather than closed: the copy still goes, and
+                // the storage line still hears about it. Removing it twice is
+                // harmless.
+                .onDisappear {
+                    try? FileManager.default.removeItem(at: picked.url)
+                    Task { await measureStorage() }
+                }
         }
         #if DEBUG
         // `-strataOpenWhy 1`: pushes Why It Works This Way, which is a row
@@ -1047,6 +1070,23 @@ struct SettingsView: View {
         } catch {
             notificationsEnabled = false
             systemNotificationsDenied = true
+        }
+    }
+
+    /// Asks for notifications if they never were, for the Replays and Past
+    /// Wins switches, which used to read on while nothing could arrive. A
+    /// refusal shows the footer's way to iOS Settings.
+    private func notificationsAllowed() async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        switch await center.notificationSettings().authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return true
+        case .notDetermined:
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            systemNotificationsDenied = !granted
+            return granted
+        default:
+            systemNotificationsDenied = true
+            return false
         }
     }
 

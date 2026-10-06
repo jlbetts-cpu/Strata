@@ -109,6 +109,8 @@ struct AddWinSheet: View {
     @State private var todaysAssets: [PHAsset] = []
     /// Which of them is on the block, if one is.
     @State private var photoAssetID: String?
+    /// The photograph being fetched for the block, while it is.
+    @State private var photoLoading: String?
     /// Where the strip is scrolled to, by tile.
     @State private var stripPosition: String?
     private static let blockInStrip = "block"
@@ -130,7 +132,7 @@ struct AddWinSheet: View {
     ///
     /// An unnamed block is a colour and a size, which is a perfectly good
     /// thing to have done.
-    private var canSave: Bool { !isSaving }
+    private var canSave: Bool { !isSaving && photoLoading == nil }
 
     var body: some View {
         NavigationStack {
@@ -596,8 +598,21 @@ struct AddWinSheet: View {
     private func put(_ asset: PHAsset) {
         HapticsEngine.tick()
         photoAssetID = asset.localIdentifier
+        // Add waits for it: a quick Add while the photograph was still coming
+        // down from iCloud saved the block without it.
+        photoLoading = asset.localIdentifier
         Task {
-            guard let image = await TodaysPhotos.full(for: asset) else { return }
+            let image = await TodaysPhotos.full(for: asset)
+            // A later press won; this one is not the block's any more.
+            guard photoLoading == asset.localIdentifier else { return }
+            photoLoading = nil
+            guard let image else {
+                // Could not be fetched (offline, iCloud): say so and let go
+                // of the tile, rather than leave it looking used.
+                HapticsEngine.warning()
+                photoAssetID = nil
+                return
+            }
             withAnimation(GridConstants.motionSnappy) {
                 // Back to the block, so you see the photograph land on it.
                 stripPosition = Self.blockInStrip
@@ -1292,6 +1307,9 @@ struct AddWinSheet: View {
     }
 
     private func save() async {
+        // The return key reaches here too, and must wait for the same things
+        // the Add button waits for.
+        guard canSave else { return }
         let typed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         // `untitled` is the sentinel a nameless block already uses: the block
         // views check for it and draw no text at all, and the title field
@@ -1530,6 +1548,8 @@ struct AddWinSheet: View {
             }
         } catch {
             NSLog("[strata-delete] could not delete the win, so its photographs stay: \(error)")
+            // It said nothing: the dialog closed and the sheet sat there.
+            fail(.deletion)
             return
         }
         for name in names { ImageManager.shared.deleteImage(fileName: name) }
@@ -1629,12 +1649,15 @@ enum AddWinFailure: String, Equatable {
     case photo
     /// The win saved; the photograph would not come off it.
     case removal
+    /// The win would not delete. Nothing changed, photographs included.
+    case deletion
 
     var message: String {
         switch self {
         case .win: return "Couldn't save this win. Nothing is lost."
         case .photo: return "Couldn't save the photo. The win is saved."
         case .removal: return "Couldn't remove the photo. The win is saved."
+        case .deletion: return "Couldn't delete this win. Nothing changed."
         }
     }
 
@@ -1649,7 +1672,9 @@ enum AddWinFailure: String, Equatable {
     /// for the longer form does not apply here either: it avoided "Try Again"
     /// because Retake already meant that on its row, and Cancel does not.
     /// What carries over is the rule: the word says what the press will do.
-    var retry: String { "Try Again" }
+    /// After a failed delete the press is an ordinary save of the edit, and
+    /// "Try Again" would promise a second delete it does not make.
+    var retry: String { self == .deletion ? "Save" : "Try Again" }
 
     /// Whether the win itself is in the store, so closing the sheet keeps it.
     var winIsSaved: Bool { self != .win }
