@@ -777,7 +777,7 @@ struct SettingsView: View {
                 // screen explains a control; this one is the claim the app is
                 // for. If it is ever cut, it should be cut by the owner and not
                 // by the rule.
-                Text("Everything you log stays on this device. Some Wins has no account and no server.")
+                Text("What you log stays on your phone and in your own iCloud. Some Wins has no account and no server of its own. A win you send to a crew goes only to that crew.")
                     .formFooter()
             }
 

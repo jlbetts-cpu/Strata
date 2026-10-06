@@ -81,8 +81,8 @@ struct WhyItWorksView: View {
          + "the you who looks back later."),
         ("Friends, without a feed",
          "A crew is a few people you choose, up to eight. There is no feed to "
-         + "scroll, no likes and no counts of anything. You see what your friends "
-         + "did today, and they see yours."),
+         + "scroll and nothing public. You see what your friends did today, they "
+         + "see yours, and nobody is shown who didn't post."),
     ]
 
     static let notMedical = "Some Wins is not a medical app and does not diagnose or treat ADHD."
