@@ -72,6 +72,10 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
 
     private func apply(_ cache: CrewNoteCache?, kind: CrewPingRecord.Kind, crew: String, sender: String,
                        winID: String, read: Read, to content: UNMutableNotificationContent) {
+        // Before the words, so a ping the extension cannot word still
+        // arrives at its level (`CrewAlertLevel`): a friend's win quietly.
+        CrewAlertLevel.apply(to: content, kind: kind,
+                             tagsMe: cache.map { read.withPeople.contains($0.me) } ?? false)
         guard let cache else { return }
         let words = cache.words(kind: kind, crew: crew, sender: sender, winID: winID,
                                 title: read.title, emoji: read.emoji, line: read.line,

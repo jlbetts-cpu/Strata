@@ -33,6 +33,34 @@ nonisolated enum DailyReminder {
     /// the day and the only fact about the day is the absence. The logic is
     /// unchanged: it still comes only on a day with nothing on the tower.
     static let title = "Anything you finished counts."
+
+    // MARK: Logging from the reminder (the owner, 2026-10-06)
+    //
+    // Long-press the reminder and the three sizes are there: the win lands on
+    // today's tower without the app opening, which is help at the point of
+    // performance (Barkley) rather than one more thing to open. The action
+    // runs the same `QuickLog` the widget and Control Center use, so it is
+    // the same win, posted the same way.
+
+    static let category = "strata.reminder.log"
+    static let actions: [String: QuickLogSize] = [
+        "strata.log.quick": .quick, "strata.log.regular": .regular, "strata.log.deep": .deep,
+    ]
+
+    /// The reminder's actions, in size order. The words are the add sheet's
+    /// own size names.
+    static var notificationCategory: UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: category,
+            actions: [
+                UNNotificationAction(identifier: "strata.log.quick", title: "Quick", options: []),
+                UNNotificationAction(identifier: "strata.log.regular", title: "Regular", options: []),
+                UNNotificationAction(identifier: "strata.log.deep", title: "Deep", options: []),
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
+    }
     static let body = ""
 
     /// The days to remind on, at `hour`:`minute`: the next `horizon` days,
@@ -66,6 +94,7 @@ nonisolated enum DailyReminder {
             content.body = body
             content.sound = .default
             content.threadIdentifier = NotificationRoute.Thread.daily
+            content.categoryIdentifier = category
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: at)
             let request = UNNotificationRequest(
                 identifier: identifier(for: at),

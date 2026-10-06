@@ -103,7 +103,7 @@ enum CrewNotifications {
             content.body = text.body
             content.threadIdentifier = win.crewID.rawValue
             content.userInfo = ["crew": win.crewID.rawValue, "win": win.winID.uuidString]
-            content.sound = .default
+            CrewAlertLevel.apply(to: content, kind: .win, tagsMe: win.withPeople.contains(store.me))
             if let photo = win.photo, let attachment = attachment(photo) {
                 content.attachments = [attachment]
             }

@@ -231,6 +231,9 @@ struct MainAppView: View {
     /// finished line with no block behind it, and the plan claimed something
     /// that had not happened.
     @State private var tickAwaitingWin: UUID?
+    /// The add sheet open now came from a plan line: closing it reopens the
+    /// day's sheet on the Plan.
+    @State private var returnsToPlan = false
     /// The orphan sweep runs once a launch, not once a refresh.
     @State private var hasPrunedImages = false
     /// The day's sheet is up (`DaySheet`, a Plan tab and a Journal tab).
@@ -618,6 +621,7 @@ struct MainAppView: View {
                 pendingDraft = WinDraft(title: item.text, size: item.size, colour: item.category,
                                         planItemID: item.id)
                 tickAwaitingWin = item.id
+                returnsToPlan = true
                 isPlanning = false
             }
             // **Keyed on the opening tab.** The sheet's content is built
@@ -627,10 +631,24 @@ struct MainAppView: View {
             .id(dayOpeningTab)
         }
         .sheet(item: $winDraft, onDismiss: {
+            let saved = tickAwaitingWin == nil
             // Closed without saving: put the line back the way it was.
             if let id = tickAwaitingWin {
                 setPlanItemDone(id, false)
                 tickAwaitingWin = nil
+            }
+            // **Back to the plan it came from** (the owner, 2026-10-06).
+            // Ticking three lines was three trips: tick, Add, open the plan
+            // again. A saved win gets a moment to drop onto the tower first;
+            // backing out goes straight back. From the dismissal, as the add
+            // sheet itself opens from the plan's.
+            if returnsToPlan {
+                returnsToPlan = false
+                Task { @MainActor in
+                    if saved { try? await Task.sleep(for: .milliseconds(900)) }
+                    dayOpeningTab = .plan
+                    isPlanning = true
+                }
             }
         }) { draft in
             AddWinSheet(
@@ -757,7 +775,8 @@ struct MainAppView: View {
             // the Wins glyph was 3,778 dark pixels selected against 3,740
             // unselected, a 1.0% difference, which is two names for one drawing.
             Tab(value: StrataTab.tower) {
-                towerTabRoot
+                // "Win deleted · Undo" and "Win added · Undo" (`UndoLine`).
+                towerTabRoot.undoLine()
             } label: {
                 StrataTab.tower.image(selected: selectedTab == .tower)
                     .symbolVariant(.none)
@@ -789,7 +808,7 @@ struct MainAppView: View {
                     .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
-                memoriesTabRoot
+                memoriesTabRoot.undoLine()
             } label: {
                 StrataTab.memories.image(selected: selectedTab == .memories)
                     .symbolVariant(.none)
@@ -1976,6 +1995,18 @@ struct MainAppView: View {
             }
             // Claim the animation up front. Whichever build ends up placing
             // this block hands it to the animator; see `enqueueArrivals`.
+            // **Undo, for a win drawn by accident** (the owner, 2026-10-06):
+            // a held press or a stray drag on the slot logs a win, and taking
+            // it back was find it, open it, delete it. Only from the slot:
+            // pressing Add on the sheet is not an accident.
+            if holdFromCrews {
+                let habit = win.habit
+                UndoLine.shared.show("Win added", undo: {
+                    guard let pending = try? WinDeletion.delete(habit, in: modelContext) else { return }
+                    pending.finish()
+                    scheduleRefresh()
+                })
+            }
             awaitingDropIDs.insert(win.logID)
             // The same path a normal completion takes, so the block lands on
             // the tower identically. No refresh here: appending to pendingDrops

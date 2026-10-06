@@ -130,11 +130,14 @@ struct DaySheetTests {
         let open = button.components(separatedBy: "struct JournalToolbarItem").first ?? ""
         #expect(open.contains("DaySheet(dateString: dateString, tabs: .pastDay)"))
         #expect(!open.contains(".wins"), "a past day's journal opens with the Plan tab")
-        for page in ["Views/DayAlbumDetailView.swift", "Views/Crews/CrewDayView.swift"] {
-            let text = try MorningSource.read(page)
-            #expect(text.contains("JournalToolbarItem("), "\(page) no longer opens its journal through the button")
-            #expect(!text.contains("DaySheet("), "\(page) builds the day's sheet itself")
-        }
+        let page = try MorningSource.read("Views/DayAlbumDetailView.swift")
+        #expect(page.contains("JournalToolbarItem("), "a past day no longer opens its journal through the button")
+        #expect(!page.contains("DaySheet("), "a past day builds the day's sheet itself")
+        // A crew's day has no journal at all (the owner, 2026-10-06: "that
+        // shouldnt be there at all only in memories").
+        let crewDay = SourceSweep.code(try MorningSource.read("Views/Crews/CrewDayView.swift"))
+        #expect(!crewDay.contains("JournalToolbarItem("), "a crew's day shows your journal button again")
+        #expect(!crewDay.contains("DaySheet("))
     }
 
     /// Was "a locked journal keeps the note out and still opens the plan",

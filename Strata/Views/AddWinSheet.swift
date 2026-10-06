@@ -82,7 +82,6 @@ struct AddWinSheet: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var showLibrary = false
     @State private var loaded = false
-    @State private var confirmingDelete = false
     @State private var isSaving = false
     /// What the last press failed to do, if it failed. See `AddWinFailure`.
     @State private var failure: AddWinFailure?
@@ -303,12 +302,6 @@ struct AddWinSheet: View {
             .onChange(of: failure) { _, now in
                 guard let now else { return }
                 AccessibilityNotification.Announcement(now.message).post()
-            }
-            .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { deleteIt() }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("The block leaves the tower.")
             }
         }
         // Full height, and it stays that way. A medium detent was tried to
@@ -1223,8 +1216,7 @@ struct AddWinSheet: View {
     /// the sheet. The role stays `.destructive`, so VoiceOver still says so.
     private var deleteButton: some View {
         Button(role: .destructive) {
-            HapticsEngine.tick()
-            confirmingDelete = true
+            deleteIt()
         } label: {
             Text("Delete")
                 .font(Typography.bodyLarge)
@@ -1530,30 +1522,28 @@ struct AddWinSheet: View {
 
     private func deleteIt() {
         guard let habit = editing else { return }
-        // **The photographs go with it.** Deleting the rows and leaving the
-        // files was one of three leaks that put 3127 images and 522MB on a
-        // phone. Read the names BEFORE the entities go, or there is nothing
-        // left to read them from.
-        let names = (habit.logs ?? []).compactMap(\.imageFileName)
-
-        // **Object by object, in one transaction, and never `try?`.** The rows
-        // go first and the photographs only if they went: a delete that fails
-        // silently while the files are already gone is the shape of the bug
-        // that left Reset All Data deleting pictures and keeping wins.
+        // **At once, with Undo** (the owner, 2026-10-06), where it used to
+        // ask "Delete this?" first. `WinDeletion` keeps a copy of the rows
+        // and keeps the photographs on disk until the undo line has gone.
+        //
+        // **Never `try?`.** A delete that fails silently while the files are
+        // already gone is the shape of the bug that left Reset All Data
+        // deleting pictures and keeping wins; here the files only ever go
+        // after the rows did.
+        let pending: WinDeletion.Pending
         do {
-            try modelContext.transaction {
-                for log in habit.logs ?? [] { modelContext.delete(log) }
-                PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
-                modelContext.delete(habit)
-            }
+            pending = try WinDeletion.delete(habit, in: modelContext)
         } catch {
             NSLog("[strata-delete] could not delete the win, so its photographs stay: \(error)")
             // It said nothing: the dialog closed and the sheet sat there.
             fail(.deletion)
             return
         }
-        for name in names { ImageManager.shared.deleteImage(fileName: name) }
         HapticsEngine.tick()
+        let changed = onDeleted
+        UndoLine.shared.show("Win deleted",
+                             undo: { pending.undo(); changed() },
+                             expire: pending.finish)
         onDeleted()
         dismiss()
     }

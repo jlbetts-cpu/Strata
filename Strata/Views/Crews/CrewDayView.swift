@@ -41,7 +41,7 @@ struct CrewDayView: View {
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { CrewDayToolbar(title: title, journalDay: day, play: play) }
+        .toolbar { CrewDayToolbar(title: title, play: play) }
         .glassBackButton()
         .task(id: wins) {
             let names = Dictionary(uniqueKeysWithValues: crew.members.map { ($0.profileID, $0.shortName) })
@@ -84,23 +84,19 @@ struct CrewDayView: View {
 
     // MARK: The bar
 
-    /// **Back, then Play and your journal, all the app's own glass** (the
-    /// cohesion pass, 2026-10-05). Play was a bare `play.fill` in the
-    /// system's toolbar capsule, beside a system back button: two materials
-    /// and a filled glyph on a bar where every other page has hollow glyphs
-    /// on `GlassIconButton`. It is `play`, hollow, now, with the toolbar's
-    /// shared capsule hidden so it is not glass on glass.
+    /// **Back, then Play, the app's own glass** (the cohesion pass,
+    /// 2026-10-05). Play was a bare `play.fill` in the system's toolbar
+    /// capsule, beside a system back button: two materials and a filled glyph
+    /// on a bar where every other page has hollow glyphs on
+    /// `GlassIconButton`. It is `play`, hollow, now, with the toolbar's shared
+    /// capsule hidden so it is not glass on glass.
     ///
-    /// **Your journal, for the crew's day** (the same pass): the same
-    /// journal button a past day of your own has, for YOUR note, never sent
-    /// to the crew. It is mapped to the day this page names: the title says
-    /// "Sunday 4 October", so the note is your 4 October, whatever zone the
-    /// crew keeps its days in. A crew day is a `yyyy-MM-dd` in the crew's
-    /// zone and your journal is keyed by the same spelling in yours, so the
-    /// key is the mapping.
+    /// **No journal here** (the owner, 2026-10-06: "why is there journal
+    /// button there that shouldnt be there at all only in memories"). Your
+    /// note is yours, and a crew's day is the crew's; the journal of a past
+    /// day lives on your own days in Memories.
     private struct CrewDayToolbar: ToolbarContent {
         let title: String
-        let journalDay: String
         let play: () -> Void
 
         @ToolbarContentBuilder
@@ -111,7 +107,6 @@ struct CrewDayView: View {
             } else {
                 ToolbarItem(placement: .topBarTrailing) { playButton }
             }
-            JournalToolbarItem(dateString: journalDay)
         }
 
         private var playButton: some View {

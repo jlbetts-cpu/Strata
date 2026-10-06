@@ -37,6 +37,8 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         // own notifications reached nothing and opened the Wins tower. Every
         // notification lands on its subject now (`NotificationRoute`).
         UNUserNotificationCenter.current().delegate = self
+        // The reminder's Quick, Regular and Deep (`DailyReminder`).
+        UNUserNotificationCenter.current().setNotificationCategories([DailyReminder.notificationCategory])
         guard CrewsFlag.isOn else { return true }
         // The silent push that says a crew changed. Without the Push
         // capability this simply fails, and crews refresh on foreground.
@@ -54,6 +56,14 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
         let request = response.notification.request
+        // One of the reminder's sizes: log it where it is, and open nothing.
+        if let size = DailyReminder.actions[response.actionIdentifier] {
+            do { try await QuickLog.run(size) } catch {
+                Logger(subsystem: "JaydenBetts.Strata", category: "Reminder")
+                    .error("logging from the reminder failed: \(error)")
+            }
+            return
+        }
         guard let route = NotificationRoute.of(identifier: request.identifier,
                                                userInfo: request.content.userInfo) else { return }
         let isChat = request.content.userInfo[CrewNotifications.chatKey] != nil
