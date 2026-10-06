@@ -38,13 +38,15 @@ enum InkSamples {
         return drawing(strokes, width: width)
     }
 
-    /// Strokes through the given points, each a hand's pace apart.
+    /// Strokes through the given points, each a hand's pace apart, recorded
+    /// the way a finger's are, so they draw a line `width` wide.
     static func drawing(_ strokes: [[CGPoint]], width: CGFloat) -> PKDrawing {
         let ink = PKInk(.monoline, color: .black)
         return PKDrawing(strokes: strokes.map { points in
             let path = PKStrokePath(controlPoints: points.enumerated().map { i, p in
                 PKStrokePoint(location: p, timeOffset: Double(i) * 0.012,
-                              size: CGSize(width: width, height: width), opacity: 1,
+                              size: CGSize(width: InkPen.pointSize(forLine: width),
+                                           height: InkPen.pointSize(forLine: width)), opacity: 1,
                               force: 1, azimuth: 0, altitude: .pi / 2)
             }, creationDate: Date())
             return PKStroke(ink: ink, path: path)

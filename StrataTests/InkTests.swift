@@ -68,7 +68,9 @@ struct InkTests {
         #expect(InkPen.tool.inkType == .monoline)
         #expect(InkPen.width == 2.5)
         let controller = InkController()
-        #expect(controller.pen.width == InkPen.width)
+        #expect(controller.penWidth == InkPen.width)
+        // The tool is set to DRAW 2.5, not to 2.5 (`InkPen.toolWidth`).
+        #expect(controller.pen.width == InkPen.toolWidth(forLine: InkPen.width))
         #expect(controller.isEmpty)
     }
 

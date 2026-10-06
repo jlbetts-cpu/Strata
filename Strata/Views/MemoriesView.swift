@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// Memories: the photographs first, then the month you are in.
 ///
@@ -41,6 +42,8 @@ struct MemoriesView: View {
     /// The Replays shelf, and the replay playing out of one of its cards.
     @State private var replays = ReplayShelfModel()
     @State private var playing: Replay?
+    /// The month whose drawing is being drawn ("Draw Your Own").
+    @State private var drawingMonth: DrawingMonth?
     /// Ties each thumbnail to the viewer that opens out of it.
     @Namespace private var photoTransition
     // **The drawer's state is gone**, with the drawer (2026-09-30). It held
@@ -349,6 +352,8 @@ struct MemoriesView: View {
             await reloadReplays(redrawsStale: true)
         }
         .task {
+            // A visit, for the month drawing's tip: it waits for the third.
+            Task { await MonthDrawingTip.visited.donate() }
             #if DEBUG
             let reloadStart = CACurrentMediaTime()
             #endif
@@ -637,21 +642,57 @@ struct MemoriesView: View {
     @ViewBuilder
     private var monthArt: some View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
-        if let art = UIImage(named: "Month" + month) {
-            Illustration(art: art, line: Self.monthLine[month], height: 290,
-                         motion: UIImage(named: "Month" + month + "Crow").map {
-                             .crowLands(crow: $0,
-                                        head: UIImage(named: "Month" + month + "CrowHead"),
-                                        wingsDown: UIImage(named: "Month" + month + "CrowDown"),
-                                        wingsOut: UIImage(named: "Month" + month + "CrowOut"),
-                                        eyes: UIImage(named: "Month" + month + "Eyes"),
-                                        nose: UIImage(named: "Month" + month + "Nose"),
-                                        mouth: UIImage(named: "Month" + month + "Mouth"))
-                         })
-                .layoutPriority(1)
-                .transition(.opacity)
+        let key = MonthDrawingStore.key(for: vm.selectedMonth, calendar: MemoriesViewModel.mondayCalendar)
+        Group {
+            // **Your own drawing first, when the month has one** (spec
+            // section 4). The default is never touched, so "Use Original"
+            // brings it straight back, with October's scarecrow animation.
+            if let own = MonthDrawingStore.shared.drawing(for: key) {
+                InkReplay(drawing: own, height: 290, onRest: Self.artPlayed)
+                    .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
+            } else if let art = UIImage(named: "Month" + month) {
+                Illustration(art: art, line: Self.monthLine[month], height: 290,
+                             motion: UIImage(named: "Month" + month + "Crow").map {
+                                 .crowLands(crow: $0,
+                                            head: UIImage(named: "Month" + month + "CrowHead"),
+                                            wingsDown: UIImage(named: "Month" + month + "CrowDown"),
+                                            wingsOut: UIImage(named: "Month" + month + "CrowOut"),
+                                            eyes: UIImage(named: "Month" + month + "Eyes"),
+                                            nose: UIImage(named: "Month" + month + "Nose"),
+                                            mouth: UIImage(named: "Month" + month + "Mouth"))
+                             },
+                             onRest: Self.artPlayed)
+                    .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth))
+            }
         }
+        .layoutPriority(1)
+        .transition(.opacity)
+        .fullScreenCover(item: $drawingMonth) { which in
+            MonthDrawingEditor(month: which.id, monthName: MonthName.of(which.id))
+        }
+        #if DEBUG
+        // `-strataMonthDrawing seed|edit|still`: a drawing of the shown month
+        // (`InkSamples`, brought to life, or `still` with the switch off),
+        // and `edit` opens the editor on it. Long press cannot be scripted.
+        .task(id: key) {
+            guard let which = DebugHarness.argument("-strataMonthDrawing") else { return }
+            if !MonthDrawingStore.shared.hasDrawing(for: key) {
+                let canvas = CGSize(width: 300, height: 450)
+                MonthDrawingStore.shared.save(
+                    InkSamples.sunOverHill(in: canvas, width: InkPen.width * 450 / MonthDrawingEditor.shownHeight),
+                    canvas: canvas, bringsToLife: which != "still", for: key)
+            }
+            if which == "edit" {
+                try? await Task.sleep(for: .seconds(1))
+                MonthDrawingTip.used()
+                drawingMonth = DrawingMonth(id: key)
+            }
+        }
+        #endif
     }
+
+    /// The month's drawing has played: the tip may now point at it.
+    private static func artPlayed() { MonthDrawingTip.artPlayed = true }
 
     /// The line under a month's drawing, in his words where he has given
     /// them. October's "Happy Halloween" came off (the owner, 2026-10-03):
@@ -833,5 +874,37 @@ enum MemoriesRoute: Hashable {
     case day(String)
     case curated(String)
     case moment(String)
+}
+
+/// The month being drawn, by key ("2026-10").
+struct DrawingMonth: Identifiable, Equatable {
+    let id: String
+}
+
+/// **Hold the month's drawing to make it yours** (spec section 4, "Entry").
+/// The system's own context menu: "Draw Your Own", and "Use Original" once
+/// the month has a drawing of yours. No edit button and no edit mode straight
+/// from the hold: the menu is the confirmation that a hold meant it. The tip
+/// is the clue the gesture otherwise lacks, and Settings is its second way in.
+struct MonthArtHold: ViewModifier {
+    let month: String
+    let hasOwn: Bool
+    @Binding var editing: DrawingMonth?
+
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                Button("Draw Your Own", systemImage: "pencil") {
+                    MonthDrawingTip.used()
+                    editing = DrawingMonth(id: month)
+                }
+                if hasOwn {
+                    Button("Use Original", systemImage: "arrow.uturn.backward", role: .destructive) {
+                        MonthDrawingStore.shared.remove(month)
+                    }
+                }
+            }
+            .popoverTip(MonthDrawingTip(), arrowEdge: .bottom)
+    }
 }
 

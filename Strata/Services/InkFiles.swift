@@ -75,11 +75,31 @@ nonisolated struct InkFiles: Sendable {
 /// weight of the owner's month drawings (about 2.5pt at the size they show).
 /// There is no colour and no width to choose (spec section 4, "Do not: a
 /// colour picker"), so there is no `PKToolPicker` either.
-enum InkPen {
-    /// The line, in points at the canvas's own size.
+nonisolated enum InkPen {
+    /// The line as it is SEEN, in points at the canvas's own size.
     static let width: CGFloat = 2.5
 
-    static var tool: PKInkingTool { PKInkingTool(.monoline, color: .black, width: width) }
+    /// **The tool is not set to the line it draws, and that was measured.**
+    /// A monoline `PKInkingTool` of width 2.5 drew a finger's line about
+    /// 4.2pt wide: each point is recorded at the tool's width plus 2, and the
+    /// line drawn from a point is about 1.35 times its size less 1.6.
+    /// Measured on the iOS 26.3 simulator with finger input, three widths
+    /// (tool 0.5, 2.5 and 4.8 recorded 2.5, 4.5 and 6.8, and drew 1.3, 4.2
+    /// and 7pt), 2026-10-05. Unverified on a device, where a finger may
+    /// record differently: check `lineWidth` there before trusting it.
+    static func toolWidth(forLine line: CGFloat) -> CGFloat { max(0.5, line / 1.35 + 1.6 - 2) }
+
+    /// The line PencilKit draws for a point of this recorded size, so the
+    /// replay (`InkReplay`) lands at the weight the picture does.
+    static func lineWidth(forPointSize size: CGFloat) -> CGFloat { max(0.5, 1.35 * (size - 1.6)) }
+
+    /// The size a point is recorded at for a line of this width: for drawings
+    /// made in code (`InkSamples`), so they look like a finger's.
+    static func pointSize(forLine line: CGFloat) -> CGFloat { line / 1.35 + 1.6 }
+
+    static var tool: PKInkingTool {
+        PKInkingTool(.monoline, color: .black, width: toolWidth(forLine: width))
+    }
 
     /// The eraser that undoes whole strokes, which is what a one-pen drawing
     /// wants: a stroke is the unit you drew, so it is the unit you remove.

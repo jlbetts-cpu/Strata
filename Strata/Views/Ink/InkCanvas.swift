@@ -15,10 +15,12 @@ import UIKit
 final class InkController {
     /// The drawing, as it stands after the last stroke.
     private(set) var drawing: PKDrawing
-    /// The pen's width in canvas points. `InkPen.width` everywhere except
+    /// The line's width as seen, in canvas points. `InkPen.width` everywhere except
     /// the month editor, which draws on a bigger canvas than the page shows
     /// and scales the pen so the line lands at the house width on the page.
-    let penWidth: CGFloat
+    var penWidth: CGFloat {
+        didSet { if !erasing { canvas?.tool = pen } }
+    }
     var erasing = false {
         didSet { canvas?.tool = erasing ? InkPen.eraser : pen }
     }
@@ -34,7 +36,10 @@ final class InkController {
 
     var isEmpty: Bool { drawing.strokes.isEmpty }
 
-    var pen: PKInkingTool { PKInkingTool(.monoline, color: .black, width: penWidth) }
+    /// The tool for `penWidth`, the line as seen (`InkPen.toolWidth`).
+    var pen: PKInkingTool {
+        PKInkingTool(.monoline, color: .black, width: InkPen.toolWidth(forLine: penWidth))
+    }
 
     func undo() {
         canvas?.undoManager?.undo()
