@@ -137,6 +137,11 @@ struct DayAlbumDetailView: View {
         // The two pages disagreed about this until now, which is the drift the
         // audit is for: one of them had a ground and the other did not.
         .toolbarBackground(.visible, for: .navigationBar)
+        // **That day's note, in the corner** (spec section 2: "A past day
+        // (Memories, then a day): the top-right corner opens that day's
+        // note, with the same icon rule"). The same button as beside the
+        // Plan on Wins, with the same glyph (`JournalIcon`).
+        .toolbar { JournalToolbarItem(dateString: route.dateString) }
         .task { reload() }
         .fullScreenCover(item: Binding(
             get: { viewing.map(PhotoID.init) },

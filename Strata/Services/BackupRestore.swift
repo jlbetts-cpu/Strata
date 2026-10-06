@@ -41,6 +41,16 @@ import SwiftData
 /// (a win re-logged by hand after the loss, whose picture is still in the zip).
 /// Every other field of an existing row is left exactly as it is, including a
 /// photograph it already has.
+///
+/// # The day's journal
+///
+/// Since 2026-10-05 a backup carries the day's notes (`ExportNote`), and they
+/// merge by the same rule. A day that already has a note on this phone keeps
+/// it, word for word; the backup's is not added beside it, because the
+/// journal is one entry a day (`DayNotes`). A day with no note gets the
+/// backup's. A day whose row is here but EMPTY (a note written and cleared)
+/// counts as having no note, and the backup's words go into that row: nil
+/// becoming a value again, never a value replaced.
 @MainActor
 enum BackupRestore {
 
@@ -66,6 +76,8 @@ enum BackupRestore {
         /// every version-1 backup, because version 1 never wrote the file name
         /// down.
         var attachablePhotographs: Int
+        /// Days of the journal in the file.
+        var notes: Int = 0
     }
 
     /// Which habit a log will hang off. A log with no habit never appears on the
@@ -100,10 +112,15 @@ enum BackupRestore {
         /// Photographs in the zip that no win in the file names. For a
         /// version-1 backup this is all of them.
         var unattachablePhotographs: [String] = []
+        /// Journal days in the file with no note here yet.
+        var notesToAdd: [BackupArchive.ExportNote] = []
+        /// Journal days that already have a note here. Left untouched.
+        var notesAlreadyHere: Int = 0
 
         var winsToAdd: Int { logsToAdd.count }
         var isEmptyOfWork: Bool {
             logsToAdd.isEmpty && habitsToAdd.isEmpty && photographsForExistingWins.isEmpty
+                && notesToAdd.isEmpty
         }
 
         /// The things a person should read BEFORE confirming, not after.
@@ -132,6 +149,8 @@ enum BackupRestore {
         var photographsAlreadyHere = 0
         /// Photographs put back onto wins that were already here without one.
         var photographsReattached = 0
+        /// Journal days put back.
+        var notesAdded = 0
         /// Named, individually. A count of failures is not something anybody can
         /// act on.
         var problems: [String] = []
@@ -247,6 +266,23 @@ enum BackupRestore {
         let named = Set(document.logs.compactMap(\.imageFileName))
         plan.unattachablePhotographs = contents.photoEntries.keys.filter { !named.contains($0) }.sorted()
 
+        // MARK: notes
+        //
+        // Read only when the file has any, so a store without the journal's
+        // model (an older test fixture) is never asked for one.
+        if let notes = document.notes, !notes.isEmpty {
+            var seenDays = Set<String>()
+            for note in notes where seenDays.insert(note.dateString).inserted {
+                let hasWords = !(note.note ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                guard hasWords || !(note.symbol ?? "").isEmpty else { continue }
+                if DayNotes.hasNote(on: note.dateString, context: context) {
+                    plan.notesAlreadyHere += 1
+                } else {
+                    plan.notesToAdd.append(note)
+                }
+            }
+        }
+
         return plan
     }
 
@@ -266,7 +302,8 @@ enum BackupRestore {
             firstDay: dates.first,
             lastDay: dates.last,
             photographs: contents.photoEntries.count,
-            attachablePhotographs: contents.photoEntries.keys.filter { named.contains($0) }.count)
+            attachablePhotographs: contents.photoEntries.keys.filter { named.contains($0) }.count,
+            notes: Set((document.notes ?? []).map(\.dateString)).count)
     }
 
     // MARK: - Applying
@@ -341,6 +378,16 @@ enum BackupRestore {
             report.winsAdded += 1
         }
 
+        // The day's notes: into the day's empty row if it has one, otherwise a
+        // new row. A day that gained a note since the plan was made keeps it.
+        for exported in plan.notesToAdd {
+            if DayNotes.hasNote(on: exported.dateString, context: context) { continue }
+            let entry = DayNotes.entryOrNew(for: exported.dateString, context: context)
+            entry.note = exported.note
+            entry.symbol = exported.symbol
+            report.notesAdded += 1
+        }
+
         // The one write to a row that already exists: a photograph onto a win
         // that has none.
         for (logID, name) in plan.photographsForExistingWins {
@@ -360,6 +407,7 @@ enum BackupRestore {
             report.failure = "Some Wins could not save the restored wins (\(error.localizedDescription)). Nothing was added, and nothing you already had was changed."
             report.winsAdded = 0
             report.photographsReattached = 0
+            report.notesAdded = 0
             // `photographsRestored` is left as it is: those files really are on
             // disk. Nothing points at them, so the launch sweep collects them,
             // and the screen shows the failure rather than the counts.

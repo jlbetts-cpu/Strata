@@ -252,6 +252,11 @@ struct MemoriesView: View {
             // whether the drawer was down; there is no drawer.
             .environment(\.memoriesDrawerVisible,
                          viewing == nil && playing == nil && path.isEmpty)
+            // Back from a day whose emoji was chosen there: the calendar
+            // shows it at once. See `MemoriesViewModel.symbols`.
+            .onChange(of: path.isEmpty) { _, isEmpty in
+                if isEmpty { vm.refreshSymbols(context: modelContext) }
+            }
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
             // The header's head and the map's sleep under a photograph or a
@@ -727,7 +732,8 @@ struct MemoriesView: View {
                 calendar: MemoriesViewModel.mondayCalendar,
                 width: monthGridWidth,
                 onSelect: { path.append(.day($0)) },
-                transitionNamespace: nil
+                transitionNamespace: nil,
+                symbols: vm.symbols
             )
             .frame(maxWidth: .infinity, alignment: .center)
             // **Air, and the owner asked for it by name**: "make the white

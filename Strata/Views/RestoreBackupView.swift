@@ -175,6 +175,16 @@ struct RestoreBackupView: View {
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
+            // The day's journal, since 2026-10-05. One line, and only when the
+            // file has notes for days that have none here: a day that already
+            // has one keeps it (`BackupRestore`'s "The day's journal").
+            if !plan.notesToAdd.isEmpty {
+                Text(plan.notesToAdd.count == 1
+                     ? "1 day of your journal will be added."
+                     : "\(plan.notesToAdd.count) days of your journal will be added.")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkSecondary)
+            }
             // **The promise is NOT restated here** (cut 9,
             // `docs/copy-audit.md`, 2026-10-01). This slot carried "Restoring
             // only adds. Nothing already on this phone is deleted or changed."
@@ -225,7 +235,10 @@ struct RestoreBackupView: View {
             // and Store unavailable's pill already stand — the app's settled
             // position for the one action on a page.
             Spacer(minLength: 0)
-            primaryButton(plan.winsToAdd == 1 ? "Add 1 win" : "Add \(plan.winsToAdd) wins") {
+            // A backup with only journal days left to add still has an action,
+            // and "Add 0 wins" would be a button saying it does nothing.
+            primaryButton(plan.winsToAdd == 0 ? "Add Journal"
+                          : plan.winsToAdd == 1 ? "Add 1 win" : "Add \(plan.winsToAdd) wins") {
                 await restore(plan)
             }
         }
@@ -274,6 +287,9 @@ struct RestoreBackupView: View {
                 }
                 if report.photographsReattached > 0 {
                     fact("Put back on older wins", value: "\(report.photographsReattached)")
+                }
+                if report.notesAdded > 0 {
+                    fact("Journal days", value: "\(report.notesAdded)")
                 }
                 fact("Wins untouched", value: "everything you already had", isLast: true)
             }

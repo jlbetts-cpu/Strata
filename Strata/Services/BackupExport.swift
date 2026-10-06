@@ -29,7 +29,12 @@ enum BackupExport {
     /// unrestorable: the file name holds the log's UUID and nothing in the JSON
     /// ever said which win that was. Everything version 1 wrote is still
     /// written, so a version-2 file also decodes against a version-1 reader.
-    static func document(habits: [Habit], logs: [HabitLog],
+    ///
+    /// **The day's journal goes too** (2026-10-05). It stays in the person's
+    /// own iCloud, and a phone without iCloud has nowhere else for it to be:
+    /// a backup that dropped the notes would be the same mistake as the one
+    /// that dropped the photographs. Only days with something in them.
+    static func document(habits: [Habit], logs: [HabitLog], notes: [MoodLog] = [],
                         appVersion: String, exportDate: Date = Date()) -> BackupArchive.Document {
         BackupArchive.Document(
             formatVersion: BackupArchive.currentFormatVersion,
@@ -84,6 +89,10 @@ enum BackupExport {
                     subtasks: log.subtasks.map {
                         BackupArchive.ExportSubTask(id: $0.id, title: $0.title, completed: $0.completed)
                     })
+            },
+            notes: notes.filter(\.hasContent).map { entry in
+                BackupArchive.ExportNote(dateString: entry.dateString, id: entry.id,
+                                         note: entry.note, symbol: entry.symbol)
             })
     }
 
@@ -101,12 +110,13 @@ enum BackupExport {
     }
 
     /// Builds the whole backup and returns the zip to share.
-    static func makeZip(habits: [Habit], logs: [HabitLog], appVersion: String,
+    static func makeZip(habits: [Habit], logs: [HabitLog], notes: [MoodLog] = [], appVersion: String,
                         now: Date = Date(),
                         photographs: [URL]? = nil,
                         temporaryDirectory: URL = FileManager.default.temporaryDirectory) throws -> URL {
         try BackupArchive.writeZip(
-            document: document(habits: habits, logs: logs, appVersion: appVersion, exportDate: now),
+            document: document(habits: habits, logs: logs, notes: notes,
+                               appVersion: appVersion, exportDate: now),
             photographs: photographs ?? Self.photographs(),
             named: name(on: now),
             in: temporaryDirectory)

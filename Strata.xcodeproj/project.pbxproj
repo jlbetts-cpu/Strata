@@ -712,6 +712,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Some Wins";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Some Wins uses the camera so a win can be a photograph, and to make your head if you choose to.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Some Wins uses Face ID to open your journal.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Photos you take in Some Wins keep the place they were taken, so your wins can appear on your map. It only checks while the camera is open.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Some Wins saves your photos and replays to your camera roll.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -752,6 +753,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Some Wins";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Some Wins uses the camera so a win can be a photograph, and to make your head if you choose to.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Some Wins uses Face ID to open your journal.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Photos you take in Some Wins keep the place they were taken, so your wins can appear on your map. It only checks while the camera is open.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Some Wins saves your photos and replays to your camera roll.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

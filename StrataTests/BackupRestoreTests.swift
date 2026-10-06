@@ -22,7 +22,9 @@ struct BackupRestoreTests {
     // MARK: - Fixtures
 
     private func container() throws -> ModelContainer {
-        try ModelContainer(for: Habit.self, HabitLog.self, Tower.self,
+        // `MoodLog` since the journal (2026-10-05): the day's notes travel in
+        // the backup too, so the store a restore lands in has to hold them.
+        try ModelContainer(for: Habit.self, HabitLog.self, Tower.self, MoodLog.self,
                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
@@ -82,9 +84,10 @@ struct BackupRestoreTests {
     private func makeZip(from context: ModelContext, into folder: URL) throws -> URL {
         let habits = try context.fetch(FetchDescriptor<Habit>())
         let logs = try context.fetch(FetchDescriptor<HabitLog>())
+        let notes = try context.fetch(FetchDescriptor<MoodLog>())
         let photographs = (try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: nil))?.filter { $0.pathExtension == "png" } ?? []
-        return try BackupExport.makeZip(habits: habits, logs: logs, appVersion: "1.0 (1)",
+        return try BackupExport.makeZip(habits: habits, logs: logs, notes: notes, appVersion: "1.0 (1)",
                                         photographs: photographs,
                                         temporaryDirectory: folder)
     }
@@ -539,5 +542,82 @@ struct BackupRestoreTests {
             let got = try reader.data(for: entry)
             #expect(got == expected, "\(name) did not come back intact")
         }
+    }
+
+    // MARK: - The journal
+
+    /// Two days' notes: one with words and an emoji, one with an emoji alone.
+    private func seedNotes(_ context: ModelContext) {
+        DayNotes.save(note: "Ran by the river", symbol: "🌊", for: "2027-01-15", context: context)
+        DayNotes.save(note: nil, symbol: "🎂", for: "2027-01-16", context: context)
+    }
+
+    @Test("the day's journal travels: notes and emoji come back")
+    func journalRoundTrip() throws {
+        let folder = try scratch()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let before = ModelContext(try container())
+        _ = try seed(before, photographName: nil)
+        seedNotes(before)
+        let zip = try makeZip(from: before, into: folder)
+
+        let after = ModelContext(try container())
+        let contents = try BackupArchive.read(zipAt: zip)
+        let plan = try BackupRestore.plan(contents, context: after)
+        #expect(plan.summary.notes == 2)
+        #expect(plan.notesToAdd.count == 2)
+        let report = BackupRestore.apply(plan, contents: contents, context: after)
+        #expect(report.failure == nil, "\(report.failure ?? "")")
+        #expect(report.notesAdded == 2)
+
+        let restored = try after.fetch(FetchDescriptor<MoodLog>(sortBy: [SortDescriptor(\.dateString)]))
+        #expect(restored.map(\.dateString) == ["2027-01-15", "2027-01-16"])
+        #expect(restored.map(\.note) == ["Ran by the river", nil])
+        #expect(restored.map(\.symbol) == ["🌊", "🎂"])
+
+        // Twice adds nothing.
+        let second = try BackupRestore.plan(contents, context: after)
+        #expect(second.notesToAdd.isEmpty)
+        #expect(second.isEmptyOfWork)
+    }
+
+    @Test("a note already written on this phone is never overwritten by a backup")
+    func journalRestoreMergesAndNeverOverwrites() throws {
+        let folder = try scratch()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let before = ModelContext(try container())
+        seedNotes(before)
+        let zip = try makeZip(from: before, into: folder)
+
+        let after = ModelContext(try container())
+        DayNotes.save(note: "Written since", symbol: "🌙", for: "2027-01-15", context: after)
+        // A row left empty by a note written and cleared is not a note: the
+        // backup's goes into it, which is nil becoming a value.
+        let empty = DayNotes.entryOrNew(for: "2027-01-16", context: after)
+        empty.note = ""
+        try after.save()
+
+        let contents = try BackupArchive.read(zipAt: zip)
+        let plan = try BackupRestore.plan(contents, context: after)
+        #expect(!plan.isEmptyOfWork, "a backup of notes alone still has work in it")
+        let report = BackupRestore.apply(plan, contents: contents, context: after)
+        #expect(report.failure == nil)
+        #expect(report.notesAdded == 1)
+
+        let all = try after.fetch(FetchDescriptor<MoodLog>(sortBy: [SortDescriptor(\.dateString)]))
+        #expect(all.count == 2, "one row a day, never a second")
+        #expect(all[0].note == "Written since")
+        #expect(all[0].symbol == "🌙")
+        #expect(all[1].symbol == "🎂")
+    }
+
+    @Test("a backup made before the journal still reads, with no notes in it")
+    func backupWithoutNotesStillDecodes() throws {
+        let json = """
+            {"formatVersion": 2, "exportDate": "2026-09-30T10:00:00Z", "appVersion": "1.0 (70)",
+             "habits": [], "logs": []}
+            """
+        let document = try BackupArchive.decoder().decode(BackupArchive.Document.self, from: Data(json.utf8))
+        #expect(document.notes == nil)
     }
 }

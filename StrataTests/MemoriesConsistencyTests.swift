@@ -143,8 +143,11 @@ struct MemoriesConsistencyTests {
         // crew's heads off on this phone. It wears the token.
         // Fourteen since 2026-10-05: Settings' "A Past Win", the evening
         // notification about a past win (`PastWinReminder`).
-        #expect(rowTints.count == 14,
-                "there are \(rowTints.count) switches in the app and there were 14; a new one needs the token too")
+        // Fifteen since 2026-10-05: Settings' "Lock Journal", off by default,
+        // which asks for Face ID or the passcode before the day's journal
+        // opens (`JournalLock`). It wears the token.
+        #expect(rowTints.count == 15,
+                "there are \(rowTints.count) switches in the app and there were 15; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
