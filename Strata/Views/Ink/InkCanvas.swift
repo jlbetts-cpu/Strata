@@ -246,3 +246,43 @@ nonisolated enum InkImageCache {
         image(at: url, scale: scale)?.size
     }
 }
+
+// MARK: - A sheet's bar
+
+/// Cancel and a confirm word, for a sheet that holds the canvas (a doodle's
+/// Send, the month editor's Done). Typed `ToolbarContent`, as `PlanSheet`'s
+/// is, and words through `sheetAction` like every sheet in the app.
+struct InkSheetToolbar: ToolbarContent {
+    let confirm: String
+    var confirmDisabled = false
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    /// Without the system's own glass behind the words, as `PlanSheet` and
+    /// the journal do: inside iOS 26's toolbar capsule a word was cut to
+    /// "Cance" (seen on the doodle sheet, 2026-10-05).
+    @ToolbarContentBuilder
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { cancel }
+                .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) { confirmButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { cancel }
+            ToolbarItem(placement: .topBarTrailing) { confirmButton }
+        }
+    }
+
+    private var cancel: some View {
+        Button(action: onCancel) { Text("Cancel").sheetAction(.cancel) }
+            .buttonStyle(.pressWord)
+    }
+
+    private var confirmButton: some View {
+        Button(action: onConfirm) { Text(confirm).sheetAction() }
+            .buttonStyle(.pressWord)
+            .disabled(confirmDisabled)
+            .opacity(confirmDisabled ? 0.4 : 1)
+    }
+}

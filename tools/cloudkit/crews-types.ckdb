@@ -68,6 +68,7 @@
         emoji     STRING,
         line      STRING,
         profileID STRING,
+        sketch    ASSET,
         winID     STRING,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",

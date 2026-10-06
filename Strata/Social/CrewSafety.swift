@@ -30,7 +30,8 @@ enum CrewSafety {
         case win(SharedWin)
         case person(CrewMember)
         case crew(Crew)
-        /// A reply's line (`Reaction.line`), seen by the win's owner.
+        /// A reply's line (`Reaction.line`) or doodle (`Reaction.sketch`),
+        /// seen by the win's owner.
         case reply(Reaction)
     }
 
@@ -70,8 +71,11 @@ enum CrewSafety {
         case .reply(let reaction):
             fields["winID"] = reaction.winID.uuidString
             fields["sender"] = reaction.profileID.uuidString
-            fields["title"] = "Reply: " + (reaction.line ?? "")
+            fields["title"] = "Reply: " + (reaction.line ?? (reaction.sketch == nil ? "" : "(doodle)"))
             fields["senderAccount"] = cloud?.account(of: reaction.profileID, in: crew)
+            // A doodle goes with the report as a photo does, so it can be
+            // judged (`photoPath` becomes the Report's `photo` asset).
+            photo = reaction.sketch
         case .crew(let c):
             fields["title"] = "Crew: " + (c.name.isEmpty ? "(no name)" : c.name)
             fields["senderAccount"] = cloud?.lastEditor(of: crew)

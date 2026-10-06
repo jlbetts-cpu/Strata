@@ -207,6 +207,12 @@ nonisolated struct Reaction: Identifiable, Codable, Equatable, Sendable {
     /// the win (and to you), and only on the crew day it was written
     /// (`SocialStore.replies`). Nil for a plain reaction.
     var line: String? = nil
+    /// **A doodle**: a one-pen drawing on this phone (`InkCanvas`), a PNG of
+    /// at most 1080px, carried on the record's `sketch` asset. Seen like a
+    /// reply's line: by whoever posted the win and by its writer, only on the
+    /// crew day it was drawn (`SocialStore.doodles`), and cleared by the
+    /// writer's phone when that day ends (`SocialStore.prune`).
+    var sketch: URL? = nil
 
     var id: String { Self.name(winID: winID, profileID: profileID) }
 
