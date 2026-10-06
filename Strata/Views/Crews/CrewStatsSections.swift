@@ -149,7 +149,10 @@ struct CrewStatsSections: View {
         Section {
             ForEach(stats.days) { day in
                 NavigationLink {
-                    CrewDayView(crew: crew, day: day.key, title: dayName(day.key)) { playDay(day.key) }
+                    CrewDayView(crew: crew, day: day.key, title: dayName(day.key),
+                                header: DayTitle.twoTone(forKey: day.key, calendar: Self.calendar(crew.timeZone))) {
+                        playDay(day.key)
+                    }
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {

@@ -41,6 +41,25 @@ nonisolated enum DayTitle {
         return out.string(from: date)
     }
 
+    /// **The day as a two-tone header** (Luma's "Tomorrow / Friday"; the
+    /// owner's pick, 2026-10-06): the name the day goes by, then the rest in
+    /// grey at the same size (`TwoToneTitle`). "Yesterday / Sunday",
+    /// "Sunday / 4 October", "Sunday / 4 October 2025".
+    static func twoTone(forKey key: String, now: Date = Date(),
+                        calendar: Calendar = .current, locale: Locale = .current) -> String {
+        guard let date = date(forKey: key, calendar: calendar) else { return key }
+        let out = DateFormatter()
+        out.calendar = calendar
+        out.timeZone = calendar.timeZone
+        out.locale = locale
+        out.dateFormat = "EEEE"
+        let weekday = out.string(from: date)
+        let lead = title(for: date, now: now, calendar: calendar, locale: locale)
+        if lead == "Today" || lead == "Yesterday" { return "\(lead) / \(weekday)" }
+        out.dateFormat = showsYear(date, now: now, calendar: calendar) ? "d MMMM yyyy" : "d MMMM"
+        return "\(weekday) / \(out.string(from: date))"
+    }
+
     /// **The year rule**, the one place it is decided: a day from another
     /// year says which.
     static func showsYear(_ date: Date, now: Date, calendar: Calendar) -> Bool {

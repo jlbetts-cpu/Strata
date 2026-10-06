@@ -85,12 +85,44 @@ private struct SheetTitleItem: ToolbarContent {
         }
     }
 
+    @ViewBuilder
     private var label: some View {
-        Text(verbatim: title)
-            .font(drawn && StrataFont.covers(title)
-                  ? Typography.sheetTitleDrawn : Typography.headerMedium)
-            .foregroundStyle(AppColors.inkPrimary)
+        if TwoToneTitle.parts(title).rest != nil {
+            TwoToneTitle(title: title)
+        } else {
+            Text(verbatim: title)
+                .font(drawn && StrataFont.covers(title)
+                      ? Typography.sheetTitleDrawn : Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+}
+
+/// **A header in two tones** (Luma's "Tomorrow / Friday"; the owner's pick,
+/// 2026-10-06, "Two-tone headers"): the first part in ink, a grey slash, the
+/// rest in the warm grey, all one size. Context without a second, smaller
+/// line under the title. Written "Lead / rest"; a title with no slash is
+/// one tone.
+struct TwoToneTitle: View {
+    let title: String
+    var font: Font = Typography.headerMedium
+
+    static let separator = " / "
+
+    static func parts(_ title: String) -> (lead: String, rest: String?) {
+        guard let range = title.range(of: separator) else { return (title, nil) }
+        return (String(title[..<range.lowerBound]), String(title[range.upperBound...]))
+    }
+
+    var body: some View {
+        let parts = Self.parts(title)
+        (Text(verbatim: parts.lead).foregroundStyle(AppColors.inkPrimary)
+         + Text(verbatim: parts.rest.map { Self.separator + $0 } ?? "").foregroundStyle(AppColors.inkTertiary))
+            .font(font)
             .lineLimit(1)
+            .accessibilityLabel(parts.rest.map { "\(parts.lead), \($0)" } ?? parts.lead)
             .accessibilityAddTraits(.isHeader)
     }
 }

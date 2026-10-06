@@ -137,7 +137,13 @@ struct CrewsListView: View {
     }
 
     private func row(_ crew: Crew) -> some View {
-        let unread = store.unread.contains(crew.id)
+        // **A new chat line lights it too** (the owner, 2026-10-06: "make
+        // sure there is a notification icon also on the chat feature"). The
+        // chat's dot was only inside the crew, so a message was invisible
+        // until you happened to open that crew.
+        let newWins = store.unread.contains(crew.id)
+        let newChat = store.unreadChats.contains(crew.id)
+        let unread = newWins || newChat
         let latest = store.latest(in: crew.id)
         return HStack(spacing: 12) {
             Circle()
@@ -179,7 +185,8 @@ struct CrewsListView: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint(unread ? "New wins." : "")
+        .accessibilityHint(newWins && newChat ? "New wins and messages."
+                           : newWins ? "New wins." : newChat ? "New messages." : "")
     }
 
     /// "Sam: Gym", "Sam added a photo", "You: Read", or, before anything,
@@ -383,9 +390,9 @@ struct CrewsButton: View {
 
     var body: some View {
         GlassIconButton(systemName: "person.2", onPage: true,
-                        accessibilityLabel: store.unread.isEmpty ? "Crews" : "Crews, new wins", action: action)
+                        accessibilityLabel: hasNews ? "Crews, something new" : "Crews", action: action)
             .overlay(alignment: .topTrailing) {
-                if !store.unread.isEmpty {
+                if hasNews {
                     Circle()
                         .fill(AppColors.inkPrimary)
                         .frame(width: 10, height: 10)
@@ -395,9 +402,13 @@ struct CrewsButton: View {
                         .accessibilityHidden(true)
                 }
             }
-            .animation(GridConstants.motionSnappy, value: store.unread.isEmpty)
+            .animation(GridConstants.motionSnappy, value: hasNews)
             .task { await store.refresh() }
     }
+
+    /// A new win, a reaction to yours, or a chat line you have not read, in
+    /// any crew (the owner, 2026-10-06: chat lights it too).
+    private var hasNews: Bool { !store.unread.isEmpty || !store.unreadChats.isEmpty }
 }
 
 /// The Wins tab's crew screens, and the router that opens one from outside

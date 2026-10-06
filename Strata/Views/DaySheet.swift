@@ -322,7 +322,10 @@ struct DaySheet: View {
                 // "the tabs i feel like look a little off"): a bold "Today"
                 // over a bold "Plan" was two headings, so the switch takes the
                 // title's place. A past day has no switch and keeps its date.
-                .modifier(DayTitleOrTabs(title: title, tabs: tabSet.showsSwitch ? AnyView(tabSwitch) : nil))
+                // A past day's bar: "Yesterday / Sunday" in two tones
+                // (`DayTitle.twoTone`, the owner's pick, 2026-10-06).
+                .modifier(DayTitleOrTabs(title: DayTitle.twoTone(forKey: dateString),
+                                         tabs: tabSet.showsSwitch ? AnyView(tabSwitch) : nil))
                 // Top left is the tab's own button: the emoji on the Journal,
                 // ＋ on the Plan (the owner, 2026-10-05: "why does there need
                 // to be the add to plan just have the + button on the top

@@ -16,6 +16,8 @@ struct CrewDayView: View {
     /// The crew day, `yyyy-MM-dd` in the crew's zone.
     let day: String
     let title: String
+    /// The bar's header in two tones, "Sunday / 4 October" (`TwoToneTitle`).
+    var header: String? = nil
     let play: () -> Void
 
     @State private var model = CrewTowerModel()
@@ -41,7 +43,7 @@ struct CrewDayView: View {
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { CrewDayToolbar(title: title, play: play) }
+        .toolbar { CrewDayToolbar(title: title, header: header ?? title, play: play) }
         .glassBackButton()
         .task(id: wins) {
             let names = Dictionary(uniqueKeysWithValues: crew.members.map { ($0.profileID, $0.shortName) })
@@ -97,14 +99,18 @@ struct CrewDayView: View {
     /// day lives on your own days in Memories.
     private struct CrewDayToolbar: ToolbarContent {
         let title: String
+        let header: String
         let play: () -> Void
 
         @ToolbarContentBuilder
         var body: some ToolbarContent {
             if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .principal) { TwoToneTitle(title: header) }
+                    .sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) { playButton }
                     .sharedBackgroundVisibility(.hidden)
             } else {
+                ToolbarItem(placement: .principal) { TwoToneTitle(title: header) }
                 ToolbarItem(placement: .topBarTrailing) { playButton }
             }
         }

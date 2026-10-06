@@ -389,19 +389,11 @@ private struct ChatSheetToolbar: ToolbarContent {
         }
     }
 
+    /// "Roommates / Today", one line in two tones (`TwoToneTitle`, the
+    /// owner's pick, 2026-10-06). It was the name over a smaller "Today".
     private var title: some View {
-        VStack(spacing: 0) {
-            Text(verbatim: name)
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .lineLimit(1)
-                .fitsLargeType(.body)
-            Text("Today")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkTertiary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
+        TwoToneTitle(title: "\(name)\(TwoToneTitle.separator)Today")
+            .fitsLargeType(.body)
     }
 
     private var doneButton: some View {

@@ -341,15 +341,18 @@ enum IllustrationMotion {
                              rotation: grinTilt, opacity: u < swapAt ? 0 : 1, anchor: .center)
         }
 
-        /// **Tilted back to his head, and lifted off the jaw** (the owner,
+        /// **Turned over, then angled so both ends rise** (the owner,
         /// 2026-10-06: "the smile looks wrong on the scarecrow not angles
-        /// correctly"). Turned over flat, the mouth sloped against the tilt
-        /// of his face and its weight sat on the jawline. Four ways were laid
-        /// on the face side by side (flat, both tilts, and a mirror across the
-        /// mouth's own edge, which pushed it up into the nose); this one reads
-        /// as a smile: 14 degrees clockwise, 4 of the drawing's 870 points up.
-        static let grinTilt = 14.0
-        static let grinLift = -4.0 / 870
+        /// correctly", then "look at 3 it literally would look like a smile
+        /// if you angled it a little better doesnt need to be a 180 turn").
+        /// Turned over flat it was a smirk pointing up at his nose; at 14
+        /// degrees still too much of one. Swept from 0 to 40 degrees each way
+        /// on his face: at 20 degrees clockwise the stitched end and the
+        /// zigzag both rise and the round of the mouth sits under them, a
+        /// smile; past 25 it drops onto his jaw. Lifted 6 of the drawing's
+        /// 870 points to keep it clear of the jawline.
+        static let grinTilt = 20.0
+        static let grinLift = -6.0 / 870
 
         /// How far through the turn from frown to smile: 0 the frown, 1 the
         /// smile, at an even pace (each half eases itself).

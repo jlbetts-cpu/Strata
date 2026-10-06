@@ -107,4 +107,15 @@ struct DrawingLineTests {
         #expect(Face.smile(at: Crow.away, play: 2) == 0, "still smiling with the crow gone")
         #expect(Face.smile(at: Crow.away + Crow.fly + 1, play: 2) == 1)
     }
+
+    /// "the smile is still not right why is it turned so side ways" (the
+    /// owner, 2026-10-06), then "look at 3... if you angled it a little
+    /// better": turned over and set at 20 degrees, both ends rising.
+    @Test("the smile is the mouth turned over at 20 degrees, lifted off the jaw")
+    func smileAngle() {
+        let grin = IllustrationMotion.Face.grin(at: .infinity, play: 1)
+        #expect(grin.scaleY < 0)
+        #expect(grin.rotation == 20)
+        #expect(grin.y < 0)
+    }
 }
