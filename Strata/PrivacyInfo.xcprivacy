@@ -66,7 +66,10 @@
            reason, title        the reason picked from a fixed list, and the
                                 reported win's title (words a person wrote)
        plus CloudKit's own creatorUserRecordID, the reporter's app-scoped
-       iCloud user record id. No photo, no name, no head.
+       iCloud user record id. AND, corrected 2026-10-06 against the code
+       (CrewSafety.send): the reported photograph or doodle as a CKAsset
+       ("photo"), and, for a reported person, their first name in "title".
+       So Photos or Videos and Name are declared below. No head.
 
     3. Not collected: the notification. iCloud sends a silent push and the
        app writes the notification on the phone (CrewNotifications.swift);
@@ -116,8 +119,7 @@
 		<!--
 		    The reported win's title and the reason chosen, on a Report
 		    record. A title is words someone wrote; Apple's nearest type is
-		    Other User Content. No photograph is in a report, so
-		    PhotosOrVideos is not declared for it.
+		    Other User Content. The photograph is declared on its own, below (missed until 2026-10-06).
 
 		    LINKED: the title sits on the same record as the sender's
 		    profile id. NOT TRACKING and APP FUNCTIONALITY: as above.
@@ -125,6 +127,39 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+			<!--
+		    The reported photograph or doodle, attached to a Report as a
+		    CKAsset when the thing reported has one (CrewSafety.send).
+		    LINKED, NOT TRACKING, APP FUNCTIONALITY: as above.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!--
+		    A reported person's first name, in a person report's title
+		    ("Person: Sam"). LINKED, NOT TRACKING, APP FUNCTIONALITY.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
