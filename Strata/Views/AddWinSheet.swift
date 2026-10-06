@@ -102,6 +102,9 @@ struct AddWinSheet: View {
     /// three at most. Only on a new win; it is sent with it and never kept
     /// on the `HabitLog`.
     @State private var withPeople: [UUID] = []
+    /// Your most repeated wins, offered while the name is empty
+    /// (`WinStarters`). Empty for a new user, so the row is not there.
+    @State private var starters: [WinStarters.Starter] = []
 
     /// A win from today or yesterday: anything older is past every crew's day.
     private var crewsCanTakeIt: Bool {
@@ -240,6 +243,8 @@ struct AddWinSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
+                        startersRow
+                        todaysPhotos
                         decisions
                         // Not on a win too old for any crew's tower: ticked,
                         // it would arrive in a day already gone.
@@ -503,6 +508,111 @@ struct AddWinSheet: View {
     /// rather than bands, so it reads as a failure. No capture of that state
     /// exists yet, and putting both labels back everywhere to satisfy a clause
     /// one state cannot otherwise meet would be the audit measuring itself.
+    // MARK: - Finding the win (2026-10-05)
+    //
+    // The owner: "a lot of days I dont have a lot of wins to post what would
+    // be a way to help people get more wins throughout there day". Recall is
+    // the hard part with ADHD, not the doing, so the sheet offers two cues:
+    // your own usual wins as words, and today's photographs as a row.
+
+    /// **Your usual wins, as words you can tap.** Only while the name is
+    /// empty: typing takes them away, so they never compete with what you
+    /// are writing. Plain words in the secondary ink, the keyboard's own
+    /// suggestion idiom, with no chips and no glass.
+    @ViewBuilder
+    private var startersRow: some View {
+        if title.isEmpty, !starters.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: GridConstants.gapWide) {
+                    ForEach(starters) { starter in
+                        Button { use(starter) } label: {
+                            Text(starter.title)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkSecondary)
+                                .lineLimit(1)
+                                .frame(minHeight: Self.starterTarget)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.pressWord)
+                        .accessibilityHint("Names this win")
+                    }
+                }
+            }
+            .scrollClipDisabled()
+            .padding(.top, GridConstants.gapTight)
+            .transition(.opacity)
+        }
+    }
+
+    private static let starterTarget: CGFloat = 44
+
+    /// The word becomes the name, and the win wears what it usually does:
+    /// its colour unless one was already pressed, and its size on a fresh Add
+    /// (a size drawn out of the slot or the shutter was chosen, and stays).
+    private func use(_ starter: WinStarters.Starter) {
+        HapticsEngine.tick()
+        withAnimation(GridConstants.motionSnappy) {
+            title = starter.title
+            if !categoryChosen, initialColour == nil {
+                category = starter.category
+                categoryChosen = starter.category != .unlabeled
+            }
+            if editing == nil, initialPhoto == nil, initialSize == .small {
+                size = starter.size
+            }
+        }
+    }
+
+    /// **Today's photographs, one row, in the evening.** The system's own
+    /// picker embedded compact (WWDC23 10107), so the app asks for no
+    /// library permission and sees only the photo you press. It sorts newest
+    /// first, so today is at the front. One tap is the block's photograph.
+    ///
+    /// From 5pm, when a day is being looked back on (the owner's pick,
+    /// 2026-10-05); before that the camera is the way in. Gone once the
+    /// block has a photograph, and on a win from another day.
+    @ViewBuilder
+    private var todaysPhotos: some View {
+        if showsTodaysPhotos {
+            PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
+                EmptyView()
+            }
+            .photosPickerStyle(.compact)
+            .photosPickerDisabledCapabilities([.search, .collectionNavigation, .stagingArea, .selectionActions])
+            .photosPickerAccessoryVisibility(.hidden, edges: .all)
+            .frame(height: Self.photoRowHeight)
+            // The picker draws its own white band, 15pt over the thumbnails;
+            // only the thumbnails show, so the row sits on the page's ground.
+            .frame(height: Self.photoRowShown, alignment: .bottom)
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous))
+            .padding(.top, GridConstants.gapTight)
+            .transition(.opacity)
+            .accessibilityLabel("Today's photos")
+        }
+    }
+
+    /// The system's first-use "Private Access to Photos" note draws inside
+    /// the picker and needs this much to show its OK; at 64 it was cut off
+    /// with nothing to dismiss it by.
+    private static let photoRowHeight: CGFloat = 88
+    /// The thumbnails' own height inside it, measured at 402x874.
+    private static let photoRowShown: CGFloat = 73
+
+    private var showsTodaysPhotos: Bool {
+        guard photo == nil else { return false }
+        if let log = editingLog, !Calendar.current.isDateInToday(log.createdAt) { return false }
+        #if DEBUG
+        if DebugHarness.argument("-strataTodaysPhotos") == "1" { return true }
+        #endif
+        return Self.isEvening(Date())
+    }
+
+    /// 5pm until 4am: an evening that runs past midnight is still that day's.
+    static func isEvening(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let hour = calendar.component(.hour, from: date)
+        return hour >= 17 || hour < 4
+    }
+
     private var decisions: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                     // **No colour question while you are taking the photo.**
@@ -1147,6 +1257,7 @@ struct AddWinSheet: View {
                 CrewHold.isHeld(log.id) ? CrewChoice.load() : SocialStore.shared.crews(holding: log.id)
             } ?? initialCrews ?? CrewChoice.load()
         }
+        starters = WinStarters.load(from: modelContext)
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
             category = habit.displayCategory
@@ -1155,7 +1266,12 @@ struct AddWinSheet: View {
                 Task { photo = await ImageManager.shared.loadFullImage(fileName: name) }
             }
         } else {
-            titleFocused = true
+            // **In the evening the sheet opens on what you can pick, not on
+            // the keyboard** (2026-10-05). With today's photos showing, the
+            // keyboard took the block's room and shrank it to a dot; a
+            // starter word and a photo need no typing, and the name is one
+            // tap away.
+            titleFocused = !showsTodaysPhotos
             // **A new win does not start green.**
             //
             // The default was `.health`, and the colour picker is hidden once
