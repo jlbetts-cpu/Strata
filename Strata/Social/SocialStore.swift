@@ -280,6 +280,17 @@ final class SocialStore {
                 changed = true
             }
         }
+        // A friend's doodle is checked on this phone too, as their photo is
+        // (spec section 3: "the receiving phone checks it again").
+        for reactions in reactionsByCrew.values {
+            for reaction in reactions where reaction.profileID != me {
+                guard let sketch = reaction.sketch, photoVerdicts[sketch.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: sketch),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[sketch.lastPathComponent] = verdict
+                changed = true
+            }
+        }
         guard changed else { return }
         defaults.set(photoVerdicts, forKey: Self.verdictsKey)
         verdictRevision += 1
@@ -901,6 +912,23 @@ final class SocialStore {
         }
     }
 
+    /// **Doodles on a win**: each reaction's sketch, seen exactly as a reply's
+    /// line is (spec section 3, "Like a reply"): by whoever posted the win and
+    /// by the one who drew it, and only on the crew day it was drawn, so a
+    /// reader never shows a doodle from another day even before its writer's
+    /// phone has cleared it. A friend's doodle shows only once this phone's
+    /// own photo check has passed it (`photoIsShown`), as a friend's photo
+    /// does.
+    func doodles(to winID: UUID, in crewID: CrewID) -> [Reaction] {
+        let owner = winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
+        return reactions(to: winID, in: crewID).filter { reaction in
+            guard let sketch = reaction.sketch else { return false }
+            return (owner == me || reaction.profileID == me)
+                && isToday(reaction.createdAt, in: crewID)
+                && (reaction.profileID == me || photoIsShown(sketch))
+        }
+    }
+
     /// Whether this phone may write replies: not for someone whose age is
     /// unknown or who chose not to say (the research: free text off for a
     /// declined age, reactions on).
@@ -909,7 +937,8 @@ final class SocialStore {
         return age == .adult || age == .teen
     }
 
-    enum ReplyOutcome { case sent, refusedWords, notAllowed }
+    /// `refusedSketch`: the photo check held a doodle back.
+    enum ReplyOutcome { case sent, refusedWords, refusedSketch, notAllowed }
 
     /// An emoji and a short line on a friend's win, seen only by them. The
     /// words are checked here first (`CrewWords`); the line clears when the
@@ -923,9 +952,47 @@ final class SocialStore {
         guard CrewWords.isAcceptable(text) else { return .refusedWords }
         let name = Reaction.name(winID: winID, profileID: me)
         var list = reactionsByCrew[crewID] ?? []
+        let previous = list.first { $0.id == name }
         list.removeAll { $0.id == name }
         var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
         reaction.line = text.isEmpty ? nil : text
+        // Today's doodle stays under a new line.
+        if let previous, isToday(previous.createdAt, in: crewID) { reaction.sketch = previous.sketch }
+        list.append(reaction)
+        reactionsByCrew[crewID] = list
+        enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        await flush()
+        return .sent
+    }
+
+    /// **A doodle on a friend's win**, seen only by them (spec section 3).
+    /// The same gate as a reply (`canReply`: off for an age not shared), and
+    /// the PNG passes the photo check before it is sent, the check a crew
+    /// photo passes (`photoCheck`, which is `CrewSafety.photoIsFine` on the
+    /// phone). Kept where this crew's photos are, and cleared when the
+    /// crew's day ends (`prune`).
+    @discardableResult
+    func doodle(_ png: Data, emoji: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard canReply(), isEnabled(), crew(crewID) != nil, !png.isEmpty,
+              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me else { return .notAllowed }
+        guard await photoCheck(png) else { return .refusedSketch }
+        let name = Reaction.name(winID: winID, profileID: me)
+        let url = directory.appending(path: "Photos/\(crewID.rawValue)/\(name)-doodle-\(UUID().uuidString).png")
+        do { try write(png, to: url) } catch {
+            Self.log.error("doodle for \(crewID.rawValue, privacy: .public) not kept: \(error)")
+            return .notAllowed
+        }
+        var list = reactionsByCrew[crewID] ?? []
+        let previous = list.first { $0.id == name }
+        list.removeAll { $0.id == name }
+        var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
+        reaction.sketch = url
+        if let previous, isToday(previous.createdAt, in: crewID) {
+            // Today's line stays beside it; the doodle it replaces goes.
+            reaction.line = previous.line
+            if let old = previous.sketch, old != url { try? FileManager.default.removeItem(at: old) }
+        }
         list.append(reaction)
         reactionsByCrew[crewID] = list
         enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
@@ -974,8 +1041,11 @@ final class SocialStore {
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
         } else {
             var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
-            // A new emoji keeps today's reply under it.
-            if let previous, let line = previous.line, isToday(previous.createdAt, in: crewID) { reaction.line = line }
+            // A new emoji keeps today's reply and doodle under it.
+            if let previous, isToday(previous.createdAt, in: crewID) {
+                reaction.line = previous.line
+                reaction.sketch = previous.sketch
+            }
             list.append(reaction)
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
@@ -1219,14 +1289,17 @@ final class SocialStore {
                     enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
                 }
             }
-            // **Replies clear when the day ends.** Only the writer's phone may
-            // change a reaction record, so each phone clears its own; the
-            // reading side already shows no line from another day.
+            // **Replies and doodles clear when the day ends.** Only the
+            // writer's phone may change a reaction record, so each phone
+            // clears its own; the reading side already shows no line and no
+            // doodle from another day (`replies`, `doodles`).
             for (index, reaction) in (reactionsByCrew[crew.id] ?? []).enumerated()
-            where reaction.profileID == me && reaction.line != nil
+            where reaction.profileID == me && (reaction.line != nil || reaction.sketch != nil)
                 && CrewDay.string(for: reaction.createdAt, in: crew.timeZone) < today {
                 var cleared = reaction
                 cleared.line = nil
+                if let sketch = reaction.sketch { try? FileManager.default.removeItem(at: sketch) }
+                cleared.sketch = nil
                 reactionsByCrew[crew.id]?[index] = cleared
                 enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: CrewRecords.fields(cleared)))
             }

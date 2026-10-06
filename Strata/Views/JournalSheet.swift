@@ -1,3 +1,4 @@
+import PencilKit
 import SwiftUI
 import SwiftData
 
@@ -129,6 +130,15 @@ struct JournalSheet: View {
     @State private var asked: [String] = []
     @State private var thinking = false
     @FocusState private var writing: Bool
+    /// The day's sketch, by file name (`MoodLog.sketchFileName`).
+    @State private var sketchName: String?
+    /// The pen, while the sketch strip is open; nil when it is closed.
+    @State private var ink: InkController?
+    /// The drawing as the strip opened on it, to tell an edit from a look.
+    @State private var inkAtOpen = Data()
+    /// The strip's width, which the saved sketch keeps so it lands under the
+    /// words exactly where it was drawn.
+    @State private var stripWidth: CGFloat = 0
 
     private static let tapTarget: CGFloat = 44
 
@@ -163,6 +173,20 @@ struct JournalSheet: View {
             JournalQuestions.prewarm()
             #if DEBUG
             if DebugHarness.journalAsks { ask() }
+            if let sketch = DebugHarness.journalSketch {
+                // After the sheet has laid out, so the strip has its width.
+                try? await Task.sleep(for: .milliseconds(600))
+                let width = UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
+                if sketchName == nil {
+                    stripWidth = width
+                    inkAtOpen = Data()
+                    ink = InkController(drawing: InkSamples.sunOverHill(
+                        in: CGSize(width: width, height: Self.stripHeight - 52)))
+                    keepSketch()
+                    ink = nil
+                }
+                if sketch == "open" { openStrip() }
+            }
             #endif
         }
         // Saved a beat after typing stops, so a note survives the app being
@@ -174,9 +198,9 @@ struct JournalSheet: View {
             save()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { save() }
+            if phase != .active { save(); keepSketch() }
         }
-        .onDisappear { save() }
+        .onDisappear { save(); keepSketch() }
     }
 
     // MARK: - The page
@@ -191,9 +215,27 @@ struct JournalSheet: View {
         // (`PlanSuggestionsView`). Only while the note is empty: the question
         // is the placeholder, and a written note has no placeholder to show.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if isEmpty { suggest }
+            if ink == nil { footer }
         }
         .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: isEmpty)
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: ink == nil)
+    }
+
+    /// The foot of the page: Suggest in the middle while the note is empty,
+    /// and the pen at the trailing edge, always.
+    private var footer: some View {
+        ZStack {
+            if isEmpty { suggest }
+            HStack {
+                Spacer(minLength: 0)
+                GlassIconButton(systemName: "pencil", onPage: true,
+                                accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
+                    openStrip()
+                }
+            }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.bottom, GridConstants.gapTight)
+        }
     }
 
     /// The words. The whole page below the title is the editor, so a tap
@@ -228,13 +270,80 @@ struct JournalSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// **Where the sketch lands.** The next part of the spec: a pen button
-    /// opens a one-pen strip here, inside the note, and the finished sketch
-    /// shows here under the words, a tap editing it. It reads and writes
-    /// `MoodLog.sketchFileName`. Empty until then.
+    /// **Where the sketch lands** (spec section 2, "Sketch"). The pen at the
+    /// foot of the page opens a one-pen strip here, inside the note: the
+    /// shared `InkCanvas`, one ink, the eraser and undo, and nothing else, so
+    /// there is no tool picker. Closed, the finished sketch shows here under
+    /// the words, in the page's ink, and a tap opens its strokes again.
     @ViewBuilder
     private var sketchSlot: some View {
-        EmptyView()
+        if let ink {
+            InkCanvas(controller: ink) {
+                GlassIconButton(systemName: "checkmark", onPage: true,
+                                accessibilityLabel: "Done Sketching") {
+                    closeStrip()
+                }
+            }
+            .frame(height: Self.stripHeight)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stripWidth = $0 }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.bottom, GridConstants.gapTight)
+            .transition(.opacity)
+        } else if let sketchName {
+            Button { openStrip() } label: {
+                InkImage(url: InkFiles.shared.url(sketchName), scale: JournalSketches.scale)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press)
+            .contextMenu {
+                Button("Remove", systemImage: "xmark", role: .destructive) { removeSketch() }
+            }
+            .accessibilityLabel("Sketch")
+            .accessibilityHint("Opens it to draw on")
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.bottom, GridConstants.gapItem)
+            .transition(.opacity)
+        }
+    }
+
+    /// The strip's height: room for a small drawing, with the note still
+    /// above it.
+    private static let stripHeight: CGFloat = 260
+
+    // MARK: - The sketch
+
+    private func openStrip() {
+        guard ink == nil else { return }
+        writing = false
+        let drawing = sketchName.flatMap { JournalSketches.drawing(for: $0) } ?? PKDrawing()
+        inkAtOpen = drawing.dataRepresentation()
+        ink = InkController(drawing: drawing)
+    }
+
+    private func closeStrip() {
+        keepSketch()
+        ink = nil
+    }
+
+    /// Writes the strip's drawing, if it changed. Rubbed out completely, the
+    /// sketch goes. Opened and closed with nothing done, nothing is written,
+    /// so a sketch whose strokes are not on this phone (made on another one)
+    /// is never replaced by the empty canvas it opened as.
+    private func keepSketch() {
+        guard let ink, loaded, ink.drawing.dataRepresentation() != inkAtOpen else { return }
+        let name = JournalSketches.save(ink.drawing, width: stripWidth, day: dateString,
+                                        replacing: sketchName)
+        sketchName = name
+        inkAtOpen = ink.drawing.dataRepresentation()
+        DayNotes.setSketch(name, for: dateString, context: modelContext)
+    }
+
+    private func removeSketch() {
+        guard let sketchName else { return }
+        JournalSketches.remove(sketchName)
+        self.sketchName = nil
+        DayNotes.setSketch(nil, for: dateString, context: modelContext)
     }
 
     // MARK: - The emoji
@@ -338,6 +447,7 @@ struct JournalSheet: View {
     private func done() {
         HapticsEngine.lightTap()
         save()
+        keepSketch()
         dismiss()
     }
 
@@ -346,6 +456,7 @@ struct JournalSheet: View {
         let entry = DayNotes.entry(for: dateString, context: modelContext)
         text = entry?.note ?? ""
         symbol = entry?.symbol
+        sketchName = entry?.sketchFileName
         loaded = true
     }
 

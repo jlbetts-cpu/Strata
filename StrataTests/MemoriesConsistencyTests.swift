@@ -147,8 +147,11 @@ struct MemoriesConsistencyTests {
         // Fifteen since 2026-10-05: Settings' "Lock Journal", off by default,
         // which asks for Face ID or the passcode before the day's journal
         // opens (`JournalLock`). It wears the token.
-        #expect(rowTints.count == 15,
-                "there are \(rowTints.count) switches in the app and there were 15; a new one needs the token too")
+        // Sixteen since 2026-10-05: the month drawing editor's "Bring It to
+        // Life", on by default and kept with the drawing
+        // (`MonthDrawingEditor`). It wears the token.
+        #expect(rowTints.count == 16,
+                "there are \(rowTints.count) switches in the app and there were 16; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**

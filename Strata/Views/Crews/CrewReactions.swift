@@ -1,3 +1,4 @@
+import PencilKit
 import SwiftUI
 import UIKit
 
@@ -304,6 +305,8 @@ struct CrewReactionsPanel: View {
     @State private var draft = ""
     @State private var refused = false
     @State private var reportingReply: Reaction?
+    @State private var doodling = false
+    @State private var doodleRefused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var store: SocialStore { SocialStore.shared }
@@ -318,6 +321,7 @@ struct CrewReactionsPanel: View {
         let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
         let myReaction = store.myReaction(to: winID, in: crewID)
         let replies = store.replies(to: winID, in: crewID)
+        let doodles = store.doodles(to: winID, in: crewID)
         VStack(spacing: 10) {
             if open, !mine {
                 ReactionBar(mine: myReaction, onDark: onDark) { emoji in
@@ -329,20 +333,17 @@ struct CrewReactionsPanel: View {
                 // place of a chat (the owner, 2026-10-05, from the research:
                 // talk that hangs off a win lasts; a general chat in an app
                 // about something else does not).
+                // **Doodle** beside it (spec section 3): the same people see
+                // it and it lasts as long, so it is the same kind of control,
+                // side by side, and off together when replies are.
                 if store.canReply() {
-                    Button {
-                        draft = replies.first { $0.profileID == store.me }?.line ?? ""
-                        replying = true
-                    } label: {
-                        Text("Reply")
-                            .font(Typography.headerSmall)
-                            .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 44)
-                            .glassCapsule(onPage: !onDark)
-                            .contentShape(Capsule())
+                    HStack(spacing: GridConstants.gapTight) {
+                        replyChip("Reply") {
+                            draft = replies.first { $0.profileID == store.me }?.line ?? ""
+                            replying = true
+                        }
+                        replyChip("Doodle") { doodling = true }
                     }
-                    .buttonStyle(.plain)
                     .transition(.opacity)
                 }
             }
@@ -368,6 +369,10 @@ struct CrewReactionsPanel: View {
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .transition(.opacity)
+            }
+            if open, !doodles.isEmpty {
+                doodleRow(doodles)
+                    .transition(.opacity)
             }
             if !reactions.isEmpty || !mine {
                 Button {
@@ -420,7 +425,32 @@ struct CrewReactionsPanel: View {
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
         }
-        .confirmationDialog("Report this reply?",
+        .alert("That doodle stays with you", isPresented: $doodleRefused) {
+            Button("OK", role: .cancel) {}
+        }
+        .sheet(isPresented: $doodling) {
+            DoodleSheet(owner: owner) { drawing in
+                guard let png = InkExport.doodlePNG(drawing) else { return }
+                let emoji = myReaction ?? Reaction.doubleTap
+                Task {
+                    let outcome = await store.doodle(png, emoji: emoji, to: winID, in: crewID)
+                    if outcome == .refusedSketch { doodleRefused = true }
+                }
+                withAnimation(motion) { open = false }
+            }
+        }
+        #if DEBUG
+        // `-strataCrewDoodle sheet|seed`: the panel opens by itself, and on a
+        // friend's win the doodle sheet over it, so both can be photographed.
+        .task {
+            guard let which = DebugHarness.argument("-strataCrewDoodle") else { return }
+            try? await Task.sleep(for: .milliseconds(800))
+            open = true
+            if which == "sheet", !mine { doodling = true }
+        }
+        #endif
+        .confirmationDialog(reportingReply?.sketch != nil && reportingReply?.line == nil
+                            ? "Report this doodle?" : "Report this reply?",
                             isPresented: Binding(get: { reportingReply != nil }, set: { if !$0 { reportingReply = nil } }),
                             titleVisibility: .visible, presenting: reportingReply) { reply in
             ForEach(CrewSafety.Reason.allCases) { reason in
@@ -434,6 +464,59 @@ struct CrewReactionsPanel: View {
     }
 
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
+
+    /// One of the two words under the bar: Reply and Doodle, alike.
+    private func replyChip(_ word: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(word)
+                .font(Typography.headerSmall)
+                .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .glassCapsule(onPage: !onDark)
+                .contentShape(Capsule())
+        }
+        // Plain on glass, as the face is (see its note): a scaling press on
+        // interactive glass cancelled taps on a real phone.
+        .buttonStyle(.plain)
+    }
+
+    /// **The doodles, under the replies**: small, in the ink of whatever
+    /// they sit on (white over a photograph, the page's ink on the page),
+    /// each with who drew it. Held, a friend's can be reported, the way a
+    /// reply's line is.
+    private func doodleRow(_ doodles: [Reaction]) -> some View {
+        HStack(alignment: .bottom, spacing: GridConstants.gapItem) {
+            ForEach(doodles) { doodle in
+                if let sketch = doodle.sketch {
+                    let who = CrewReactionsPanel.name(doodle.profileID, crewID: crewID)
+                    VStack(spacing: 4) {
+                        InkImage(url: sketch, tint: onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                            .frame(maxWidth: Self.doodleSide, maxHeight: Self.doodleSide)
+                        Text(who)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        if doodle.profileID != store.me {
+                            Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
+                                reportingReply = doodle
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("A doodle from \(who)")
+                }
+            }
+        }
+        .padding(.horizontal, GridConstants.horizontalPadding)
+    }
+
+    /// A doodle's largest side on the panel: small, a mark beside the
+    /// reactions, never a second photograph.
+    static let doodleSide: CGFloat = 56
 
     /// Yours first, then in the order they came.
     static func ordered(_ reactions: [Reaction], me: UUID) -> [Reaction] {

@@ -487,7 +487,8 @@ final class CloudKitCrewCloud: CrewCloud {
             case let asset as CKAsset:
                 guard let source = asset.fileURL else { continue }
                 let folder = type == .member ? "Heads" : "Photos"
-                let suffix = type == .member && key == "head" ? "head" : "jpg"
+                // A doodle is a PNG (its ink on clear, `InkExport`).
+                let suffix = type == .member && key == "head" ? "head" : (key == "sketch" ? "png" : "jpg")
                 // Named by key as well: a Member record has a head AND a
                 // photo, and one path for both let each overwrite the other.
                 // And by the record's change tag, so a new head is a new

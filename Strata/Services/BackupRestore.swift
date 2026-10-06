@@ -274,7 +274,10 @@ enum BackupRestore {
             var seenDays = Set<String>()
             for note in notes where seenDays.insert(note.dateString).inserted {
                 let hasWords = !(note.note ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                guard hasWords || !(note.symbol ?? "").isEmpty else { continue }
+                // A sketch counts only when its picture is in the zip: a name
+                // pointing at nothing is not something to restore.
+                let hasSketch = note.sketch.map { contents.sketchEntries[$0] != nil } ?? false
+                guard hasWords || !(note.symbol ?? "").isEmpty || hasSketch else { continue }
                 if DayNotes.hasNote(on: note.dateString, context: context) {
                     plan.notesAlreadyHere += 1
                 } else {
@@ -311,7 +314,8 @@ enum BackupRestore {
     /// Does the plan. The only function here that writes anything.
     static func apply(_ plan: Plan, contents: BackupArchive.Contents,
                       context: ModelContext,
-                      photographs: PhotoOutcome? = nil) -> Report {
+                      photographs: PhotoOutcome? = nil,
+                      ink: InkFiles = .shared) -> Report {
         var report = Report()
         guard !plan.isEmptyOfWork else { return report }
 
@@ -385,6 +389,16 @@ enum BackupRestore {
             let entry = DayNotes.entryOrNew(for: exported.dateString, context: context)
             entry.note = exported.note
             entry.symbol = exported.symbol
+            // The sketch, the photograph rule again: its name is written on
+            // the entry only once its picture is on disk. Its strokes come
+            // with it when the zip has them, so it can be drawn on again.
+            if let sketch = exported.sketch, InkFiles.isPlainName(sketch),
+               let picture = try? contents.sketch(named: sketch),
+               (try? ink.write(picture, named: sketch)) != nil {
+                let strokes = JournalSketches.drawingName(for: sketch)
+                if let data = try? contents.sketch(named: strokes) { try? ink.write(data, named: strokes) }
+                entry.sketchFileName = sketch
+            }
             report.notesAdded += 1
         }
 

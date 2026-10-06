@@ -33,6 +33,10 @@ nonisolated enum BackupArchive {
 
     static let winsFileName = "wins.json"
     static let photosFolderName = "photos"
+    /// The journal's sketches (2026-10-05), each PNG with its strokes beside
+    /// it. A folder of their own, never `photos/`: the restore reports a file
+    /// in `photos/` that no win names as a photograph it cannot attach.
+    static let sketchesFolderName = "sketches"
 
     // MARK: - The JSON
 
@@ -55,16 +59,19 @@ nonisolated enum BackupArchive {
         var version: Int { formatVersion ?? 1 }
     }
 
-    /// One day's journal entry (`MoodLog`, through `DayNotes`). The words and
-    /// the emoji: both are the person's own, so they travel. `mood` and
-    /// `motivation` are not written, because the journal never asks for them.
-    /// The sketch is not written yet either; it arrives with the sketch strip,
-    /// and its file will need a folder of its own beside `photos/`.
+    /// One day's journal entry (`MoodLog`, through `DayNotes`). The words,
+    /// the emoji and the sketch: all three are the person's own, so they
+    /// travel. `mood` and `motivation` are not written, because the journal
+    /// never asks for them.
     struct ExportNote: Codable, Sendable {
         let dateString: String
         var id: UUID?
         var note: String?
         var symbol: String?
+        /// The sketch's PNG, by file name, in the zip's `sketches/` folder
+        /// with its strokes (`JournalSketches.drawingName`) beside it.
+        /// Optional like every field after version 1, so no bump.
+        var sketch: String? = nil
     }
 
     /// A win's template: what it is called, what colour it draws in, how big
@@ -179,6 +186,7 @@ nonisolated enum BackupArchive {
     /// - Parameter photographs: the original image files to copy in. **Copied,
     ///   never moved**: these are the person's only copy.
     static func writeZip(document: Document, photographs: [URL],
+                         sketches: [URL] = [],
                          named name: String,
                          in temporaryDirectory: URL = FileManager.default.temporaryDirectory) throws -> URL {
         let data: Data
@@ -201,6 +209,15 @@ nonisolated enum BackupArchive {
             // wins and the rest of the pictures are still worth having, and the
             // restore names what is missing when it gets there.
             try? fm.copyItem(at: file, to: photos.appendingPathComponent(file.lastPathComponent))
+        }
+        if !sketches.isEmpty {
+            let sketchFolder = folder.appendingPathComponent(sketchesFolderName, isDirectory: true)
+            try? fm.createDirectory(at: sketchFolder, withIntermediateDirectories: true)
+            for file in sketches {
+                // As a photograph: one that will not copy does not fail the
+                // backup, and its note still travels with its words.
+                try? fm.copyItem(at: file, to: sketchFolder.appendingPathComponent(file.lastPathComponent))
+            }
         }
 
         // **Zipped by the system, with no dependency.** `NSFileCoordinator`'s
@@ -300,11 +317,15 @@ nonisolated enum BackupArchive {
     struct Contents: Sendable {
         let document: Document
         let photoEntries: [String: ZipArchiveReader.Entry]
+        /// The journal's sketches and their strokes, by file name.
+        let sketchEntries: [String: ZipArchiveReader.Entry]
         private let reader: ZipArchiveReader
 
-        init(document: Document, photoEntries: [String: ZipArchiveReader.Entry], reader: ZipArchiveReader) {
+        init(document: Document, photoEntries: [String: ZipArchiveReader.Entry],
+             sketchEntries: [String: ZipArchiveReader.Entry] = [:], reader: ZipArchiveReader) {
             self.document = document
             self.photoEntries = photoEntries
+            self.sketchEntries = sketchEntries
             self.reader = reader
         }
 
@@ -313,6 +334,14 @@ nonisolated enum BackupArchive {
         /// One photograph's bytes, CRC-checked by the reader.
         func photograph(named name: String) throws -> Data {
             guard let entry = photoEntries[name] else {
+                throw ZipArchiveReader.Failure.corrupt("\(name) is not in this backup")
+            }
+            return try reader.data(for: entry)
+        }
+
+        /// One sketch file's bytes, CRC-checked by the reader.
+        func sketch(named name: String) throws -> Data {
+            guard let entry = sketchEntries[name] else {
                 throw ZipArchiveReader.Failure.corrupt("\(name) is not in this backup")
             }
             return try reader.data(for: entry)
@@ -352,17 +381,22 @@ nonisolated enum BackupArchive {
             throw ReadFailure.fromTheFuture(fileVersion: document.version)
         }
 
-        var photos: [String: ZipArchiveReader.Entry] = [:]
-        for entry in reader.entries(directlyInside: root + photosFolderName + "/") {
-            let name = (entry.path as NSString).lastPathComponent
-            // A name that is empty, or that tries to climb out of the folder,
-            // is dropped rather than followed. Restoring writes by basename
-            // through `ImageManager` so it could not escape anyway, but a
-            // reader that filters is one fewer thing to reason about.
-            guard !name.isEmpty, name != ".", name != "..", !name.contains("/") else { continue }
-            photos[name] = entry
+        func files(in folder: String) -> [String: ZipArchiveReader.Entry] {
+            var found: [String: ZipArchiveReader.Entry] = [:]
+            for entry in reader.entries(directlyInside: root + folder + "/") {
+                let name = (entry.path as NSString).lastPathComponent
+                // A name that is empty, or that tries to climb out of the
+                // folder, is dropped rather than followed. Restoring writes by
+                // basename through `ImageManager` and `InkFiles` so it could
+                // not escape anyway, but a reader that filters is one fewer
+                // thing to reason about.
+                guard !name.isEmpty, name != ".", name != "..", !name.contains("/") else { continue }
+                found[name] = entry
+            }
+            return found
         }
-        return Contents(document: document, photoEntries: photos, reader: reader)
+        return Contents(document: document, photoEntries: files(in: photosFolderName),
+                        sketchEntries: files(in: sketchesFolderName), reader: reader)
     }
 
     /// A decoding error as a sentence naming the field, because "the data

@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import SwiftData
 import AppIntents
+import TipKit
 
 @main
 struct StrataApp: App {
@@ -39,6 +40,16 @@ struct StrataApp: App {
         // decides what gets BUILT, so it runs before anything is. See
         // `EtherealControls`.
         EtherealControls.install()
+        // **TipKit, for the one tip the app has** (`MonthDrawingTip`, the
+        // clue to holding the month's drawing). Its own rules decide when;
+        // `.immediate` only means the app adds no second cool-down of its own.
+        #if DEBUG
+        // `-strataTipsReset 1` forgets every tip shown, `-strataTipsShow 1`
+        // shows them regardless of their rules, for screenshots.
+        if DebugHarness.argument("-strataTipsReset") == "1" { try? Tips.resetDatastore() }
+        if DebugHarness.argument("-strataTipsShow") == "1" { Tips.showAllTipsForTesting() }
+        #endif
+        try? Tips.configure([.displayFrequency(.immediate)])
         // **Crews reach iCloud only when they are on**, chosen here, before
         // anything can touch `SocialStore.shared` and fix its cloud. Off, the
         // store keeps a fake that nothing reaches. The debug seed keeps the

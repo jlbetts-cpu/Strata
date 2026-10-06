@@ -22,6 +22,9 @@ struct Illustration: View {
     /// (an iPhone SE has about 130pt above October's calendar).
     var height: CGFloat = 150
     var motion: IllustrationMotion? = nil
+    /// Called when a play has finished, or at once when the drawing is still
+    /// (Reduce Motion, or no motion): the month drawing's tip waits on it.
+    var onRest: (@MainActor () -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// When the current play began; nil at rest.
@@ -90,6 +93,7 @@ struct Illustration: View {
                     ForEach(Array(motion.stillLayers.enumerated()), id: \.offset) { _, image in layer(image) }
                 }
             }
+            .onAppear { onRest?() }
         }
     }
 
@@ -110,7 +114,10 @@ struct Illustration: View {
         playedAt = started
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(motion.duration(play: plays) + 0.05))
-            if playedAt == started { playedAt = nil }
+            if playedAt == started {
+                playedAt = nil
+                onRest?()
+            }
         }
     }
 }
@@ -519,13 +526,13 @@ enum IllustrationMotion {
     }
     /// A damped spring released from 1 at t = 0, settling to 0: the give and
     /// wobble of a landing. `frequency` in wobbles a second, `damping` 0..1.
-    static func spring(_ t: Double, frequency: Double, damping: Double) -> Double {
+    nonisolated static func spring(_ t: Double, frequency: Double, damping: Double) -> Double {
         let w = 2 * .pi * frequency
         return exp(-damping * w * t) * cos(w * sqrt(1 - damping * damping) * t)
     }
     /// The same spring set off from rest by a push: 0 at t = 0, out, back,
     /// settling to 0. What a landing's give looks like.
-    static func springOut(_ t: Double, frequency: Double, damping: Double) -> Double {
+    nonisolated static func springOut(_ t: Double, frequency: Double, damping: Double) -> Double {
         let w = 2 * .pi * frequency
         return exp(-damping * w * t) * sin(w * sqrt(1 - damping * damping) * t)
     }

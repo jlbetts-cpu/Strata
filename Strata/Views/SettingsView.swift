@@ -486,6 +486,26 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: - Memories
+
+            // **Month Drawing** (spec section 4): the hold on Memories' month
+            // drawing, as a row, because a hidden gesture needs a second way
+            // in. See `MonthDrawingSettingsView`.
+            Section {
+                NavigationLink {
+                    MonthDrawingSettingsView()
+                } label: {
+                    Label {
+                        Text("Month Drawing")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "pencil.and.scribble")
+                    }
+                }
+            } header: {
+                FormSectionLabel("Memories")
+            }
+
             // MARK: - Journal
 
             // **Lock Journal** (the owner approved it on 2026-10-05, spec

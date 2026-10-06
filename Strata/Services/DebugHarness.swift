@@ -194,6 +194,11 @@ enum DebugHarness {
         return raw == "1" ? "today" : raw
     }
 
+    /// The journal's sketch, from `-strataJournalSketch seed|open`: `seed`
+    /// writes `InkSamples.sunOverHill` as the day's sketch and shows it under
+    /// the words; `open` opens the strip on it. A simulator cannot draw.
+    static var journalSketch: String? { argument("-strataJournalSketch") }
+
     /// Presses the journal's Suggest once it opens, from `-strataJournalAsk`.
     static var journalAsks: Bool { ProcessInfo.processInfo.arguments.contains("-strataJournalAsk") }
 

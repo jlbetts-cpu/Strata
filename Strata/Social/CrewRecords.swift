@@ -78,7 +78,7 @@ nonisolated enum CrewRecords {
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
-    static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line"]
+    static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
@@ -154,6 +154,9 @@ nonisolated enum CrewRecords {
         var fields: RecordFields = ["winID": .uuid(reaction.winID), "profileID": .uuid(reaction.profileID),
                                     "emoji": .string(reaction.emoji), "createdAt": .date(reaction.createdAt)]
         if let line = reaction.line, !line.isEmpty { fields["line"] = .string(line) }
+        // An asset, as a win's photo is, and absent when there is none: a
+        // record is written whole, so absent is how a doodle is cleared.
+        if let sketch = reaction.sketch { fields["sketch"] = .asset(sketch) }
         return fields
     }
 
@@ -168,7 +171,8 @@ nonisolated enum CrewRecords {
             .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Reaction.lineLimit)) }
             .flatMap { $0.isEmpty || !CrewWords.isAcceptable($0) ? nil : $0 }
         return Reaction(winID: win, crewID: crew, profileID: who, emoji: String(emoji.prefix(1)),
-                        createdAt: fields["createdAt"]?.date ?? .distantPast, line: line)
+                        createdAt: fields["createdAt"]?.date ?? .distantPast, line: line,
+                        sketch: fields["sketch"]?.asset)
     }
 
     // MARK: Crew

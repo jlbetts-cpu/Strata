@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import PencilKit
 import UIKit
 
 /// A pretend crew, so every crew screen can be built, captured and filmed in
@@ -146,6 +147,27 @@ extension DebugHarness {
                 let wins = friend.today(in: crew.id).filter { $0.senderProfileID != friend.me }
                 for (i, win) in wins.enumerated() where i % 2 == 0 {
                     await friend.react((Reaction.quick + ["👏", "💪"])[(i / 2 + win.title.count) % 5], to: win.winID, in: crew.id)
+                }
+            }
+        }
+        // `-strataCrewDoodle seed`: two friends doodle on your newest win, so
+        // the owner's side of a doodle can be photographed.
+        if argument("-strataCrewDoodle") == "seed" {
+            for (k, friend) in friends.prefix(2).enumerated() {
+                await friend.refresh()
+                guard let crew = friend.crews.first,
+                      let mine = friend.today(in: crew.id).last(where: { $0.senderProfileID == store.me }) else { continue }
+                let size = CGSize(width: 320, height: 240)
+                let drawing = k == 0 ? InkSamples.sunOverHill(in: size, width: 6)
+                    : InkSamples.drawing([(0...30).map { i in
+                        let a = Double(i) / 30 * 2 * .pi
+                        // A heart, drawn in one line.
+                        let x = 16 * pow(sin(a), 3), y = -(13 * cos(a) - 5 * cos(2 * a) - 2 * cos(3 * a) - cos(4 * a))
+                        return CGPoint(x: 160 + x * 7, y: 120 + y * 7)
+                    }], width: 6)
+                friend.canReply = { true }
+                if let png = InkExport.doodlePNG(drawing) {
+                    await friend.doodle(png, emoji: k == 0 ? "🔥" : "❤️", to: mine.winID, in: crew.id)
                 }
             }
         }
