@@ -40,16 +40,18 @@ struct CompanionParkingTests {
     func placement() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
-        let row = header.components(separatedBy: "headerPlan").first ?? ""
+        // Up to the day's button, which replaced the Journal and Plan pair
+        // on 2026-10-05: the bubble stood directly left of the Plan.
+        let row = header.components(separatedBy: "Spacer(minLength: 0)").first ?? ""
         #expect(!row.contains("CompanionDock()"), "the bubble is back in the Wins header, which the owner removed")
-        #expect(row.contains("JournalButton("))
+        #expect(row.contains("headerDay"))
         #expect(!CompanionParking.hasDock)
         #expect(!CompanionParking.shared.parked, "parked with no bubble on screen is a head that has vanished")
         #expect(row.contains("HStack(alignment: .center, spacing: GridConstants.gapTight)"))
         // The 2026-10-02 group fused two discs into one peanut, which is what
-        // this guards. Journal and Plan are one `HeaderGlassPair` now
-        // (2026-10-05), whose blend distance is under the gap between them so
-        // they never fuse: `WinsBatchTests.pairDoesNotFuse` holds that number.
+        // this guards. Journal and Plan were one `HeaderGlassPair` for the
+        // morning of 2026-10-05 and are one button now, so nothing on the
+        // header can fuse: `WinsBatchTests.pairDoesNotFuse` holds that.
         #expect(!header.prefix(1500).contains(".headerGlassGroup"), "one glass group fused the two into a peanut")
     }
 

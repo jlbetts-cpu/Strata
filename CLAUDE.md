@@ -273,7 +273,8 @@ from one nobody has seen.** Neither is a leftover and neither is a bug.
   mean left bearing of 0.0712 (`StrataFont.opticalInset`, pinned against the
   font's own tables by `StrataFontTests`). **Where it sets** (docs/research/
   font.md (a)): counts as digits alone, sheet titles that name the sheet at 17
-  (`sheetTitle(_:drawn:)`: Add a win, Edit, Profile, Plan; Settings, Line and
+  (`sheetTitle(_:drawn:)`: Add a win, Edit, Profile; the day's page, which
+  replaced Plan on 2026-10-05, names its day in SF; Settings, Line and
   Privacy are SF Rounded Medium), and dynamic titles (`DynamicScreenTitle`)
   only when `StrataFont.covers` the whole string AND it fits at full size,
   otherwise SF for the whole string. **Not** buttons, section labels, dates, or

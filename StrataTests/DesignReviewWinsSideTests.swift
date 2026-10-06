@@ -21,7 +21,9 @@ struct DesignReviewWinsSideTests {
     /// the replay's "wins", date and "Sample". The dark scheme hid it, at 6.0.
     static let screens = [
         "Strata/Views/AddWinSheet.swift",
-        "Strata/Views/PlanSheet.swift",
+        // The Plan sheet's lines, part of the day's page since 2026-10-05.
+        "Strata/Views/PlanLines.swift",
+        "Strata/Views/DaySheet.swift",
         "Strata/Views/PlanItemDetailSheet.swift",
         "Strata/Views/PlanTextField.swift",
         "Strata/Views/ReplayFrame.swift",

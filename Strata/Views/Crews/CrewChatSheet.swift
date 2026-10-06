@@ -8,7 +8,7 @@ import SwiftUI
 /// emoji up to 280 characters, a doodle, and replies on a win, which arrive
 /// here quoting it ("↪ Morning run"); a tap on the quote opens that win.
 ///
-/// **The sheets' chrome**, as `JournalSheet` and `PlanSheet` wear it: full
+/// **The sheets' chrome**, as `DaySheet` wears it: full
 /// height, the drag indicator, the page's own ground as the material, Done top
 /// right in `sheetAction`. The title is the crew and "Today" under it.
 ///
@@ -341,7 +341,7 @@ struct CrewChatSheet: View {
 }
 
 /// The crew's name with "Today" under it in the principal slot, and Done.
-/// Without the system's glass behind either, for the reason `PlanSheet`'s
+/// Without the system's glass behind either, for the reason `DaySheet`'s
 /// toolbar records: a glass word inside a glass capsule is two materials.
 private struct ChatSheetToolbar: ToolbarContent {
     let name: String

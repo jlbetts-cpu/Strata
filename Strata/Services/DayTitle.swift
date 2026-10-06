@@ -12,7 +12,7 @@ import Foundation
 /// one's were the same title.
 ///
 /// The format is fixed ("EEEE d MMMM"), not a localized template, for the
-/// reason `JournalSheet` already recorded: the template put a comma in it.
+/// reason the journal sheet already recorded: the template put a comma in it.
 /// The names inside it are the reader's language.
 ///
 /// `PastWin.dateWords` is the CAPTION form ("March 4", "March 4, 2025") and

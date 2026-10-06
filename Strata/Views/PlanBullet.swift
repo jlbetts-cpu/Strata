@@ -19,7 +19,7 @@ import SwiftUI
 struct PlanBullet: View {
     let category: HabitCategory
     let isDone: Bool
-    /// `PlanSheet.bulletSide` is the same number, and the ghost in its empty
+    /// `PlanLines.bulletSide` is the same number, and the ghost in its empty
     /// state is drawn from it, so the outline is the exact silhouette of what
     /// lands in it.
     var side: CGFloat = 24
@@ -36,7 +36,7 @@ struct PlanBullet: View {
     // MARK: - The empty slot's outline, as two numbers anybody can borrow
     //
     // **The plan's ghost row was a copy of these, and the copy had drifted.**
-    // `PlanSheet`'s empty state calls its dashed square "the exact silhouette
+    // `PlanLines`'s empty state calls its dashed square "the exact silhouette
     // of what will land in it", which is a claim this outline can be measured
     // against. The ghost was written out at `strokeDefault` (1.5) in 0.40 ink
     // while the real bullet is 1.80 in 0.60, so sampled off the built sheet at
@@ -46,7 +46,7 @@ struct PlanBullet: View {
     //
     // Exported rather than re-typed, because a copy of a number is a number
     // that can stop matching the thing it was copied from. That is the same
-    // fault `PlanSheet.textLeading` was derived to end on the separator's
+    // fault `PlanLines.textLeading` was derived to end on the separator's
     // inset.
 
     /// The ink an unchecked slot's boundary is drawn in.

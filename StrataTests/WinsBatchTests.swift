@@ -15,33 +15,40 @@ struct WinsBatchTests {
     // MARK: - 1. The header
 
     /// **Mine on the left, the crew on the right** (owner-approved,
-    /// 2026-10-05). Journal then Plan, one glass pair, top left; Crews alone,
-    /// top right. Why the right: the HIG puts what must stay available at the
-    /// trailing end, Instagram and Strava put the chat and notification
-    /// entry points top right, and a right thumb reaches the top right more
-    /// easily than the top left (Hoober).
-    @Test("Journal and Plan lead as one pair, Crews stands alone at the trailing end")
+    /// 2026-10-05). Crews alone, top right. Why the right: the HIG puts what
+    /// must stay available at the trailing end, Instagram and Strava put the
+    /// chat and notification entry points top right, and a right thumb
+    /// reaches the top right more easily than the top left (Hoober).
+    ///
+    /// **The left was a Journal and Plan pair, and is one button now**
+    /// (2026-10-05, the owner: "the plan and journal screen could probably be
+    /// merged... there uis are pretty similar"; his pick for the one button
+    /// is `checklist`). So this pins one day button where it pinned Journal
+    /// then Plan; `DaySheetTests.oneHeaderButton` pins the rest.
+    @Test("the day's one button leads, Crews stands alone at the trailing end")
     func headerOrder() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
         let row = header.components(separatedBy: ".accessibilityElement(children: .contain)").first ?? ""
-        let journal = try #require(row.range(of: "JournalButton("))
-        let plan = try #require(row.range(of: "headerPlan"))
+        let day = try #require(row.range(of: "headerDay"))
         let spacer = try #require(row.range(of: "Spacer(minLength: 0)"))
         let crews = try #require(row.range(of: "CrewsButton"))
-        #expect(journal.lowerBound < plan.lowerBound, "Journal is the far left, Plan inner")
-        #expect(plan.lowerBound < spacer.lowerBound, "the pair leads the row")
+        #expect(day.lowerBound < spacer.lowerBound, "the day's button leads the row")
         #expect(spacer.lowerBound < crews.lowerBound, "Crews is alone at the trailing end")
-        #expect(row.contains("HeaderGlassPair"), "the pair is one glass group")
+        #expect(!row.contains("JournalButton("), "the journal has its own button on Wins again")
     }
 
-    /// The pair shares one `GlassEffectContainer`, and its blend distance is
-    /// under the gap between the two discs, so they never fuse into the
-    /// peanut a group made of them on 2026-10-02.
-    @Test("the glass pair never fuses: blend distance under the gap")
-    func pairDoesNotFuse() {
-        #expect(HeaderGlassPair<EmptyView>.blend < HeaderGlassPair<EmptyView>.gap)
-        #expect(HeaderGlassPair<EmptyView>.gap == GridConstants.gapTight)
+    /// The pair's glass group went with the pair (2026-10-05). What it
+    /// guarded, two discs fused into the peanut a group made of them on
+    /// 2026-10-02, cannot happen with one disc; what is pinned instead is
+    /// that no glass group came back to the header in its place.
+    @Test("the header has no glass group: one disc cannot fuse")
+    func pairDoesNotFuse() throws {
+        let text = try MorningSource.read("Views/MainAppView.swift")
+        let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
+        let row = header.components(separatedBy: ".accessibilityElement(children: .contain)").first ?? ""
+        #expect(!row.contains("HeaderGlassPair"))
+        #expect(!row.contains("GlassEffectContainer"))
     }
 
     // MARK: - 2. The journal's mark

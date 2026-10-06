@@ -842,7 +842,7 @@ struct ProfileView: View {
             // **`sheetAction()`, which is where the font, the ink and the 44pt
             // box now live** (2026-10-01, `docs/consistency-audit.md` §1.4).
             // This was a bare `Text` and measured **68x36** on the built sheet,
-            // the same miss `AddWinSheet` and `PlanSheet` each fixed privately
+            // the same miss `AddWinSheet` and `PlanLines` each fixed privately
             // with the owner's words on it, "really easy to miss click". Six
             // sheets, two of them fixed, four of them not: see `SheetAction`,
             // including the part this does NOT fix — Done and the title are now

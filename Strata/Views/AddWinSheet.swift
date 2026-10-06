@@ -172,7 +172,7 @@ struct AddWinSheet: View {
             // y766 with a 483.7pt break above it and 24 under it.
             //
             // The `GeometryReader` is what makes that arithmetic rather than a
-            // guess, and it is the pattern `PlanSheet.content` already uses:
+            // guess, and it is the pattern the Plan sheet's `content` already uses:
             // the stack is held to at least the viewport's height and the
             // `Spacer` is the flexible thing in it, so the break is exactly
             // what the content left over.

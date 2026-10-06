@@ -1025,10 +1025,10 @@ enum GridConstants {
     // and taking it to 0.07 there would flatten the tower outright.
 
     // **`checkCircleSize` (24) is deleted** (2026-10-01), zero call sites, and
-    // the circle is the part that went: `PlanSheet` records the owner's own
+    // the circle is the part that went: `PlanLines` records the owner's own
     // objection, "why is there a circle dotted when it should be a square", so
     // what a plan line carries now is a block. The 24 is alive as
-    // `PlanBullet.side` and `PlanSheet.bulletSide`, which is where it has to be,
+    // `PlanBullet.side` and `PlanLines.bulletSide`, which is where it has to be,
     // because the ghost beside it is sized off the same number so that the outline
     // is the exact silhouette of what lands in it.
 

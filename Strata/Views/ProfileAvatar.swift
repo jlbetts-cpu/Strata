@@ -16,7 +16,7 @@ struct ProfileAvatar: View {
 
     /// **The app has one hairline and this file was drawing a second one.**
     /// `docs/design-system-future.md` section 6: a hairline is `1 / displayScale`
-    /// in ink at low alpha. `PlanSheet`, `FilmLookTray` and the map's panels all
+    /// in ink at low alpha. `PlanLines`, `FilmLookTray` and the map's panels all
     /// do exactly that; these two circles were the only places in the app using
     /// `GridConstants.headerDividerHeight` (a flat 0.5) as a stroke width, which
     /// is a hairline on a 2x phone and 50% too heavy on a 3x one. A line that is

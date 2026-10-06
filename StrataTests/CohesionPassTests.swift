@@ -61,7 +61,8 @@ struct CohesionPassTests {
 
     @Test("every page that names a day asks DayTitle, and none of them formats its own")
     func oneSpelling() throws {
-        for file in ["Views/JournalSheet.swift", "Views/DayAlbumDetailView.swift", "Views/Crews/CrewStatsSections.swift"] {
+        // `DaySheet` is the journal's sheet, merged with the plan (2026-10-05).
+        for file in ["Views/DaySheet.swift", "Views/DayAlbumDetailView.swift", "Views/Crews/CrewStatsSections.swift"] {
             let text = try MorningSource.read(file)
             #expect(text.contains("DayTitle.title(forKey:"), "\(file) names a day its own way")
             #expect(!text.contains("dateFormat = \"EEEE d MMMM\""), "\(file) still formats a day by hand")

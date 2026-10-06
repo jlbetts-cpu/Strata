@@ -87,14 +87,15 @@ struct SheetRoomTests {
         #expect(span == 8)
     }
 
-    /// `PlanSheet`'s source, for the one assertion that is about structure
+    /// `PlanLines`'s source (the Plan sheet's lines, the first part of the
+    /// day's page since 2026-10-05), for the one assertion that is about structure
     /// rather than a number. `#filePath` is this test file, so the view is
     /// found relative to it rather than from a working directory a test runner
     /// does not promise.
     private var planSheetPath: String {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Strata/Views/PlanSheet.swift").path
+            .appendingPathComponent("Strata/Views/PlanLines.swift").path
     }
 
     // MARK: - 11c, the air between things rather than after them
@@ -124,7 +125,10 @@ struct SheetRoomTests {
         // Read off the source, because the thing being asserted is structural:
         // a branch cannot have its own copy of this.
         let source = try! String(contentsOfFile: planSheetPath, encoding: .utf8)
-        let tails = source.components(separatedBy: "minHeight: Self.tailHeight").count - 1
+        // The tail is one row deep since the day became one page
+        // (2026-10-05): the note stands under it, so it is a fixed height
+        // rather than a minimum that took the rest of the sheet.
+        let tails = source.components(separatedBy: "height: Self.tailHeight").count - 1
         #expect(tails == 1,
                 "the tap-to-write tail is written \(tails) times; two copies is how the two states drift")
         #expect(source.contains("if lines.isEmpty { hint }"),
@@ -139,7 +143,7 @@ struct SheetRoomTests {
         // so centring the invitation moves it too — which is exactly what was
         // tried and reverted on 2026-10-01. Stated here because it is the
         // obvious next "fix" somebody will try, and it was tried.
-        #expect(PlanSheet.tailHeight > 0)
+        #expect(PlanLines.tailHeight > 0)
         let source = try! String(contentsOfFile: planSheetPath, encoding: .utf8)
         // The DECLARATION, not the word: the deletion note in that file names
         // the token so the next person finds the reasoning, and a sweep that

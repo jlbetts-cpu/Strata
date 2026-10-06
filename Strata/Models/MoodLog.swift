@@ -52,7 +52,7 @@ final class MoodLog {
 
     /// The day's sketch, a PNG beside the photographs, by file name. Stored in
     /// `imageURL`, a dead column. Drawn under the words in the journal
-    /// (`JournalSheet.sketchSlot`); its picture and its strokes are files in
+    /// (`DaySheet.sketch`); its picture and its strokes are files in
     /// `InkFiles`, kept by `JournalSketches`. **The name syncs and the file
     /// does not**: another phone of the same person's reads a name it has no
     /// file for and draws nothing, never a broken picture.

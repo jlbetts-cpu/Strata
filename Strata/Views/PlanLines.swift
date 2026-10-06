@@ -19,9 +19,23 @@ import SwiftData
 /// tick it throws away the other half of what this page is for — seeing what
 /// you got through. `PlanItem.sweep` does the clearing at the next launch on a
 /// new day.
-struct PlanSheet: View {
+///
+/// **The plan is the first part of the day's page now, not a sheet of its
+/// own** (owner-approved, 2026-10-05: "the plan and journal screen could
+/// probably be merged like a place where you can jot down the day while also
+/// planning the day"). `DaySheet` holds the chrome, the title, Done and
+/// Suggest; this is the lines exactly as the Plan sheet drew them, with their
+/// checkboxes, swipe to delete, the long-press menu, repeats, sizes and
+/// colours. What moved: the ＋ that stood top left (the emoji stands there
+/// now; a line is added by its ghost row, by return, or by the tap under the
+/// last line), and the tail, which was every point of page left under the
+/// list and is one row deep now, because the note is under it.
+struct PlanLines: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+
+    /// The line being typed in, shared with the page so Suggest knows which
+    /// part you are in (`SuggestTarget`).
+    @Binding var focused: UUID?
 
     /// Called with the line when its block is pressed. The caller opens the
     /// add sheet; the line is ticked at once, and the tick is kept only once
@@ -30,7 +44,6 @@ struct PlanSheet: View {
 
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
-    @State private var focused: UUID?
     @State private var detail: PlanItem?
     /// The line whose Delete is showing, if one is. One at a time, as Mail
     /// and Reminders do: opening another closes it.
@@ -68,13 +81,14 @@ struct PlanSheet: View {
     /// out at 54, which is what the separator's hand-written sum said.
     private static let textLeading: CGFloat =
         GridConstants.horizontalPadding - bulletInset + tapTarget + GridConstants.spacing
-    /// The tap-to-write space under the last line, when the list is long
-    /// enough that there is no spare page to give it. On a short list it takes
-    /// everything that is left instead. See `content`.
+    /// The tap-to-write space under the last line: **one row deep** since the
+    /// day became one page (2026-10-05). It was 160, and on a short list it
+    /// took every point of page that was left; the note stands under it now,
+    /// so the space under the list is the place the next line lands, drawn as
+    /// that line's ghost, and the page's quiet gap follows. See `content`.
     ///
-    /// Not `private`: `SheetRoomTests` checks that the floor the empty page's
-    /// split leaves under the invitation is still at least this deep.
-    static let tailHeight: CGFloat = 160
+    /// Not `private`: `SheetRoomTests` checks it is still there.
+    static let tailHeight: CGFloat = tapTarget + GridConstants.spacing * 2
 
     // **`emptyFieldShares` (8 : 5) is deleted** (2026-10-01), four hours after
     // it was added. It put the invitation on the field's golden section, which
@@ -97,269 +111,147 @@ struct PlanSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .sheetTitle("Plan", drawn: true)
-                .toolbar { planToolbar }
-                .sheet(item: $detail) { item in
-                    PlanItemDetailSheet(item: item)
-                }
-                // **The line detail, which is otherwise behind a tap** and so
-                // had never been photographed. `-strataOpenSheet planline`
-                // raises this sheet from `MainAppView` and opens the first
-                // line's detail here. On the main actor after a beat, because
-                // `items` reads the fetch and a sheet presented from inside the
-                // same runloop turn as its parent does not appear.
-                #if DEBUG
-                // `-strataPlanSwipe 1` opens the first line's Delete, which is
-                // behind a swipe nothing here can make.
-                .task {
-                    guard DebugHarness.argument("-strataPlanSwipe") == "1" else { return }
-                    try? await Task.sleep(for: .milliseconds(900))
-                    withAnimation(GridConstants.motionSnappy) { swiped = items.first?.id }
-                }
-                .task {
-                    guard DebugHarness.openSheet == "planline",
-                          let first = items.first else { return }
-                    try? await Task.sleep(nanoseconds: 700_000_000)
-                    detail = first
-                }
-                #endif
-        }
-        // **Full height, and stated.** It was unstated, which happens to give
-        // the same thing, and unstated is how two sheets end up differing
-        // without anybody choosing.
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        // The page's own ground, as the sheet's material rather than as a layer
-        // inside it. `AddWinSheet` records why: through the default frosted
-        // glass the tower's colours bleed up behind the controls, and a frosted
-        // surface is the block's material, not a sheet's. This was a
-        // `WarmBackground` in a `ZStack`, which covers the content area and
-        // leaves the sheet's own material to the system.
-        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        content
+            .sheet(item: $detail) { item in
+                PlanItemDetailSheet(item: item)
+            }
+            // **The line detail, which is otherwise behind a tap** and so
+            // had never been photographed. `-strataOpenSheet planline` raises
+            // the day's page from `MainAppView` and opens the first line's
+            // detail here. On the main actor after a beat, because `items`
+            // reads the fetch and a sheet presented from inside the same
+            // runloop turn as its parent does not appear.
+            #if DEBUG
+            // `-strataPlanSwipe 1` opens the first line's Delete, which is
+            // behind a swipe nothing here can make.
+            .task {
+                guard DebugHarness.argument("-strataPlanSwipe") == "1" else { return }
+                try? await Task.sleep(for: .milliseconds(900))
+                withAnimation(GridConstants.motionSnappy) { swiped = items.first?.id }
+            }
+            .task {
+                guard DebugHarness.openSheet == "planline",
+                      let first = items.first else { return }
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                detail = first
+            }
+            #endif
     }
 
-    /// **The same bare glyphs every other screen has.**
-    ///
-    /// These two were plain `ToolbarItem`s, so on iOS 26 they kept the glass
-    /// capsule the system puts behind every toolbar item — which the rest of
-    /// the app strips deliberately (see the Toolbars note in `MainAppView`). Two
-    /// consequences, and the owner hit both: the plan did not look like the
-    /// screens either side of it, and the capsule rendered BLACK against this
-    /// sheet's warm ground when it was jostled mid-gesture — "i bumped into
-    /// the screen tweaking and the apple glass plan button turned black."
-    ///
-    /// Typed `ToolbarContent` rather than an inline `.toolbar`, because that
-    /// is where the availability gate can live:
-    /// `ToolbarContentBuilder` supports `if #available` through
-    /// `buildLimitedAvailability`, and an inline one does not.
-    @ToolbarContentBuilder
-    private var planToolbar: some ToolbarContent {
-        // **Done on the right, like every other sheet.** It was on the left,
-        // with the plus on the right; Profile, Settings and the win sheet all
-        // confirm top-right, so the plan was the one screen where a thumb
-        // reaching for Done found a plus. The owner's call (2026-09-13).
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) { addButton }
-                .sharedBackgroundVisibility(.hidden)
-            ToolbarItem(placement: .topBarTrailing) { doneButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) { addButton }
-            ToolbarItem(placement: .topBarTrailing) { doneButton }
-        }
-    }
-
-    /// **`SheetActionLabel` carries both of these now** (2026-10-01,
-    /// `docs/consistency-audit.md` §1.4). The 44pt box this sheet earned —
-    /// "audited from the accessibility tree: Done came out 68x36 and the plus
-    /// 35x36, both under Apple's minimum, and this is the screen the owner had
-    /// already called 'really easy to miss click'" — is in the shared type, which
-    /// is what stops the next sheet going without it. The ink moved with it, from
-    /// `accentWarm` to `inkPrimary`: see `SheetAction.swift` for why, and for the
-    /// part of §1.4 that is wrong about `accentWarm`.
-    private var doneButton: some View {
-        Button {
-            HapticsEngine.lightTap()
-            tidy()
-            dismiss()
-        } label: {
-            Text("Done").sheetAction()
-        }
-        .buttonStyle(.pressWord)
-    }
-
-    /// The ＋ is a `.confirm` too, and that is deliberate: it is what this sheet
-    /// is FOR, and it is in the slot a sheet with two words gives to Cancel. The
-    /// audit's §3.4 table is the record of how confusing that slot has been; the
-    /// ink says which of the two kinds of thing is in it.
-    private var addButton: some View {
-        Button { addLine() } label: {
-            Image(systemName: "plus").sheetAction(.confirm, as: .glyph)
-        }
-        .buttonStyle(.press)
-        .accessibilityLabel("Add a line")
-    }
+    // **The sheet's chrome went to `DaySheet`** (2026-10-05): the large
+    // detent stated, the drag indicator, the page's own ground as the sheet's
+    // material (through the default frosted glass the tower's colours bled up
+    // behind the controls), and the bar's bare glyphs with no system capsule
+    // behind them (on iOS 26 a plain `ToolbarItem` kept a capsule that went
+    // BLACK against the warm ground when jostled: "i bumped into the screen
+    // tweaking and the apple glass plan button turned black"). The ＋ that
+    // lived in that bar is gone with it; see the note on the type.
 
     @ViewBuilder
     private var content: some View {
-        // **The whole empty page answers a tap, not the first 160pt of it.**
-        //
-        // Measured off the built sheet at 402x874 with five lines on it: the
-        // last line ended at 403pt, so 471pt of the page was empty and only
-        // 160 of them did anything. Pressing the middle of a blank page and
-        // getting nothing is the opposite of what a page of bullets promises,
-        // and it is invisible from the source: the tail was a number, and a
-        // number cannot be wrong against a screen it has never been compared
-        // to.
-        //
-        // The `GeometryReader` is what makes the fix arithmetic rather than a
-        // guess: the stack is held to at least the viewport's own height and
-        // the tail is the flexible thing in it, so it takes exactly whatever
-        // the lines left over. On a list taller than the screen the
-        // `minHeight` stops binding and the tail falls back to its 160, which
-        // is still deep enough to be aimed at rather than found by accident.
-        GeometryReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                // Read once. `items` filters `allItems` on every access, and
-                // the separator below has to ask how many there are.
-                let lines = items
-                VStack(alignment: .leading, spacing: 0) {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(lines) { item in
-                            row(item)
-                            // **Between two lines, never after the last one.**
-                            //
-                            // The hairline was drawn in the `ForEach` body with
-                            // the row, so five lines got five separators where
-                            // five lines have four boundaries. Measured at
-                            // 402x874: a rule at y=403.0 with the page's last
-                            // ink at 389 and 471pt of nothing under it, which
-                            // is a line separating a list from the empty half
-                            // of a sheet. A separator is a statement about two
-                            // things; drawn against one it is a rule across the
-                            // page.
-                            //
-                            // Compared by id rather than by an enumerated
-                            // index, so the `ForEach` stays keyed on identity:
-                            // keyed on position instead, the focused line's
-                            // `UITextField` would be re-identified every time a
-                            // line above it was added or backspaced away, which
-                            // is how a caret ends up jumping rows.
-                            if item.id != lines.last?.id { separator }
-                        }
-                    }
+        // Read once. `items` filters `allItems` on every access, and the
+        // separator below has to ask how many there are.
+        let lines = items
+        VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(lines) { item in
+                    row(item)
+                    // **Between two lines, never after the last one.**
+                    //
+                    // The hairline was drawn in the `ForEach` body with the
+                    // row, so five lines got five separators where five lines
+                    // have four boundaries. A separator is a statement about
+                    // two things; drawn against one it is a rule across the
+                    // page.
+                    //
+                    // Compared by id rather than by an enumerated index, so
+                    // the `ForEach` stays keyed on identity: keyed on position
+                    // instead, the focused line's `UITextField` would be
+                    // re-identified every time a line above it was added or
+                    // backspaced away, which is how a caret ends up jumping
+                    // rows.
+                    if item.id != lines.last?.id { separator }
+                }
+            }
 
-                    // **THE INVITATION SITS IN THE FIELD, NOT AT THE TOP OF
-                    // IT** (2026-10-01, check 11c of `docs/screen-audit.md`).
-                    //
-                    // **THE INVITATION STANDS WHERE THE FIRST LINE LANDS, AND
-                    // IT WAS MOVED TO THE GOLDEN SECTION FOR FOUR HOURS.**
-                    //
-                    // The owner, 2026-10-01: "I noticed you added the space way
-                    // down for the plan even though it was supposed to show the
-                    // bullet point and with the change with the title like some
-                    // layout changes need to happen to accomidate it so it
-                    // looks good."
-                    //
-                    // He is right, and the version he is objecting to had
-                    // written down its own price three paragraphs below where
-                    // it put the thing: "the first line does not appear where
-                    // the ghost stood ... that distance is about 420pt now."
-                    // A price that large written next to a change is usually
-                    // the change being wrong rather than the price being worth
-                    // it.
-                    //
-                    // **What it got wrong is what the invitation IS.** It is
-                    // not an empty state's caption, it is row one: a bullet's
-                    // silhouette with the words beside it, drawn exactly where
-                    // the first real line will be, so that pressing it is the
-                    // row filling in rather than a control somewhere else
-                    // producing one somewhere else. Standing it 420pt down the
-                    // page made it a picture of a row instead of the row, and
-                    // no animation fixes a thing being in the wrong place; it
-                    // only makes the wrongness smooth.
-                    //
-                    // **And it made the sheet's two states disagree about the
-                    // same emptiness.** With lines, the space underneath is the
-                    // tap-to-write field, measured and deliberately kept, and
-                    // the owner has since exempted its 451pt in writing. With
-                    // none, that identical space was being read as a check 11c
-                    // failure and a figure was moved into it. Both cannot be
-                    // true. The list wins, because it is the state the sheet is
-                    // in every day after the first.
-                    //
-                    // So 11c is not satisfied here and is exempt for the same
-                    // reason the with-lines state is: the run under the last
-                    // band is the affordance, not a dead tail. That is recorded
-                    // in `docs/screen-audit.md` rather than solved by moving
-                    // something.
-                    if lines.isEmpty { hint }
-                    // Pressing the empty space below starts a new line, which
-                    // is what a page of bullets does. Without it the only way
-                    // to add is the button in the corner, and the corner is
-                    // not where anyone looks when they are writing.
-                    //
-                    // A written page keeps its lines at the TOP: lines flow
-                    // downward, and a list that floats in the middle of a sheet
-                    // moves every time one is added.
-                    //
-                    // **It is outside the branch, so the empty page and the
-                    // written one are the same page.** It used to belong to the
-                    // list alone, which is how the two states came to disagree
-                    // about the same emptiness: identical space, read as an
-                    // affordance under a list and as a composition fault under
-                    // a ghost. One row and one tail is what the sheet looks
-                    // like with nothing in it, which is the only honest picture
-                    // of a page you write on.
-                    Color.clear
-                        .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
-                        .accessibilityLabel("Add a line")
-                        .accessibilityAddTraits(.isButton)
-                }
-                .padding(.top, GridConstants.gapTight)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: proxy.size.height, alignment: .top)
+            // **THE INVITATION STANDS WHERE THE FIRST LINE LANDS, AND IT WAS
+            // MOVED TO THE GOLDEN SECTION FOR FOUR HOURS** (2026-10-01).
+            //
+            // The owner: "I noticed you added the space way down for the plan
+            // even though it was supposed to show the bullet point". It is
+            // not an empty state's caption, it is row one: a bullet's
+            // silhouette with the words beside it, drawn exactly where the
+            // first real line will be, so that pressing it is the row filling
+            // in rather than a control somewhere else producing one somewhere
+            // else.
+            if lines.isEmpty { hint }
+            // **The tail: the next line's place, one row deep.** Pressing it
+            // starts a new line, which is what a page of bullets does. Under
+            // a written list it carries the ghost of the next bullet, the
+            // dashed outline the tower uses for "nothing here yet", because
+            // the ＋ that used to say "you can add" from the corner is gone.
+            //
+            // **Outside the branch, so the empty page and the written one are
+            // the same page** (`SheetRoomTests.bothStatesAreOnePage`). One
+            // copy of the tail is how the two states stopped disagreeing.
+            HStack(spacing: GridConstants.spacing) {
+                if !lines.isEmpty { ghostBullet }
+                Spacer(minLength: 0)
             }
-            .scrollDismissesKeyboard(.interactively)
-            // Suggest stands at the foot of the page, where the app's main
-            // things stand (`PlanSuggestionsView`). Only on a phone that has
-            // Apple's on-device model; otherwise the page is as it was.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if PlanSuggestions.isAvailable {
-                    PlanSuggestionsView(context: suggestionContext, keep: keep, unkeep: unkeep)
-                }
-            }
+            .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: Self.tailHeight)
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
+            .accessibilityElement()
+            .accessibilityLabel("Add a line")
+            .accessibilityAddTraits(.isButton)
         }
+        .padding(.top, GridConstants.gapTight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The bullet's silhouette: the exact shape of what will land in it, at
+    /// `bulletSide`, in `PlanBullet`'s outline ink and weight, dashed.
+    private var ghostBullet: some View {
+        RoundedRectangle(
+            cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
+            style: .continuous)
+            .strokeBorder(PlanBullet.outlineInk,
+                          style: StrokeStyle(
+                            lineWidth: PlanBullet.outlineWidth(forSide: Self.bulletSide),
+                            dash: [GridConstants.ghostBlockDashLength]))
+            .frame(width: Self.bulletSide, height: Self.bulletSide)
+            .frame(width: Self.tapTarget, height: Self.tapTarget)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Suggestions
 
-    private func suggestionContext(_ alreadyShown: [String]) -> PlanSuggestionContext {
-        PlanSuggestionContext.make(plan: items.map(\.text),
+    /// What the model is told: today's lines and the wins it has to go on.
+    static func suggestionContext(lines: [PlanItem], habits: [Habit],
+                                  alreadyShown: [String]) -> PlanSuggestionContext {
+        PlanSuggestionContext.make(plan: lines.map(\.text),
                                    wins: habits.map { ($0.title, $0.category, $0.createdAt) },
                                    alreadyShown: alreadyShown)
     }
 
     /// A checked suggestion becomes a line at the end of the plan, in its
     /// colour, at its size, with its repeat.
-    private func keep(_ suggestion: PlanSuggestion) -> UUID {
-        let position = (allItems.last?.order ?? -1) + 1
+    static func keep(_ suggestion: PlanSuggestion, after all: [PlanItem], context: ModelContext) -> UUID {
+        let position = (all.last?.order ?? -1) + 1
         let line = PlanItem(text: suggestion.title, order: position, category: suggestion.category)
         line.size = suggestion.size
         line.repeatDays = suggestion.repeatDays
-        modelContext.insert(line)
-        try? modelContext.save()
+        context.insert(line)
+        try? context.save()
         return line.id
     }
 
-    private func unkeep(_ id: UUID) {
-        guard let line = allItems.first(where: { $0.id == id }) else { return }
-        modelContext.delete(line)
-        StoreReset.commitDelete("taking back a suggested plan line", context: modelContext)
+    static func unkeep(_ id: UUID, from all: [PlanItem], context: ModelContext) {
+        guard let line = all.first(where: { $0.id == id }) else { return }
+        context.delete(line)
+        StoreReset.commitDelete("taking back a suggested plan line", context: context)
     }
 
     /// **A hairline in ink, not a `Divider`.**
@@ -674,7 +566,7 @@ struct PlanSheet: View {
         item.completedAt = Date()
         try? modelContext.save()
         HapticsEngine.success()
-        tidy()
+        Self.tidy(allItems, keeping: focused, context: modelContext)
         onComplete(item)
     }
 
@@ -719,13 +611,16 @@ struct PlanSheet: View {
     }
 
     /// Drops blank lines. An empty bullet you walked away from was never an
-    /// item — the one you are still typing in is left alone.
-    private func tidy() {
-        for item in allItems
+    /// item — the one you are still typing in is left alone. The page calls
+    /// it on Done and on the way out.
+    static func tidy(_ all: [PlanItem], keeping focused: UUID?, context: ModelContext) {
+        var dropped = false
+        for item in all
         where item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && item.id != focused {
-            modelContext.delete(item)
+            context.delete(item)
+            dropped = true
         }
-        StoreReset.commitDelete("dropping blank plan lines", context: modelContext)
+        if dropped { StoreReset.commitDelete("dropping blank plan lines", context: context) }
     }
 }

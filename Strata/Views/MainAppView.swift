@@ -233,7 +233,11 @@ struct MainAppView: View {
     @State private var tickAwaitingWin: UUID?
     /// The orphan sweep runs once a launch, not once a refresh.
     @State private var hasPrunedImages = false
+    /// The day's page is up (`DaySheet`, the plan and the note on one page).
     @State private var isPlanning = false
+    /// Whether that page carries the note: false only when Lock Journal is on
+    /// and Face ID was refused, which still opens the plan.
+    @State private var dayNoteOpen = true
 
     // Skeleton build-up animation
     @State private var visibleSkeletonCount: Int = 0
@@ -601,7 +605,11 @@ struct MainAppView: View {
                 pendingDraft = nil
             }
         }) {
-            PlanSheet { item in
+            // **The day's page: the plan, then the note** (owner-approved,
+            // 2026-10-05). It replaced the Plan sheet and today's Journal
+            // sheet, which were two pages of nearly the same shape.
+            DaySheet(dateString: DateUtils.dateString(from: Date()),
+                     parts: .forDay(isToday: true, noteOpen: dayNoteOpen)) { item in
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
@@ -984,7 +992,7 @@ struct MainAppView: View {
             .background { WarmBackground().ignoresSafeArea() }
     }
 
-    /// The whole header: the Journal and Plan pair, Crews, and nothing else.
+    /// The whole header: the day's button, Crews, and nothing else.
     ///
     /// It has lost a filter control, a period label, a height and now **the
     /// count**, in that order. The owner, 2026-09-30: "remove the wins number
@@ -1030,16 +1038,18 @@ struct MainAppView: View {
         // each other exactly.
         HStack(alignment: .center, spacing: GridConstants.gapTight) {
             // **Mine on the left, the crew on the right** (owner-approved,
-            // 2026-10-05). Journal and Plan are one glass pair at the leading
-            // edge, Journal on the far left and Plan inner, because both are
-            // yours: the day's note and the day's plan. Crews stands alone at
-            // the trailing edge. Three reasons for the right, each pinned in
-            // `WinsBatchTests.headerOrder`: the HIG's trailing end is for what
-            // must stay available; Instagram and Strava both put their chat
-            // and notification entry points top right; and a right thumb
-            // reaches the top right more easily than the top left (Hoober).
-            // It was top left from 2026-10-02 ("a simple social button on the
-            // top left"), which this placement supersedes at his word.
+            // 2026-10-05). The day's page is ONE glass button at the leading
+            // edge, `checklist` (his pick), because the plan and the note are
+            // one page now ("the plan and journal screen could probably be
+            // merged"); it replaced the Journal and Plan pair the same day.
+            // Crews stands alone at the trailing edge. Three reasons for the
+            // right, each pinned in `WinsBatchTests.headerOrder`: the HIG's
+            // trailing end is for what must stay available; Instagram and
+            // Strava both put their chat and notification entry points top
+            // right; and a right thumb reaches the top right more easily than
+            // the top left (Hoober). It was top left from 2026-10-02 ("a
+            // simple social button on the top left"), which this placement
+            // supersedes at his word.
             //
             // **The head's bubble is gone from this row** (the owner,
             // 2026-10-05: "remove the head from the main home screen because
@@ -1048,14 +1058,8 @@ struct MainAppView: View {
             // from 2026-10-02, and was where the tower head parked. Without
             // it he cannot be parked, so he lives on the tower whenever
             // Profile's tower switch is on (`CompanionParking.hasDock`).
-            HeaderGlassPair {
-                // **The day's journal** (spec section 2, approved
-                // 2026-10-05). `JournalButton` owns the sheet and the lock,
-                // and on Wins it never carries a dot: only Crews does here.
-                JournalButton(dateString: DateUtils.dateString(from: Date()))
-                    .companionObstacle("journal")
-                headerPlan
-            }
+            // No dot on it: on Wins only Crews ever carries one.
+            headerDay
             Spacer(minLength: 0)
             // Empty while crews are off, so the pair has the row to itself.
             // The unread dot is `CrewsButton`'s own, from `SocialStore.unread`.
@@ -1119,27 +1123,37 @@ struct MainAppView: View {
     // cover that presented them. What stayed is `refreshReplayWindow`, because
     // the replay NOTIFICATIONS are still this view's to keep warm.
 
-    private var headerPlan: some View {
-        // The plan, where sharing was, which was where the range picker
-        // was before that.
+    private var headerDay: some View {
+        // **The day's page: the plan, then the note**, where the Plan button
+        // stood, which was where sharing was, which was where the range
+        // picker was before that.
         //
-        // Sharing is a thing you do occasionally and can be reached other
-        // ways; planning is a thing some people do every morning, and it
-        // has to be one press from the tower or it will not happen. This
-        // corner takes whichever of the two is used more, and it is not
-        // the one that needs an audience.
+        // Planning is a thing some people do every morning, and it has to be
+        // one press from the tower or it will not happen; writing the day
+        // down is the same press now. This corner takes whichever is used
+        // most, and it is not the one that needs an audience.
         GlassIconButton(
-            systemName: "checklist",
+            systemName: DayIcon.name,
             onPage: true,
-            accessibilityLabel: "Plan"
+            accessibilityLabel: "Plan and Journal"
         ) {
-            isPlanning = true
+            openDay()
         }
         .companionObstacle("plan")
         // No profile button here. Profile lives on Memories only — the
         // owner's call: the tower is today's record and its corner belongs
         // to the plan; who you are and how your weeks have gone is the
         // Memories tab's subject.
+    }
+
+    /// Opens the day's page. The note asks `JournalLock` first, once a
+    /// session, as the journal always did; refused, the page still opens on
+    /// the plan, because the lock is for the note.
+    private func openDay() {
+        Task {
+            dayNoteOpen = await JournalLock.shared.unlock()
+            isPlanning = true
+        }
     }
 
     /// **The day's two dominant colours, by how much of the tower they cover.**
@@ -2131,7 +2145,12 @@ struct MainAppView: View {
         if DebugHarness.reportsLocation {
             DebugHarness.runLocationProbe(LocationService.shared)
         }
-        if DebugHarness.seedPlan != nil { isPlanning = true }
+        // `-strataOpenJournal today` is the day's page from the Wins header
+        // now (2026-10-05), the same page the plan's flags open.
+        if DebugHarness.seedPlan != nil || DebugHarness.openJournal == "today" {
+            selectedTab = .tower
+            openDay()
+        }
         if DebugHarness.dumpsShareCard {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
@@ -2191,7 +2210,7 @@ struct MainAppView: View {
         // a screen with no scriptable route in is a screen that gets rated
         // off its source instead of off its pixels, which is how the add
         // sheet sat 49% empty without anybody noticing.
-        case "plan":     selectedTab = .tower; isPlanning = true
+        case "plan":     selectedTab = .tower; openDay()
         // **The add sheet HOLDING a photograph, which is a different page from
         // the fresh one and had never been photographed** (2026-10-01). With a
         // picture in it the colour row disappears — `AddWinSheet`'s own "no
@@ -2206,11 +2225,11 @@ struct MainAppView: View {
         // well (370pt) cannot fit above a keyboard (2026-10-02).
         case "adddeep":  selectedTab = .tower
                          winDraft = WinDraft(photo: DebugHarness.placeholderPhoto(), size: .hard)
-        // The plan's line detail, which is behind a tap on a line. `PlanSheet`
+        // The plan's line detail, which is behind a tap on a line. `PlanLines`
         // reads the same value and opens its first line; both halves are
         // needed, because the sheet has to be up before anything in it can be
         // tapped.
-        case "planline": selectedTab = .tower; isPlanning = true
+        case "planline": selectedTab = .tower; openDay()
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         // The edit sheet's title, which is otherwise behind a long press.
         case "edit":     selectedTab = .tower; editingHabit = habits.first

@@ -54,7 +54,7 @@ struct RestoreBackupView: View {
             // the confirm button in `contents(of:)` has nothing to expand into
             // and the button stays where it was, with the page's biggest break
             // under it. See that `Spacer` for the measurement; the pattern is
-            // `AddWinSheet`'s and `PlanSheet.content`'s.
+            // `AddWinSheet`'s and the Plan sheet's `content`'s.
             GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: GridConstants.gapWide) {
@@ -224,7 +224,7 @@ struct RestoreBackupView: View {
             // the screen, which is also where a break belongs on a page that
             // asks you to read before you press.
             //
-            // The pattern is `AddWinSheet`'s and `PlanSheet.content`'s, not a
+            // The pattern is `AddWinSheet`'s and the Plan sheet's `content`'s, not a
             // new one: the stack is held to at least the viewport's height by
             // the `GeometryReader` in `body` and the `Spacer` is the only
             // flexible thing in it. With a backup that carries warnings the

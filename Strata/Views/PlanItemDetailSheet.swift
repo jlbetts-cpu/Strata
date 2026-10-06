@@ -183,7 +183,7 @@ struct PlanItemDetailSheet: View {
                 // line stays until the day turns, is not lost and was in the
                 // wrong place: it is true of EVERY line on the plan, repeating
                 // or not, so it belongs to the plan and not to this switch.
-                // `PlanSheet`'s own type documentation carries it.
+                // `PlanLines`'s own type documentation carries it.
 
                 Section { deleteRow }
             }
@@ -193,7 +193,7 @@ struct PlanItemDetailSheet: View {
             .toolbar { detailToolbar }
         }
         // Half height first, because this sheet is four controls. `AddWinSheet`
-        // and `PlanSheet` are `[.large]` and say why; a detail sheet is the one
+        // and `PlanLines` are `[.large]` and say why; a detail sheet is the one
         // shape in the family that is allowed to be shorter than the page it
         // came from.
         .presentationDetents([.medium, .large])
@@ -287,7 +287,7 @@ struct PlanItemDetailSheet: View {
     ///
     /// **"Both rows" was the old wording and it was the bug** (2026-10-01).
     /// The colour row and the day row each carried this; the TOOLBAR did not,
-    /// so Done and the trash were sized by their own labels. `PlanSheet`, which
+    /// so Done and the trash were sized by their own labels. `PlanLines`, which
     /// is the sheet this one opens from, has the audit on it: read off the
     /// accessibility tree a toolbar Done came out 68x36 and a toolbar plus
     /// 35x36, both under the minimum, on the screen the owner had already
@@ -319,7 +319,7 @@ struct PlanItemDetailSheet: View {
     ///
     /// It held a trash glyph that deleted the line, committed and dismissed in
     /// one press — from the position every other sheet in the app uses to back
-    /// out of itself. `AddWinSheet` puts Cancel there and `PlanSheet`, which is
+    /// out of itself. `AddWinSheet` puts Cancel there and `PlanLines`, which is
     /// the sheet directly behind this one, puts ＋ there. A thumb that has
     /// learned either of those finds a delete with no confirmation.
     ///
