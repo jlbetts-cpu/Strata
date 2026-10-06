@@ -462,7 +462,8 @@ struct DaySheet: View {
                             PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)
                         },
                         keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
-                        unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) })
+                        unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) },
+                        offersWord: planFocus != nil)
                 }
                 planComposer
             }
@@ -677,15 +678,18 @@ struct DaySheet: View {
     // MARK: - The Journal's foot
 
     /// The journal's own Suggest, offered everywhere (the fixed list answers
-    /// without the model), with the pen at the trailing edge, because the
-    /// sketch is the journal's. The plan's Suggest is the Plan tab's.
+    /// without the model). The plan's Suggest is the Plan tab's.
     ///
     /// **The chat's bar** (the owner's pick, 2026-10-06, "Composer for
     /// both"): what is sent joins the note as its next paragraph. The pen
     /// stands where a chat keeps its attachment, and Suggest sits above.
     private var journalFoot: some View {
         VStack(spacing: 0) {
-            journalSuggest
+            // Only while the keyboard is up (the owner, 2026-10-06: "the
+            // suggest should only pop up when the keyboard does").
+            if writing || journalComposing {
+                journalSuggest.transition(.opacity)
+            }
             DayComposer(canSend: DayComposing.hasWords(journalDraft), onSend: sendParagraph) {
                 TextField(invitation, text: $journalDraft, axis: .vertical)
                     .lineLimit(1...5)
@@ -697,6 +701,7 @@ struct DaySheet: View {
                 }
             }
         }
+        .animation(motion, value: writing || journalComposing)
     }
 
     private func sendParagraph() {

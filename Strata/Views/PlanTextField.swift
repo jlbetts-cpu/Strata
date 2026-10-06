@@ -145,5 +145,13 @@ struct PlanTextField: UIViewRepresentable {
         func textFieldDidBeginEditing(_ field: UITextField) {
             if parent.focused != parent.id { parent.focused = parent.id }
         }
+
+        /// The keyboard went down with this field (a scroll, a tap away):
+        /// say so, or the page goes on believing a line is being written.
+        /// Moving to another line ends this one before the next begins, and
+        /// the guard leaves a focus already handed on alone.
+        func textFieldDidEndEditing(_ field: UITextField) {
+            if parent.focused == parent.id { parent.focused = nil }
+        }
     }
 }

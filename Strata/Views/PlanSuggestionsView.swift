@@ -19,6 +19,10 @@ struct PlanSuggestionsView: View {
     /// Takes a kept suggestion back off the plan.
     var unkeep: (UUID) -> Void
     var suggester: PlanSuggester = PlanSuggestions.suggester
+    /// The idle word shows only while the keyboard is up (the owner,
+    /// 2026-10-06: "the suggest should only pop up when the keyboard does").
+    /// Suggestions already asked for stay when it goes down.
+    var offersWord = true
 
     private enum Phase: Equatable {
         case idle, thinking, showing([PlanSuggestion]), failed
@@ -38,7 +42,9 @@ struct PlanSuggestionsView: View {
         VStack(alignment: .leading, spacing: 0) {
             switch phase {
             case .idle:
-                suggestButton
+                if offersWord {
+                    suggestButton.transition(.opacity)
+                }
             case .thinking:
                 // Three faint rows where the three will land: the page says
                 // what is coming and where, rather than a spinner saying only
@@ -67,6 +73,7 @@ struct PlanSuggestionsView: View {
         .padding(.bottom, GridConstants.gapTight)
         .task { PlanSuggestions.prewarm() }
         .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: phase)
+        .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: offersWord)
     }
 
     private var suggestButton: some View {

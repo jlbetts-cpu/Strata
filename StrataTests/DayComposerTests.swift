@@ -63,4 +63,23 @@ struct DayComposerTests {
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
         #expect(sheet.contains("onSend: sendPlanLine)"))
     }
+
+    /// The owner, 2026-10-06: "I think the suggest should only pop up when
+    /// the keyboard does looks a little off above it". At rest the bar
+    /// stands alone; Suggest appears over it while a field has the keyboard.
+    @Test("Suggest shows only while the keyboard is up, on both tabs")
+    func suggestOnlyWithTheKeyboard() throws {
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
+        #expect(sheet.contains("offersWord: planFocus != nil)"))
+        #expect(sheet.contains("if writing || journalComposing {\n                journalSuggest"))
+        let plan = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanSuggestionsView.swift"))
+        #expect(plan.contains("if offersWord {"))
+        // Suggestions already asked for stay when the keyboard goes down:
+        // only the idle word is gated.
+        let showing = try #require(plan.components(separatedBy: "case .showing").dropFirst().first)
+        #expect(!(showing.components(separatedBy: "case .failed").first ?? "").contains("offersWord"))
+        // A plan field that loses the keyboard says so, or the word stays.
+        let field = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanTextField.swift"))
+        #expect(field.contains("func textFieldDidEndEditing"))
+    }
 }
