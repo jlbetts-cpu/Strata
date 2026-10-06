@@ -907,6 +907,9 @@ struct MainAppView: View {
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { oldTab, newTab in
+            // Off the camera: the front flash's brightness goes back now, not
+            // when the camera's view finally disappears under the new tab.
+            if oldTab == .camera { RingBrightness.restore() }
             HapticsEngine.tick()
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }

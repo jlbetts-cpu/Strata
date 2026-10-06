@@ -49,7 +49,6 @@ struct CameraView: View {
     @State private var countdownTask: Task<Void, Never>?
     /// What the screen was set to before the ring light raised it. Nil when
     /// the ring is not holding it up.
-    @State private var brightnessBeforeRing: CGFloat?
     /// Where the lens was when the current pinch began. A `MagnifyGesture`
     /// reports a magnification RELATIVE to the start of the gesture, so
     /// multiplying it by a live value would compound on every frame.
@@ -423,19 +422,10 @@ struct CameraView: View {
     }
 
     /// Raises the screen for the ring light, and puts it back afterwards.
-    ///
-    /// `brightnessBeforeRing` is set only on the way up and cleared on the way
-    /// down, so arming twice cannot capture 1.0 as the value to restore.
+    /// The bookkeeping is `RingBrightness`'s, so the tab bar can put it back
+    /// the instant you leave the camera.
     private func setRingBrightness(_ on: Bool) {
-        if on {
-            if brightnessBeforeRing == nil {
-                brightnessBeforeRing = UIScreen.main.brightness
-            }
-            UIScreen.main.brightness = 1.0
-        } else if let previous = brightnessBeforeRing {
-            UIScreen.main.brightness = previous
-            brightnessBeforeRing = nil
-        }
+        if on { RingBrightness.raise() } else { RingBrightness.restore() }
     }
 
     // MARK: - Review
@@ -1990,5 +1980,31 @@ struct RetouchPreview: UIViewRepresentable {
                 #endif
             }
         }
+    }
+}
+
+/// **The screen's brightness while the front flash's ring is lit.**
+///
+/// It was put back from the camera's `onDisappear`, which runs after the next
+/// tab is already on screen: that tab arrived at full brightness and then
+/// sank (the owner, 2026-10-06: "the tab starts off bright and then gets
+/// dimmer it looks kinda stark"). `MainAppView` restores it on the tab change
+/// itself now, before the new tab draws; the camera's own exits still do too.
+///
+/// `before` is set only on the way up and cleared on the way down, so arming
+/// twice cannot capture 1.0 as the value to restore.
+@MainActor
+enum RingBrightness {
+    private static var before: CGFloat?
+
+    static func raise() {
+        if before == nil { before = UIScreen.main.brightness }
+        UIScreen.main.brightness = 1.0
+    }
+
+    static func restore() {
+        guard let previous = before else { return }
+        UIScreen.main.brightness = previous
+        before = nil
     }
 }
