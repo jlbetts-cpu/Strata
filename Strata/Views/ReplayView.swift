@@ -1,3 +1,5 @@
+import AVFoundation
+import LinkPresentation
 import SwiftUI
 
 /// A replay, playing.
@@ -365,10 +367,26 @@ struct ReplayView: View {
         video.save(replay: replay, images: { await load.all() }, now: now, isSample: isSample)
     }
 
+    /// "Your week, 29 Sep to 5 Oct", "Your month, October": what the share
+    /// sheet's header says, so it reads as the replay and not a file name.
+    static func shareTitle(_ period: ReplayPeriod) -> String {
+        let calendar = period.calendar
+        switch period.kind {
+        case .month:
+            return "\(period.title), \(period.firstDay.formatted(.dateTime.month(.wide)))"
+        case .week:
+            let last = calendar.date(byAdding: .day, value: max(period.days.count - 1, 0), to: period.firstDay) ?? period.firstDay
+            let style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+            return "\(period.title), \(period.firstDay.formatted(style)) to \(last.formatted(style))"
+        case .day:
+            return period.title
+        }
+    }
+
     private func shareVideo() {
         let load = load
         video.share(replay: replay, images: { await load.all() }, now: now, isSample: isSample) { url in
-            ReplayShareSheet.present(url, from: shareAnchor.rect)
+            ReplayShareSheet.present(url, title: Self.shareTitle(replay.period), from: shareAnchor.rect)
         }
     }
 
@@ -816,12 +834,16 @@ final class ReplayShareAnchor {
 /// The system share sheet with a video file, from the top of whatever is
 /// presented, so it opens over the replay's full-screen cover.
 enum ReplayShareSheet {
-    static func present(_ url: URL, from anchor: CGRect = .zero) {
+    static func present(_ url: URL, title: String? = nil, from anchor: CGRect = .zero) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first
         guard var top = window?.rootViewController else { return }
         while let presented = top.presentedViewController, !presented.isBeingDismissed { top = presented }
-        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        // The header says what this is, with its first frame, rather than
+        // a bare "Your week.mp4" (the polish pass, 2026-10-06), as a crew
+        // invitation already does with `LPLinkMetadata`.
+        let item: Any = title.map { ReplayShareItem(url: url, title: $0) } ?? url
+        let sheet = UIActivityViewController(activityItems: [item], applicationActivities: nil)
         // An iPad shows it as a popover, which needs somewhere to point.
         // Pointed at Share itself, in window coordinates.
         if let popover = sheet.popoverPresentationController, let window {
@@ -831,6 +853,34 @@ enum ReplayShareSheet {
                 : anchor
         }
         top.present(sheet, animated: true)
+    }
+}
+
+/// The video, with a title and its first frame for the share sheet's header.
+final class ReplayShareItem: NSObject, UIActivityItemSource {
+    let url: URL
+    let title: String
+
+    init(url: URL, title: String) {
+        self.url = url
+        self.title = title
+    }
+
+    func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any { url }
+
+    func activityViewController(_ controller: UIActivityViewController,
+                                itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { url }
+
+    func activityViewControllerLinkMetadata(_ controller: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = title
+        metadata.originalURL = url
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.appliesPreferredTrackTransform = true
+        if let frame = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+            metadata.imageProvider = NSItemProvider(object: UIImage(cgImage: frame))
+        }
+        return metadata
     }
 }
 
