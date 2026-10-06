@@ -106,24 +106,20 @@ struct MainAppView: View {
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
     @State private var towerManager = TowerManager()
-    /// The camera, not the tower.
-    ///
-    /// Logging a win is the thing the app is for, and a photograph is the
-    /// fastest way to log one — so the app opens on the viewfinder rather than
-    /// on the record of what you already did.
+    /// The tower, not the camera (the owner, 2026-10-06: "i think I want it
+    /// to open up on the wins screen now on app launch instead of the
+    /// camera"). It opened on the viewfinder because a photo is the fastest
+    /// way to log a win; the tower is today's wins and the empty slot, so it
+    /// shows what you have done and still logs a win in one tap.
     /// The tab the app opens on. A constant so the window's colour scheme can
     /// be seeded from the same value rather than a second copy of it.
-    private static let launchTab: StrataTab = .camera
+    private static let launchTab: StrataTab = .tower
 
     /// Which tab the app opens on.
     ///
-    /// **`.camera` normally, `.tower` on the launch right after onboarding.**
-    /// The camera is right every other time — recording a win is meant to be
-    /// the fastest thing in the app. It is wrong exactly once: we have just
-    /// given somebody their first block and told them the tower is the point,
-    /// and then we would show them an empty viewfinder instead of it.
-    /// Photographed: the first thing a new user saw was a black screen with a
-    /// shutter on it.
+    /// **`.tower`**, always, and on the launch right after onboarding as
+    /// well: that one was already the tower, so a new user's first block is
+    /// the first thing they see.
     ///
     /// It is the INITIAL value rather than a `selectTab` call during `setup()`
     /// because that does not stick — CLAUDE.md records it: the `TabView`
@@ -149,7 +145,7 @@ struct MainAppView: View {
         #if DEBUG
         if let wanted = DebugHarness.startTab { return wanted }
         #endif
-        return UserDefaults.standard.bool(forKey: welcomeWinKey) ? .tower : launchTab
+        return launchTab
     }
 
     /// Set when onboarding finishes; consumed by `dropWelcomeWinIfNeeded`.

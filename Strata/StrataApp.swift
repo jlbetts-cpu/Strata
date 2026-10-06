@@ -199,7 +199,7 @@ struct StrataApp: App {
             //
             // It was a `fullScreenCover` on `MainAppView`, and a cover
             // inherits its presenter's forced appearance:
-            // `MainAppView.launchTab` is `.camera`, the camera pins the window
+            // `MainAppView.launchTab` was `.camera`, the camera pins the window
             // to `.dark`, so onboarding rendered dark on a phone set to light
             // and the light design could not be seen at all. Measured twice —
             // mean luminance 64 with the simulator in light mode, and

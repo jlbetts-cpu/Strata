@@ -15,7 +15,7 @@
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
-		<string>LaunchBlack</string>
+		<string>LaunchGround</string>
 	</dict>
 	<key>UTExportedTypeDeclarations</key>
 	<array>

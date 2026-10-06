@@ -6,11 +6,12 @@ import SwiftUI
 /// camera now, "yes switch them to the camera"), `BrandCamera`, upright: the
 /// S's resting angle belonged to the S.
 ///
-/// The static launch screen is only `LaunchBlack` (Info.plist
-/// `UILaunchScreen`), the camera's own ground at 0.031 in both appearances,
-/// because the app opens on the camera and the camera is dark whatever the
-/// phone is set to. There is no image on it: a static S would have to vanish
-/// before it could roll in.
+/// The static launch screen is only `LaunchGround` (Info.plist
+/// `UILaunchScreen`): the tower's page, #F7F7F7 in light and 0.031 in dark,
+/// because the app opens on the tower (the owner, 2026-10-06). It was black
+/// in both while the app opened on the camera, and a light phone then went
+/// black and cut to a white page. The mark is the drawing ink, so it is the
+/// icon's own colours in each appearance.
 ///
 /// Over the first frame this draws the S rolling in from the left like a
 /// rigid square, in a block's material, cutting to the next block colour on
@@ -69,7 +70,7 @@ struct LaunchHandoff: View {
 
     private func stage(_ f: LaunchRoll.Frame) -> some View {
         ZStack {
-            Color("LaunchBlack")
+            Color("LaunchGround")
             mark(f.fill)
                 .frame(width: LaunchRoll.side, height: LaunchRoll.side)
                 .rotationEffect(.degrees(f.tilt), anchor: .bottomTrailing)
@@ -86,7 +87,7 @@ struct LaunchHandoff: View {
     @ViewBuilder
     private func mark(_ fill: Int) -> some View {
         if fill >= LaunchRoll.rolls {
-            Image("BrandCamera").renderingMode(.template).foregroundStyle(.white)
+            Image("BrandCamera").renderingMode(.template).foregroundStyle(AppColors.drawingInk)
         } else {
             ZStack {
                 Image("BrandCamera").renderingMode(.template)
