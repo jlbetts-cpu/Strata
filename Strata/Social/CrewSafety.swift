@@ -31,8 +31,11 @@ enum CrewSafety {
         case person(CrewMember)
         case crew(Crew)
         /// A reply's line (`Reaction.line`) or doodle (`Reaction.sketch`),
-        /// seen by the win's owner.
+        /// from before replies moved into the chat. Nothing shows these any
+        /// more; the case stays for a report already kept for later.
         case reply(Reaction)
+        /// A line in the crew's day chat, or a doodle there.
+        case message(CrewMessage)
     }
 
     /// A report goes to Some Wins, never to the crew: a `Report` record in the
@@ -76,6 +79,14 @@ enum CrewSafety {
             // A doodle goes with the report as a photo does, so it can be
             // judged (`photoPath` becomes the Report's `photo` asset).
             photo = reaction.sketch
+        case .message(let message):
+            fields["sender"] = message.senderProfileID.uuidString
+            fields["winID"] = message.quoteWinID?.uuidString
+            fields["title"] = "Message: " + (message.text.isEmpty ? "(doodle)" : message.text)
+            fields["senderAccount"] = cloud?.account(of: message.senderProfileID, in: crew)
+            // A doodle goes with the report as a photo does, so it can be
+            // judged.
+            photo = message.sketch
         case .crew(let c):
             fields["title"] = "Crew: " + (c.name.isEmpty ? "(no name)" : c.name)
             fields["senderAccount"] = cloud?.lastEditor(of: crew)

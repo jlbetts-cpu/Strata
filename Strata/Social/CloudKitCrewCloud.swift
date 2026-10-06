@@ -249,6 +249,17 @@ final class CloudKitCrewCloud: CrewCloud {
             }
     }
 
+    /// The day chat, fetched and cached like the other types: a line, and
+    /// a doodle copied out of CloudKit's cache as a photo is (`fields(of:)`).
+    /// Checked against its sender as a win is, so nobody can speak as
+    /// someone else.
+    func fetchMessages(in crew: CrewID) async throws -> [CrewMessage] {
+        (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.message.rawValue + "/") }
+            .values.compactMap { fields in
+                CrewRecords.message(fields, crew: crew).flatMap { authentic(fields, as: $0.senderProfileID, in: crew) ? $0 : nil }
+            }
+    }
+
     /// **Whether a record was written by the person it says it is from.**
     /// A member can write to the crew's zone, and the sender on a win is a
     /// field the app fills in, so a changed app could post as someone else

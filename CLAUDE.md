@@ -1633,7 +1633,9 @@ Crews (`Strata/Social`, `Strata/Views/Crews`, spec
 
 Simulator: `-strataSeedCrew <n> -strataSeedCrews <k>`, `-strataOpenCrew 0`,
 `-strataOpenCrews 1`, `-strataCrewDropEvery <s>`, `-strataCrewParkEvery <s>`,
-`-strataCrewParked <n>`, `-strataCrewSheet info|win|mine|new`,
+`-strataCrewParked <n>`, `-strataCrewSheet info|win|mine|new|chat`,
+`-strataSeedCrewChat 1|0` (a morning's chat with a quoted reply; 0 with the
+chat open shows its empty state),
 `-strataCrewAge under13|teen|adult`, `-strataSeedCrewHistory <days>` (a
 crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
 `-strataCrewHold 1` (the reactions a hold opens).
@@ -1641,6 +1643,13 @@ crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
 - **A crew's numbers are local** (`CrewHistory`, `history.json`): counts per
   person per crew day, never a title or photo. The cloud's days rewrite their
   counts each refresh; older days are kept as last seen.
+- **The day chat** (`CrewMessage`, `CrewChatSheet`, 2026-10-05) lives for the
+  crew's day: no phone shows another day's line and each deletes its own at
+  the crew's midnight (`prune`). Reply and Doodle on a win post into it,
+  quoting the win; `Reaction.line`/`sketch` are still read but never shown.
+  Its alerts are the app's own, at most one a crew an hour
+  (`ChatAlerts`); it leaves no ping. Production needs the `CrewMessage`
+  type deployed from development.
 - **The head a crew sees is `HeadStore.headForCrews`**, the head you use
   anywhere, NOT the tower switch: a first head starts with the tower switch
   off, and gating on it meant a friend's head never reached anyone. A system permission prompt survives an
