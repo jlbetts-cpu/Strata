@@ -51,7 +51,7 @@ Psychology in order: curiosity → recognition → reward → belonging → iden
 
 | # | Time | Camera | Picture | Words | Sound |
 |---|---|---|---|---|---|
-| 0 | 0.0 | inside the screen, pulling back | The app's launch: the logo draws itself full frame; we pull out of the screen and the phone forms round it; it turns to a 3D hero angle as the app opens | | pencil stroke, air, tap |
+| 0 | 0.0 | inside the screen, pulling back | The app's launch: the logo draws itself full frame, then erases at full size (he likes the erase; keep it close, never under a camera move); we pull out of the screen and the phone forms round it; it turns to a 3D hero angle as the app opens | | pencil stroke, air, tap |
 | 1 | 3.8 | type | The wins themselves (dog, breakfast, Yosemite, kayak, the doodle) burst out round the line in depth, then fall | "Every day has a few small wins." | pops, fall |
 | 2 | 6.8 | type, drum | A 3D word drum rolls: "I drank some water / went outside / walked the dog…"; each one drops a block that lands in a row | | tick per roll, thud per block |
 | 3 | 11.0 | hero 3D, slow orbit | A photo block flies out of the camera and lands on the real tower; the tower keeps building | "Every win is a block." | air, landing |
