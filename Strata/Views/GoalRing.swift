@@ -113,7 +113,7 @@ private struct GoalChooser: View {
 
     var body: some View {
         VStack(spacing: GridConstants.gapItem) {
-            Text("Wins today")
+            Text("Daily goal")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
             HStack(spacing: GridConstants.gapLabel) {
