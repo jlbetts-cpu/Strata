@@ -14,9 +14,13 @@ import SwiftUI
 ///    taken from a booth is held.
 /// 3. **Shake to develop.** Each shake (or tap) lifts the dark and the blur a
 ///    step; developed, a success tap and the tools arrive.
-/// 4. **In the hand.** Drag to tilt and turn it, with a sheen across the
-///    paper; turn it all the way over to its back, stamped with the mark and
-///    the day. It springs back to rest.
+/// 4. **In the hand, as a card** (2026-10-07: "Pokemon TCG level card
+///    movement and look, how it genuinely looks like a card"). It leans
+///    toward a pressing finger and follows it, sways a little with the phone
+///    (`CardTilt`), carries a photo paper's gloss that slides opposite the
+///    lean, shows a sliver of its edge, and casts a soft shadow on the ground
+///    that moves as it turns. Drawn far across it turns over to its back,
+///    stamped with the mark and the day; let go, it springs back with give.
 struct StripBooth: View {
     let owner: PhotoStrip.Owner
     var day: String = DateUtils.dateString(from: Date())
@@ -44,6 +48,11 @@ struct StripBooth: View {
     @State private var yaw: Double = 0
     @State private var pitch: Double = 0
     @State private var dragYaw: Double = 0
+    /// The lean a finger gives the card where it presses, in degrees.
+    @State private var press = CGSize.zero
+    @State private var pressStarted = Date()
+    /// The phone's own tilt (`CardTilt`).
+    @State private var tilt = CardTilt()
     @State private var editing = false
     @State private var saved = false
 
@@ -150,75 +159,131 @@ struct StripBooth: View {
     private func held(fitting size: CGSize) -> some View {
         let room = size.height - 260
         let fit = stripHeight > room && stripHeight > 0 ? room / stripHeight : 1
+        let card = CGSize(width: Self.width * fit, height: stripHeight * fit)
         return VStack(spacing: GridConstants.gapSection) {
             ZStack {
-                if let strip {
-                    StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
-                              width: Self.width, developed: developed, decor: decor)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-                        .overlay { sheen }
-                        .opacity(facingFront ? 1 : 0)
-                    StripBack(day: day, paper: paper, width: Self.width, height: stripHeight)
-                        .scaleEffect(x: -1, y: 1)
-                        .opacity(facingFront ? 0 : 1)
+                // **On the ground, under it**: a soft shadow that slides as
+                // the card leans, the one thing that says it is held above
+                // something. It does not turn with the card.
+                RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous)
+                    .fill(Color.black.opacity(isDeveloped ? 0.16 : 0.1))
+                    .frame(width: card.width * 0.92, height: card.height * 0.96)
+                    .blur(radius: 16)
+                    .offset(x: -turnYaw * 0.5, y: 18 + turnPitch * 0.4)
+                    .opacity(facingFront || isDeveloped ? 1 : 0.6)
+                ZStack {
+                    if let strip {
+                        // The paper's edge: a sliver of it shows on the side
+                        // turned away, as a printed card's thickness does.
+                        RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous)
+                            .fill(paper == .black ? Color(white: 0.24) : Color(white: 0.82))
+                            .frame(width: Self.width, height: stripHeight)
+                            .offset(x: -sin(turnYaw * .pi / 180) * 2.2, y: sin(turnPitch * .pi / 180) * 2.2)
+                        StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
+                                  width: Self.width, developed: developed, decor: decor)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
+                            .overlay { glare }
+                            .opacity(facingFront ? 1 : 0)
+                        StripBack(day: day, paper: paper, width: Self.width, height: stripHeight)
+                            .overlay { glare }
+                            .scaleEffect(x: -1, y: 1)
+                            .opacity(facingFront ? 0 : 1)
+                    }
                 }
+                .matchedGeometryEffect(id: "strip", in: space, anchor: .top)
+                .scaleEffect(fit)
+                .frame(height: stripHeight * fit)
+                .rotation3DEffect(.degrees(yaw + dragYaw + press.width + tilt.yaw), axis: (x: 0, y: 1, z: 0),
+                                  perspective: 0.45)
+                .rotation3DEffect(.degrees(turnPitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
+                .rotationEffect(.degrees(isDeveloped ? 0 : -2.5))
             }
-            .matchedGeometryEffect(id: "strip", in: space, anchor: .top)
-            .scaleEffect(fit)
-            .frame(height: stripHeight * fit)
-            .rotation3DEffect(.degrees(restTilt + yaw + dragYaw), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
-            .rotation3DEffect(.degrees(pitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
-            .rotationEffect(.degrees(isDeveloped ? 0 : -2.5))
-            .gesture(turn)
-            .onTapGesture { if !isDeveloped { shook() } }
+            .contentShape(Rectangle())
+            .gesture(handle(card))
             .accessibilityElement(children: .contain)
             .accessibilityAction(named: "Develop") { shook() }
             hint
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { if !reduceMotion { tilt.start() } }
+        .onDisappear { tilt.stop() }
     }
 
-    private var restTilt: Double { 0 }
+    /// The card's lean around its upright axis, and across, everything in.
+    private var turnYaw: Double { yaw + dragYaw + press.width + tilt.yaw }
+    private var turnPitch: Double { pitch + press.height + tilt.pitch }
+
     private var facingFront: Bool {
-        let a = (restTilt + yaw + dragYaw).truncatingRemainder(dividingBy: 360)
+        let a = (yaw + dragYaw).truncatingRemainder(dividingBy: 360)
         let n = a < 0 ? a + 360 : a
         return n < 90 || n > 270
     }
 
-    /// Light across the paper, moving as it turns: a gloss, not a shadow.
-    private var sheen: some View {
-        let t = (yaw + dragYaw) / 90 + pitch / 60
-        return LinearGradient(stops: [.init(color: .white.opacity(0), location: 0.25 + t * 0.3),
-                                      .init(color: .white.opacity(0.22), location: 0.45 + t * 0.3),
-                                      .init(color: .white.opacity(0), location: 0.65 + t * 0.3)],
-                              startPoint: .topLeading, endPoint: .bottomTrailing)
-            .blendMode(.plusLighter)
-            .opacity(isDeveloped && (abs(dragYaw) > 1 || abs(pitch) > 1) ? 1 : 0)
-            .allowsHitTesting(false)
+    /// **The gloss of photo paper.** A soft hotspot that slides opposite the
+    /// lean, as a window's light does across a card turned in the hand, and
+    /// a faint band behind it. Always a little there; more as it turns.
+    private var glare: some View {
+        let lean = (turnYaw.truncatingRemainder(dividingBy: 180)) / 30
+        let tip = turnPitch / 30
+        let strength = min(1, 0.25 + (abs(lean) + abs(tip)) * 0.9) * (isDeveloped ? 1 : 0.5)
+        return ZStack {
+            RadialGradient(colors: [.white.opacity(0.42), .white.opacity(0)],
+                           center: UnitPoint(x: 0.5 - lean * 0.6, y: 0.35 + tip * 0.6),
+                           startRadius: 0, endRadius: Self.width * 0.9)
+            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0.3 - lean * 0.25),
+                                   .init(color: .white.opacity(0.14), location: 0.45 - lean * 0.25),
+                                   .init(color: .white.opacity(0), location: 0.6 - lean * 0.25)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        .blendMode(.plusLighter)
+        .opacity(strength)
+        .clipShape(RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous))
+        .allowsHitTesting(false)
     }
 
-    /// Drag to turn it: across turns it, up and down tips it. Let go and it
-    /// settles face up or face down, whichever it was nearer.
-    private var turn: some Gesture {
-        DragGesture(minimumDistance: 4)
+    /// **A finger on the card** (the owner: "Pokemon TCG level card
+    /// movement"). Pressed, it leans toward the finger, as a card does under
+    /// a thumb, and follows it; drawn across far, it turns over, settling
+    /// face up or face down; let go, it springs back with a little give. A
+    /// quick touch that does not move is a tap: before it develops, a tap
+    /// develops it a step, for anyone who cannot shake.
+    private func handle(_ card: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard isDeveloped else { return }
-                dragYaw = value.translation.width * 0.75
-                pitch = max(-28, min(28, -value.translation.height * 0.25))
+                if value.translation == .zero { pressStarted = Date() }
+                let across = value.translation.width
+                // Far across, and developed: turning it over.
+                if isDeveloped, abs(across) > Self.turnStart {
+                    dragYaw = (across - (across > 0 ? Self.turnStart : -Self.turnStart)) * 0.75
+                }
+                let x = max(-1, min(1, (value.location.x / max(card.width, 1)) * 2 - 1))
+                let y = max(-1, min(1, (value.location.y / max(card.height, 1)) * 2 - 1))
+                let reach = reduceMotion ? 4.0 : Self.pressReach
+                withAnimation(GridConstants.cardFollow) {
+                    press = CGSize(width: x * reach, height: -y * reach)
+                }
             }
             .onEnded { value in
-                guard isDeveloped else { return }
-                let total = yaw + dragYaw + value.predictedEndTranslation.width * 0.15
+                let moved = hypot(value.translation.width, value.translation.height)
+                if moved < 8, Date().timeIntervalSince(pressStarted) < 0.35, !isDeveloped { shook() }
+                let total = yaw + dragYaw + value.predictedEndTranslation.width * 0.15 * (abs(dragYaw) > 0 ? 1 : 0)
                 let landing = (total / 180).rounded() * 180
-                let face = Int((landing / 180).rounded()) % 2 == 0
-                withAnimation(GridConstants.stripSettle) {
+                let flipped = Int((landing / 180).rounded()) % 2 != 0
+                let wasFlipped = !facingFront
+                withAnimation(GridConstants.cardRelease) {
                     yaw = landing
                     dragYaw = 0
+                    press = .zero
                     pitch = 0
                 }
-                if face != facingFront { HapticsEngine.lightTap() }
+                if flipped != wasFlipped { HapticsEngine.lightTap() }
             }
     }
+
+    /// How far across a finger goes before it is turning the card over
+    /// rather than leaning it, and how far a press leans it.
+    static let turnStart: CGFloat = 44
+    static let pressReach = 13.0
 
     /// What to do now, under the strip.
     @ViewBuilder

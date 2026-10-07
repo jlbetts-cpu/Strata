@@ -430,6 +430,10 @@ enum GridConstants {
     static let stripSettle = Animation.spring(duration: 0.55, bounce: 0.22)
     /// One shake's worth of developing: the dark and the blur lift a step.
     static let stripDevelop = Animation.easeOut(duration: 0.5)
+    /// A card under a finger: follows it closely, with no lag to fight.
+    static let cardFollow = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.86)
+    /// A card let go: back to rest with a little give, as a held card wobbles.
+    static let cardRelease = Animation.spring(response: 0.55, dampingFraction: 0.55)
 
     /// A block fading in where it belongs, or out where it stood. Long enough
     /// to read as a change rather than a cut, short enough to be finished by
