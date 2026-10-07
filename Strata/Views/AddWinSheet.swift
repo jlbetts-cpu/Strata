@@ -532,7 +532,7 @@ struct AddWinSheet: View {
                             .frame(minHeight: GlassIconButton.defaultSide)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityHint("Names the win")
                 }
             }

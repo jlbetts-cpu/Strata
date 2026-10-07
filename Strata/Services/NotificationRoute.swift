@@ -50,7 +50,8 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
             guard kind == "week" || kind == "month", first.count == 10 else { return .memories }
             return .replay(kind: kind, firstDay: first)
         }
-        if identifier.hasPrefix(Prefix.daily) || identifier == Prefix.dailyLegacy { return .wins }
+        if identifier.hasPrefix(Prefix.daily) || identifier == Prefix.dailyLegacy
+            || identifier.hasPrefix(Prefix.evening) { return .wins }
         return nil
     }
 
@@ -60,6 +61,7 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
     /// together.
     enum Prefix {
         static let daily = "strata.reminder."
+        static let evening = "strata.evening."
         static let dailyLegacy = "strata.daily.reminder"
         static let pastWin = "strata.pastwin."
         static let replay = "strata.replay."

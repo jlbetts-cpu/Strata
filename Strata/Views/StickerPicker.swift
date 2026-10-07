@@ -179,7 +179,7 @@ struct StickerMaking: ViewModifier {
         // `shortest` from then, so the light is always seen.
         let lifting = Task { await lift(full) }
         try? await Task.sleep(for: .milliseconds(380))
-        withAnimation(.easeOut(duration: 0.24)) { showing = true }
+        withAnimation(GridConstants.momentIn) { showing = true }
         let shown = ContinuousClock.now
         let sticker = await lifting.value
         let spent = ContinuousClock.now - shown
@@ -191,7 +191,7 @@ struct StickerMaking: ViewModifier {
             return
         }
         HapticsEngine.success()
-        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.42, bounce: 0.32)) {
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.stickerStep) {
             lifted = sticker
         }
         try? await Task.sleep(for: Self.hold)
@@ -200,7 +200,7 @@ struct StickerMaking: ViewModifier {
     }
 
     private func close() async {
-        withAnimation(.easeIn(duration: 0.2)) { showing = false }
+        withAnimation(GridConstants.cueOut) { showing = false }
         try? await Task.sleep(for: .milliseconds(220))
         photo = nil
         lifted = nil

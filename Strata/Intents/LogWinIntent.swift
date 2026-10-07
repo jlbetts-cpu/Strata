@@ -76,7 +76,10 @@ struct LogWinIntent: AppIntent {
     @MainActor
     static func keepRemindersRight(_ context: ModelContext) {
         DailyReminder.skipToday()
-        Task { @MainActor in await PastWinReminder.schedule(context: context) }
+        Task { @MainActor in
+            await PastWinReminder.schedule(context: context)
+            await EveningCheckIn.update(context: context)
+        }
     }
 
     /// The controls' and the Log widget's sizes, as the tower's.

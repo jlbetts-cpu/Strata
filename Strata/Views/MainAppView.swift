@@ -220,6 +220,7 @@ struct MainAppView: View {
     @State private var winCue: String?
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
+    @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
     @State private var pendingDraft: WinDraft?
@@ -980,7 +981,7 @@ struct MainAppView: View {
                     HStack(spacing: 0) {
                         if !left { Spacer(minLength: margin) }
                         WinCueBubble(text: line) {
-                            withAnimation(.easeIn(duration: 0.2)) { winCue = nil }
+                            withAnimation(GridConstants.cueOut) { winCue = nil }
                             winDraft = WinDraft()
                         }
                         if left { Spacer(minLength: margin) }
@@ -1003,7 +1004,7 @@ struct MainAppView: View {
             .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(blocksToday)") {
                 // A win landed or the tab changed: a cue on screen has had
                 // its answer, or is somewhere it no longer belongs.
-                if winCue != nil { withAnimation(.easeIn(duration: 0.2)) { winCue = nil } }
+                if winCue != nil { withAnimation(GridConstants.cueOut) { winCue = nil } }
                 // Not before a first win ever: the tower's own line asks then
                 // ("Tap the slot to log your first win.").
                 guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
@@ -1013,11 +1014,13 @@ struct MainAppView: View {
                 try? await Task.sleep(for: .seconds(1.6))
                 guard !Task.isCancelled, winDraft == nil else { return }
                 winCueDay = DateUtils.dateString(from: Date())
-                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.3)) {
+                // Seen here, so the evening does not ask it again.
+                Task { await EveningCheckIn.update(context: modelContext) }
+                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) {
                     winCue = line
                 }
                 try? await Task.sleep(for: .seconds(9))
-                withAnimation(.easeIn(duration: 0.25)) { winCue = nil }
+                withAnimation(GridConstants.cueOut) { winCue = nil }
             }
             // Pinned to the page, not to the tower. The tally used to sit under
             // the bottom row, which meant it moved every time the tower grew
@@ -2535,6 +2538,13 @@ struct MainAppView: View {
         }
         // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
+        // The evening's one question, decided again when today's count moves
+        // (`EveningCheckIn`).
+        let eveningKey = "\(DateUtils.dateString(from: Date()))|\(blocksToday)"
+        if eveningKey != eveningDecided {
+            eveningDecided = eveningKey
+            Task { await EveningCheckIn.update(context: modelContext) }
+        }
         // A win today means today's reminder has nothing to say.
         let today = DateUtils.dateString(from: Date())
         if reminderOn, reminderSkippedDay != today, blocksToday > 0 {

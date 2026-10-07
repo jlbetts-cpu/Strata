@@ -416,6 +416,12 @@ enum GridConstants {
     static var layoutReflow: Animation { calm(Animation.spring(response: 0.55, dampingFraction: 0.90)) }
     /// Non-spatial transitions (cross-fades)
     static let crossFade = Animation.easeInOut(duration: 0.2)
+    /// **A line arriving, and leaving** (`WinCue`, the sticker lift): in on a
+    /// little bounce as a message lands, out on a plain ease.
+    static let cueIn = Animation.spring(duration: 0.45, bounce: 0.3)
+    static let cueOut = Animation.easeIn(duration: 0.22)
+    static let momentIn = Animation.easeOut(duration: 0.24)
+    static let stickerStep = Animation.spring(duration: 0.42, bounce: 0.32)
 
     /// A block fading in where it belongs, or out where it stood. Long enough
     /// to read as a change rather than a cut, short enough to be finished by

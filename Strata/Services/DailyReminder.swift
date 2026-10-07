@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import UserNotifications
 
 /// **The daily reminder, only on a day with nothing on the tower yet.**
@@ -117,5 +118,68 @@ nonisolated enum DailyReminder {
             .map(\.identifier)
             .filter { $0.hasPrefix(prefix) || $0 == legacy }
         center.removePendingNotificationRequests(withIdentifiers: ours)
+    }
+}
+
+/// **The evening's one question** (2026-10-06: testers log one or two wins a
+/// day, and after the first, nothing ever asked again).
+///
+/// "Anything else today?" at 7pm, the in-app cue's own words (`WinCue`), with
+/// the reminder's Quick, Regular and Deep to log without opening the app. It
+/// keeps the app's rule of ONE cue a day, whichever way it comes (more
+/// notifications measurably worsen inattention: Kushlev, Proulx and Dunn,
+/// CHI 2016), so it comes only on a day that:
+/// - has one or two wins (none is the morning reminder's day; three or more
+///   is a good day, left alone);
+/// - did not get the morning reminder (its first win came before it fired);
+/// - did not already see the cue on the tower.
+/// Reminders off in Settings is off for this too.
+nonisolated enum EveningCheckIn {
+    static let prefix = NotificationRoute.Prefix.evening
+    static let hour = 19
+    static let title = WinCue.anythingElse
+
+    /// When today's should come, or nil for none.
+    static func when(winsToday: Int, firstWin: Date?, now: Date, morningHour: Int, morningMinute: Int,
+                     cueSeenToday: Bool, calendar: Calendar = .current) -> Date? {
+        guard (1...WinCue.elseUpTo).contains(winsToday), !cueSeenToday, let firstWin,
+              let evening = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), evening > now,
+              let morning = calendar.date(bySettingHour: morningHour, minute: morningMinute, second: 0, of: now)
+        else { return nil }
+        // The morning reminder fired if the day was still empty at its time.
+        guard firstWin < morning else { return nil }
+        return evening
+    }
+
+    static func identifier(for date: Date) -> String { prefix + DateUtils.dateString(from: date) }
+
+    /// Today's decided again, from the store: after a win, and when the cue
+    /// has been seen on the tower.
+    @MainActor
+    static func update(context: ModelContext, now: Date = Date()) async {
+        let defaults = UserDefaults.standard
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
+        guard defaults.bool(forKey: "notificationsEnabled") else { return }
+        let today = DateUtils.dateString(from: now)
+        let logs = (try? context.fetch(FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.dateString == today && $0.completed }))) ?? []
+        let hour = defaults.object(forKey: "reminderHour") as? Int ?? 8
+        let minute = defaults.object(forKey: "reminderMinute") as? Int ?? 0
+        guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
+                            morningHour: hour, morningMinute: minute,
+                            cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today)
+        else { return }
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.sound = .default
+        content.threadIdentifier = NotificationRoute.Thread.daily
+        content.categoryIdentifier = DailyReminder.category
+        let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: at)
+        try? await center.add(UNNotificationRequest(
+            identifier: identifier(for: at), content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
     }
 }
