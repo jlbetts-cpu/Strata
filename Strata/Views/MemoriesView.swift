@@ -331,8 +331,7 @@ struct MemoriesView: View {
                             onClose: { viewing = nil },
                             onDelete: { _ in
                                 Task { await vm.reload(context: modelContext) }
-                                // A card is mostly photographs.
-                                Task { await reloadReplays(redrawsStale: true) }
+                                Task { await reloadReplays() }
                             },
                             onWinChanged: { Task { await vm.reload(context: modelContext) } })
                     // Out of the thumbnail, not up from the bottom.
@@ -343,7 +342,7 @@ struct MemoriesView: View {
                 // from this page too: the gallery, the albums, and the card.
                 ReplayView(replay: replay, onPhotoDeleted: {
                     Task { await vm.reload(context: modelContext) }
-                    Task { await reloadReplays(redrawsStale: true) }
+                    Task { await reloadReplays() }
                 }) { playing = nil }
                     // Out of its card, the way a photograph opens.
                     .navigationTransition(.zoom(sourceID: replay.id, in: photoTransition))
@@ -381,34 +380,19 @@ struct MemoriesView: View {
                 }
             }
         }
-        // **The replay cards, drawn once the page has something to draw from.**
+        // **The recaps the play button offers: found, never drawn.**
         //
-        // Keyed by scheme and scale: posters are drawn in the page's scheme, so
-        // a switch draws (once) the set for the other.
-        //
-        // **This used to be keyed on the drawer as well, and the drawer is
-        // gone.** The shape of it was: draw what is MISSING only once the map
-        // had stopped moving, because drawing straight away put 1.27s of
-        // `ImageRenderer` on the main actor under the map's first frames, and
-        // drawing on the raise instead put the same 1.3s under a moving panel.
-        //
-        // Neither hazard exists now. The map is not the ground and is not on
-        // screen when this runs; there is no panel to raise. So the two-pass
-        // dance collapses into what it was always trying to be — draw the
-        // missing ones, then come back for the stale ones — and the measured
-        // reason it was ever more complicated than that is kept above, because
-        // the cost of `ImageRenderer` on the main actor has not changed and
-        // whoever puts a map back on this screen will meet it again.
-        .task(id: "\(colorScheme)-\(displayScale)") {
-            await reloadReplays(redrawsStale: false, drawsMissing: false)
-            while !Task.isCancelled, !vm.hasLoaded {
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-            guard !Task.isCancelled else { return }
-            await reloadReplays(redrawsStale: false, drawsMissing: true)
-            try? await Task.sleep(for: Self.springSettle)
-            guard !Task.isCancelled else { return }
-            await reloadReplays(redrawsStale: true)
+        // This drew every replay's poster with `ImageRenderer` on the main
+        // actor, three passes on every visit, for a shelf of cards that is
+        // gone: the recaps became one play button on 2026-10-03, and
+        // `ReplayRow` and `MemoriesShelf` have no caller left. Measured on the
+        // first visit (2026-10-07, `-strataPerfProbe`): 8 posters, 116
+        // thumbnail reads and 50-470ms frames for the 1.5s after the page
+        // appears, and every poster that landed ran this body again through
+        // `replayRows`, for a picture nothing showed. The play button needs
+        // the periods, not their posters. `ReplayView` draws its own.
+        .task {
+            await reloadReplays()
         }
         .task {
             // A visit, for the month drawing's tip: it waits for the third.
@@ -476,9 +460,6 @@ struct MemoriesView: View {
         !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
-    /// How long `naturalSettle` takes to come to rest, near enough.
-    private static let springSettle: Duration = .milliseconds(700)
-
     // **`waitForQuietMap` and `buildDrawer` are gone with the drawer**, and the
     // measurement in them is worth keeping even though the code is not: long
     // main-actor work — `ImageRenderer` drawing a poster, the page's first
@@ -487,10 +468,10 @@ struct MemoriesView: View {
     // the store empties BETWEEN landings, and one such check still put a 390ms
     // frame among 86 of them. Whoever puts a map back on this screen needs both
     // halves of that again.
-    private func reloadReplays(redrawsStale: Bool, drawsMissing: Bool = true) async {
+    /// The periods only: no poster is drawn (see the `.task` that calls it).
+    private func reloadReplays() async {
         await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
-                             now: Date(), redrawsStale: redrawsStale,
-                             drawsMissing: drawsMissing)
+                             now: Date(), redrawsStale: false, drawsMissing: false)
     }
 
     // **`titleRow` is gone.** It was the title and two buttons floating ON the
@@ -553,22 +534,14 @@ struct MemoriesView: View {
     private var replayRows: [ReplayOffer] {
         var rows: [ReplayOffer] = []
         if let monthReplay {
-            rows.append(ReplayOffer(replay: monthReplay, title: vm.monthTitle.capitalized,
-                                    poster: poster(for: monthReplay)))
+            rows.append(ReplayOffer(replay: monthReplay, title: vm.monthTitle.capitalized))
         }
         if let live = ReplayShelfModel.live(in: replays.months + replays.weeks,
                                             besides: monthReplay, now: replays.now) {
             rows.append(ReplayOffer(replay: live,
-                                    title: MemoriesShelf.name(of: live.period, now: replays.now),
-                                    poster: poster(for: live)))
+                                    title: MemoriesShelf.name(of: live.period, now: replays.now)))
         }
         return rows
-    }
-
-    /// A row's poster, read here so the body depends on it. See the note at
-    /// the `ForEach` that draws the rows.
-    private func poster(for replay: Replay) -> UIImage? {
-        replays.cards[ReplayShelfModel.key(replay, scheme: colorScheme)]
     }
 
     private var photographCount: Int {
@@ -689,7 +662,7 @@ struct MemoriesView: View {
         Group {
             // **Your own drawing first, when the month has one** (spec
             // section 4). The default is never touched, so "Use Original"
-            // brings it straight back, with October's bird flying in.
+            // brings it straight back, with October's dance.
             if let own = MonthDrawingStore.shared.drawing(for: key) {
                 // Your line under your drawing, set as the owner's are.
                 VStack(spacing: GridConstants.gapItem) {
@@ -698,21 +671,11 @@ struct MemoriesView: View {
                     if let line = own.line { DrawingLine(text: line) }
                 }
                 .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
-            } else if let bird = UIImage(named: "Month" + month + "Bird") {
-                // **The bird alone, bigger** (the owner, 2026-10-06: "instead
-                // of the scarecrow could we just have the bird, make it bigger
-                // and then fly in and sit down"). His crow, cut from the
-                // scarecrow's shoulder at three times (`docs/illustrations/
-                // bird.py`): it flies in and sits on its own branch, over the
-                // line. The scarecrow's assets stay in the catalogue.
-                Illustration(art: Self.clear(like: bird),
-                             line: MonthLines.shared.line(for: key) ?? Self.monthLine[month],
-                             height: Self.birdHeight,
-                             motion: .crowLands(crow: bird,
-                                                head: UIImage(named: "Month" + month + "BirdHead"),
-                                                wingsDown: UIImage(named: "Month" + month + "BirdDown"),
-                                                wingsOut: UIImage(named: "Month" + month + "BirdOut"),
-                                                eyes: nil, nose: nil, mouth: nil),
+            } else if UIImage(named: "Month" + month + "SkelSkull") != nil {
+                // **October: the skeleton dances and the crow lands on his
+                // hand** (the owner, 2026-10-06). `OctoberDance` has how.
+                // The scarecrow's assets stay in the catalogue.
+                OctoberDance(line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: 290,
                              onRest: Self.artPlayed)
                     .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
                                            originalLine: Self.monthLine[month]))
@@ -756,17 +719,6 @@ struct MemoriesView: View {
             }
         }
         #endif
-    }
-
-    /// The bird's drawing at the scarecrow's pixels to the point, two, so its
-    /// line is the same weight on screen as every other drawing's.
-    static let birdHeight: CGFloat = 170
-
-    /// An empty layer the bird's size: the still ground under its flight.
-    static func clear(like image: UIImage) -> UIImage {
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in }
     }
 
     /// The month's drawing has played: the tip may now point at it.
@@ -933,8 +885,6 @@ struct MemoriesView: View {
 private struct ReplayOffer: Identifiable {
     let replay: Replay
     let title: String
-    /// The drawn poster, or nil while the shelf model is still drawing it.
-    let poster: UIImage?
     var id: String { replay.id }
 }
 
