@@ -92,6 +92,9 @@ private struct InkStickerHandle: View {
 
     /// The sticker as it was when the fingers came down.
     @State private var start: InkSticker?
+    /// The drag's travel when it last took the sticker, so a drag that
+    /// outlives a pinch carries on from where the pinch left it.
+    @State private var from: CGSize = .zero
 
     var body: some View {
         let view = controller.viewport
@@ -118,25 +121,30 @@ private struct InkStickerHandle: View {
             .accessibilityAction(named: "Remove") { controller.remove(sticker.id) }
     }
 
-    /// Move, pinch and turn at once, from where the sticker was when the
-    /// fingers came down: one step of undo for the whole handling.
+    /// Moved by a finger, from where it was when the finger came down: one
+    /// step of undo for the whole handling. **Its size and turn are the
+    /// page's** (`InkSurface.Coordinator`, the sticker pinch): a pinch here
+    /// only ever saw the fingers that landed on the sticker, which on a phone
+    /// is one of them. The drag keeps whatever size the pinch has given it.
     private var adjust: some Gesture {
-        SimultaneousGesture(DragGesture(coordinateSpace: .named(InkStickerLayer.space)),
-                            SimultaneousGesture(MagnifyGesture(), RotateGesture()))
-            .onChanged { value in
-                let base = start ?? sticker
+        DragGesture(coordinateSpace: .named(InkStickerLayer.space))
+            .onChanged { drag in
+                // Two fingers have it: the pinch places it.
+                if controller.pinching == sticker.id {
+                    start = nil
+                    return
+                }
+                let current = controller.stickers.first { $0.id == sticker.id } ?? sticker
                 if start == nil {
-                    start = sticker
+                    start = current
+                    from = drag.translation
                     controller.beginMoving(sticker.id)
                 }
+                let base = start ?? current
                 let scale = max(controller.viewport.scale, 1)
-                var next = base
-                if let drag = value.first {
-                    next.x = base.x + drag.translation.width / scale
-                    next.y = base.y + drag.translation.height / scale
-                }
-                if let pinch = value.second?.first { next.size = base.size * pinch.magnification }
-                if let turn = value.second?.second { next.rotation = base.rotation + turn.rotation.radians }
+                var next = current
+                next.x = base.x + (drag.translation.width - from.width) / scale
+                next.y = base.y + (drag.translation.height - from.height) / scale
                 controller.move(next)
             }
             .onEnded { _ in

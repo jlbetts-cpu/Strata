@@ -50,6 +50,9 @@ final class InkController {
         didSet { canvas?.tool = erasing ? InkPen.eraser : pen }
     }
     private(set) var canUndo = false
+    /// The sticker two fingers are sizing (the page's sticker pinch). While
+    /// it is set the pinch places it, and a finger's drag on it waits.
+    var pinching: InkSticker.ID?
     /// Set to open the sticker picker from outside (the strip booth's
     /// sticker button); the controls clear it as they open it.
     var wantsStickers = false
@@ -452,6 +455,9 @@ private struct InkSurface: UIViewRepresentable {
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.delegate = context.coordinator
         context.coordinator.watch(canvas)
+        canvas.onWindow = { [weak coordinator = context.coordinator] canvas in
+            coordinator?.hangStickerGestures(on: canvas)
+        }
         controller.attach(canvas)
         return canvas
     }
@@ -538,6 +544,130 @@ private struct InkSurface: UIViewRepresentable {
             DispatchQueue.main.asyncAfter(deadline: .now() + InkAssist.holdDuration, execute: timer)
         }
 
+        // MARK: Pinching a sticker
+
+        /// **A pinch on a sticker sizes it, wherever the fingers land** (the
+        /// owner, 2026-10-07: "resizing the sticker on the month doodle
+        /// doesn't matter, for some reason it stays small"). On a phone two
+        /// fingers spread wider than a small sticker, so one landed on the
+        /// sticker (SwiftUI) and one on the page (this canvas), neither saw
+        /// two fingers, and the page's own pinch zoomed it instead: the
+        /// sticker stayed the same size against the drawing. The simulator,
+        /// whose two touches sat inside the sticker, never showed it.
+        ///
+        /// So the pinch and the turn hang on the view that holds both the
+        /// page and the stickers, and begin only when the fingers' middle is
+        /// on or near a sticker (`stickerReach`); anywhere else they fail at
+        /// once and the page zooms, which waits for them to.
+        private var stickerPinch: UIPinchGestureRecognizer?
+        private var stickerTurn: UIRotationGestureRecognizer?
+        private weak var stickerCanvas: OwnUndoCanvas?
+        private var adjusting: InkSticker?
+        private var pinchScale: CGFloat = 1
+        private var turnAngle: CGFloat = 0
+        /// The fingers' middle when the pinch began, in the canvas's points.
+        private var pinchCentre: CGPoint = .zero
+        /// How near a sticker's edge the fingers' middle may be, in points.
+        static let stickerReach: CGFloat = 44
+
+        func hangStickerGestures(on canvas: OwnUndoCanvas) {
+            guard canvas.window != nil else {
+                // Gone from the screen: take them off whatever held them.
+                for recognizer in [stickerPinch as UIGestureRecognizer?, stickerTurn] {
+                    if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+                }
+                stickerPinch = nil
+                stickerTurn = nil
+                return
+            }
+            guard stickerPinch == nil, let host = Self.host(of: canvas) else { return }
+            stickerCanvas = canvas
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(adjustSticker(_:)))
+            let turn = UIRotationGestureRecognizer(target: self, action: #selector(adjustSticker(_:)))
+            for recognizer in [pinch as UIGestureRecognizer, turn] {
+                recognizer.delegate = self
+                recognizer.cancelsTouchesInView = false
+                host.addGestureRecognizer(recognizer)
+            }
+            canvas.pinchGestureRecognizer?.require(toFail: pinch)
+            stickerPinch = pinch
+            stickerTurn = turn
+        }
+
+        /// The SwiftUI view the page and its stickers are both drawn in.
+        private static func host(of view: UIView) -> UIView? {
+            var next = view.superview
+            while let candidate = next {
+                if String(describing: type(of: candidate)).contains("HostingView") { return candidate }
+                next = candidate.superview
+            }
+            return view.superview
+        }
+
+        private func isStickerGesture(_ recognizer: UIGestureRecognizer) -> Bool {
+            recognizer === stickerPinch || recognizer === stickerTurn
+        }
+
+        /// The sticker nearest the point, if the point is on or near one.
+        private func sticker(near location: CGPoint, in canvas: UIScrollView) -> InkSticker? {
+            let page = CGPoint(x: location.x / canvas.zoomScale, y: location.y / canvas.zoomScale)
+            let reach = Self.stickerReach / canvas.zoomScale
+            var best: (sticker: InkSticker, distance: CGFloat)?
+            for sticker in controller.stickers {
+                guard let image = InkStickers.image(sticker.name),
+                      sticker.bounds(for: image.size).insetBy(dx: -reach, dy: -reach).contains(page) else { continue }
+                let distance = hypot(page.x - CGFloat(sticker.x), page.y - CGFloat(sticker.y))
+                if best == nil || distance < best!.distance { best = (sticker, distance) }
+            }
+            return best?.sticker
+        }
+
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard isStickerGesture(recognizer) else { return true }
+            if adjusting != nil { return true }
+            guard recognizer.numberOfTouches >= 2, let canvas = stickerCanvas,
+                  canvas.bounds.contains(recognizer.location(in: canvas)) else { return false }
+            return sticker(near: recognizer.location(in: canvas), in: canvas) != nil
+        }
+
+        @objc private func adjustSticker(_ recognizer: UIGestureRecognizer) {
+            guard let canvas = stickerCanvas else { return }
+            switch recognizer.state {
+            case .began, .changed:
+                if adjusting == nil, let found = sticker(near: recognizer.location(in: canvas), in: canvas) {
+                    adjusting = controller.stickers.first { $0.id == found.id } ?? found
+                    pinchScale = 1
+                    turnAngle = 0
+                    pinchCentre = recognizer.location(in: canvas)
+                    controller.pinching = found.id
+                    controller.beginMoving(found.id)
+                    // The finger that landed off the sticker began a stroke:
+                    // a sizing pinch draws nothing, so it is called off.
+                    canvas.drawingGestureRecognizer.isEnabled = false
+                    canvas.drawingGestureRecognizer.isEnabled = true
+                    controller.dropStray(within: 0.6)
+                }
+                if let pinch = recognizer as? UIPinchGestureRecognizer { pinchScale = pinch.scale }
+                if let turn = recognizer as? UIRotationGestureRecognizer { turnAngle = turn.rotation }
+                guard let base = adjusting else { return }
+                // Sized and turned by the fingers, and carried by their
+                // middle, as a photo between two fingers is.
+                let centre = recognizer.location(in: canvas)
+                var next = base
+                next.x = base.x + Double((centre.x - pinchCentre.x) / canvas.zoomScale)
+                next.y = base.y + Double((centre.y - pinchCentre.y) / canvas.zoomScale)
+                next.size = base.size * Double(pinchScale)
+                next.rotation = base.rotation + Double(turnAngle)
+                controller.move(next)
+            default:
+                let live: (UIGestureRecognizer?) -> Bool = { $0?.state == .began || $0?.state == .changed }
+                guard !live(stickerPinch), !live(stickerTurn), let base = adjusting else { return }
+                adjusting = nil
+                controller.pinching = nil
+                controller.endMoving(base.id)
+            }
+        }
+
         // MARK: Two-finger tap
 
         @objc private func twoFingerTap(_ recognizer: UITapGestureRecognizer) {
@@ -557,7 +687,13 @@ private struct InkSurface: UIViewRepresentable {
         /// stroke as well).
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            (other.view as? PKCanvasView)?.drawingGestureRecognizer === other
+            // The sticker pinch and turn go together, and alongside the
+            // sticker's own drag; never alongside the page's zoom or pan.
+            if isStickerGesture(gestureRecognizer) {
+                guard let canvas = stickerCanvas else { return true }
+                return other !== canvas.pinchGestureRecognizer && other !== canvas.panGestureRecognizer
+            }
+            return (other.view as? PKCanvasView)?.drawingGestureRecognizer === other
         }
 
         func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
@@ -647,6 +783,15 @@ final class OwnUndoCanvas: PKCanvasView {
     /// True while the drawing is being set in code, so the delegate does not
     /// take it for a finger.
     private(set) var isSettingQuietly = false
+
+    /// Told when the canvas joins or leaves a window: the sticker pinch is
+    /// hung on an ancestor, which only exists once it is in one.
+    var onWindow: ((OwnUndoCanvas) -> Void)?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        onWindow?(self)
+    }
 
     func setDrawingQuietly(_ drawing: PKDrawing) {
         isSettingQuietly = true
