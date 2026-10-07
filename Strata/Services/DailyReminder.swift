@@ -129,8 +129,8 @@ nonisolated enum DailyReminder {
 /// keeps the app's rule of ONE cue a day, whichever way it comes (more
 /// notifications measurably worsen inattention: Kushlev, Proulx and Dunn,
 /// CHI 2016), so it comes only on a day that:
-/// - has one or two wins (none is the morning reminder's day; three or more
-///   is a good day, left alone);
+/// - has a win and has not reached the day's goal yet (`DailyGoal`; none is
+///   the morning reminder's day, and a day at its goal is left alone);
 /// - did not get the morning reminder (its first win came before it fired);
 /// - did not already see the cue on the tower.
 /// Reminders off in Settings is off for this too.
@@ -141,8 +141,9 @@ nonisolated enum EveningCheckIn {
 
     /// When today's should come, or nil for none.
     static func when(winsToday: Int, firstWin: Date?, now: Date, morningHour: Int, morningMinute: Int,
-                     cueSeenToday: Bool, calendar: Calendar = .current) -> Date? {
-        guard (1...WinCue.elseUpTo).contains(winsToday), !cueSeenToday, let firstWin,
+                     cueSeenToday: Bool, goal: Int = WinCue.elseUpTo + 1,
+                     calendar: Calendar = .current) -> Date? {
+        guard winsToday >= 1, winsToday < goal, !cueSeenToday, let firstWin,
               let evening = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), evening > now,
               let morning = calendar.date(bySettingHour: morningHour, minute: morningMinute, second: 0, of: now)
         else { return nil }
@@ -168,7 +169,8 @@ nonisolated enum EveningCheckIn {
         let minute = defaults.object(forKey: "reminderMinute") as? Int ?? 0
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
-                            cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today)
+                            cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
+                            goal: defaults.object(forKey: DailyGoal.defaultsKey) as? Int ?? DailyGoal.standard)
         else { return }
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }

@@ -1,0 +1,45 @@
+import Testing
+import Foundation
+@testable import Strata
+
+/// **The day's goal, as a ring** (the owner, 2026-10-06), and the dance that
+/// now comes when it is reached.
+@Suite("Daily goal")
+struct DailyGoalTests {
+    @Test("the ring only fills: never past full, never below empty")
+    func progress() {
+        #expect(DailyGoal.progress(wins: 0, goal: 3) == 0)
+        #expect(DailyGoal.progress(wins: 2, goal: 4) == 0.5)
+        #expect(DailyGoal.progress(wins: 7, goal: 3) == 1)
+    }
+
+    @Test("reaching is crossing, not resting on it")
+    func reached() {
+        #expect(DailyGoal.reached(from: 2, to: 3, goal: 3))
+        #expect(!DailyGoal.reached(from: 3, to: 4, goal: 3))
+        #expect(!DailyGoal.reached(from: 1, to: 2, goal: 3))
+    }
+
+    @Test("you choose it, from one to twelve, starting at three")
+    func range() {
+        #expect(DailyGoal.standard == 3)
+        #expect(DailyGoal.clamped(0) == 1 && DailyGoal.clamped(40) == 12)
+    }
+
+    @Test("the cue asks until the goal is met, and a met goal is left alone")
+    func cueFollowsTheGoal() {
+        let four = Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date())!
+        #expect(WinCue.line(winsToday: 4, now: four, shownOn: nil, goal: 6) == WinCue.anythingElse)
+        #expect(WinCue.line(winsToday: 6, now: four, shownOn: nil, goal: 6) == nil)
+    }
+
+    @Test("the ring sits in the header's middle, and the Wins tower dances at the goal")
+    func wired() throws {
+        let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
+        #expect(main.contains(".overlay { GoalRing(wins: blocksToday, colours: todaysColours, goal: $dailyGoal) }"))
+        #expect(main.contains("if wins >= dailyGoal, goalDanceDay != today {"))
+        #expect(!main.contains("wins % GridConstants.danceEvery"), "the tenth-win dance gave way to the goal")
+        let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
+        #expect(!ring.contains("Color.red") && !ring.contains(".red"), "the ring never shows a shortfall")
+    }
+}

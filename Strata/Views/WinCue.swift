@@ -29,12 +29,15 @@ nonisolated enum WinCue {
     static let defaultsKey = "winCueDay"
 
     /// The line for now, or nil: one a day, on a day that has not had one.
-    static func line(winsToday: Int, now: Date, shownOn: String?, calendar: Calendar = .current) -> String? {
+    /// "Anything else" asks until the day's goal is met (`DailyGoal`), and
+    /// with no goal, up to `elseUpTo`.
+    static func line(winsToday: Int, now: Date, shownOn: String?, goal: Int? = nil,
+                     calendar: Calendar = .current) -> String? {
         guard shownOn != DateUtils.dateString(from: now) else { return nil }
         let hour = calendar.component(.hour, from: now)
         guard hour < 23 else { return nil }
         if winsToday == 0, hour >= emptyFrom { return emptyDay }
-        if (1...elseUpTo).contains(winsToday), hour >= elseFrom { return anythingElse }
+        if winsToday >= 1, winsToday < (goal ?? elseUpTo + 1), hour >= elseFrom { return anythingElse }
         return nil
     }
 }

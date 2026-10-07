@@ -220,6 +220,7 @@ struct MainAppView: View {
     @State private var winCue: String?
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
+    @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
@@ -1009,7 +1010,7 @@ struct MainAppView: View {
                 // ("Tap the slot to log your first win.").
                 guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
                       let line = WinCue.line(winsToday: blocksToday, now: Date(),
-                                             shownOn: winCueDay.isEmpty ? nil : winCueDay)
+                                             shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: dailyGoal)
                 else { return }
                 try? await Task.sleep(for: .seconds(1.6))
                 guard !Task.isCancelled, winDraft == nil else { return }
@@ -1159,6 +1160,10 @@ struct MainAppView: View {
                 CrewsButton { crewPath = [.list] }
             }
         }
+        // **The day's goal in the middle** (`GoalRing`), where a crew's tower
+        // has its faces: centred on the row, not between its two buttons, so
+        // it holds the same place with crews on or off.
+        .overlay { GoalRing(wins: blocksToday, colours: todaysColours, goal: $dailyGoal) }
         .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
         //
@@ -1639,11 +1644,11 @@ struct MainAppView: View {
         }
     }
 
-    /// Which multiple of ten the tower has already danced for.
-    ///
-    /// Seeded from the current count on first build, so opening the app on a
-    /// tower that is already at thirty does not set it off.
-    @State private var lastDanceMilestone: Int? = nil
+    /// The day the tower last danced for its goal, so it dances once a day,
+    /// when the goal is crossed (`DailyGoal`). Seeded on the first build so a
+    /// tower opened already past its goal does not dance on arrival.
+    @AppStorage("goalDanceDay") private var goalDanceDay = ""
+    @State private var goalDanceSeeded = false
     /// Where the Wins tab's stack has gone: Crews, then a crew.
     @State private var crewPath: [CrewRoute] = []
 
@@ -1917,6 +1922,14 @@ struct MainAppView: View {
     /// The last day today's reminder was taken back, so a refresh that finds
     /// the same win again does not ask the notification centre again.
     @State private var reminderSkippedDay = ""
+
+    /// Today's wins' colours, first to last, for the goal ring's segments.
+    private var todaysColours: [Color] {
+        let today = DateUtils.dateString(from: Date())
+        return logs.filter { $0.dateString == today && $0.completed }
+            .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
+            .map { ($0.habit?.displayCategory ?? .unlabeled).style.baseColor }
+    }
 
     private var blocksToday: Int {
         let today = DateUtils.dateString(from: Date())
@@ -2397,22 +2410,17 @@ struct MainAppView: View {
             // threshold; this was an order of magnitude over it.
             Task { @MainActor in
 
-                // Every tenth win, the tower dances.
-                //
-                // The wave already existed but only a perfect day could set it
-                // off, which most days are not — so the thing most worth
-                // seeing almost never fired. A round number of wins is
-                // something every user reaches, on their own terms, and it is
-                // the tower's own count rather than a judgement about the day.
-                //
-                // Keyed to the milestone rather than the count, so it fires
-                // once when you cross it and never again on a rebuild or a tab
-                // switch.
+                // **The tower dances when you reach your goal** (the owner,
+                // 2026-10-06: "when you reach your goal thats when the tower
+                // dances"). It was every tenth win: a round number every user
+                // reaches, which now gives way to the number they chose
+                // (`GoalRing`), so the day's peak is the one they set. Once a
+                // day, when the goal is crossed, never on a rebuild or a tab
+                // switch. A crew's tower keeps its tenth (`CrewTowerModel`).
                 let wins = towerVM.placedBlocks.count
-                let milestone = wins / GridConstants.danceEvery
-                if wins > 0, wins % GridConstants.danceEvery == 0,
-                   milestone != lastDanceMilestone {
-                    lastDanceMilestone = milestone
+                let today = DateUtils.dateString(from: Date())
+                if wins >= dailyGoal, goalDanceDay != today {
+                    goalDanceDay = today
                     try? await Task.sleep(for: .milliseconds(180))
                     HapticsEngine.reward()
                     animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
@@ -2500,8 +2508,11 @@ struct MainAppView: View {
         // Seed the dance milestone from whatever is already there, so a tower
         // that opens at thirty wins does not immediately celebrate thirty.
         defer {
-            if lastDanceMilestone == nil {
-                lastDanceMilestone = towerVM.placedBlocks.count / GridConstants.danceEvery
+            if !goalDanceSeeded {
+                goalDanceSeeded = true
+                if towerVM.placedBlocks.count >= dailyGoal {
+                    goalDanceDay = DateUtils.dateString(from: Date())
+                }
             }
         }
         var droppedIDs: Set<UUID> = []
