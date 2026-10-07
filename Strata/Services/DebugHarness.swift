@@ -218,6 +218,10 @@ enum DebugHarness {
     /// script reliably.
     static var inkSticker: String? { argument("-strataInkSticker") }
 
+    /// `-strataStickerLift demo`: the lift moment played with the sample
+    /// sticker, because a simulator cannot lift a subject out of a photo.
+    static var stickerLiftDemo: Bool { argument("-strataStickerLift") == "demo" }
+
     /// Presses the journal's Suggest once it opens, from `-strataJournalAsk`.
     static var journalAsks: Bool { ProcessInfo.processInfo.arguments.contains("-strataJournalAsk") }
 

@@ -322,6 +322,13 @@ struct DaySheet: View {
     var body: some View {
         NavigationStack {
             page
+                // New Sticker's photos and its lift, hung on the page: the
+                // mark's button is in the bar, and a cover cannot rise from
+                // a bar item (`StickerMaking`).
+                .stickerMaking(isPresented: $choosingPhoto) { made in
+                    symbol = made
+                    save()
+                }
                 // **The tabs ARE the title** on Wins (the owner, 2026-10-05:
                 // "the tabs i feel like look a little off"): a bold "Today"
                 // over a bold "Plan" was two headings, so the switch takes the
@@ -897,10 +904,6 @@ struct DaySheet: View {
                 }
             })
             .presentationCompactAdaptation(.popover)
-        }
-        .stickerMaking(isPresented: $choosingPhoto) { made in
-            symbol = made
-            save()
         }
         .overlay {
             EmojiField(isActive: $picking) { picked in

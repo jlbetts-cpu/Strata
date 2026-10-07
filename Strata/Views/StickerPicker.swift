@@ -104,12 +104,29 @@ struct StickerPicker: View {
 /// then a sticker lifted out of the one chosen, handed back as its symbol.
 /// Attached to the view the popover hangs from, so the photo picker is
 /// presented by a view that stays on screen.
+///
+/// **The lift is shown, not waited through** (2026-10-06, the owner's
+/// approved "labor illusion, done honestly"). It was a silent second
+/// between choosing a photo and a sticker appearing. Now the photo comes up
+/// with a light passing over it while the subject is cut out, and the
+/// sticker steps forward out of it before it is put down. The work is real;
+/// it is only made visible, and held to `shortest` so a fast lift still
+/// reads as one.
 struct StickerMaking: ViewModifier {
     @Binding var isPresented: Bool
     let onMade: (_ symbol: String) -> Void
 
     @State private var item: PhotosPickerItem?
     @State private var failed = false
+    @State private var photo: UIImage?
+    @State private var lifted: UIImage?
+    @State private var showing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The least time the moment holds, and how long the sticker is shown
+    /// before it is put down.
+    static let shortest: Duration = .milliseconds(900)
+    static let hold: Duration = .milliseconds(650)
 
     func body(content: Content) -> some View {
         content
@@ -119,25 +136,153 @@ struct StickerMaking: ViewModifier {
                 item = nil
                 Task { await make(from: picked) }
             }
+            .fullScreenCover(isPresented: Binding(get: { photo != nil }, set: { if !$0 { photo = nil } })) {
+                if let photo {
+                    StickerLiftMoment(photo: photo, sticker: lifted, reduceMotion: reduceMotion)
+                        .opacity(showing ? 1 : 0)
+                        .presentationBackground(.clear)
+                }
+            }
             .alert("Couldn't find anything to lift", isPresented: $failed) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Try another photo.")
             }
+            #if DEBUG
+            .task {
+                guard DebugHarness.stickerLiftDemo, let sample = StickerMaker.sample() else { return }
+                try? await Task.sleep(for: .seconds(1.5))
+                await play(StickerLiftMoment.demoPhoto(sample)) { _ in sample }
+            }
+            #endif
     }
 
     private func make(from picked: PhotosPickerItem) async {
         guard let data = try? await picked.loadTransferable(type: Data.self),
-              let photo = UIImage(data: data),
-              let sticker = await StickerMaker.lift(photo),
-              let name = StickerStore.shared.add(sticker) else {
+              let full = UIImage(data: data) else {
+            HapticsEngine.warning()
+            failed = true
+            return
+        }
+        await play(full) { await StickerMaker.lift($0) }
+    }
+
+    /// The moment: the photo up, the lift running under the light, the
+    /// sticker forward, then put down (or, with nothing to lift, the
+    /// moment closes and says so).
+    private func play(_ full: UIImage, lift: @escaping (UIImage) async -> UIImage?) async {
+        lifted = nil
+        photo = full.preparingThumbnail(of: Self.fitted(full.size, within: 900)) ?? full
+        // The lift starts at once; the photo shows once the cover has risen
+        // invisibly (its own slide cannot be turned off from here, measured:
+        // `disablesAnimations` did not stop it), and the moment holds for
+        // `shortest` from then, so the light is always seen.
+        let lifting = Task { await lift(full) }
+        try? await Task.sleep(for: .milliseconds(380))
+        withAnimation(.easeOut(duration: 0.24)) { showing = true }
+        let shown = ContinuousClock.now
+        let sticker = await lifting.value
+        let spent = ContinuousClock.now - shown
+        if spent < Self.shortest { try? await Task.sleep(for: Self.shortest - spent) }
+        guard let sticker, let name = StickerStore.shared.add(sticker) else {
+            await close()
             HapticsEngine.warning()
             failed = true
             return
         }
         HapticsEngine.success()
+        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.42, bounce: 0.32)) {
+            lifted = sticker
+        }
+        try? await Task.sleep(for: Self.hold)
+        await close()
         onMade(StickerStore.symbol(for: name))
     }
+
+    private func close() async {
+        withAnimation(.easeIn(duration: 0.2)) { showing = false }
+        try? await Task.sleep(for: .milliseconds(220))
+        photo = nil
+        lifted = nil
+    }
+
+    static func fitted(_ size: CGSize, within side: CGFloat) -> CGSize {
+        let k = min(1, side / max(size.width, size.height, 1))
+        return CGSize(width: size.width * k, height: size.height * k)
+    }
+}
+
+/// The photo while its subject is lifted, then the sticker stepping out.
+struct StickerLiftMoment: View {
+    let photo: UIImage
+    let sticker: UIImage?
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            // The page dimmed behind it, as a sheet's is.
+            Color.black.opacity(0.5).ignoresSafeArea()
+            ZStack {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+                    .overlay {
+                        if sticker == nil && !reduceMotion { sweep }
+                    }
+                    .opacity(sticker == nil ? 1 : 0)
+                    .scaleEffect(sticker == nil ? 1 : 0.96)
+                if let sticker {
+                    Image(uiImage: sticker)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(GridConstants.gapItem)
+                        .transition(.scale(scale: reduceMotion ? 1 : 0.82).combined(with: .opacity))
+                }
+            }
+            .frame(maxWidth: 300, maxHeight: 400)
+            .padding(GridConstants.horizontalPadding)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(sticker == nil ? "Making a sticker" : "Sticker made")
+    }
+
+    /// A band of light crossing the photo, left to right, again and again:
+    /// the subject being found. Masked to the photo's own shape.
+    private var sweep: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let phase = (t.truncatingRemainder(dividingBy: 1.3)) / 1.3
+            GeometryReader { geo in
+                let w = geo.size.width
+                // Taller than the photo, so tilting it never shows its ends.
+                LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
+                                       .init(color: .white.opacity(0.32), location: 0.5),
+                                       .init(color: .white.opacity(0), location: 1)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: w * 0.4, height: geo.size.height * 1.6)
+                    .rotationEffect(.degrees(12))
+                    .position(x: -w * 0.3 + phase * w * 1.6, y: geo.size.height / 2)
+                    .blendMode(.plusLighter)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+        .allowsHitTesting(false)
+    }
+
+    #if DEBUG
+    /// A stand-in photograph for the demo: the sample on a meadow-ish ground.
+    static func demoPhoto(_ sample: UIImage) -> UIImage {
+        let size = CGSize(width: 600, height: 760)
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            UIColor(red: 0.62, green: 0.74, blue: 0.86, alpha: 1).setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            UIColor(red: 0.44, green: 0.62, blue: 0.36, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 470, width: 600, height: 290))
+            sample.draw(in: CGRect(x: 110, y: 200, width: 380, height: 380))
+        }
+    }
+    #endif
 }
 
 extension View {
