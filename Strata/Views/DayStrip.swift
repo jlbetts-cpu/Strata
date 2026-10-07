@@ -109,16 +109,13 @@ struct DayStripView: View {
         }
     }
 
+    /// The wordmark, and the day under it.
     private var footer: some View {
-        VStack(spacing: margin * 0.4) {
-            if let mark = UIImage(named: "BrandCamera")?.withRenderingMode(.alwaysTemplate) {
-                Image(uiImage: mark)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: width * 0.16, height: width * 0.16)
-            }
+        VStack(spacing: margin * 0.35) {
+            Wordmark(size: width * 0.085)
             Text(Self.date(strip.day))
-                .font(.system(size: width * 0.085, weight: .semibold))
+                .font(.custom(Wordmark.fontName, fixedSize: width * 0.065))
+                .opacity(0.6)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
