@@ -422,6 +422,8 @@ enum GridConstants {
     static let cueOut = Animation.easeIn(duration: 0.22)
     static let momentIn = Animation.easeOut(duration: 0.24)
     static let stickerStep = Animation.spring(duration: 0.42, bounce: 0.32)
+    /// A frame's worth of strip leaving the printer: quick, then stopped.
+    static let stripStep = Animation.easeOut(duration: 0.28)
 
     /// A block fading in where it belongs, or out where it stood. Long enough
     /// to read as a change rather than a cut, short enough to be finished by

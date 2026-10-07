@@ -221,6 +221,10 @@ struct MainAppView: View {
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
+    /// The day's strip while the crest prints it, and the one opened to keep.
+    @State private var printingStrip: DayStrip?
+    @State private var openedStrip: DayStrip?
+    @AppStorage("stripPrintedDay") private var stripPrintedDay = ""
     @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
@@ -1166,8 +1170,25 @@ struct MainAppView: View {
         // the fraction in the crew's caption under it. Centred on the row,
         // not between its two buttons, so it holds the same place with crews
         // on or off.
-        GoalCrest(wins: blocksToday, colours: todaysColours, goal: $dailyGoal)
+        GoalCrest(wins: blocksToday, goal: $dailyGoal,
+                  printing: $printingStrip,
+                  openStrip: { strip in
+                      if let strip { openedStrip = strip; return }
+                      Task { openedStrip = await DayStrip.today(context: modelContext) }
+                  })
         }
+        // **The strip prints when the goal is crossed** (`DayStrip`), once a
+        // day, a beat after the tower's dance has begun.
+        .onChange(of: blocksToday) { old, new in
+            let today = DateUtils.dateString(from: Date())
+            guard DailyGoal.reached(from: old, to: new, goal: dailyGoal), stripPrintedDay != today else { return }
+            stripPrintedDay = today
+            Task {
+                try? await Task.sleep(for: .seconds(1.4))
+                printingStrip = await DayStrip.today(context: modelContext)
+            }
+        }
+        .sheet(item: $openedStrip) { DayStripSheet(strip: $0) }
         .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
         //
@@ -1926,14 +1947,6 @@ struct MainAppView: View {
     /// The last day today's reminder was taken back, so a refresh that finds
     /// the same win again does not ask the notification centre again.
     @State private var reminderSkippedDay = ""
-
-    /// Today's wins' colours, first to last, for the goal ring's segments.
-    private var todaysColours: [Color] {
-        let today = DateUtils.dateString(from: Date())
-        return logs.filter { $0.dateString == today && $0.completed }
-            .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
-            .map { ($0.habit?.displayCategory ?? .unlabeled).style.baseColor }
-    }
 
     private var blocksToday: Int {
         let today = DateUtils.dateString(from: Date())

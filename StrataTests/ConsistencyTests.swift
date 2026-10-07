@@ -241,6 +241,8 @@ enum ConsistencySweep {
     /// `glassCapsule` and `photoOverlay`, which is why `PressResponse`'s own doc
     /// says those three were never the problem.
     static let glassBacked: [String: Int] = [
+        // The goal's caption, `CrestCaption`: the crew name's glass capsule.
+        "Strata/Views/GoalRing.swift": 1,
         // The zoom pill, which is `glassCapsule()`.
         "Strata/Views/CameraView.swift": 1,
         // The component itself: its label IS `GlassIconLabel`.

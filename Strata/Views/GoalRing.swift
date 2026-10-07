@@ -37,19 +37,21 @@ nonisolated enum DailyGoal {
     static func clamped(_ value: Int) -> Int { min(range.upperBound, max(range.lowerBound, value)) }
 }
 
-/// **The ring alone**, segment per win in its block's colour, the rest the
-/// track: drawn round whatever sits in the middle (your head on Wins; a
+/// **The ring alone, in ink**: a segment per win, the rest the track, drawn
+/// round whatever sits in the middle. **Monotone on purpose** (the owner,
+/// 2026-10-06: "the blocks being the only colored element feels right to
+/// me"); it was a segment per win in its block's colour, and the colour
+/// belongs to the blocks alone. Drawn (your head on Wins; a
 /// crew's bubble, once crews have goals), so the two towers share one ring.
 struct GoalRingStroke: View {
     let wins: Int
-    var colours: [Color] = []
     let goal: Int
     var line: CGFloat = 4
     /// Half the space between two segments, as a share of the ring.
     private static let gap = 0.018
 
     /// One segment a win toward the goal; past it, one for every win, so
-    /// the ring stays full and keeps the day's colours.
+    /// the ring stays full.
     private var segments: Int { max(1, max(goal, wins)) }
 
     var body: some View {
@@ -58,7 +60,7 @@ struct GoalRingStroke: View {
                 let span = 1.0 / Double(segments)
                 Circle()
                     .trim(from: Double(i) * span + Self.gap, to: Double(i + 1) * span - Self.gap)
-                    .stroke(i < wins ? colour(i) : AppColors.inkPrimary.opacity(0.08),
+                    .stroke(i < wins ? AppColors.inkPrimary : AppColors.inkPrimary.opacity(0.08),
                             style: StrokeStyle(lineWidth: line, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
@@ -67,9 +69,6 @@ struct GoalRingStroke: View {
         .accessibilityHidden(true)
     }
 
-    private func colour(_ i: Int) -> Color {
-        colours.indices.contains(i) ? colours[i] : AppColors.inkPrimary
-    }
 }
 
 /// **The caption under a tower's middle**: a crew's name, or the goal's
@@ -78,6 +77,10 @@ struct GoalRingStroke: View {
 struct CrestCaption: View {
     let text: String
     var chevron = false
+    /// **The printer** (`GoalCrest`): the capsule widens and its words give
+    /// way to a dark slot the strip comes out of. The same glass, so the
+    /// caption becomes the printer rather than being replaced by one.
+    var printer: CGFloat? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -94,8 +97,18 @@ struct CrestCaption: View {
                     .foregroundStyle(AppColors.inkTertiary)
             }
         }
+        .opacity(printer == nil ? 1 : 0)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+        .frame(minWidth: printer)
+        .overlay {
+            if let printer {
+                Capsule()
+                    .fill(AppColors.inkPrimary.opacity(0.85))
+                    .frame(width: printer - 24, height: 3)
+                    .transition(.opacity)
+            }
+        }
         .glassCapsule(onPage: true)
     }
 }
@@ -107,12 +120,24 @@ struct CrestCaption: View {
 /// A tap on either sets the goal.
 struct GoalCrest: View {
     let wins: Int
-    var colours: [Color] = []
     @Binding var goal: Int
+    /// The day's strip while it prints and hangs (`DayStrip`): set by the
+    /// page when the goal is crossed, cleared here once it is taken or
+    /// tucked back in.
+    @Binding var printing: DayStrip?
+    /// Open the strip: the one hanging, or (nil) today's, fetched by the page.
+    var openStrip: (DayStrip?) -> Void = { _ in }
     /// The crew bubble's side, so the two towers' middles match.
     var side: CGFloat = 60
 
     @State private var choosing = false
+    /// How much of the strip is out of the printer, 0 to 1.
+    @State private var printed: CGFloat = 0
+    @State private var printerOpen = false
+    @State private var stripHeight: CGFloat = 0
+    /// The strip's width in the header, and the printer a little wider.
+    static let stripWidth: CGFloat = 108
+    static let printerWidth: CGFloat = 132
     @State private var swell = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -122,7 +147,7 @@ struct GoalCrest: View {
         VStack(spacing: GridConstants.spacing) {
             Button { choosing = true } label: {
                 ZStack {
-                    GoalRingStroke(wins: wins, colours: colours, goal: goal, line: Self.line)
+                    GoalRingStroke(wins: wins, goal: goal, line: Self.line)
                         .padding(Self.line / 2 + 2)
                     CrestFace(side: side - 2 * (Self.line + 6))
                 }
@@ -133,8 +158,14 @@ struct GoalCrest: View {
             }
             .buttonStyle(.press)
             .zIndex(1)
-            Button { choosing = true } label: {
-                CrestCaption(text: "\(wins)/\(goal)")
+            Button {
+                // Past the goal, the caption hands over the day's strip.
+                if wins >= goal { openStrip(printing) } else { choosing = true }
+            } label: {
+                CrestCaption(text: "\(wins)/\(goal)", printer: printerOpen ? Self.printerWidth : nil)
+                    // Behind the glass, so the paper comes out of the slot
+                    // rather than lying over the printer.
+                    .background(alignment: .top) { stripOut }
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
                     .contentShape(Rectangle())
@@ -156,6 +187,10 @@ struct GoalCrest: View {
                 withAnimation(GridConstants.cueOut) { swell = false }
             }
         }
+        .onChange(of: printing?.id) { _, id in
+            guard id != nil, printed == 0 else { return }
+            Task { await print() }
+        }
         .popover(isPresented: $choosing) {
             GoalChooser(goal: $goal)
                 .presentationCompactAdaptation(.popover)
@@ -166,6 +201,58 @@ struct GoalCrest: View {
         .accessibilityHint("Sets the day's goal")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { choosing = true }
+    }
+}
+
+extension GoalCrest {
+    /// The strip, out of the slot as far as it has printed: its bottom edge
+    /// first, as paper leaves a printer. A tap takes it.
+    @ViewBuilder
+    var stripOut: some View {
+        if let strip = printing {
+            DayStripView(strip: strip, width: Self.stripWidth)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
+                .frame(height: max(0, stripHeight * printed), alignment: .bottom)
+                .clipped()
+                // From the slot's line, in the capsule's middle.
+                .offset(y: 15)
+
+                .onTapGesture {
+                    HapticsEngine.lightTap()
+                    openStrip(strip)
+                    Task { await tuckAway(taken: true) }
+                }
+                .accessibilityLabel("Today's strip")
+                .accessibilityAddTraits(.isButton)
+        }
+    }
+
+    /// The print: the printer opens, the strip steps out a frame at a time
+    /// with a tap for each, hangs, and if nobody takes it, goes back in.
+    func print() async {
+        guard let strip = printing else { return }
+        withAnimation(GridConstants.cueIn) { printerOpen = true }
+        try? await Task.sleep(for: .milliseconds(450))
+        let steps = strip.frames.count + 1
+        for step in 1...steps {
+            withAnimation(reduceMotion ? nil : GridConstants.stripStep) {
+                printed = CGFloat(step) / CGFloat(steps)
+            }
+            HapticsEngine.lightTap()
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 60 : 420))
+        }
+        try? await Task.sleep(for: .seconds(9))
+        guard printing != nil else { return }
+        await tuckAway(taken: false)
+    }
+
+    /// Back into the printer, and the caption again. Taken or not, today's
+    /// strip is a tap on the caption from now on.
+    func tuckAway(taken: Bool) async {
+        withAnimation(taken ? GridConstants.cueOut : GridConstants.stripStep) { printed = 0 }
+        try? await Task.sleep(for: .milliseconds(320))
+        withAnimation(GridConstants.cueOut) { printerOpen = false }
+        printing = nil
     }
 }
 
