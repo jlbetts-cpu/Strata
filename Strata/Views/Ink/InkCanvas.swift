@@ -336,13 +336,12 @@ struct InkControls<Accessory: View>: View {
             // A toggle: the glyph fills while the eraser is on, as a
             // selected tool does across iOS, and nothing moves.
             //
-            // **The eraser, the undo and the sticker are the owner's own
-            // drawings** (2026-10-06, `DoodleIcon`): this row is where you
-            // draw, so it is drawn. All four buttons in it are his or are not
-            // a glyph at all (the pen's dot), so no symbol stands beside a
-            // drawing here; that is the rule that kept the strip booth's
-            // pencil, beside Share and Save, a symbol.
-            GlassIconButton(drawn: controller.erasing ? .eraserOn : .eraser,
+            // **Tools are Apple's, what is yours is drawn** (the owner,
+            // 2026-10-07: custom icons "make sense for the category and emoji
+            // picker, doesn't make as much sense for the eraser"). The eraser
+            // and undo are tools, read at a glance; the sticker button is
+            // your own expression, so it is his drawing (`DoodleIcon`).
+            GlassIconButton(systemName: controller.erasing ? "eraser.fill" : "eraser",
                             onPage: true,
                             accessibilityLabel: "Eraser") {
                 controller.erasing.toggle()
@@ -358,7 +357,7 @@ struct InkControls<Accessory: View>: View {
             }
             .accessibilityValue(controller.weight.name)
             .animation(GridConstants.motionSnappy, value: controller.weight)
-            GlassIconButton(drawn: .undo, onPage: true,
+            GlassIconButton(systemName: "arrow.uturn.backward", onPage: true,
                             accessibilityLabel: "Undo") {
                 controller.undo()
             }

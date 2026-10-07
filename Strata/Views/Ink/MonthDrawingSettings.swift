@@ -26,18 +26,16 @@ struct MonthDrawingSettingsView: View {
                     MonthDrawingTip.used()
                     editing = DrawingMonth(id: month)
                 } label: {
-                    // **Words only, as Settings is** (2026-10-07, Settings'
-                    // "A row's words"). His drawn pencil was tried here and
-                    // came out a hairline beside the word at a row's 13pt,
-                    // on a page you reach from a Settings with no glyphs.
-                    Text("Draw Your Own").foregroundStyle(AppColors.inkPrimary)
+                    Label { Text("Draw Your Own").foregroundStyle(AppColors.inkPrimary) }
+                        icon: { SettingsIcon(systemName: "pencil") }
                 }
                 if own != nil {
                     Button(role: .destructive) {
                         HapticsEngine.lightTap()
                         MonthDrawingStore.shared.remove(month)
                     } label: {
-                        Text("Use Original").foregroundStyle(AppColors.destructiveInk)
+                        Label { Text("Use Original").foregroundStyle(AppColors.destructiveInk) }
+                            icon: { SettingsIcon(systemName: "arrow.uturn.backward", tint: AppColors.destructiveInk) }
                     }
                 }
             }

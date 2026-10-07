@@ -3,24 +3,22 @@ import SwiftUI
 /// **The owner's own drawn icons** (2026-10-06), cut from his Procreate sheet
 /// by `docs/icons/slice_icons.py`.
 ///
-/// The split he approved after the research: "less is so much more to me, if
-/// we can make something more minimal and intuitive we should do it". His hand
-/// goes where you DRAW (the ink tools, the day's sticker) and on the six
-/// category chips, where the colour already says "yours". Everything whose job
-/// is to be recognised in a glance and pressed without thinking (back, close,
-/// share, trash, send) stays an SF Symbol, and **a drawn icon never stands in
-/// the same row as a symbol at the same level**: two kinds of line side by
-/// side read as a mistake, not as character. Then, the next morning: "make
-/// sure the icons still look clean and premium, I don't want the app to lose
-/// value from this update", which is why the script thickens every outline to
-/// one weight on screen and smooths his pen edge rather than shipping the
-/// sheet as drawn.
+/// **His rule: what is yours is drawn, tools are Apple's** (2026-10-07: custom
+/// icons "make sense for the category and emoji picker, doesn't make as much
+/// sense for the eraser"). His hand is on the six category chips, where the
+/// colour already says "yours", and on the sticker button, your own
+/// expression. Every tool and control (eraser, undo, back, close, share,
+/// trash, send, Settings rows) stays an SF Symbol: those are recognised in a
+/// glance and pressed without thinking. The eraser and undo were drawn for a
+/// night and went back. A drawn sticker button beside Apple's eraser is his
+/// call: it says this one is yours.
+///
+/// "Make sure the icons still look clean and premium, I don't want the app to
+/// lose value from this update": the script thickens every outline to one
+/// weight on screen and smooths his pen edge rather than shipping the sheet as
+/// drawn, and simplifies the two that smudged at chip size (the bag's clasp,
+/// the shoulder behind his two people).
 enum Doodle: String, CaseIterable {
-    case eraser = "DoodleEraser"
-    /// The eraser while it is on, filled, as `eraser.fill` is a selected tool
-    /// across iOS. Made from his outline by the script, not drawn twice.
-    case eraserOn = "DoodleEraserOn"
-    case undo = "DoodleUndo"
     case sticker = "DoodleSticker"
     case health = "DoodleHealth"
     case work = "DoodleWork"

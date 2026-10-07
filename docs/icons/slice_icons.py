@@ -50,8 +50,6 @@ CAL = 0.815         # erosion-depth estimate -> true width, from his smiley's
 # The tools are shown at `GridConstants.iconToolbar` (17) on a 26pt canvas;
 # the category chips at `iconCategory` (13) on a 20pt canvas.
 ICONS = {
-    'DoodleEraser':     (4, 2, False, (17.0, 17.3), 26),
-    'DoodleUndo':       (4, 3, False, (16.0, 16.0), 26),
     'DoodleSticker':    (4, 4, False, (17.3, 17.3), 26),
     'DoodleHealth':     (15, 0, True, (12.7, 12.0), 20),
     'DoodleWork':       (15, 1, True, (15.0, 12.7), 20),
@@ -64,7 +62,7 @@ ICONS = {
 # stands on a line, which makes its box taller than the eraser itself reads;
 # his people are two small shapes and a sliver, and read a size under the
 # heart and the bag beside them on the chips.
-TWEAK = {'DoodleEraser': 0.94, 'DoodleSocial': 1.1}
+TWEAK = {'DoodleSocial': 1.1}
 # The white inside a filled glyph (the bag's clasp, the eye's ring, the leaf's
 # veins) opened by this much each side: at 13pt his gaps were half a point and
 # the clasp read as a smudge. The outside edge is not touched.
@@ -72,7 +70,7 @@ COUNTER_PT = 0.22
 
 # The eraser while it is on: his eraser, filled, as `eraser.fill` is the
 # selected tool across iOS. Made from the outline, not drawn.
-FILLED_FROM = {'DoodleEraserOn': 'DoodleEraser'}
+FILLED_FROM = {}  # the eraser went back to Apple's (2026-10-07)
 
 
 def disk(m, r):
@@ -187,6 +185,8 @@ def render(name, cov, filled, box_pt, canvas_pt, scale, fill_on=False):
     k = min((kw * kh) ** 0.5, 1.08 * min(kw, kh)) * TWEAK.get(name, 1.0)    # pt per source px
     if filled:
         grow = 0.0
+        if name in SIMPLER:
+            cov = SIMPLER[name](cov, k)
         cov = open_counters(cov, COUNTER_PT / k)
     else:
         target = STROKE_PT / k                                  # source px
@@ -210,6 +210,46 @@ def render(name, cov, filled, box_pt, canvas_pt, scale, fill_on=False):
     a = Image.new('L', (side, side), 0)
     a.paste(glyph, ((side - gw) // 2, (side - gh) // 2))
     return a, grow * 2 * k
+
+
+def seam_only(cov, k):
+    """His bag with its flap line kept and its clasp taken in: the ring
+    round the clasp is what ran into a smudge at the chip's 13pt (the owner,
+    2026-10-07: "simplify my two"), and the seam across is what says
+    briefcase. Filling the whole inside was tried and read as a cloud.
+    The clasp sits at the middle of the white inside, which is symmetric
+    about it, so its centre is that white's centre of mass."""
+    ink = cov > 0.5
+    shut = disk(np.pad(ink, 12), max(2, int(round(1.2 / k))))
+    inner = ~ink & ~outside_of(shut)[12:-12, 12:-12]
+    ys, xs = np.nonzero(inner)
+    if not len(xs):
+        return cov
+    cy, cx = ys.mean(), xs.mean()
+    bx = np.nonzero(ink)[1]
+    r = 0.2 * (bx.max() - bx.min())
+    yy, xx = np.mgrid[:cov.shape[0], :cov.shape[1]]
+    clasp = inner & ((yy - cy) ** 2 + (xx - cx) ** 2 <= r * r)
+    return np.where(clasp, 1.0, cov)
+
+
+def back_steps_back(cov, k):
+    """His two people with the shoulder behind left out: at 13pt the sliver
+    of it read as a speck beside the front figure (the owner, 2026-10-07:
+    "simplify my two"). The head behind stays, so it is still two people,
+    as `person.2.fill` shows the one behind by its head. Paring the back
+    figure thinner instead was tried and read as slivers."""
+    ink = cov > 0.5
+    lab, sizes = label(ink)
+    big = sorted((n for n in sizes if sizes[n] > 30), key=lambda n: np.nonzero(lab == n)[1].mean())
+    if len(big) < 4:
+        return cov
+    back = big[2:]
+    shoulder = max(back, key=lambda n: np.nonzero(lab == n)[0].mean())
+    return np.where(lab == shoulder, 0.0, cov)
+
+
+SIMPLER = {'DoodleWork': seam_only, 'DoodleSocial': back_steps_back}
 
 
 def open_counters(cov, r):

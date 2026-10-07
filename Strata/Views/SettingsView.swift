@@ -230,8 +230,12 @@ struct SettingsView: View {
                 // goes on the `Text`, not on the row, so a disabled row still
                 // greys.
                 Toggle(isOn: $notificationsEnabled) {
-                    Text("Daily Reminder")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Daily Reminder")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "bell")
+                    }
                 }
                 // **`switchTrack`, and all six of this page's switches were
                 // `inkPrimary`, which is a dark-mode failure nobody had looked
@@ -270,15 +274,21 @@ struct SettingsView: View {
                 }
 
                 if notificationsEnabled {
-                    // One column of words, as every row here now is ("A row's
-                    // words", below): this was once the only row with no
-                    // glyph, 43pt left of the rest. Now none has one.
+                    // **It gets a glyph, because every other row has one.**
+                    // This was the one row on either screen with no icon, so its
+                    // label began in the icon column while the eleven rows
+                    // around it began 43pt further in. A column that one row
+                    // steps out of is not a column.
                     DatePicker(
                         selection: $reminderTime,
                         displayedComponents: .hourAndMinute
                     ) {
-                        Text("Reminder Time")
-                            .foregroundStyle(AppColors.inkPrimary)
+                        Label {
+                            Text("Reminder Time")
+                                .foregroundStyle(AppColors.inkPrimary)
+                        } icon: {
+                            SettingsIcon(systemName: "clock")
+                        }
                     }
                     .datePickerStyle(.compact)
                     .onChange(of: reminderTime) { _, newTime in
@@ -301,8 +311,12 @@ struct SettingsView: View {
                 // told when the value changes, so the switch cannot show one
                 // thing while the store holds another.
                 Toggle(isOn: $replayRemindersOn) {
-                    Text("Weekly and Monthly Replays")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Weekly and Monthly Replays")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.stack.3d.up")
+                    }
                 }
                 .tint(AppColors.switchTrack)
                 .onChange(of: replayRemindersOn) { _, on in
@@ -316,8 +330,12 @@ struct SettingsView: View {
                 // An evening line about a past win, only on a day with one
                 // of its own (`PastWinReminder`).
                 Toggle(isOn: $pastWinRemindersOn) {
-                    Text("Past Wins")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Past Wins")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "clock.arrow.circlepath")
+                    }
                 }
                 .tint(AppColors.switchTrack)
                 .onChange(of: pastWinRemindersOn) { _, on in
@@ -359,14 +377,22 @@ struct SettingsView: View {
                     get: { !SoundEngine.isMuted },
                     set: { SoundEngine.isMuted = !$0 }
                 )) {
-                    Text("Completion Sounds")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Completion Sounds")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "speaker.wave.2")
+                    }
                 }
                 .tint(AppColors.switchTrack)
 
                 Toggle(isOn: $hapticsEnabled) {
-                    Text("Haptic Feedback")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Haptic Feedback")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                    }
                 }
                 .tint(AppColors.switchTrack)
             } header: {
@@ -383,11 +409,11 @@ struct SettingsView: View {
                 // also inked the header, which then read darker and heavier
                 // than every other heading on the screen.
                 Button { previewing = ReplaySample.replay(.week, now: Date()) } label: {
-                    Text("Preview Your Week")
+                    Label { Text("Preview Your Week") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
                 }
                 .foregroundStyle(AppColors.inkPrimary)
                 Button { previewing = ReplaySample.replay(.month, now: Date()) } label: {
-                    Text("Preview Your Month")
+                    Label { Text("Preview Your Month") } icon: { SettingsIcon(systemName: "calendar") }
                 }
                 .foregroundStyle(AppColors.inkPrimary)
             } header: {
@@ -398,8 +424,12 @@ struct SettingsView: View {
 
             Section {
                 Toggle(isOn: $savesToCameraRoll) {
-                    Text("Save to Photos")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Save to Photos")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "photo.on.rectangle.angled")
+                    }
                 }
                 .tint(AppColors.switchTrack)
 
@@ -433,8 +463,12 @@ struct SettingsView: View {
                 // object, and two rows in one section reading the same shape is
                 // the pair saying they are the same kind of decision.
                 Toggle(isOn: $remembersPlaces) {
-                    Text("Keep Places")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Keep Places")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "mappin.and.ellipse")
+                    }
                 }
                 .tint(AppColors.switchTrack)
                 .disabled(location.isDenied)
@@ -477,8 +511,12 @@ struct SettingsView: View {
                 NavigationLink {
                     MonthDrawingSettingsView()
                 } label: {
-                    Text("Month Drawing")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Month Drawing")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "pencil.and.scribble")
+                    }
                 }
             } header: {
                 FormSectionLabel("Memories")
@@ -493,8 +531,12 @@ struct SettingsView: View {
             // between them and their own words. See `JournalLock`.
             Section {
                 Toggle(isOn: $locksJournal) {
-                    Text("Lock Journal")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Lock Journal")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "lock")
+                    }
                 }
                 .tint(AppColors.switchTrack)
                 .onChange(of: locksJournal) { _, on in
@@ -517,8 +559,12 @@ struct SettingsView: View {
                     HapticsEngine.lightTap()
                     replayOnboarding = true
                 } label: {
-                    Text("How Some Wins Works")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("How Some Wins Works")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "questionmark.circle")
+                    }
                 }
             }
             // **No footer** (cut 15, `docs/copy-audit.md`). It read "The short
@@ -540,8 +586,12 @@ struct SettingsView: View {
                     HapticsEngine.lightTap()
                     exportData()
                 } label: {
-                    Text("Back Up Everything")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Back Up Everything")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.and.arrow.up")
+                    }
                 }
                 .disabled(habits.isEmpty)
                 // `AppColors`, not `.tertiary`/`.primary`. The row beside it in
@@ -566,47 +616,54 @@ struct SettingsView: View {
                     HapticsEngine.lightTap()
                     showRestorePicker = true
                 } label: {
-                    Text("Restore From a Backup")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Restore From a Backup")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.and.arrow.down")
+                    }
                 }
 
                 Button(role: .destructive) {
                     showResetConfirmation = true
                 } label: {
-                    // **One red on the row, not two.** The word was taking
-                    // the destructive role's own red, the system #FF3B30,
-                    // beside a glyph in the app's (the glyph has since gone,
-                    // below): two reds four points apart on one line, on the
-                    // one row in the app where the colour IS the meaning.
-                    //
-                    // **`AppColors.destructiveInk`, and it was `warmRed` at 2.71:1**
-                    // (2026-10-02). The other worker sampled all three reds
-                    // on the built light card and this is the only one that
-                    // clears the 4.5:1 a 17pt word is held to:
-                    //
-                    //     AppColors.warmRed   #E85D4A   rgb(228)   2.71:1
-                    //     the system red      #FF3B30              2.79:1
-                    //     destructiveTint     #B3000F              5.65:1
-                    //
-                    // Measured on the built sheet after the move: **5.64:1
-                    // light, 4.74:1 dark.** `warmRed` was chosen as "the
-                    // app's palette rather than the platform's" and that
-                    // argument is right and is kept — this token is the
-                    // app's own red too, and it is the one that inverts
-                    // (rgb(255, 92, 84) in dark), which `warmRed` does not.
-                    //
-                    // **One red at one weight across every delete in the
-                    // app**, which closes "six shapes of destructive action
-                    // in three reds" from `docs/consistency-audit.md` §3.3
-                    // down to one colour.
-                    //
-                    // **The red WORD carries it now, without the trash
-                    // glyph** (2026-10-07): the row erases everything, and
-                    // the word in red says so, as iOS's own Settings does.
-                    // A glyph on this one row alone would put its word
-                    // 43pt right of every word above it in the card.
-                    Text("Reset All Data")
-                        .foregroundStyle(AppColors.destructiveInk)
+                    Label {
+                        // **One red on the row, not two.** The word was taking
+                        // the destructive role's own red, the system #FF3B30,
+                        // beside a glyph in the app's: two reds four points
+                        // apart on one line, on the one row in the app where the
+                        // colour IS the meaning.
+                        //
+                        // **`AppColors.destructiveInk`, and it was `warmRed` at 2.71:1**
+                        // (2026-10-02). The other worker sampled all three reds
+                        // on the built light card and this is the only one that
+                        // clears the 4.5:1 a 17pt word is held to:
+                        //
+                        //     AppColors.warmRed   #E85D4A   rgb(228)   2.71:1
+                        //     the system red      #FF3B30              2.79:1
+                        //     destructiveTint     #B3000F              5.65:1
+                        //
+                        // Measured on the built sheet after the move: **5.64:1
+                        // light, 4.74:1 dark.** `warmRed` was chosen as "the
+                        // app's palette rather than the platform's" and that
+                        // argument is right and is kept — this token is the
+                        // app's own red too, and it is the one that inverts
+                        // (rgb(255, 92, 84) in dark), which `warmRed` does not.
+                        //
+                        // **One red at one weight across every delete in the
+                        // app**, which closes "six shapes of destructive action
+                        // in three reds" from `docs/consistency-audit.md` §3.3
+                        // down to one colour.
+                        Text("Reset All Data")
+                            .foregroundStyle(AppColors.destructiveInk)
+                    } icon: {
+                        // **The one that keeps its colour.** Red here is not
+                        // decoration, it is the meaning: this row erases
+                        // everything, and every platform marks that in red.
+                        // The rule is that colour must MEAN something, not
+                        // that chrome is grey.
+                        SettingsIcon(systemName: "trash", tint: AppColors.destructiveInk)
+                    }
                 }
                 .confirmationDialog(
                     "Reset All Data?",
@@ -641,26 +698,34 @@ struct SettingsView: View {
                 // one contact rather than two. Swap both when the domain is
                 // real.
                 Link(destination: URL(string: "mailto:jbett5@hotmail.com")!) {
-                    HStack {
-                        Text("Send Feedback")
-                            .foregroundStyle(AppColors.inkPrimary)
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            // Icon sizes come from `GridConstants.icon*`
-                            // (CLAUDE.md, Conventions). `.font(.caption)`
-                            // was the one raw text style left on a glyph
-                            // in this screen, and it does not scale with
-                            // Dynamic Type the way `iconSize` does.
-                            .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
-                            .foregroundStyle(AppColors.inkQuiet)
+                    Label {
+                        HStack {
+                            Text("Send Feedback")
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                // Icon sizes come from `GridConstants.icon*`
+                                // (CLAUDE.md, Conventions). `.font(.caption)`
+                                // was the one raw text style left on a glyph
+                                // in this screen, and it does not scale with
+                                // Dynamic Type the way `iconSize` does.
+                                .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
+                                .foregroundStyle(AppColors.inkQuiet)
+                        }
+                    } icon: {
+                        SettingsIcon(systemName: "envelope")
                     }
                 }
 
                 Button {
                     requestReview()
                 } label: {
-                    Text("Rate on App Store")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Rate on App Store")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "star")
+                    }
                 }
             } header: {
                 FormSectionLabel("Support")
@@ -681,14 +746,22 @@ struct SettingsView: View {
                 NavigationLink {
                     WhyItWorksView()
                 } label: {
-                    Text(WhyItWorksView.title)
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text(WhyItWorksView.title)
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "lightbulb")
+                    }
                 }
                 NavigationLink {
                     PrivacyPolicyView()
                 } label: {
-                    Text("Privacy")
-                        .foregroundStyle(AppColors.inkPrimary)
+                    Label {
+                        Text("Privacy")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "hand.raised")
+                    }
                 }
             } footer: {
                 // **KEPT, deliberately, against the rule** (flag 19,
@@ -1115,27 +1188,6 @@ struct SettingsView: View {
 
 }
 
-// MARK: - A row's words
-//
-// **A Form row here is its words, with no glyph in front** (2026-10-07).
-//
-// Settings and Profile had a glyph at the head of every row, about twenty of
-// them: a bell beside "Daily Reminder", a lock beside "Lock Journal". The
-// owner, approving the icon pass: "less is so much more to me, if we can make
-// something more minimal and intuitive we should do it". The words already say
-// it; iOS's own Settings needs its icons only because it lists hundreds of apps
-// to scan by colour, and twenty rows in named sections do not. With his drawn
-// icons arriving elsewhere, an SF column here would also have been the screen
-// where the two kinds of glyph met.
-//
-// **No frame stands in for the glyph's 32pt box.** Kept as a `minHeight`, it
-// made every row 62pt against the 52 it measured with the icon, because a bare
-// title takes the list's taller text insets where a `Label` took the icon's.
-// Without it the row is the list's own: 52pt, the same as before, measured off
-// the built screen. The destructive rows lost their trash too: their red word
-// is the meaning, as in iOS's own Settings, and a glyph on one row alone puts
-// its word 43pt right of every word above it.
-
 // MARK: - Settings Icon Badge
 
 /// A settings row's glyph.
@@ -1162,13 +1214,10 @@ struct SettingsView: View {
 /// `AppColors.destructiveInk`, never the system red and no longer
 /// `AppColors.warmRed`, which measured 2.71:1 on this card against the 4.5 a
 /// word is held to. See the note at the Reset All Data row.
-///
-/// **Few are left** (2026-10-07): Settings, Profile and the month drawing have
-/// none now ("A row's words", above). The plan line's two keep theirs.
 struct SettingsIcon: View {
     let systemName: String
-    /// Only a row whose colour MEANS something passes one: a destructive word's
-    /// own red, not decoration.
+    /// Only a row whose colour MEANS something passes one — Reset All Data is
+    /// red because it erases everything, not for decoration.
     var tint: Color? = nil
 
     /// **The row's height, which is what this number actually sets.**

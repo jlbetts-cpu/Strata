@@ -28,30 +28,34 @@ struct DoodleIconTests {
         #expect(HabitCategory.unlabeled.doodle == nil)
     }
 
-    /// The ink row is all his or no glyph (the pen's dot); a symbol beside a
-    /// drawing in one row reads as a mistake.
-    @Test("the ink row draws his eraser, undo and sticker, and no symbol beside them")
+    /// **Tools are Apple's, what is yours is drawn** (the owner, 2026-10-07:
+    /// custom icons "make sense for the category and emoji picker, doesn't
+    /// make as much sense for the eraser"). In the ink row the eraser and undo
+    /// are symbols and the sticker button is his drawing. This first asserted
+    /// all three were drawn; turned round with his rule, not deleted.
+    @Test("the ink row: Apple's eraser and undo, his sticker")
     func inkRow() throws {
         let canvas = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/InkCanvas.swift"))
         let controls = try #require(canvas.components(separatedBy: "struct InkControls").dropFirst().first)
         let row = controls.components(separatedBy: "struct InkSurface").first ?? controls
-        #expect(row.contains("GlassIconButton(drawn: controller.erasing ? .eraserOn : .eraser"))
-        #expect(row.contains("GlassIconButton(drawn: .undo"))
+        #expect(row.contains("GlassIconButton(systemName: controller.erasing ? \"eraser.fill\" : \"eraser\""))
+        #expect(row.contains("GlassIconButton(systemName: \"arrow.uturn.backward\""))
         #expect(row.contains("GlassIconButton(drawn: .sticker"))
-        // The only symbol left is the pen's dot, which is not a glyph.
-        let symbols = row.components(separatedBy: "systemName: \"").dropFirst().map { $0.prefix { $0 != "\"" } }
-        #expect(symbols == ["circle.fill"], "a symbol joined the drawn row: \(symbols)")
+        #expect(!row.contains("drawn: .eraser") && !row.contains("drawn: .undo"))
     }
 
-    /// "the words say it": Settings and Profile rows carry no glyph.
-    @Test("Settings and Profile rows have no decorative glyph")
-    func noRowGlyphs() throws {
-        for path in ["Strata/Views/SettingsView.swift", "Strata/Views/ProfileView.swift",
-                     "Strata/Views/Ink/MonthDrawingSettings.swift"] {
+    /// **Settings and Profile rows keep their glyphs** (the owner,
+    /// 2026-10-07: "the settings should have icons, idk where they went").
+    /// They came off for a night under "less is so much more"; he wants them.
+    /// This used to assert the opposite, and is turned round rather than
+    /// deleted, so taking them off again has to be a decision, not a sweep.
+    @Test("Settings and Profile rows have their glyphs")
+    func rowGlyphs() throws {
+        for (path, least) in [("Strata/Views/SettingsView.swift", 15), ("Strata/Views/ProfileView.swift", 5),
+                              ("Strata/Views/Ink/MonthDrawingSettings.swift", 1)] {
             let code = SourceSweep.code(try SourceSweep.read(path))
             let uses = code.components(separatedBy: "SettingsIcon(").count - 1
-            // SettingsView declares the type once; that is not a use.
-            #expect(uses == 0, "\(path) puts \(uses) glyphs back on its rows")
+            #expect(uses >= least, "\(path) has \(uses) row glyphs, expected at least \(least)")
         }
     }
 }
