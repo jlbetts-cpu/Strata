@@ -266,6 +266,8 @@ struct DaySheet: View {
     @State private var picking = false
     /// The mark's picker (`StickerPicker`) is open.
     @State private var choosingMark = false
+    /// New Sticker's photos, opened once the popover has gone.
+    @State private var choosingPhoto = false
     /// Suggest's question: the placeholder on an empty note, a faded line
     /// under written words. Written into the note only when that line is
     /// tapped, and then only the question (`JournalSuggestInsert`).
@@ -879,6 +881,12 @@ struct DaySheet: View {
                 symbol = picked == symbol ? nil : picked
                 save()
                 choosingMark = false
+            }, onNewSticker: {
+                choosingMark = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    choosingPhoto = true
+                }
             }, onEmoji: {
                 choosingMark = false
                 // The keyboard once the popover has gone: a field asked to
@@ -889,6 +897,10 @@ struct DaySheet: View {
                 }
             })
             .presentationCompactAdaptation(.popover)
+        }
+        .stickerMaking(isPresented: $choosingPhoto) { made in
+            symbol = made
+            save()
         }
         .overlay {
             EmojiField(isActive: $picking) { picked in

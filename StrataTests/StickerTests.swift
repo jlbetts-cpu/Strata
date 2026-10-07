@@ -93,4 +93,20 @@ struct StickerTests {
         #expect(calendar.contains("case .sticker(let name):"))
         #expect(calendar.contains("JournalMark.spoken($0)"))
     }
+
+    /// The owner, 2026-10-06: "new sticker button crashes". The photo picker
+    /// was presented from inside the sticker popover: nothing on the
+    /// simulator, a crash on a phone. The host closes the popover and opens
+    /// the photos itself, as Emoji already did.
+    @Test("New Sticker opens the photos from the host, never from inside the popover")
+    func newStickerFromTheHost() throws {
+        let picker = SourceSweep.code(try SourceSweep.read("Strata/Views/StickerPicker.swift"))
+        let inside = try #require(picker.components(separatedBy: "struct StickerMaking").first)
+        #expect(!inside.contains(".photosPicker("), "the popover must not present the photo picker")
+        for host in ["Strata/Views/DaySheet.swift", "Strata/Views/Ink/InkCanvas.swift"] {
+            let code = SourceSweep.code(try SourceSweep.read(host))
+            #expect(code.contains("onNewSticker: {"), "\(host)")
+            #expect(code.contains(".stickerMaking(isPresented: $choosingPhoto)"), "\(host)")
+        }
+    }
 }

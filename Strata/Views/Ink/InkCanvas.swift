@@ -322,6 +322,7 @@ struct InkControls<Accessory: View>: View {
     @ViewBuilder var accessory: Accessory
 
     @State private var choosingSticker = false
+    @State private var choosingPhoto = false
 
     var body: some View {
         HStack(spacing: GridConstants.gapTight) {
@@ -362,8 +363,19 @@ struct InkControls<Accessory: View>: View {
                     // It pops in where it lands (`InkStickerSprite`).
                     guard let name = StickerStore.name(in: symbol) else { return }
                     controller.place(name)
+                }, onNewSticker: {
+                    // The photos once the popover has gone (`StickerMaking`).
+                    choosingSticker = false
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        choosingPhoto = true
+                    }
                 })
                 .presentationCompactAdaptation(.popover)
+            }
+            .stickerMaking(isPresented: $choosingPhoto) { symbol in
+                guard let name = StickerStore.name(in: symbol) else { return }
+                controller.place(name)
             }
             Spacer(minLength: 0)
             accessory
