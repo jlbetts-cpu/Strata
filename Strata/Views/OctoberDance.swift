@@ -1,14 +1,19 @@
 import SwiftUI
 
-/// **October: the skeleton dances, and the crow lands on his hand** (the
-/// owner, 2026-10-06: "the idea was a dancing skeleton since all the bones
-/// are separate", "make sure the skeleton actually looks like he's dancing,
-/// all his body parts moving, doing a genuine move without overlapping
-/// elements", "make the animation feel as realistic as possible", and his
-/// pick: October with the crow).
+/// **October: the skeleton dances** (the owner, 2026-10-06: "the idea was a
+/// dancing skeleton since all the bones are separate", "make sure the
+/// skeleton actually looks like he's dancing, all his body parts moving,
+/// doing a genuine move without overlapping elements", "make the animation
+/// feel as realistic as possible").
 ///
-/// **The move is the Saturday Night Fever point**, up and down on the beat
-/// at 116 BPM, and the realism is in what the rest of the body does about it:
+/// **Short, as the crews' cheer is** (2026-10-07: "too long, I want like a
+/// pretty short dance but still being expressive ... remove the bird for
+/// now ... look at the crew, a very short but expressive animation"). About
+/// 1.2s: a dip, the point down on the hit, the snap back up to his drawing,
+/// a settle. Eight beats with a crow landing after them was the first cut.
+///
+/// **The move is the Saturday Night Fever point**, and the realism is in
+/// what the rest of the body does about it:
 ///
 /// - **The point snaps and the hips groove.** The arm leaves a fifth of a
 ///   beat early and hits on the beat, a touch past the mark; the hips swing
@@ -24,10 +29,7 @@ import SwiftUI
 ///   by pixel against every other bone (0 overlapping pixels); the bent
 ///   elbow opens as it bends so its knobs never meet.
 ///
-/// Then the crow (his, from the scarecrow's shoulder) flies in and stands on
-/// the raised hand as the dance settles; the hand gives under it and the
-/// head tilts up to look. Once, then again on a tap: the crow takes off,
-/// he dances, it comes back. Nothing loops (`Illustration` has why).
+/// Once, then again on a tap. Nothing loops (`Illustration` has why).
 ///
 /// The layers and the joints come from `docs/illustrations/skeleton.py`.
 struct OctoberDance: View {
@@ -116,12 +118,7 @@ struct OctoberDance: View {
             ZStack(alignment: .topLeading) {
                 ForEach(Rig.bones, id: \.self) { bone in
                     layer(bone, pose.bones[bone] ?? .identity, scale: s)
-                        .opacity(bone == "RHand" ? 1 - pose.crowSitting : 1)
                 }
-                layer("CrowSit", pose.crow, scale: s).opacity(pose.crowSitting)
-                layer("CrowHead", pose.crow * pose.crowHead, scale: s).opacity(pose.crowSitting)
-                layer("CrowDown", pose.crow, scale: s).opacity(pose.crowDown)
-                layer("CrowOut", pose.crow, scale: s).opacity(pose.crowSpread)
             }
         }
     }
@@ -156,39 +153,26 @@ struct OctoberDance: View {
 /// The skeleton's bones and joints, in the drawing's own pixels
 /// (`docs/illustrations/skeleton-rig.json`).
 enum Rig {
-    static let size = CGSize(width: 538, height: 900)
+    static let size = CGSize(width: 614, height: 900)
 
     static let bones = ["LThigh", "LShin", "LFoot", "RThigh", "RShin", "RFoot", "Pelvis", "Ribs",
                         "LUpper", "LFore", "LHand", "RUpper", "RFore", "RHand", "Skull"]
 
-    static let neck = CGPoint(x: 214.02, y: 428.05)
-    static let waist = CGPoint(x: 255.18, y: 598.17)
-    static let pelvis = CGPoint(x: 255.18, y: 622.87)
-    static let rShoulder = CGPoint(x: 316.65, y: 443.96)
-    static let rElbow = CGPoint(x: 357.8, y: 355.61)
-    static let rWrist = CGPoint(x: 377.56, y: 259.57)
-    static let lShoulder = CGPoint(x: 130.61, y: 467.56)
-    static let lElbow = CGPoint(x: 91.1, y: 563.05)
-    static let lWrist = CGPoint(x: 71.89, y: 639.33)
-    static let lHip = CGPoint(x: 188.23, y: 652.5)
-    static let lKnee = CGPoint(x: 175.61, y: 746.34)
-    static let lAnkle = CGPoint(x: 173.96, y: 841.28)
-    static let rHip = CGPoint(x: 314.45, y: 662.93)
-    static let rKnee = CGPoint(x: 322.13, y: 750.73)
-    static let rAnkle = CGPoint(x: 321.59, y: 836.34)
-    /// Where the crow's feet stand on the fingertips, and the middle of its
-    /// body above them.
-    static let crowFeet = CGPoint(x: 394.02, y: 208.54)
-    static let crowBody = CGPoint(x: 344.85, y: 148.83)
-    /// Where its head turns on its neck.
-    static let crowNeck = CGPoint(x: 376.46, y: 145.32)
-    /// **His palm, up top** (the owner: "the bird should appear to be
-    /// sitting on his hand up top of his dance, you can remove fingers if
-    /// that helps sell the on the palm look"): the head of the raised
-    /// forearm, where the crow's feet hold on. His fingers go as it settles
-    /// (the crow's body would hide them; the bits that showed round it looked
-    /// broken) and come back as it leaves.
-    static let palm = CGPoint(x: 386, y: 254)
+    static let neck = CGPoint(x: 265.91, y: 313.64)
+    static let waist = CGPoint(x: 317.05, y: 525.0)
+    static let pelvis = CGPoint(x: 317.05, y: 555.68)
+    static let rShoulder = CGPoint(x: 393.41, y: 333.41)
+    static let rElbow = CGPoint(x: 444.55, y: 223.64)
+    static let rWrist = CGPoint(x: 469.09, y: 104.32)
+    static let lShoulder = CGPoint(x: 162.27, y: 362.73)
+    static let lElbow = CGPoint(x: 113.18, y: 481.36)
+    static let lWrist = CGPoint(x: 89.32, y: 576.14)
+    static let lHip = CGPoint(x: 233.86, y: 592.5)
+    static let lKnee = CGPoint(x: 218.18, y: 709.09)
+    static let lAnkle = CGPoint(x: 216.14, y: 827.05)
+    static let rHip = CGPoint(x: 390.68, y: 605.45)
+    static let rKnee = CGPoint(x: 400.23, y: 714.55)
+    static let rAnkle = CGPoint(x: 399.55, y: 820.91)
 }
 
 /// A 2D affine transform as a matrix, so the rig composes the way it was
@@ -235,33 +219,21 @@ struct Mat: Equatable {
 enum Dance {
     struct Pose {
         var bones: [String: Mat] = [:]
-        var crow = Mat.identity
-        /// The head cocking on its neck once it has settled.
-        var crowHead = Mat.identity
-        /// How much of the crow is each of his drawings: sitting, wings
-        /// down, wings spread.
-        var crowSitting = 0.0
-        var crowDown = 0.0
-        var crowSpread = 0.0
     }
 
-    static let bpm = 116.0
-    /// Eight beats, and a third of one for the last point to land.
-    static let beats = 8.3
+    /// Quicker than a song's beat: the phrase is two hits, down and up.
+    static let bpm = 140.0
+    /// Up as drawn, down on the first beat, up on the second, and a third of
+    /// a beat to land it.
+    static let beats = 2.35
     static var length: Double { beats * 60 / bpm }
-    /// The crow sets off once he has stopped, so it lands on a still hand
-    /// (the owner: a crow that rode the dancing hand looked "like a glitch,
-    /// not natural").
-    static var crowSetsOff: Double { length + 0.15 }
-    static var crowLands: Double { crowSetsOff + IllustrationMotion.Crow.fly }
+    /// How much bigger than the long version each move is: a short phrase
+    /// has to say it in fewer beats.
+    static let size = 1.3
 
-    /// A later play: the crow takes off first, and the dance starts once it
-    /// is away.
-    static func start(play: Int) -> Double { play <= 1 ? 0 : IllustrationMotion.Crow.away + 0.1 }
+    static func start(play: Int) -> Double { 0 }
 
-    static func duration(play: Int) -> Double {
-        start(play: play) + crowLands + IllustrationMotion.Crow.settle + 0.9
-    }
+    static func duration(play: Int) -> Double { length + 0.15 }
 
     // MARK: Curves
 
@@ -297,33 +269,16 @@ enum Dance {
         let t = time - start(play: play)
         // The dance, eased in and out so it starts and ends on his drawing.
         let dancing = t > 0 && t < length
-        let env = dancing ? smooth(t / 0.4) * (1 - smooth((t - (length - 0.7)) / 0.7)) : 0
+        let env = dancing ? smooth(t / 0.12) * (1 - smooth((t - (length - 0.32)) / 0.32)) : 0
         let b = dancing ? t * bpm / 60 : 0
 
         let pt = point(b) * env
         let groove = 0.5 * cos(.pi * (b - 0.12)) * env
         func pointed(_ lag: Double) -> Double { point(b - lag) * env }
 
-        // The crow: on the hand, taking off, away, coming back.
-        let crowT = time - start(play: play) - crowSetsOff
-        let landed = crowT - IllustrationMotion.Crow.fly
-        // The hand gives under its weight as it lands, and his head tilts up
-        // to look at it.
-        let give = landed > 0 && landed < 6
-            ? IllustrationMotion.springOut(landed, frequency: 2.2, damping: 0.35) * 7 : 0
-        var look = landed > 0 ? smooth((landed - 0.15) / 0.45) : 0
-        var push = 0.0
-        if play > 1 && time < start(play: play) {
-            // Taking off: the hand is pushed down as it leaps, and the head
-            // comes back.
-            let away = time - IllustrationMotion.Crow.crouch
-            push = away > 0 ? IllustrationMotion.springOut(away, frequency: 2.4, damping: 0.4) * 6 : 0
-            look = 1 - smooth(time / 0.5)
-        }
-
         var p = Pose()
-        let P = Mat.move(-30 * px * groove, (12 * dip(b) + 5 * dip(b + 0.5)) * px * env)
-            * .about(Rig.pelvis, 5 * groove)
+        let P = Mat.move(-30 * size * px * groove, (12 * dip(b) + 5 * dip(b + 0.5)) * size * px * env)
+            * .about(Rig.pelvis, 5 * size * groove)
         p.bones["Pelvis"] = P
         // The torso leans into the point, a breath behind the hips.
         let torso = P * .move(0, 3 * px * dip(b, lag: 0.05) * env)
@@ -331,11 +286,11 @@ enum Dance {
         p.bones["Ribs"] = torso
         // The head lags the body, tilts with the point, nods on the beat.
         p.bones["Skull"] = torso * .move(0, 7 * px * dip(b, lag: 0.12) * env)
-            * .about(Rig.neck, 7 * (0.5 * env - pointed(0.16)) + 6 * look)
+            * .about(Rig.neck, 7 * size * (0.5 * env - pointed(0.16)))
         // The pointing arm; held, it still pumps a little on the off-beat.
-        let upper = torso * .about(Rig.rShoulder, 118 * pt + (5 - 10 * pt) * dip(b + 0.5) * env + give + push)
+        let upper = torso * .about(Rig.rShoulder, 118 * pt + (5 - 10 * pt) * dip(b + 0.5) * env)
         p.bones["RUpper"] = upper
-        let fore = upper * .about(Rig.rElbow, 12 * pt - 6 * (pt - pointed(0.1)) - give * 0.6)
+        let fore = upper * .about(Rig.rElbow, 12 * pt - 6 * (pt - pointed(0.1)))
         p.bones["RFore"] = fore
         let hand = fore * .about(Rig.rWrist, -40 * (pt - pointed(0.12)))
         p.bones["RHand"] = hand
@@ -364,24 +319,11 @@ enum Dance {
             p.bones[side + "Foot"] = .identity
         }
 
-        // The crow flies free, and only once it is sitting does it move with
-        // the hand: the hand gives under it. Taking off, it leaves the hand
-        // where it was rather than riding the push.
-        let leaving = play > 1 && time < start(play: play)
-        let seat = landed > 0 && !leaving ? fore.apply(Rig.palm) : Rig.palm
-        p.crow = .move(seat.x - Rig.crowFeet.x, seat.y - Rig.crowFeet.y) * crowPose(crowT, play: play, time: time)
-        let frames = crowFrames(crowT, play: play, time: time)
-        p.crowSitting = frames.sitting
-        p.crowDown = frames.down
-        p.crowSpread = frames.spread
-        if landed > 0 && landed < 6 {
-            p.crowHead = .about(Rig.crowNeck, IllustrationMotion.Crow.headCock(at: landed))
-        }
         return p
     }
 
     /// The artwork's pixels, which the dance was tuned in, to the drawing's.
-    static let px = 900.0 / 1640.0
+    static let px = 900.0 / 1320.0
 
     /// Two bones from the hip to a planted ankle.
     static func leg(from H: CGPoint, to A: CGPoint, hip: CGPoint, knee: CGPoint, ankle: CGPoint,
@@ -405,41 +347,5 @@ enum Dance {
         let thigh = Mat.move(H.x, H.y) * .turn(th) * .move(-hip.x, -hip.y) * .scaled(about: hip, k)
         let shin = Mat.move(K.x, K.y) * .turn(sh) * .move(-knee.x, -knee.y) * .scaled(about: knee, k)
         return (thigh, shin)
-    }
-
-    // MARK: The crow
-
-    /// The crow's flight, in the drawing's pixels, about its feet (landing)
-    /// or its middle (in the air), as `IllustrationMotion.Crow` flies it.
-    static func crowPose(_ t: Double, play: Int, time: Double) -> Mat {
-        let pose: LayerPose
-        if play > 1 && time < start(play: play) {
-            pose = IllustrationMotion.Crow.leaving(at: time, flies: true)
-        } else if t < 0 {
-            return .move(0, -Rig.size.height * 2)
-        } else {
-            pose = IllustrationMotion.Crow.arriving(at: t, flies: true)
-        }
-        let pivot = pose.anchor == .bottom ? Rig.crowFeet : Rig.crowBody
-        return .move(pose.x * Rig.size.width, pose.y * Rig.size.height)
-            * .move(pivot.x, pivot.y) * .turn(pose.rotation) * .scale(pose.scaleX, pose.scaleY)
-            * .move(-pivot.x, -pivot.y)
-    }
-
-    static func crowFrames(_ t: Double, play: Int, time: Double) -> (sitting: Double, down: Double, spread: Double) {
-        let w: (perched: Double, down: Double, out: Double)
-        if play > 1 && time < start(play: play) {
-            w = IllustrationMotion.Crow.frames(leavingAt: time)
-        } else if t < 0 {
-            return (0, 0, 0)
-        } else {
-            w = IllustrationMotion.Crow.frames(arrivingAt: t)
-        }
-        let fade = t < 0 ? 1 : min(1, t / 0.1)
-        let crouch = IllustrationMotion.Crow.crouch, away = IllustrationMotion.Crow.away
-        let gone = play > 1 && time < start(play: play)
-            ? max(0, 1 - max(0, (time - crouch) / (away - crouch) - 0.85) / 0.15)
-            : 1
-        return (w.perched * fade * gone, w.down * fade * gone, w.out * fade * gone)
     }
 }

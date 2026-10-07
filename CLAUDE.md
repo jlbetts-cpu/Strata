@@ -282,18 +282,14 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
   `docs/app-icon/trace_strokes.py`), then an eraser scrubs it out (the owner:
   "make sure it actually feels like an eraser"), then the crest arrives
   (`LaunchMoment`). Regenerate the strokes if the logo changes.
-- **October is his dancing skeleton, and the crow lands on his raised hand**
-  (`OctoberDance`, layers and joints from `docs/illustrations/skeleton.py`).
-  The move is the Saturday Night Fever point at 116 BPM: the arm snaps on
-  the beat, the hips groove under it, feet stay planted (legs solved hip to
-  floor, knees mostly foreshorten), the unweighted knee pops, everything
-  follows a beat behind. **No two bones ever touch**: checked pixel by pixel
-  on every frame. Then the crow (his, sitting, branch removed by
-  `sitting.py`) flies in free, sits on the top of his forearm as a palm, and
-  only then moves with the hand; his fingers fade under it (his offer:
-  "you can remove fingers"). Things he rejected on the way: the crow riding
-  the dancing hand ("like a glitch"), standing on the fingertips ("fake
-  sitting"), an arm held out to the side.
+- **October is his dancing skeleton** (`OctoberDance`, layers and joints from
+  `docs/illustrations/skeleton.py`): a short phrase, about 1.2s, as the
+  crews' cheer is (the owner, 2026-10-07: "a pretty short dance but still
+  being expressive ... remove the bird for now"). The Saturday Night Fever
+  point: dip, point down on the hit, snap back up to his drawing. Feet stay
+  planted (legs solved hip to floor), the free knee pops, the head follows
+  a beat behind, and **no two bones ever touch**. The eight-beat version
+  with a crow landing on his hand was rejected as too long.
   - Line weight: about 2.9pt outline, the crow's eyes and smile thin. He
     called the 2.3pt Crews weight "too thin" for this.
   - `-strataRenderDance 1` renders every frame to Documents/dance from the
