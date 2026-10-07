@@ -17,8 +17,8 @@ import SwiftUI
 /// 4. **In the hand, as a card** (2026-10-07: "Pokemon TCG level card
 ///    movement and look, how it genuinely looks like a card"). It leans
 ///    toward a pressing finger and follows it, sways a little with the phone
-///    (`CardTilt`), carries a photo paper's gloss that slides opposite the
-///    lean, shows a sliver of its edge, and casts a soft shadow on the ground
+///    (`CardTilt`), is lit as a studio lights a sheet, a soft key light
+///    sliding with the turn and a faint shade on the far side, shows a sliver of its edge, and casts a soft shadow on the ground
 ///    that moves as it turns. Drawn far across it turns over to its back,
 ///    stamped with the mark and the day; let go, it springs back with give.
 struct StripBooth: View {
@@ -219,24 +219,36 @@ struct StripBooth: View {
         return n < 90 || n > 270
     }
 
-    /// **The gloss of photo paper.** A soft hotspot that slides opposite the
-    /// lean, as a window's light does across a card turned in the hand, and
-    /// a faint band behind it. Always a little there; more as it turns.
+    /// **Light on photo paper, as a studio lights it** (the owner,
+    /// 2026-10-07: "make sure the lighting on it genuinely is premium and
+    /// expensive, not a cheap early 2000s looking light"). Not a hotspot and
+    /// not a band: a broad, soft key light that slides gently across the
+    /// sheen as the card turns, at a few percent, and a faint shade on the
+    /// side turned away from it, which is what makes a flat sheet read as
+    /// lit rather than as glowing. The first pass was a bright radial spot and
+    /// a stripe added on top; that is the look he named.
     private var glare: some View {
-        let lean = (turnYaw.truncatingRemainder(dividingBy: 180)) / 30
-        let tip = turnPitch / 30
-        let strength = min(1, 0.25 + (abs(lean) + abs(tip)) * 0.9) * (isDeveloped ? 1 : 0.5)
+        let lean = max(-1, min(1, (turnYaw.truncatingRemainder(dividingBy: 180)) / 24))
+        let tip = max(-1, min(1, turnPitch / 24))
+        let turned = min(1, abs(lean) + abs(tip))
+        let lit = (isDeveloped ? 1.0 : 0.6)
         return ZStack {
-            RadialGradient(colors: [.white.opacity(0.42), .white.opacity(0)],
-                           center: UnitPoint(x: 0.5 - lean * 0.6, y: 0.35 + tip * 0.6),
-                           startRadius: 0, endRadius: Self.width * 0.9)
-            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0.3 - lean * 0.25),
-                                   .init(color: .white.opacity(0.14), location: 0.45 - lean * 0.25),
-                                   .init(color: .white.opacity(0), location: 0.6 - lean * 0.25)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            // The key light: wide and low, from above left, moving with the turn.
+            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
+                                   .init(color: .white.opacity(0.06 + 0.08 * turned), location: 0.5),
+                                   .init(color: .white.opacity(0), location: 1)],
+                           startPoint: UnitPoint(x: -0.6 - lean * 0.5, y: -0.4 + tip * 0.4),
+                           endPoint: UnitPoint(x: 1.0 - lean * 0.5, y: 1.2 + tip * 0.4))
+                .blendMode(.screen)
+            // The shade on the far side, so it reads as a lit sheet.
+            LinearGradient(colors: [.black.opacity(0.10 * abs(lean)), .clear],
+                           startPoint: lean > 0 ? .leading : .trailing, endPoint: .center)
+                .blendMode(.multiply)
+            LinearGradient(colors: [.black.opacity(0.08 * abs(tip)), .clear],
+                           startPoint: tip > 0 ? .bottom : .top, endPoint: .center)
+                .blendMode(.multiply)
         }
-        .blendMode(.plusLighter)
-        .opacity(strength)
+        .opacity(lit)
         .clipShape(RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous))
         .allowsHitTesting(false)
     }
