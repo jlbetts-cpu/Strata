@@ -1192,16 +1192,23 @@ struct MainAppView: View {
             openBoothWhenFree(prints: true)
         }
         .fullScreenCover(item: $booth) { opening in
-            StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= todaysGoal }) {
-                await PhotoStrip.mine(context: modelContext)
+            if let day = opening.day {
+                // An earlier day: a keepsake, so it develops when opened.
+                StripBooth(owner: .me, day: day, prints: false) {
+                    await PhotoStrip.mine(day: day, context: modelContext)
+                }
+            } else {
+                StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= todaysGoal }) {
+                    await PhotoStrip.mine(context: modelContext)
+                }
             }
         }
         .onChange(of: showsYourDay) { _, open in if open { goalAsDayOpened = todaysGoal } }
         .sheet(isPresented: $showsYourDay, onDismiss: hardDayReachedGoal) {
-            YourDaySheet(goal: $dailyGoal) {
+            YourDaySheet(goal: $dailyGoal) { day in
                 Task {
                     try? await Task.sleep(for: .milliseconds(450))
-                    booth = BoothOpening(prints: false)
+                    booth = BoothOpening(prints: false, day: day)
                 }
             }
         }
@@ -3842,4 +3849,6 @@ private struct DebugFlipTabs: ViewModifier {
 struct BoothOpening: Identifiable {
     let id = UUID()
     let prints: Bool
+    /// An earlier day's strip (`YourDaySheet`), or nil for today's.
+    var day: String? = nil
 }

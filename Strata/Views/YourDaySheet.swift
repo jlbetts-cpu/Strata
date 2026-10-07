@@ -14,12 +14,15 @@ import SwiftUI
 /// shown as what was done.
 struct YourDaySheet: View {
     @Binding var goal: Int
-    var openStrip: () -> Void
+    /// Opens the booth on a day: nil for today, or an earlier day's key.
+    var openStrip: (String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var counts: [String: Int] = [:]
     @State private var strip: PhotoStrip?
+    /// The last week's strips, newest first (`PhotoStrip.earlier`).
+    @State private var earlier: [PhotoStrip] = []
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
     @AppStorage(DailyGoal.hardDayKey) private var hardDay = ""
     /// The titles of today's wins, for the ticks on your three.
@@ -78,7 +81,7 @@ struct YourDaySheet: View {
                     // owner's pick: "Yes, undeveloped"). A tap opens the booth.
                     Button {
                         dismiss()
-                        openStrip()
+                        openStrip(nil)
                     } label: {
                         HStack(spacing: GridConstants.gapLabel) {
                             if let strip {
@@ -96,6 +99,7 @@ struct YourDaySheet: View {
                         }
                     }
                     .buttonStyle(.press)
+                    if !earlier.isEmpty { earlierStrips }
                 } header: {
                     FormSectionLabel("Today's Strip")
                 }
@@ -143,7 +147,43 @@ struct YourDaySheet: View {
             if DebugHarness.openSheet == "yourthree" { choosingThree = true }
             #endif
             strip = await PhotoStrip.mine(context: context)
+            earlier = await PhotoStrip.earlier(context: context)
         }
+    }
+
+    /// **The days before, a tap away** (the owner, 2026-10-07: "shouldn't you
+    /// be able to access the last couple days photo strips"). Under today's,
+    /// each strip small with its day under it; a tap opens it in the booth.
+    /// A past strip develops whenever it is opened: it is a keepsake, and the
+    /// ring's rule is that nothing is held against a day.
+    private var earlierStrips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .bottom, spacing: GridConstants.gapItem) {
+                ForEach(earlier) { past in
+                    Button {
+                        dismiss()
+                        openStrip(past.day)
+                    } label: {
+                        VStack(spacing: GridConstants.gapTight) {
+                            StripView(frames: past.frames(excluding: StripKeeping.excluded(.me, day: past.day)),
+                                      day: past.day, signature: past.signature, paper: StripKeeping.paper,
+                                      width: 44, developed: 1, decor: StripDecor.picture(owner: .me, day: past.day))
+                            Text(Self.dayName(past.day))
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                    }
+                    .buttonStyle(.pressSurface)
+                    .accessibilityLabel("\(Self.dayName(past.day))'s strip")
+                }
+            }
+        }
+    }
+
+    /// "Mon", or "Oct 1" past a week.
+    static func dayName(_ key: String) -> String {
+        guard let date = DateUtils.date(from: key) else { return key }
+        return date.formatted(.dateTime.weekday(.abbreviated))
     }
 
     // MARK: - Your three

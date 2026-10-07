@@ -133,17 +133,34 @@ enum StripPaper: String, CaseIterable, Identifiable {
 // MARK: - Loading
 
 extension PhotoStrip {
+    /// **The days before today that have a strip** (the owner, 2026-10-07:
+    /// "shouldn't you be able to access the last couple days photo strips"),
+    /// newest first: the last week's days with at least one photograph or
+    /// doodle, read small. A day with only colour blocks has no strip.
+    @MainActor
+    static func earlier(days: Int = 7, before today: Date = Date(), context: ModelContext) async -> [PhotoStrip] {
+        var strips: [PhotoStrip] = []
+        for back in 1...days {
+            guard let date = Calendar.current.date(byAdding: .day, value: -back, to: today) else { continue }
+            let strip = await mine(day: DateUtils.dateString(from: date), context: context, small: true)
+            if !strip.candidates.isEmpty { strips.append(strip) }
+        }
+        return strips
+    }
+
     /// Your strip for a day: the day's wins that carry a picture.
     @MainActor
+    /// `small` reads thumbnails, for a strip drawn a few points wide: a week
+    /// of strips at full size was hundreds of megabytes for a row of stamps.
     static func mine(day: String = DateUtils.dateString(from: Date()), context: ModelContext,
-                     files: InkFiles = .shared) async -> PhotoStrip {
+                     small: Bool = false, files: InkFiles = .shared) async -> PhotoStrip {
         var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == day && $0.completed })
         d.relationshipKeyPathsForPrefetching = [\.habit]
         let logs = ((try? context.fetch(d)) ?? [])
             .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
         var frames: [Frame] = []
         for log in logs {
-            guard let picture = await picture(for: log, files: files) else { continue }
+            guard let picture = await picture(for: log, small: small, files: files) else { continue }
             let title = log.habit?.title ?? ""
             frames.append(Frame(id: log.id, title: title == QuickWinService.untitled ? "" : title,
                                 size: log.habit?.blockSize ?? .small, picture: picture))
@@ -158,10 +175,14 @@ extension PhotoStrip {
     /// doodle was taken off leaves the strip with it (`DoodledBlockTests`
     /// holds both halves).
     @MainActor
-    static func picture(for log: HabitLog, files: InkFiles = .shared) async -> UIImage? {
-        if let name = log.imageFileName,
-           let photo = await ImageManager.shared.loadFullImage(fileName: name) {
-            return ImageManager.resizeIfNeeded(photo, maxDimension: 1100)
+    static func picture(for log: HabitLog, small: Bool = false, files: InkFiles = .shared) async -> UIImage? {
+        if let name = log.imageFileName {
+            if small {
+                return await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: 160, lane: .prefetch)
+            }
+            if let photo = await ImageManager.shared.loadFullImage(fileName: name) {
+                return ImageManager.resizeIfNeeded(photo, maxDimension: 1100)
+            }
         }
         if let doodle = log.doodleFileName,
            let data = BlockDoodles.crewPicture(doodle, colour: log.habit?.displayCategory ?? .unlabeled,
