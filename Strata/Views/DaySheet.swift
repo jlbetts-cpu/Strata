@@ -863,8 +863,11 @@ struct DaySheet: View {
                         .font(Typography.headerMedium)
                         .transition(.scale(scale: 0.5).combined(with: .opacity))
                 } else {
-                    Image(systemName: "face.smiling")
-                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                    // **The owner's smiley** (2026-10-06, `DoodleIcon`), the
+                    // same drawing as the ink row's sticker button, because it
+                    // opens the same stickers. Alone in its corner (the title
+                    // is words, Done is a word), so no symbol stands beside it.
+                    DoodleIcon(.sticker, size: GridConstants.iconToolbar, label: "Sticker")
                         // `GlassIconButton`'s ink, as the Plan's ＋ in this
                         // corner wears: switching tabs changed the glyph's ink.
                         .foregroundStyle(.primary)

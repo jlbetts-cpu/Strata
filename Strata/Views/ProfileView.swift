@@ -543,11 +543,7 @@ struct ProfileView: View {
                     HapticsEngine.lightTap()
                     showsMaker = true
                 } label: {
-                    Label {
-                        Text("Make Your Head").foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "face.smiling")
-                    }
+                    Text("Make Your Head").foregroundStyle(AppColors.inkPrimary)
                 }
             } else {
                 // `person` is only read by `HeadPickerRow.isGenerated`: a head
@@ -612,12 +608,8 @@ struct ProfileView: View {
                 // token.
                 Toggle(isOn: Binding(get: { heads.isProfilePicture },
                                      set: { heads.setProfilePicture($0) })) {
-                    Label {
-                        Text("Use as Profile Picture")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "person.crop.circle")
-                    }
+                    Text("Use as Profile Picture")
+                        .foregroundStyle(AppColors.inkPrimary)
                 }
                 .tint(AppColors.switchTrack)
 
@@ -651,14 +643,10 @@ struct ProfileView: View {
                         }
                     } label: {
                         HStack {
-                            Label {
-                                // One black down the column. See the note on
-                                // Use as Profile Picture above.
-                                Text("Look")
-                                    .foregroundStyle(AppColors.inkPrimary)
-                            } icon: {
-                                SettingsIcon(systemName: "camera.filters")
-                            }
+                            // One black down the column. See the note on
+                            // Use as Profile Picture above.
+                            Text("Look")
+                                .foregroundStyle(AppColors.inkPrimary)
                             Spacer(minLength: GridConstants.gapTight)
                             Text(heads.look.name)
                                 .font(Typography.headerSmall)
@@ -682,34 +670,22 @@ struct ProfileView: View {
                 // the two that decide where the head is stamped.
                 Toggle(isOn: Binding(get: { heads.showsOnTower },
                                      set: { heads.setShowsOnTower($0) })) {
-                    Label {
-                        Text("Let My Head Onto the Tower")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "square.stack")
-                    }
+                    Text("Let My Head Onto the Tower")
+                        .foregroundStyle(AppColors.inkPrimary)
                 }
                 .tint(AppColors.switchTrack)
 
                 Toggle(isOn: Binding(get: { heads.showsOnMap },
                                      set: { heads.setShowsOnMap($0) })) {
-                    Label {
-                        Text("Show My Head on the Map")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "map")
-                    }
+                    Text("Show My Head on the Map")
+                        .foregroundStyle(AppColors.inkPrimary)
                 }
                 .tint(AppColors.switchTrack)
 
                 Toggle(isOn: Binding(get: { heads.showsCameraSticker },
                                      set: { heads.setShowsCameraSticker($0) })) {
-                    Label {
-                        Text("Add My Head to Photos")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "camera")
-                    }
+                    Text("Add My Head to Photos")
+                        .foregroundStyle(AppColors.inkPrimary)
                 }
                 .tint(AppColors.switchTrack)
 
@@ -720,28 +696,25 @@ struct ProfileView: View {
                 Button(role: .destructive) {
                     confirmsDeleteHead = true
                 } label: {
-                    Label {
-                        // **One red on the row, not two.** The word was taking
-                        // the destructive role's own red, the system #FF3B30,
-                        // beside a glyph in the app's: two reds four points
-                        // apart on one line, and the app's palette losing to the
-                        // platform's on the one row where the colour is the
-                        // meaning.
-                        //
-                        // **And the app's red was `warmRed`, which measured
-                        // 2.71:1 on this card** (2026-10-02). A 17pt word is held
-                        // to 4.5:1 and it was not close, on one of the two
-                        // presses in the app that destroy work. The full table
-                        // and the measured result are on Settings' Reset All Data
-                        // row, which had the identical fault; the short version
-                        // is that `AppColors.destructiveInk` is the app's own
-                        // red too, it clears 5.64:1 light and 4.74:1 dark, and
-                        // unlike `warmRed` it inverts with the scheme.
-                        Text(deleteHeadLabel)
-                            .foregroundStyle(AppColors.destructiveInk)
-                    } icon: {
-                        SettingsIcon(systemName: "trash", tint: AppColors.destructiveInk)
-                    }
+                    // **One red on the row, not two.** The word was taking
+                    // the destructive role's own red, the system #FF3B30,
+                    // beside a glyph in the app's (the glyph went on
+                    // 2026-10-07, Settings' "A row's words"): two reds
+                    // four points apart on one line, and the app's palette losing to the
+                    // platform's on the one row where the colour is the
+                    // meaning.
+                    //
+                    // **And the app's red was `warmRed`, which measured
+                    // 2.71:1 on this card** (2026-10-02). A 17pt word is held
+                    // to 4.5:1 and it was not close, on one of the two
+                    // presses in the app that destroy work. The full table
+                    // and the measured result are on Settings' Reset All Data
+                    // row, which had the identical fault; the short version
+                    // is that `AppColors.destructiveInk` is the app's own
+                    // red too, it clears 5.64:1 light and 4.74:1 dark, and
+                    // unlike `warmRed` it inverts with the scheme.
+                    Text(deleteHeadLabel)
+                        .foregroundStyle(AppColors.destructiveInk)
                 }
             }
         } header: {
@@ -793,14 +766,10 @@ struct ProfileView: View {
             NavigationLink {
                 SettingsView(onResetAllData: onResetAllData)
             } label: {
-                Label {
-                    // One black down the column. See the note on Use as Profile
-                    // Picture above.
-                    Text("Settings")
-                        .foregroundStyle(AppColors.inkPrimary)
-                } icon: {
-                    SettingsIcon(systemName: "gearshape")
-                }
+                // One black down the column. See the note on Use as Profile
+                // Picture above.
+                Text("Settings")
+                    .foregroundStyle(AppColors.inkPrimary)
             }
         }
     }

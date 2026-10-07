@@ -307,7 +307,10 @@ struct InkStickerTests {
     func wiring() throws {
         let canvas = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/InkCanvas.swift"))
         let controls = try #require(canvas.components(separatedBy: "struct InkControls").dropFirst().first)
-        #expect(controls.contains("GlassIconButton(systemName: \"face.smiling\""), "the sticker button is gone")
+        // The button is the owner's drawn smiley since 2026-10-06
+        // (`Doodle.sticker`), not `face.smiling`: what this guards is that
+        // the button exists, not which glyph it wears.
+        #expect(controls.contains("GlassIconButton(drawn: .sticker"), "the sticker button is gone")
         #expect(controls.contains("StickerPicker(current: nil, purpose: .drawing"))
         #expect(canvas.contains("InkStickerLayer(controller: controller, interactive: false)"))
         #expect(canvas.contains("InkStickerLayer(controller: controller, interactive: true)"))

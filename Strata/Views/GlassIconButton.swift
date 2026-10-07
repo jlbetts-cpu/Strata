@@ -57,6 +57,9 @@ struct GlassIconButton: View {
     /// literal — here and again on `GlassIconLabel`, which is two copies of one
     /// number on one ladder (`docs/consistency-audit.md` §1.15).
     var glyphSize: CGFloat = GridConstants.iconToolbar
+    /// One of the owner's drawn icons in place of the symbol (`DoodleIcon`),
+    /// for the ink tools only. Same disc, same tint, same press.
+    var drawn: Doodle? = nil
     /// True when this stands on the app's own page rather than over a
     /// photograph or a viewfinder. See `GlassRecipe.onPage`.
     var onPage: Bool = false
@@ -69,10 +72,19 @@ struct GlassIconButton: View {
             action()
         } label: {
             GlassIconLabel(systemName: systemName, tint: tint,
-                           size: size, glyphSize: glyphSize, onPage: onPage)
+                           size: size, glyphSize: glyphSize, drawn: drawn,
+                           label: accessibilityLabel, onPage: onPage)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+extension GlassIconButton {
+    /// The same button with one of the owner's drawings on it (`Doodle`).
+    init(drawn: Doodle, onPage: Bool = false, accessibilityLabel: String, action: @escaping () -> Void) {
+        self.init(systemName: "", drawn: drawn, onPage: onPage,
+                  accessibilityLabel: accessibilityLabel, action: action)
     }
 }
 
@@ -88,9 +100,31 @@ struct GlassIconLabel: View {
     var tint: Color = .primary
     var size: CGFloat = GlassIconButton.defaultSide
     var glyphSize: CGFloat = GridConstants.iconToolbar
+    var drawn: Doodle? = nil
+    /// What VoiceOver calls a drawn icon; a symbol names itself.
+    var label: String = ""
     var onPage: Bool = false
 
     var body: some View {
+        glyph
+            .foregroundStyle(tint)
+            // Layout first, glass after: the effect takes its shape from
+            // the final frame, so applying it before the frame gives it
+            // the wrong bounds.
+            .frame(width: size, height: size)
+            .glassCircle(onPage: onPage)
+            .contentShape(Circle())
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if let drawn {
+            DoodleIcon(drawn, size: glyphSize, label: label)
+        } else {
+            symbol
+        }
+    }
+
+    private var symbol: some View {
         Image(systemName: systemName)
             // **`iconSize`, not `.font(.system(size:))`** (2026-10-01,
             // `docs/consistency-audit.md` §1.15, which named this the worst of
@@ -101,13 +135,6 @@ struct GlassIconLabel: View {
             // The glass disc behind it keeps its own 44pt frame, so a larger
             // glyph grows inside a fixed control rather than moving the layout.
             .iconSize(glyphSize, relativeTo: .body, weight: .medium)
-            .foregroundStyle(tint)
-            // Layout first, glass after: the effect takes its shape from
-            // the final frame, so applying it before the frame gives it
-            // the wrong bounds.
-            .frame(width: size, height: size)
-            .glassCircle(onPage: onPage)
-            .contentShape(Circle())
     }
 }
 

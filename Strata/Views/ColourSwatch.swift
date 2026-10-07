@@ -84,6 +84,9 @@ struct ColourSwatch: View {
     /// chip, which is what Profile's background chooser wants — there the colour
     /// is the whole of the choice and there is no category to name.
     var glyph: String? = nil
+    /// The owner's drawing for the category (`HabitCategory.doodle`), drawn in
+    /// place of `glyph` when there is one.
+    var doodle: Doodle? = nil
     var isSelected: Bool = false
     var side: CGFloat = ColourSwatch.side
 
@@ -115,7 +118,16 @@ struct ColourSwatch: View {
                                           * side / GridConstants.blockReferenceCell))
                 }
 
-            if let glyph {
+            if let doodle {
+                // **His filled glyphs** (the owner's sheet, 2026-10-06, its
+                // bottom row): the chip is where a colour becomes yours, so it
+                // carries his hand. Same token and the same white as the
+                // symbol it replaced; `DoodleIcon` scales it with text size.
+                // The name is on the button; the drawing stays quiet.
+                DoodleIcon(doodle, size: GridConstants.iconCategory, relativeTo: .footnote, label: "")
+                    .foregroundStyle(.white)
+                    .accessibilityHidden(true)
+            } else if let glyph {
                 // `GridConstants.iconCategory`, the token every other category
                 // glyph in the app is drawn at, through `IconStyle` so it grows
                 // with the user's text size instead of staying put while the row
@@ -244,6 +256,7 @@ struct ColourSwatchRow: View {
                 } label: {
                     ColourSwatch(colour: cat.style.baseColor,
                                  glyph: cat.iconName,
+                                 doodle: cat.doodle,
                                  isSelected: isSelected)
                 }
                 // The app's press, not `.plain`. A 34pt chip on a page has no

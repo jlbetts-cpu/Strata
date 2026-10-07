@@ -335,7 +335,14 @@ struct InkControls<Accessory: View>: View {
         HStack(spacing: GridConstants.gapTight) {
             // A toggle: the glyph fills while the eraser is on, as a
             // selected tool does across iOS, and nothing moves.
-            GlassIconButton(systemName: controller.erasing ? "eraser.fill" : "eraser",
+            //
+            // **The eraser, the undo and the sticker are the owner's own
+            // drawings** (2026-10-06, `DoodleIcon`): this row is where you
+            // draw, so it is drawn. All four buttons in it are his or are not
+            // a glyph at all (the pen's dot), so no symbol stands beside a
+            // drawing here; that is the rule that kept the strip booth's
+            // pencil, beside Share and Save, a symbol.
+            GlassIconButton(drawn: controller.erasing ? .eraserOn : .eraser,
                             onPage: true,
                             accessibilityLabel: "Eraser") {
                 controller.erasing.toggle()
@@ -351,7 +358,7 @@ struct InkControls<Accessory: View>: View {
             }
             .accessibilityValue(controller.weight.name)
             .animation(GridConstants.motionSnappy, value: controller.weight)
-            GlassIconButton(systemName: "arrow.uturn.backward", onPage: true,
+            GlassIconButton(drawn: .undo, onPage: true,
                             accessibilityLabel: "Undo") {
                 controller.undo()
             }
@@ -360,7 +367,7 @@ struct InkControls<Accessory: View>: View {
             // **A sticker of your own, on the drawing** (the owner,
             // 2026-10-06). Your stickers and New Sticker, and no Emoji: an
             // emoji is the day's mark, not something drawn on.
-            GlassIconButton(systemName: "face.smiling", onPage: true,
+            GlassIconButton(drawn: .sticker, onPage: true,
                             accessibilityLabel: "Add a sticker") {
                 choosingSticker = true
             }

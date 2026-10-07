@@ -50,6 +50,7 @@ Each line carries the date and, where there is one, his own words.
 | Three tabs: Wins, Camera, Memories | settled | — |
 | The app opens on the **camera** | settled | "logging a win is meant to be the fastest thing in the app" |
 | The tab bar is **his drawn icons with SF Pro labels under them**, idle tabs grey (Luma's way) | 2026-10-06 | reverses "icons only" (2026-10-01); his call after seeing Luma |
+| **His drawn icons where you draw, SF Symbols where you navigate.** Drawn: the ink row's eraser (filled when on), undo and sticker, the day's sticker corner, the six category chips (`Doodle`, `docs/icons/slice_icons.py`). SF: back, close, share, trash, send, everything a glance must recognise. **A drawing never sits in a row beside a symbol** (why the strip booth's pencil, the composer's pencil and the sticker picker's Emoji stay SF). Settings, Profile and the month drawing rows have **no glyphs at all** | 2026-10-06 / 07 | "less is so much more to me"; "make sure the icons still look clean and premium" |
 | The greys are **one warm family** in the idle tab's hue (`inkSecondary`/`inkTertiary`/`inkQuiet`, opaque) | 2026-10-06 | his pick, "Same warm grey family" |
 | Profile lives on **Memories only**, never on Wins | settled | "the tower is today's record and its corner belongs to today" |
 | **Replays live in Memories.** The week moved there with the month | 2026-10-01 | "the your month doesnt belong on the wins because its already in memories" |
