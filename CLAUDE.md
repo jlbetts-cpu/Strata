@@ -235,6 +235,28 @@ Testers logged one or two wins a day. The research and every decision are in
   usual wins, then small ones. Recognition, not recall. Typing narrows them.
 - **Rest days** (`Streaks.Rest`): one a week for you, two for a crew.
 
+## The middle of Wins: the goal crest (2026-10-06)
+
+Built to match a crew tower's middle exactly, because crews will take goals
+next: **one ring (`GoalRingStroke`) that wraps any face, one caption
+(`CrestCaption`) shared with the crew's name.** Keep them shared.
+
+- **Monotone.** The owner: "the blocks being the only colored element feels
+  right". Never colour the ring.
+- **Your head** is `HeadStore.headForCrews` (the one your crews see), else
+  your picture. Tapping head or fraction opens `YourDaySheet`.
+- **The caption is the printer.** Reaching the goal: the tower dances, the
+  capsule widens into a glass printer, and the day's strip (`DayStrip`,
+  up to four frames) steps out of the slot UNDER the glass, bottom edge
+  first. Untaken, it goes back in.
+- **The wordmark is Zen Maru Gothic Bold** (`Wordmark`, OFL, bundled and
+  subset). Never SF Pro Rounded for the logotype: Apple's licence covers app
+  text, not a logo on pictures shared to Instagram.
+- **The launch draws the mark** (`LaunchDraw`, `LogoStrokes` traced by
+  `docs/app-icon/trace_strokes.py`), then an eraser scrubs it out (the owner:
+  "make sure it actually feels like an eraser"), then the crest arrives
+  (`LaunchMoment`). Regenerate the strokes if the logo changes.
+
 ## Product direction
 
 `docs/product-direction.md` — the pivot: Strata visualises the wins in your
