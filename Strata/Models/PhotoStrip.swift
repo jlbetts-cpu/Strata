@@ -114,20 +114,46 @@ enum StripKeeping {
     }
 }
 
-/// White or black, and nothing else (the owner: "remove the creme setting
-/// only white or black"). Black first, as his own strip is.
+/// **The strip's paper: black, white, or a block's own colour** (the owner,
+/// 2026-10-06: "remove the creme setting, only white or black"; then
+/// 2026-10-07: "it would be neat if you could change the color of the card
+/// ... any of the category colors or the dark or white version, make it all
+/// one button"). Black first, as his own strip is. A coloured strip is lit
+/// from inside as a block is (`EtherealFill`), so a strip of a day's wins
+/// can be one more block of that day.
 enum StripPaper: String, CaseIterable, Identifiable {
-    case black, white
+    case black, white, health, work, creativity, focus, social, mindfulness
     var id: String { rawValue }
 
+    /// The block colour it is, if it is one.
+    var category: HabitCategory? { HabitCategory(rawValue: rawValue) }
+
     var ground: Color {
-        self == .black ? Color(red: 0.07, green: 0.07, blue: 0.07) : Color.white
+        if let category { return category.style.baseColor }
+        return self == .black ? Color(red: 0.07, green: 0.07, blue: 0.07) : Color.white
     }
+    /// What the paper is filled with: flat for black and white, lit from
+    /// inside for a colour.
+    var fill: AnyShapeStyle {
+        if let category { return AnyShapeStyle(EtherealFill.fill(category.style.baseColor)) }
+        return AnyShapeStyle(ground)
+    }
+    /// The foot's type: white on a colour, as a block's title is.
     var type: Color {
-        self == .black ? Color(red: 0.96, green: 0.95, blue: 0.93) : Color(red: 0.12, green: 0.11, blue: 0.10)
+        if category != nil { return .white }
+        return self == .black ? Color(red: 0.96, green: 0.95, blue: 0.93) : Color(red: 0.12, green: 0.11, blue: 0.10)
     }
-    var quiet: Color { type.opacity(0.55) }
-    var name: String { self == .black ? "Black" : "White" }
+    var quiet: Color { category != nil ? Color.white.opacity(0.8) : type.opacity(0.55) }
+    /// Ink drawn on it is light (on black and on a colour) or dark (on white).
+    var lightInk: Bool { self != .white }
+    var name: String { category?.rawValue.capitalized ?? (self == .black ? "Black" : "White") }
+
+    /// The next paper, for the colour button's tap.
+    var next: StripPaper {
+        let all = Self.allCases
+        let i = all.firstIndex(of: self) ?? 0
+        return all[(i + 1) % all.count]
+    }
 }
 
 // MARK: - Loading

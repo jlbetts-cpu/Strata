@@ -83,9 +83,17 @@ struct PhotoStripTests {
         UserDefaults.standard.removeObject(forKey: "strip.developed.crew-x.\(day)")
     }
 
-    @Test("white or black paper, and nothing else")
+    @Test("black, white, or a block's colour; one button steps through them all")
     func paper() {
-        #expect(StripPaper.allCases == [.black, .white])
+        // 2026-10-07, his ask: "any of the category colors or the dark or
+        // white version, make it all one button". Never creme again.
+        #expect(StripPaper.allCases == [.black, .white, .health, .work, .creativity, .focus, .social, .mindfulness])
+        #expect(StripPaper.allCases.allSatisfy { $0 == .black || $0 == .white || $0.category != nil })
+        var p = StripPaper.black
+        var seen: [StripPaper] = []
+        for _ in StripPaper.allCases { seen.append(p); p = p.next }
+        #expect(seen == StripPaper.allCases && p == .black, "a tap visits every paper and comes back round")
+        #expect(StripPaper.health.lightInk && StripPaper.black.lightInk && !StripPaper.white.lightInk)
     }
 
     @Test("the booth asks whether it may develop at the shake, not at the opening")

@@ -9,6 +9,13 @@ struct StripEditor: View {
     let strip: PhotoStrip
     @Binding var excluded: Set<UUID>
     @Binding var paper: StripPaper
+    /// Which tool it opens on: the booth has a button for each.
+    var opening: Opening = .pen
+
+    enum Opening: String, Identifiable {
+        case pen, stickers
+        var id: String { rawValue }
+    }
 
     @Environment(\.dismiss) private var dismiss
     @State private var ink = InkController()
@@ -31,8 +38,8 @@ struct StripEditor: View {
                     InkCanvas(controller: ink,
                               aspectRatio: stripHeight > 0 ? StripDecor.canvasWidth / stripHeight : 0.4,
                               ground: AnyShapeStyle(Color.clear),
-                              cornerRadius: width * 0.02,
-                              lightInk: paper == .black,
+                              cornerRadius: StripView.corner(forWidth: width),
+                              lightInk: paper.lightInk,
                               underlay: AnyView(StripView(frames: frames, day: strip.day, signature: strip.signature,
                                                           paper: paper, width: width, developed: 1)))
                         .frame(width: width)
@@ -74,9 +81,17 @@ struct StripEditor: View {
             .background { WarmBackground().ignoresSafeArea() }
         }
         .interactiveDismissDisabled(ink.canUndo)
+        // Opened from the booth's sticker button: straight to the stickers,
+        // once the sheet has risen (a popover from a sheet still rising
+        // does not appear).
+        .task {
+            guard opening == .stickers else { return }
+            try? await Task.sleep(for: .milliseconds(450))
+            ink.wantsStickers = true
+        }
     }
 
-    /// Which wins are on it, and its paper.
+    /// Which wins are on it.
     private var choices: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -107,28 +122,8 @@ struct StripEditor: View {
                     }
                 }
             }
+            // The paper moved to the booth's one colour button.
             HStack(spacing: GridConstants.gapLabel) {
-                ForEach(StripPaper.allCases) { option in
-                    Button {
-                        HapticsEngine.lightTap()
-                        withAnimation(GridConstants.crossFade) { paper = option }
-                    } label: {
-                        Circle()
-                            .fill(option.ground)
-                            .overlay { Circle().strokeBorder(GridConstants.fillHairline, lineWidth: 1) }
-                            .frame(width: 30, height: 30)
-                            .padding(4)
-                            .overlay {
-                                if option == paper {
-                                    Circle().strokeBorder(AppColors.inkPrimary, lineWidth: 2)
-                                }
-                            }
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.press)
-                    .accessibilityLabel("\(option.name) paper")
-                    .accessibilityAddTraits(option == paper ? .isSelected : [])
-                }
                 if strip.candidates.count > PhotoStrip.most {
                     Text("Up to \(PhotoStrip.most) on a strip")
                         .font(Typography.screenSubtitle)

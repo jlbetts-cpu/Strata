@@ -71,7 +71,8 @@ struct StripBooth: View {
     @State private var heldTop: CGFloat = 0
     @State private var drop: CGFloat = 0
     @State private var dropTilt: Double = 0
-    @State private var editing = false
+    /// The editor, opened on its pen or its stickers.
+    @State private var editing: StripEditor.Opening?
     @State private var saved = false
     /// The pose-and-share screen is up (`StripStoryComposer`).
     @State private var telling = false
@@ -125,9 +126,9 @@ struct StripBooth: View {
             }
             #endif
         }
-        .sheet(isPresented: $editing, onDismiss: { refreshDecor() }) {
+        .sheet(item: $editing, onDismiss: { refreshDecor() }) { opening in
             if let strip {
-                StripEditor(strip: strip, excluded: $excluded, paper: $paper)
+                StripEditor(strip: strip, excluded: $excluded, paper: $paper, opening: opening)
             }
         }
         // **Share is a Story you turn first** (2026-10-07, his pick: "9:16
@@ -287,7 +288,9 @@ struct StripBooth: View {
                 ZStack {
                     if let strip {
                         TurningCard(yaw: turnYaw, pitch: turnPitch, width: Self.width, height: stripHeight,
-                                    edge: paper == .black ? Color(white: 0.28) : Color(white: 0.80),
+                                    // Photo paper's core: grey on black,
+                                    // a light core under white or a colour.
+                                    edge: paper == .black ? Color(white: 0.28) : Color(white: 0.84),
                                     lit: isDeveloped ? 1.0 : 0.6) {
                             StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
                                       width: Self.width, developed: developed, decor: decor)
@@ -490,10 +493,19 @@ struct StripBooth: View {
 
     // MARK: Tools
 
+    /// **The strip's tools, one each** (the owner, 2026-10-07: "make it one
+    /// button ... any of the category colors or the dark or white version
+    /// ... and you need a button for the doodle and adding stickers to it").
+    /// Its colour, the pen, a sticker, share and save, in that order: what
+    /// you do to it, then what you do with it.
     private var tools: some View {
-        HStack(spacing: GridConstants.gapWide) {
-            GlassIconButton(systemName: "pencil", onPage: true, accessibilityLabel: "Edit strip") {
-                editing = true
+        HStack(spacing: GridConstants.gapItem) {
+            paperButton
+            GlassIconButton(systemName: "scribble", onPage: true, accessibilityLabel: "Doodle on the strip") {
+                editing = .pen
+            }
+            GlassIconButton(drawn: .sticker, onPage: true, accessibilityLabel: "Add a sticker") {
+                editing = .stickers
             }
             if strip != nil {
                 GlassIconButton(systemName: "square.and.arrow.up", onPage: true,
@@ -515,6 +527,38 @@ struct StripBooth: View {
                 .disabled(saved)
             }
         }
+    }
+
+    /// **One button for the paper**: a tap steps to the next colour, black,
+    /// white and then each block colour; a hold lists them all by name. Its
+    /// face is the paper itself.
+    private var paperButton: some View {
+        Menu {
+            Picker("Paper", selection: Binding(get: { paper }, set: { choosePaper($0) })) {
+                ForEach(StripPaper.allCases) { option in
+                    Text(option.name).tag(option)
+                }
+            }
+        } label: {
+            Circle()
+                .fill(paper.fill)
+                .overlay { Circle().strokeBorder(GridConstants.fillHairline, lineWidth: 1) }
+                .frame(width: 24, height: 24)
+                .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                .glassCircle(onPage: true)
+                .contentShape(Circle())
+        } primaryAction: {
+            choosePaper(paper.next)
+        }
+        .accessibilityLabel("Paper colour")
+        .accessibilityValue(paper.name)
+        .accessibilityHint("Tap for the next colour, hold for all of them.")
+    }
+
+    private func choosePaper(_ next: StripPaper) {
+        HapticsEngine.tick()
+        withAnimation(GridConstants.crossFade) { paper = next }
+        refreshDecor()
     }
 
     private var chrome: some View {
@@ -564,7 +608,7 @@ struct StripBack: View {
         }
         .frame(width: width, height: max(height, width))
         .background(paper.ground)
-        .clipShape(RoundedRectangle(cornerRadius: width * 0.02, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: StripView.corner(forWidth: width), style: .continuous))
         .accessibilityHidden(true)
     }
 }

@@ -273,8 +273,18 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
   - Simulator taps on sheet buttons can land one behind the next tap. Wait
     and re-screenshot before calling a button broken.
   - **A clean booth strip** (2026-10-07): a 4% border, a thin 1.6% line of
-    paper between pictures, near-square photo corners. Wider gutters read
-    as separate tiles; he asked for them "a little closer".
+    paper between pictures. Wider gutters read as separate tiles; he asked
+    for them "a little closer".
+  - **It is a block's material** ("matched the blocks ... the corner curve"):
+    `StripView.corner(forWidth:)` is a two-cell block's curve, photos are
+    concentric inside it, the paper takes `BlockWash` and `BlockRim`, and a
+    colour paper is lit from inside (`EtherealFill`). No `BlockSurface`: it
+    brings the block's elevation shadow, and the strip has none.
+  - **Paper is one button** (`StripPaper`: black, white, the six category
+    colours). Tap steps to the next, hold lists them; the editor no longer
+    has a paper row. The booth's tools: colour, doodle, sticker, share, save
+    (the sticker button opens the editor straight onto the picker,
+    `InkController.wantsStickers`).
   - **In the hand** it is 228pt wide (176 was too small "to really look at
     the image") and, once developed, pinches or double taps up to 3x and
     pans. A finger turns it on both axes (across to its back, up and down to

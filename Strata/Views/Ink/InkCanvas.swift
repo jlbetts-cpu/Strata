@@ -50,6 +50,9 @@ final class InkController {
         didSet { canvas?.tool = erasing ? InkPen.eraser : pen }
     }
     private(set) var canUndo = false
+    /// Set to open the sticker picker from outside (the strip booth's
+    /// sticker button); the controls clear it as they open it.
+    var wantsStickers = false
 
     /// The well's size in canvas points (the canvas at a zoom of 1), and
     /// where the canvas is zoomed and panned to, so the stickers, which are
@@ -392,6 +395,11 @@ struct InkControls<Accessory: View>: View {
             }
             Spacer(minLength: 0)
             accessory
+        }
+        .onChange(of: controller.wantsStickers, initial: true) { _, wants in
+            guard wants else { return }
+            controller.wantsStickers = false
+            choosingSticker = true
         }
         #if DEBUG
         // `-strataInkSticker drop|picker`: a sticker put on the canvas (the

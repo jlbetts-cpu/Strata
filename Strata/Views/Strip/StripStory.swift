@@ -58,7 +58,7 @@ struct StripStory: View {
         ZStack {
             paperView
                 .overlay {
-                    StripLight(yaw: pose.yaw, pitch: pose.pitch, corner: Self.stripWidth * 0.02)
+                    StripLight(yaw: pose.yaw, pitch: pose.pitch, corner: StripView.corner(forWidth: Self.stripWidth))
                 }
                 .rotation3DEffect(.degrees(pose.yaw), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
                 .rotation3DEffect(.degrees(pose.pitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
@@ -352,7 +352,7 @@ struct TurningCard<Front: View, Back: View>: View, Animatable {
 
     var body: some View {
         let showsFront = cos(yaw * .pi / 180) >= 0
-        let corner = width * 0.02
+        let corner = StripView.corner(forWidth: width)
         ZStack {
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .fill(edge)

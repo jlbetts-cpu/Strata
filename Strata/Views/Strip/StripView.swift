@@ -27,7 +27,18 @@ struct StripView: View {
     private var margin: CGFloat { width * 0.04 }
     private var gap: CGFloat { width * 0.016 }
     private var inner: CGFloat { width - 2 * margin }
-    private var corner: CGFloat { width * 0.008 }
+    /// **A block's corner** (the owner, 2026-10-07: "I'd love it if the
+    /// photo card sort of matched the blocks, with the blur line styling, the
+    /// corner curve"). The curve of a block two cells wide, scaled with the
+    /// strip, and the pictures inside it concentric with it.
+    var outerCorner: CGFloat { Self.corner(forWidth: width) }
+    /// The strip's corner at any width: its back, its turning edge and its
+    /// light take the same curve.
+    static func corner(forWidth width: CGFloat) -> CGFloat {
+        GridConstants.blockCornerRadius(forCell: width * 0.5)
+    }
+    private var corner: CGFloat { max(1, outerCorner - margin) }
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: gap) {
@@ -54,9 +65,20 @@ struct StripView: View {
         }
         .padding(margin)
         .frame(width: width, alignment: .leading)
-        .background(paper.ground)
+        // The block's material, without its shadow: the paper lit from
+        // inside (a colour) or flat (black, white), the block's wash rising
+        // to the foot, and its rim, brightest along the top edge.
+        .background {
+            Rectangle().fill(paper.fill)
+                .overlay(BlockWash(opacity: GridConstants.blockScrimOpacity))
+        }
         .overlay { decoration }
-        .clipShape(RoundedRectangle(cornerRadius: width * 0.02, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: outerCorner, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
+                .strokeBorder(BlockRim.gradient(in: colorScheme),
+                              lineWidth: GridConstants.blockRimWidth * min(1, width / 177))
+        }
     }
 
     private func picture(_ frame: PhotoStrip.Frame, width w: CGFloat, height h: CGFloat) -> some View {
