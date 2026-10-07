@@ -8,8 +8,8 @@ import SwiftUI
 /// The crew's details sheet, for one: the same inset list on the warm page,
 /// the same section labels. You in the ring and today's count; the day's
 /// goal to change; your three (`YourThree`); this
-/// week as seven small ink rings; today's strip, or a line saying the goal
-/// prints one; and your streak with its rest days.
+/// week as seven small ink rings with the strips you printed under them;
+/// and your streak with its rest days.
 /// Nothing on it counts against you: a ring only fills, and a week is
 /// shown as what was done.
 struct YourDaySheet: View {
@@ -20,9 +20,8 @@ struct YourDaySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var counts: [String: Int] = [:]
-    @State private var strip: PhotoStrip?
-    /// The last week's strips, newest first (`PhotoStrip.earlier`).
-    @State private var earlier: [PhotoStrip] = []
+    /// This week's printed strips, today's first (`PhotoStrip.printed`).
+    @State private var printed: [PhotoStrip] = []
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
     /// The titles of today's wins, for the ticks on your three.
     @State private var titlesToday: [String] = []
@@ -69,38 +68,15 @@ struct YourDaySheet: View {
                 }
                 .listRowSeparator(.hidden)
                 yourThree
+                // **The week and its strips, one section** (the owner,
+                // 2026-10-07): the rings, then every strip printed this week,
+                // today's first. A strip that was never developed is not
+                // shown, and a week with none shows only its rings.
                 Section {
                     week
+                    if !printed.isEmpty { weekStrips }
                 } header: {
                     FormSectionLabel("This Week")
-                }
-                .listRowSeparator(.hidden)
-                Section {
-                    // **Growing all day, dark until it develops** (the
-                    // owner's pick: "Yes, undeveloped"). A tap opens the booth.
-                    Button {
-                        dismiss()
-                        openStrip(nil)
-                    } label: {
-                        HStack(spacing: GridConstants.gapLabel) {
-                            if let strip {
-                                StripView(frames: strip.frames(excluding: StripKeeping.excluded(.me, day: today)),
-                                          day: today, signature: strip.signature, paper: StripKeeping.paper,
-                                          width: 64, developed: StripKeeping.isDeveloped(.me, day: today) ? 1 : 0,
-                                          decor: StripDecor.picture(owner: .me, day: today))
-                            }
-                            Text(stripLine)
-                                .font(Typography.bodyLarge)
-                                .foregroundStyle(AppColors.inkPrimary)
-                            Spacer(minLength: 0)
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(AppColors.inkTertiary)
-                        }
-                    }
-                    .buttonStyle(.press)
-                    if !earlier.isEmpty { earlierStrips }
-                } header: {
-                    FormSectionLabel("Today's Strip")
                 }
                 .listRowSeparator(.hidden)
                 Section {
@@ -143,23 +119,22 @@ struct YourDaySheet: View {
             #if DEBUG
             if DebugHarness.openSheet == "yourthree" { choosingThree = true }
             #endif
-            strip = await PhotoStrip.mine(context: context)
-            earlier = await PhotoStrip.earlier(context: context)
+            printed = await PhotoStrip.printed(on: Self.weekDays().filter { !$0.future }.map(\.key),
+                                               context: context)
         }
     }
 
-    /// **The days before, a tap away** (the owner, 2026-10-07: "shouldn't you
-    /// be able to access the last couple days photo strips"). Under today's,
-    /// each strip small with its day under it; a tap opens it in the booth.
-    /// A past strip develops whenever it is opened: it is a keepsake, and the
-    /// ring's rule is that nothing is held against a day.
-    private var earlierStrips: some View {
+    /// **This week's strips, a tap away** (the owner, 2026-10-07: "shouldn't
+    /// you be able to access the last couple days photo strips"). Under the
+    /// rings, each printed strip small with its day under it, today's first;
+    /// a tap opens it in the booth.
+    private var weekStrips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .bottom, spacing: GridConstants.gapItem) {
-                ForEach(earlier) { past in
+                ForEach(printed) { past in
                     Button {
                         dismiss()
-                        openStrip(past.day)
+                        openStrip(past.day == today ? nil : past.day)
                     } label: {
                         VStack(spacing: GridConstants.gapTight) {
                             StripView(frames: past.frames(excluding: StripKeeping.excluded(.me, day: past.day)),
@@ -177,8 +152,9 @@ struct YourDaySheet: View {
         }
     }
 
-    /// "Mon", or "Oct 1" past a week.
+    /// "Today", or "Mon".
     static func dayName(_ key: String) -> String {
+        if key == DateUtils.dateString(from: Date()) { return "Today" }
         guard let date = DateUtils.date(from: key) else { return key }
         return date.formatted(.dateTime.weekday(.abbreviated))
     }
@@ -236,13 +212,6 @@ struct YourDaySheet: View {
         }
         .listRowSeparator(.hidden)
         .animation(GridConstants.crossFade, value: done)
-    }
-
-    /// What the strip is doing today, in a line.
-    private var stripLine: String {
-        if StripKeeping.isDeveloped(.me, day: today) { return "Turn it, doodle on it, share it." }
-        if strip?.candidates.isEmpty ?? true { return "Photos and doodles from today land here." }
-        return todaysGoal - winsToday == 1 ? "One more win prints it." : "Reach your goal to print it."
     }
 
     /// You in the ring, larger, and today's count: the crest, as the crew's

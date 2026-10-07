@@ -5,17 +5,15 @@ import UIKit
 /// it at different angles like you can actually rotate it", then "make sure
 /// it saves on a transparent background making it easy to share on other
 /// posts"). The booth's Share opens this: the strip large, turned by a finger
-/// in 3D, twisted by two, pinched to size, on its own ground shadow, and
-/// exported as exactly that pose on a transparent PNG trimmed to the strip,
-/// so it drops onto a Story or a post like a sticker. **The PNG has no
-/// shadow** (the owner, the same day: "the shadow looks weird on the
-/// transparent ... no shadow would look better for the transparent
-/// version"): a soft grey cast reads as dirt on whatever it is laid over.
+/// in 3D, twisted by two, pinched to size, and exported as exactly that pose
+/// on a transparent PNG trimmed to the strip, so it drops onto a Story or a
+/// post like a sticker. **No shadow anywhere** (the owner, the same day: on
+/// the PNG it "looks weird", and in the app it "makes everything look super
+/// cramped"): a grey cast read as dirt on a post and as clutter on the page.
 ///
 /// No ground of its own and no mark added (his pick: "Strip foot only"): the
 /// strip carries the colour and the name, lit by the booth's own soft studio
-/// light (`StripLight`) and standing on the booth's shadow
-/// (`StripGroundShadow`), so the picture and the hand agree.
+/// light (`StripLight`), so the picture and the hand agree.
 struct StripStoryPose: Equatable {
     var yaw: Double = -14
     var pitch: Double = 8
@@ -37,7 +35,7 @@ struct StripStoryPose: Equatable {
     }
 }
 
-/// The posed strip and its shadow, the same view on screen and in the PNG.
+/// The posed strip, the same view on screen and in the PNG.
 struct StripStory: View {
     let strip: PhotoStrip
     let frames: [PhotoStrip.Frame]
@@ -45,8 +43,6 @@ struct StripStory: View {
     let paper: StripPaper
     let decor: InkPicture?
     let pose: StripStoryPose
-    /// On screen it stands on its shadow; the PNG does not (`png`).
-    var shadowed = true
 
     static let stripWidth: CGFloat = 220
     /// Rendered at this many pixels a point: a 220pt strip is 1100px across,
@@ -60,19 +56,6 @@ struct StripStory: View {
 
     var body: some View {
         ZStack {
-            // The shadow takes the strip's size from an unturned, unseen copy
-            // in the same layout pass: a measured height arrives a pass late,
-            // and a renderer draws only one.
-            paperView
-                .hidden()
-                .background {
-                    if shadowed {
-                        GeometryReader { geo in
-                            StripGroundShadow(width: geo.size.width, height: geo.size.height,
-                                              yaw: pose.yaw, pitch: pose.pitch)
-                        }
-                    }
-                }
             paperView
                 .overlay {
                     StripLight(yaw: pose.yaw, pitch: pose.pitch, corner: Self.stripWidth * 0.02)
@@ -91,9 +74,7 @@ struct StripStory: View {
     @MainActor
     func png() -> Data? {
         let pad = Self.stripWidth * 1.6
-        var bare = self
-        bare.shadowed = false
-        let renderer = ImageRenderer(content: bare.padding(pad))
+        let renderer = ImageRenderer(content: self.padding(pad))
         renderer.scale = Self.exportScale
         renderer.isOpaque = false
         guard let image = renderer.cgImage, let trimmed = Self.trim(image, margin: 2) else { return nil }
@@ -287,44 +268,12 @@ struct StripStoryComposer: View {
     }
 }
 
-/// **The strip standing above the ground, as a held card does** (the owner,
-/// 2026-10-07: "on the white backdrop it's kinda confusing to see, I think
-/// adding a ground shadow will help a lot, like how Pokemon TCG does it").
-/// Two layers, as a real card's shadow has: a tight, darker contact shadow
-/// right under its edge, and a wide soft one further out. Both slide away
-/// from the light as the card leans; neither turns with it.
-struct StripGroundShadow: View {
-    let width: CGFloat
-    let height: CGFloat
-    let yaw: Double
-    let pitch: Double
-    /// Lighter before the strip has developed, when it reads as unfinished.
-    var strength: Double = 1
-
-    var body: some View {
-        let corner = width * 0.02
-        ZStack {
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color.black.opacity(0.22 * strength))
-                .frame(width: width * 0.94, height: max(0, height * 0.97))
-                .blur(radius: 22)
-                .offset(x: -yaw * 0.55, y: 26 + pitch * 0.45)
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color.black.opacity(0.30 * strength))
-                .frame(width: width * 0.98, height: max(0, height * 0.99))
-                .blur(radius: 5)
-                .offset(x: -yaw * 0.2, y: 7 + pitch * 0.15)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
 /// **Light on photo paper, as a studio lights it**, shared by the booth's
 /// card and the posed strip so the two agree (the owner, 2026-10-07:
 /// "premium and expensive, not a cheap early 2000s looking light"). A broad,
 /// soft key light sliding gently across the sheen as the card turns, at a
-/// few percent, and a faint shade on the side turned away.
+/// few percent, and a faint shade on the side turned away. Halved again the
+/// same day ("the sheen is a bit too much"): about 3% at rest, 6% turned.
 struct StripLight: View {
     let yaw: Double
     let pitch: Double
@@ -338,21 +287,90 @@ struct StripLight: View {
         ZStack {
             // The key light: wide and low, from above left, moving with the turn.
             LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
-                                   .init(color: .white.opacity(0.06 + 0.08 * turned), location: 0.5),
+                                   .init(color: .white.opacity(0.025 + 0.035 * turned), location: 0.5),
                                    .init(color: .white.opacity(0), location: 1)],
                            startPoint: UnitPoint(x: -0.6 - lean * 0.5, y: -0.4 + tip * 0.4),
                            endPoint: UnitPoint(x: 1.0 - lean * 0.5, y: 1.2 + tip * 0.4))
                 .blendMode(.screen)
             // The shade on the far side, so it reads as a lit sheet.
-            LinearGradient(colors: [.black.opacity(0.10 * abs(lean)), .clear],
+            LinearGradient(colors: [.black.opacity(0.06 * abs(lean)), .clear],
                            startPoint: lean > 0 ? .leading : .trailing, endPoint: .center)
                 .blendMode(.multiply)
-            LinearGradient(colors: [.black.opacity(0.08 * abs(tip)), .clear],
+            LinearGradient(colors: [.black.opacity(0.05 * abs(tip)), .clear],
                            startPoint: tip > 0 ? .bottom : .top, endPoint: .center)
                 .blendMode(.multiply)
         }
         .opacity(lit)
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .allowsHitTesting(false)
+    }
+}
+
+/// **A card that turns over cleanly** (the owner, 2026-10-07: "the photo
+/// strip is still a little glitched when you try and change side"). Which
+/// face shows is decided from the angle as it is drawn, frame by frame,
+/// because this view is `Animatable`: the face changes exactly as the card
+/// passes edge-on. Before, the face was a flag set from the angle it was
+/// heading to, so a release faded the front into a mirrored back across the
+/// whole spring, and the press and the phone's lean were left out of it.
+///
+/// Its edge is the paper's thickness, showing on the side turned toward you
+/// and nowhere when it faces you square. Lit by `StripLight` at the same
+/// drawn angle, so the light and the turn never disagree.
+struct TurningCard<Front: View, Back: View>: View, Animatable {
+    var yaw: Double
+    var pitch: Double
+    let width: CGFloat
+    let height: CGFloat
+    let edge: Color
+    var lit: Double = 1
+    let front: Front
+    let back: Back
+
+    /// The paper's thickness, in points at the card's size.
+    static var thickness: CGFloat { 1.8 }
+
+    init(yaw: Double, pitch: Double, width: CGFloat, height: CGFloat, edge: Color, lit: Double = 1,
+         @ViewBuilder front: () -> Front, @ViewBuilder back: () -> Back) {
+        self.yaw = yaw
+        self.pitch = pitch
+        self.width = width
+        self.height = height
+        self.edge = edge
+        self.lit = lit
+        self.front = front()
+        self.back = back()
+    }
+
+    var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(yaw, pitch) }
+        set {
+            yaw = newValue.first
+            pitch = newValue.second
+        }
+    }
+
+    var body: some View {
+        let showsFront = cos(yaw * .pi / 180) >= 0
+        let corner = width * 0.02
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(edge)
+                .frame(width: width, height: height)
+                .offset(x: -sin(yaw * .pi / 180) * Self.thickness, y: sin(pitch * .pi / 180) * Self.thickness)
+            front
+                .overlay { StripLight(yaw: yaw, pitch: pitch, lit: lit, corner: corner) }
+                .opacity(showsFront ? 1 : 0)
+            back
+                .scaleEffect(x: -1, y: 1)
+                .overlay { StripLight(yaw: yaw + 180, pitch: pitch, lit: lit, corner: corner) }
+                .opacity(showsFront ? 0 : 1)
+        }
+        // Both faces stay laid out (the front measures the strip); only
+        // which one is seen changes, and never by a fade: the opacity is
+        // already the drawn frame's, so it must not be animated again.
+        .animation(nil, value: showsFront)
+        .rotation3DEffect(.degrees(yaw), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
+        .rotation3DEffect(.degrees(pitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
     }
 }

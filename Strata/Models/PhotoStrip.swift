@@ -133,16 +133,16 @@ enum StripPaper: String, CaseIterable, Identifiable {
 // MARK: - Loading
 
 extension PhotoStrip {
-    /// **The days before today that have a strip** (the owner, 2026-10-07:
-    /// "shouldn't you be able to access the last couple days photo strips"),
-    /// newest first: the last week's days with at least one photograph or
-    /// doodle, read small. A day with only colour blocks has no strip.
-    @MainActor
-    static func earlier(days: Int = 7, before today: Date = Date(), context: ModelContext) async -> [PhotoStrip] {
+    /// **The strips you printed, of these days**, newest first (the owner,
+    /// 2026-10-07: "the this week and today's strip section should be
+    /// combined, and if they didn't develop it or print it out it shouldn't
+    /// be showing"). Only a strip that was developed is a strip: a day with
+    /// pictures that never reached its goal, or reached it and was never
+    /// shaken, has nothing here. Read small.
+    static func printed(on days: [String], context: ModelContext) async -> [PhotoStrip] {
         var strips: [PhotoStrip] = []
-        for back in 1...days {
-            guard let date = Calendar.current.date(byAdding: .day, value: -back, to: today) else { continue }
-            let strip = await mine(day: DateUtils.dateString(from: date), context: context, small: true)
+        for day in days.sorted(by: >) where StripKeeping.isDeveloped(.me, day: day) {
+            let strip = await mine(day: day, context: context, small: true)
             if !strip.candidates.isEmpty { strips.append(strip) }
         }
         return strips

@@ -47,8 +47,8 @@ struct StripBooth: View {
     @State private var yaw: Double = 0
     @State private var pitch: Double = 0
     @State private var dragYaw: Double = 0
+    @State private var dragPitch: Double = 0
     /// The lean a finger gives the card where it presses, in degrees.
-    @State private var press = CGSize.zero
     @State private var pressStarted = Date()
     /// The phone's own tilt (`CardTilt`).
     @State private var tilt = CardTilt()
@@ -144,7 +144,12 @@ struct StripBooth: View {
 
     private func open() async {
         let already = StripKeeping.isDeveloped(owner, day: day)
-        let printsNow = prints && !already && !reduceMotion
+        // **Printed before it develops, every time** (the owner, 2026-10-07:
+        // "I would prefer if the printing animation actually played before
+        // developing"). Any strip not yet developed comes out of the island
+        // first, however the booth was opened, not only at the goal; one
+        // that may not develop yet (before your goal) is not printed.
+        let printsNow = !already && !reduceMotion && (prints || canDevelop())
         // The island opens into the printer at once, and holds while the
         // day's pictures load: the wait is the printer warming, not a blank.
         if printsNow { stage = .printing }
@@ -274,38 +279,27 @@ struct StripBooth: View {
         let card = CGSize(width: Self.width * fit, height: stripHeight * fit)
         return VStack(spacing: GridConstants.gapSection) {
             ZStack {
-                // **On the ground, under it**, as a Pokemon TCG card stands
-                // (`StripGroundShadow`): a contact shadow and a soft one that
-                // slide as the card leans. It does not turn with the card,
-                // and it stays behind when a pinch lifts the card closer.
-                StripGroundShadow(width: card.width, height: card.height, yaw: turnYaw, pitch: turnPitch,
-                                  strength: isDeveloped ? 1 : 0.6)
-                    .opacity(zoomed ? 0 : 1)
+                // **No shadow** (the owner, 2026-10-07, after three tries:
+                // "I'm really not a big fan of this shadow, it makes
+                // everything look super cramped, doesn't fit the rest of the
+                // app"). The strip stands on the page as everything else in
+                // the app does; its turn, edge and light do the work.
                 ZStack {
                     if let strip {
-                        // The paper's edge: a sliver of it shows on the side
-                        // turned away, as a printed card's thickness does.
-                        RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous)
-                            .fill(paper == .black ? Color(white: 0.24) : Color(white: 0.82))
-                            .frame(width: Self.width, height: stripHeight)
-                            .offset(x: -sin(turnYaw * .pi / 180) * 2.2, y: sin(turnPitch * .pi / 180) * 2.2)
-                        StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
-                                  width: Self.width, developed: developed, decor: decor)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-                            .overlay { glare }
-                            .opacity(facingFront ? 1 : 0)
-                        StripBack(day: day, paper: paper, width: Self.width, height: stripHeight)
-                            .overlay { glare }
-                            .scaleEffect(x: -1, y: 1)
-                            .opacity(facingFront ? 0 : 1)
+                        TurningCard(yaw: turnYaw, pitch: turnPitch, width: Self.width, height: stripHeight,
+                                    edge: paper == .black ? Color(white: 0.28) : Color(white: 0.80),
+                                    lit: isDeveloped ? 1.0 : 0.6) {
+                            StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
+                                      width: Self.width, developed: developed, decor: decor)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
+                        } back: {
+                            StripBack(day: day, paper: paper, width: Self.width, height: stripHeight)
+                        }
                     }
                 }
                 .scaleEffect(fit)
                 .frame(height: stripHeight * fit)
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { heldTop = $0 }
-                .rotation3DEffect(.degrees(yaw + dragYaw + press.width + tilt.yaw), axis: (x: 0, y: 1, z: 0),
-                                  perspective: 0.45)
-                .rotation3DEffect(.degrees(turnPitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
                 .rotationEffect(.degrees(isDeveloped ? 0 : -2.5 + Double(handShake) * 0.06))
                 .offset(x: handShake)
                 .scaleEffect(zoom)
@@ -329,33 +323,21 @@ struct StripBooth: View {
         .onDisappear { tilt.stop() }
     }
 
-    /// The card's lean around its upright axis, and across, everything in.
-    private var turnYaw: Double { yaw + dragYaw + press.width + tilt.yaw }
-    private var turnPitch: Double { pitch + press.height + tilt.pitch }
+    /// The card's turn around its upright axis, and its tip up or down,
+    /// everything in: where it rests, the finger, and the phone's own lean.
+    private var turnYaw: Double { yaw + dragYaw + tilt.yaw }
+    private var turnPitch: Double { pitch + dragPitch + tilt.pitch }
 
-    private var facingFront: Bool {
-        let a = (yaw + dragYaw).truncatingRemainder(dividingBy: 360)
-        let n = a < 0 ? a + 360 : a
-        return n < 90 || n > 270
-    }
+    private var facingFront: Bool { cos(turnYaw * .pi / 180) >= 0 }
 
-    /// **Light on photo paper, as a studio lights it** (the owner,
-    /// 2026-10-07: "make sure the lighting on it genuinely is premium and
-    /// expensive, not a cheap early 2000s looking light"). Not a hotspot and
-    /// not a band: a broad, soft key light that slides gently across the
-    /// sheen as the card turns, at a few percent, and a faint shade on the
-    /// side turned away from it, which is what makes a flat sheet read as
-    /// lit rather than as glowing. The first pass was a bright radial spot and
-    /// a stripe added on top; that is the look he named.
-    private var glare: some View {
-        StripLight(yaw: turnYaw, pitch: turnPitch, lit: isDeveloped ? 1.0 : 0.6, corner: Self.width * 0.02)
-    }
-
-    /// **A finger on the card** (the owner: "Pokemon TCG level card
-    /// movement"). Pressed, it leans toward the finger, as a card does under
-    /// a thumb, and follows it; drawn across far, it turns over, settling
-    /// face up or face down; let go, it springs back with a little give. A
-    /// quick touch that does not move is a tap: before it develops, a tap
+    /// **A finger turns it, on both axes** (the owner, 2026-10-07: "make it
+    /// more controlled ... you can only really turn it a little back and
+    /// forth but not up and down angling"). Across turns it about its long
+    /// axis, all the way over to its back; up and down tips it toward or
+    /// away, to 50 degrees either way. It follows the finger from wherever
+    /// it was taken, not from where the finger lands, so nothing jumps at
+    /// the touch. Let go, it springs to the nearest face and level. Before
+    /// it develops the same drag is the hand shake, and a quick tap
     /// develops it a step, for anyone who cannot shake.
     private func handle(_ card: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
@@ -367,17 +349,12 @@ struct StripBooth: View {
                     return
                 }
                 if value.translation == .zero { pressStarted = Date() }
-                let across = value.translation.width
-                if !isDeveloped { follow(across) }
-                // Far across, and developed: turning it over.
-                if isDeveloped, abs(across) > Self.turnStart {
-                    dragYaw = (across - (across > 0 ? Self.turnStart : -Self.turnStart)) * 0.75
-                }
-                let x = max(-1, min(1, (value.location.x / max(card.width, 1)) * 2 - 1))
-                let y = max(-1, min(1, (value.location.y / max(card.height, 1)) * 2 - 1))
-                let reach = reduceMotion ? 4.0 : Self.pressReach
+                if !isDeveloped { follow(value.translation.width) }
+                let reach = reduceMotion ? 0.35 : 1.0
                 withAnimation(GridConstants.cardFollow) {
-                    press = CGSize(width: x * reach, height: -y * reach)
+                    dragYaw = isDeveloped ? Double(value.translation.width) * Self.turnPerPoint * reach : 0
+                    dragPitch = max(-Self.tipMost, min(Self.tipMost,
+                                                      -Double(value.translation.height) * Self.tipPerPoint * reach))
                 }
             }
             .onEnded { value in
@@ -387,23 +364,33 @@ struct StripBooth: View {
                 }
                 let moved = hypot(value.translation.width, value.translation.height)
                 if moved < 8, Date().timeIntervalSince(pressStarted) < 0.35, !isDeveloped { shook() }
-                let total = yaw + dragYaw + value.predictedEndTranslation.width * 0.15 * (abs(dragYaw) > 0 ? 1 : 0)
+                // A flick carries the turn on a little, so a quick throw
+                // across flips it as a card flicked in the fingers does.
+                let flick = Double(value.predictedEndTranslation.width - value.translation.width)
+                    * Self.turnPerPoint * 0.35
+                let total = yaw + dragYaw + (isDeveloped ? flick : 0)
                 let landing = (total / 180).rounded() * 180
-                let flipped = Int((landing / 180).rounded()) % 2 != 0
-                let wasFlipped = !facingFront
+                let wasFront = facingFront
                 withAnimation(GridConstants.cardRelease) {
                     yaw = landing
                     dragYaw = 0
-                    press = .zero
+                    dragPitch = 0
                     pitch = 0
                     handShake = 0
                 }
                 shakeTurns = 0
                 shakeEdge = 0
                 shakeHeading = 0
-                if flipped != wasFlipped { HapticsEngine.lightTap() }
+                if (cos(landing * .pi / 180) >= 0) != wasFront { HapticsEngine.lightTap() }
             }
     }
+
+    /// Degrees of turn per point across: about a third of the screen turns
+    /// it edge-on, so its back is one deliberate drag away.
+    static let turnPerPoint = 0.6
+    /// Degrees of tip per point up or down, and the most it tips.
+    static let tipPerPoint = 0.4
+    static let tipMost = 50.0
 
     private var pinch: some Gesture {
         MagnifyGesture()
@@ -466,10 +453,6 @@ struct StripBooth: View {
     /// How far one swing of a hand shake has to go to count.
     static let shakeSwing: CGFloat = 22
 
-    /// How far across a finger goes before it is turning the card over
-    /// rather than leaning it, and how far a press leans it.
-    static let turnStart: CGFloat = 44
-    static let pressReach = 13.0
 
     /// What to do now, under the strip.
     @ViewBuilder

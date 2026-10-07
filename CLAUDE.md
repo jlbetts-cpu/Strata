@@ -276,18 +276,29 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     paper between pictures, near-square photo corners. Wider gutters read
     as separate tiles; he asked for them "a little closer".
   - **In the hand** it is 228pt wide (176 was too small "to really look at
-    the image"), stands on `StripGroundShadow` (a contact shadow plus a soft
-    one, Pokemon TCG style; on white it was "confusing to see"), and, once
-    developed, pinches or double taps up to 3x and pans.
+    the image") and, once developed, pinches or double taps up to 3x and
+    pans. A finger turns it on both axes (across to its back, up and down to
+    50 degrees); `TurningCard` picks the face from the drawn angle, so it
+    flips exactly edge-on, never crossfading into a mirrored back.
+  - **No shadow under the strip, anywhere.** Three were tried on
+    2026-10-07 (a blurred copy behind it, a TCG two-layer drop, an oval on
+    the floor) and he rejected them all: "super cramped, doesn't fit the
+    rest of the app". Do not add one back.
+  - **Light is a whisper**: `StripLight` about 3% at rest, 6% turned ("the
+    sheen is a bit too much").
+  - **Every strip prints before it develops**, however the booth opened,
+    when it may develop; only at the goal before.
   - **Share is a pose, saved on clear** (`StripStoryComposer`): turn, twist
     and pinch the strip, then share or save a transparent PNG trimmed to
-    the strip, at 5x. **No shadow on the PNG** (his call: it "looks weird
-    on the transparent"); the shadow is on screen only. Saves go through
+    the strip, at 5x. Saves go through
     `PhotoLibrarySaver.savePNG`, because a `UIImage` handed to the library
     loses its alpha; shares are a `.png` file for the same reason.
   - **Reaching the goal opens the booth only with something to print**
     (photos or doodled blocks); a day of plain colour dances and opens
     nothing (his pick, over one empty frame).
+  - **Your day lists only printed strips**, under the week's rings in one
+    "This Week" section (`PhotoStrip.printed`): a day never developed has
+    no strip there.
 - **The wordmark is Zen Maru Gothic Bold** (`Wordmark`, OFL, bundled and
   subset). Never SF Pro Rounded for the logotype: Apple's licence covers app
   text, not a logo on pictures shared to Instagram.

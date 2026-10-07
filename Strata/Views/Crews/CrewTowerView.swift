@@ -25,6 +25,8 @@ struct CrewTowerView: View {
 
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
+    /// Where the heads and the drawings meet (`CrewPlayfield`).
+    @State private var playfield = CrewPlayfield()
     @State private var showsInfo = false
     /// Which of the middle's tabs it opens on: the bubble opens Draw, the
     /// name opens the crew (`CrewMiddleSheet`).
@@ -336,7 +338,7 @@ struct CrewTowerView: View {
     @ViewBuilder
     private var headsOverlay: some View {
         if let crew, store.showsHeads(crewID) {
-            CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
+            CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking, playfield: playfield)
                 .ignoresSafeArea()
         }
     }
@@ -629,7 +631,7 @@ struct CrewTowerView: View {
                       isBusy: showsInfo || showsChat || viewing != nil || reporting != nil,
                       ceiling: parking.controls["name"]?.maxY,
                       onTuck: { toss, at, size, angle in tuck(toss, from: at, size: size, angle: angle) },
-                      tuckOldest: tuckOldest)
+                      tuckOldest: tuckOldest, playfield: playfield, parking: parking)
     }
 
     /// The slot in the grid's own coordinates (y down from the grid's top),

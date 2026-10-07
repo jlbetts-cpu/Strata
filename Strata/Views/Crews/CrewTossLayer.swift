@@ -2,6 +2,47 @@ import SwiftUI
 
 // MARK: - Drawings on a crew's tower
 
+/// **Where the heads and the drawings meet** (the owner, 2026-10-07: "make
+/// sure the doodle works with the heads floating around and have actual
+/// physics"). The heads float in a layer over the whole screen and the
+/// drawings lie in the tower's scroll, so each tells the other where it is
+/// through this: the drawings' frames (the heads bounce off them as off
+/// anything drawn), and knocks (a head that runs into one, fast or carried,
+/// sends it flying).
+///
+/// Unobserved but for `kicks`, which wakes the drawings' clock: they stop it
+/// when everything lies still, and a knock has to start it again.
+@MainActor
+@Observable
+final class CrewPlayfield {
+    /// Each drawing's frame in the drawings' own layer, and that layer's top
+    /// left in the window. Two parts, so a scroll moves every frame without
+    /// anyone stepping a clock.
+    @ObservationIgnored var drawings: [UUID: CGRect] = [:]
+    @ObservationIgnored var origin: CGPoint = .zero
+    /// Pushes waiting for the drawings' next frame, in points a second.
+    @ObservationIgnored var pending: [UUID: CGVector] = [:]
+    /// When each drawing was last knocked, so a head resting against one does
+    /// not knock it every frame.
+    @ObservationIgnored private var lastKnock: [UUID: Date] = [:]
+    private(set) var kicks = 0
+
+    /// Every drawing's frame, in the window.
+    var drawingsInWindow: [(id: UUID, rect: CGRect)] {
+        drawings.map { ($0.key, $0.value.offsetBy(dx: origin.x, dy: origin.y)) }
+    }
+
+    /// A head ran into a drawing. Called from a head's frame, so the clock
+    /// is woken on the next turn of the run loop, never during the update.
+    func knock(_ id: UUID, by impulse: CGVector, now: Date = Date()) {
+        if let last = lastKnock[id], now.timeIntervalSince(last) < 0.35 { return }
+        lastKnock[id] = now
+        let was = pending[id] ?? .zero
+        pending[id] = CGVector(dx: was.dx + impulse.dx, dy: was.dy + impulse.dy)
+        Task { @MainActor in self.kicks &+= 1 }
+    }
+}
+
 /// What the drawings on one crew tower share between frames. Not observed,
 /// like `CrewArenaBox`: stepping the world sixty times a second must not
 /// invalidate the tower around it.
@@ -47,6 +88,14 @@ final class CrewTossBox {
 /// **It takes a finger only on itself.** Nothing behind a drawing is a
 /// target, so the blocks, the slot and the reactions still answer everywhere
 /// else. Hold one to tuck it into the bubble (`onTuck`).
+///
+/// **Pick it up and throw it** (the owner, 2026-10-07: "actual physics like
+/// you can pick them up and move them and stuff"). Drawn across, it follows
+/// the finger; let go, it leaves at the finger's speed, turns with the throw
+/// and falls back onto the tower, onto the blocks or the other drawings.
+/// Carried onto the bubble it tucks in, as a head parks. The floating heads
+/// bounce off it, and one that runs into it fast, or is carried into it,
+/// knocks it flying (`CrewPlayfield`).
 struct CrewTossLayer: View {
     let crewID: CrewID
     /// Today's drawings to show: `SocialStore.tosses(in:)` less the tucked.
@@ -74,12 +123,20 @@ struct CrewTossLayer: View {
     let onTuck: (CrewMessage, CGPoint, CGSize, Double) -> Void
     /// DEBUG films: bumped to tuck the oldest drawing at rest, as a hold would.
     var tuckOldest = 0
+    /// Shared with the heads: where the drawings are, and the knocks.
+    var playfield: CrewPlayfield? = nil
+    /// The bubble, for a drawing carried onto it.
+    var parking: CrewParking? = nil
 
     @State private var box = CrewTossBox()
     /// Each drawing's picture, width over height, and the air round its ink
     /// as a share of its height (`InkExport.inkBounds`).
     @State private var shapes: [UUID: (aspect: CGFloat, air: CGFloat)] = [:]
     @State private var lifted: UUID?
+    /// The drawing under a finger, and where the finger took it.
+    @State private var carried: UUID?
+    @State private var grabOffset = CGSize.zero
+    private static let space = "crewTossLayer"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -99,8 +156,12 @@ struct CrewTossLayer: View {
             let landed = Set(shelf.landed(on: day))
             let missing = wanted.subtracting(have)
             let held = isBusy && !missing.contains(where: landed.contains)
+            // `kicks` is read so a head's knock restarts a stopped clock.
+            let _ = playfield?.kicks
+            let knocked = !(playfield?.pending.isEmpty ?? true)
             let still = box.bodies.allSatisfy(\.resting) && box.world == world
                 && have.isSubset(of: wanted) && (missing.isEmpty || held)
+                && carried == nil && !knocked
             let paused = still || !built || scenePhase != .active
             TimelineView(.animation(paused: paused)) { context in
                 let _ = frame(context.date, ready: ready, world: world, height: geo.size.height, built: built)
@@ -112,8 +173,12 @@ struct CrewTossLayer: View {
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                .coordinateSpace(.named(Self.space))
             }
-            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { box.origin = $0 }
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
+                box.origin = $0
+                playfield?.origin = $0
+            }
         }
         .task(id: tosses.map(\.messageID)) { await loadShapes() }
         .onChange(of: tuckOldest) {
@@ -146,15 +211,64 @@ struct CrewTossLayer: View {
             .offset(x: body.position.x - body.half.width, y: body.position.y - body.half.height)
             .contentShape(Rectangle())
             .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 12) {
+                // A hold that became a carry is a carry.
+                guard carried != body.id else { return }
                 tuck(toss, body: body)
             } onPressingChanged: { pressing in
                 if pressing { HapticsEngine.tick() }
                 lifted = pressing ? body.id : (lifted == body.id ? nil : lifted)
             }
+            .simultaneousGesture(carry(toss))
             .accessibilityElement()
             .accessibilityLabel(label(for: toss))
             .accessibilityAddTraits(.isImage)
             .accessibilityAction(named: "Tuck into the bubble") { tuck(toss, body: body) }
+    }
+
+    /// The finger takes it, carries it, and throws it.
+    private func carry(_ toss: CrewMessage) -> some Gesture {
+        let id = toss.messageID
+        return DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
+            .onChanged { value in
+                if carried != id {
+                    guard let i = box.bodies.firstIndex(where: { $0.id == id }) else { return }
+                    let p = box.bodies[i].position
+                    grabOffset = CGSize(width: value.startLocation.x - p.x, height: value.startLocation.y - p.y)
+                    TossPhysics.grab(&box.bodies, id: id)
+                    carried = id
+                    lifted = id
+                    HapticsEngine.tick()
+                }
+                if let i = box.bodies.firstIndex(where: { $0.id == id }) {
+                    box.bodies[i].position = CGPoint(x: value.location.x - grabOffset.width,
+                                                     y: value.location.y - grabOffset.height)
+                }
+                if let parking {
+                    let over = parking.isOver(window(value.location))
+                    if over != parking.over {
+                        parking.over = over
+                        if over { HapticsEngine.tick() }
+                    }
+                }
+            }
+            .onEnded { value in
+                guard carried == id else { return }
+                carried = nil
+                lifted = nil
+                let parks = parking?.isOver(window(value.location)) ?? false
+                parking?.over = false
+                if parks, let body = box.bodies.first(where: { $0.id == id }) {
+                    tuck(toss, body: body)
+                    return
+                }
+                TossPhysics.release(&box.bodies, id: id,
+                                    velocity: CGVector(dx: value.velocity.width, dy: value.velocity.height))
+                box.lastFrame = nil
+            }
+    }
+
+    private func window(_ local: CGPoint) -> CGPoint {
+        CGPoint(x: box.origin.x + local.x, y: box.origin.y + local.y)
     }
 
     private func label(for toss: CrewMessage) -> String {
@@ -167,6 +281,7 @@ struct CrewTossLayer: View {
         lifted = nil
         let centre = CGPoint(x: box.origin.x + body.position.x, y: box.origin.y + body.position.y)
         box.bodies.removeAll { $0.id == body.id }
+        playfield?.drawings[body.id] = nil
         box.wake()
         onTuck(toss, centre, CGSize(width: body.half.width * 2, height: body.half.height * 2), body.angle)
     }
@@ -240,8 +355,25 @@ struct CrewTossLayer: View {
         let ticks = min(Int(box.carry / TossPhysics.tick), TossPhysics.maxTicks)
         box.carry -= Double(ticks) * TossPhysics.tick
         if box.carry > TossPhysics.tick * Double(TossPhysics.maxTicks) { box.carry = 0 }
+        // A head's knocks, since the last frame.
+        if let playfield, !playfield.pending.isEmpty {
+            for (id, push) in playfield.pending { TossPhysics.knock(&box.bodies, id: id, by: push) }
+            playfield.pending = [:]
+            HapticsEngine.tick()
+        }
         let hits = TossPhysics.step(&box.bodies, in: world, ticks: ticks)
         if hits.contains(where: box.live.contains) { HapticsEngine.lightTap() }
+        // Where each lies now, for the heads: the ink's share of the frame,
+        // and not the one in the hand.
+        if let playfield {
+            var rects: [UUID: CGRect] = [:]
+            for b in box.bodies where !b.held {
+                let e = TossPhysics.extent(b)
+                rects[b.id] = CGRect(x: b.position.x - e.width * 0.8, y: b.position.y - e.height * 0.8,
+                                     width: e.width * 1.6, height: e.height * 1.6)
+            }
+            playfield.drawings = rects
+        }
     }
 
     /// Each drawing's shape, read off the main thread once.

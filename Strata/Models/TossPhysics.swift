@@ -47,6 +47,9 @@ nonisolated struct TossBody: Equatable, Sendable {
     /// Times it has hit something on the way down. The first is the one the
     /// phone answers with a tap (`CrewTossLayer`).
     var impacts = 0
+    /// Under a finger: placed by it, not by the world, and nothing stands
+    /// on it (`grab`).
+    var held = false
 }
 
 /// Everything a drawing may land on, in the layer's coordinates (origin top
@@ -213,7 +216,7 @@ nonisolated enum TossPhysics {
         // **On each other**: a drawing down already is something to land
         // on. Only ones that arrived first, so a pile is built in order and
         // never resolves into itself.
-        for j in 0..<index where bodies[j].resting || (from != nil && bodies[j].impacts > 0) {
+        for j in 0..<index where !bodies[j].held && (bodies[j].resting || (from != nil && bodies[j].impacts > 0)) {
             let other = bodies[j]
             let o = span(other)
             guard o.lowerBound < s.upperBound, o.upperBound > s.lowerBound else { continue }
@@ -233,7 +236,7 @@ nonisolated enum TossPhysics {
     static func step(_ bodies: inout [TossBody], in world: TossWorld, ticks: Int) -> [UUID] {
         var firstHits: [UUID] = []
         for _ in 0..<max(ticks, 0) {
-            for i in bodies.indices {
+            for i in bodies.indices where !bodies[i].held {
                 if advance(&bodies, i, in: world) { firstHits.append(bodies[i].id) }
             }
         }
@@ -266,6 +269,59 @@ nonisolated enum TossPhysics {
             step(&bodies, in: world, ticks: 1)
             n += 1
         } while n < limit && bodies.contains(where: { !$0.resting })
+    }
+
+    // MARK: In the hand
+
+    /// **Picked up** (the owner, 2026-10-07: "actual physics like you can
+    /// pick them up and move them and stuff"). Moved to the end of the list,
+    /// so wherever it is dropped it lands on what is there, as the newest
+    /// arrival; whatever lay on it falls. Returns its new index.
+    @discardableResult
+    static func grab(_ bodies: inout [TossBody], id: UUID) -> Int? {
+        guard let i = bodies.firstIndex(where: { $0.id == id }) else { return nil }
+        var b = bodies.remove(at: i)
+        b.held = true
+        b.resting = false
+        b.stillTicks = 0
+        b.velocity = .zero
+        bodies.append(b)
+        // What stood on it looks again at its ground.
+        for j in bodies.indices where bodies[j].resting {
+            bodies[j].resting = false
+            bodies[j].stillTicks = 0
+        }
+        return bodies.count - 1
+    }
+
+    /// The fastest a throw leaves the hand, points a second.
+    static let throwSpeed: CGFloat = 1800
+
+    /// **Let go**, at the finger's speed: it flies, turns with the throw,
+    /// and falls back onto the tower.
+    static func release(_ bodies: inout [TossBody], id: UUID, velocity: CGVector) {
+        guard let i = bodies.firstIndex(where: { $0.id == id }) else { return }
+        bodies[i].held = false
+        bodies[i].velocity = clamp(velocity, to: throwSpeed)
+        bodies[i].spin = Double(max(-8, min(8, velocity.dx / 260)))
+        bodies[i].impacts = max(bodies[i].impacts, 1)
+    }
+
+    /// **Knocked** by a head: a push and a hop, and a turn with it.
+    static func knock(_ bodies: inout [TossBody], id: UUID, by impulse: CGVector) {
+        guard let i = bodies.firstIndex(where: { $0.id == id }), !bodies[i].held else { return }
+        let v = CGVector(dx: bodies[i].velocity.dx + impulse.dx, dy: bodies[i].velocity.dy + impulse.dy)
+        bodies[i].velocity = clamp(v, to: throwSpeed * 0.6)
+        bodies[i].spin += Double(max(-5, min(5, impulse.dx / 240)))
+        bodies[i].resting = false
+        bodies[i].stillTicks = 0
+    }
+
+    private static func clamp(_ v: CGVector, to most: CGFloat) -> CGVector {
+        guard v.dx.isFinite, v.dy.isFinite else { return .zero }
+        let speed = hypot(v.dx, v.dy)
+        guard speed > most else { return v }
+        return CGVector(dx: v.dx / speed * most, dy: v.dy / speed * most)
     }
 
     /// One tick for one body. True on its first impact.

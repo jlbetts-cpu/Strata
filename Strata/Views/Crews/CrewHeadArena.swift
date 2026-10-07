@@ -298,6 +298,8 @@ struct CrewHeadArena: View {
     let me: UUID
     let model: CrewTowerModel
     let parking: CrewParking
+    /// The drawings on the tower, for the heads to bounce off and knock.
+    var playfield: CrewPlayfield? = nil
 
     @State private var box = CrewArenaBox()
 
@@ -314,7 +316,8 @@ struct CrewHeadArena: View {
                     CrewHeadRunner(member: member, isMe: member.profileID == me,
                                    rig: CrewHeads.shared.rig(for: member, in: crew.id, me: me),
                                    crewID: crew.id, me: me,
-                                   arena: arena, model: model, parking: parking, box: box)
+                                   arena: arena, model: model, parking: parking, box: box,
+                                   playfield: playfield)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -358,6 +361,7 @@ private struct CrewHeadRunner: View {
     let model: CrewTowerModel
     let parking: CrewParking
     let box: CrewArenaBox
+    let playfield: CrewPlayfield?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -367,7 +371,7 @@ private struct CrewHeadRunner: View {
     @State private var deck = HeadTakeDeck()
 
     init(member: CrewMember, isMe: Bool, rig: HeadRig?, crewID: CrewID, me: UUID, arena: CGRect,
-         model: CrewTowerModel, parking: CrewParking, box: CrewArenaBox) {
+         model: CrewTowerModel, parking: CrewParking, box: CrewArenaBox, playfield: CrewPlayfield?) {
         self.member = member
         self.isMe = isMe
         self.rig = rig
@@ -377,6 +381,7 @@ private struct CrewHeadRunner: View {
         self.model = model
         self.parking = parking
         self.box = box
+        self.playfield = playfield
         let bits = member.profileID.uuid
         _life = State(initialValue: CrewHeadLife(seed: UInt64(bits.0) << 32 | UInt64(bits.1) << 16 | UInt64(bits.2) | 1))
     }
@@ -588,10 +593,29 @@ private struct CrewHeadRunner: View {
             }
         }
         guard life.sim.position.x.isFinite, life.sim.position.y.isFinite else { return 1 }
+        knockDrawings(carried: parking.dragging == id)
         life.position = life.sim.position
         life.tilt = life.sim.tilt
         box.positions[id] = parking.isHidden(id) ? nil : (life.position, life.sim.halfWidth)
         return 1
+    }
+
+    /// **Into a drawing**: a head that meets one moving fast, or in a hand,
+    /// sends it off away from him and a little up. One drifting against it
+    /// only bounces off (the drawing is an obstacle in his world).
+    private func knockDrawings(carried: Bool) {
+        guard let playfield, !playfield.drawings.isEmpty else { return }
+        let centre = CGPoint(x: arena.minX + life.sim.position.x, y: arena.minY + life.sim.position.y)
+        let v = life.sim.velocity
+        let speed = hypot(v.dx, v.dy)
+        guard carried || speed > 140 else { return }
+        let reach = life.sim.halfWidth + 6
+        for (drawing, rect) in playfield.drawingsInWindow where rect.insetBy(dx: -reach, dy: -reach).contains(centre) {
+            let away = CGVector(dx: rect.midX - centre.x, dy: rect.midY - centre.y)
+            let d = max(hypot(away.dx, away.dy), 1)
+            let push = 160 + min(speed, 900) * 0.6
+            playfield.knock(drawing, by: CGVector(dx: away.dx / d * push + v.dx * 0.3, dy: -220 + min(0, v.dy) * 0.3))
+        }
     }
 
     private func makeWorld(side: CGFloat) -> TowerCompanionWorld {
@@ -624,6 +648,8 @@ private struct CrewHeadRunner: View {
         // the bubble: real objects he bounces off, never invisible walls.
         var obstacles = Array(parking.controls.values)
         if parking.dragging == nil { obstacles.append(parking.bubbleFrame) }
+        // The drawings on the tower: things he bounces off, as off the bubble.
+        if let playfield { obstacles += playfield.drawingsInWindow.map(\.rect) }
         let local = obstacles.filter { !$0.isEmpty }.map { $0.offsetBy(dx: -arena.minX, dy: -arena.minY) }
         // **They float in the room between the header and the tower**, not
         // in the default band under the status bar: with eight heads there,

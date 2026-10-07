@@ -26,7 +26,7 @@ struct StripStoryTests {
                                                decor: nil, pose: pose).png())
             let image = try #require(UIImage(data: data)?.cgImage)
             // Clear where nothing is drawn: the top left corner is outside a
-            // turned strip's paper (no shadow on the PNG, his call).
+            // turned strip's paper (no shadow anywhere, his call).
             let alpha = try #require(Self.alpha(at: (0, 0), in: image))
             #expect(alpha == 0, "the background is transparent")
             #expect(image.alphaInfo != .none && image.alphaInfo != .noneSkipLast && image.alphaInfo != .noneSkipFirst)
@@ -63,12 +63,12 @@ struct StripStoryTests {
         let booth = SourceSweep.code(try SourceSweep.read("Strata/Views/Strip/StripBooth.swift"))
         #expect(booth.contains("StripStoryComposer(strip: strip, frames: frames, day: day, paper: paper, decor: decor)"))
         #expect(booth.contains("telling = true"))
-        #expect(booth.contains("StripLight(yaw: turnYaw, pitch: turnPitch"), "the hand and the share are lit alike")
-        #expect(booth.contains("StripGroundShadow(width: card.width"), "stands on the same shadow it shares with")
+        #expect(booth.contains("TurningCard(yaw: turnYaw, pitch: turnPitch"), "turned and lit by the drawn angle")
+        #expect(!booth.contains("Shadow("), "no shadow under the strip (his call: it made the booth \"super cramped\")")
         #expect(booth.contains("PhotoLibrarySaver.savePNG(data)"), "saved on clear, not re-encoded flat")
         let story = SourceSweep.code(try SourceSweep.read("Strata/Views/Strip/StripStory.swift"))
         #expect(!story.contains("Wordmark("), "the strip's own foot is the only mark (his pick)")
-        #expect(story.contains("bare.shadowed = false"), "the transparent PNG has no shadow (his call)")
+        #expect(!story.contains("Shadow("), "no shadow on the pose or its PNG (his call)")
     }
 
     @Test("reaching the goal opens the booth only with something to print")
