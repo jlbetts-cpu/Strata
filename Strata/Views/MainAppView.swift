@@ -1189,10 +1189,7 @@ struct MainAppView: View {
             let today = DateUtils.dateString(from: Date())
             guard DailyGoal.reached(from: old, to: new, goal: todaysGoal), stripPrintedDay != today else { return }
             stripPrintedDay = today
-            Task {
-                try? await Task.sleep(for: .seconds(1.8))
-                booth = BoothOpening(prints: true)
-            }
+            openBoothWhenFree(prints: true)
         }
         .fullScreenCover(item: $booth) { opening in
             StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= todaysGoal }) {
@@ -1988,10 +1985,34 @@ struct MainAppView: View {
         }
         guard stripPrintedDay != today else { return }
         stripPrintedDay = today
-        Task {
+        openBoothWhenFree(prints: true)
+    }
+
+    /// **The booth opens when the screen is free** (found 2026-10-07). It
+    /// was set 1.8s after the goal was crossed whatever was on screen; a
+    /// crossing during the launch (the day's wins arriving, from a sync or
+    /// a seed) set it under the drawn logo, the cover never came up, and
+    /// SwiftUI went on believing it was presented: every sheet after it,
+    /// Add a win included, silently refused to open. Now it waits, after
+    /// the dance, for the launch to be over and nothing else to be up, and
+    /// gives up after half a minute rather than ambush someone later.
+    private func openBoothWhenFree(prints: Bool) {
+        Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.8))
-            booth = BoothOpening(prints: true)
+            for _ in 0..<60 {
+                if booth == nil, LaunchMoment.shared.finished, scenePhase == .active, !Self.somethingIsPresented {
+                    booth = BoothOpening(prints: prints)
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
         }
+    }
+
+    /// Whether a sheet or cover is up over the app, whoever put it there.
+    private static var somethingIsPresented: Bool {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        return windows.contains { $0.isKeyWindow && $0.rootViewController?.presentedViewController != nil }
     }
 
     /// Keeps the replay notifications warm, and sets the next moment to do it
