@@ -1,83 +1,75 @@
-# Some Wins launch video: breakdown and storyboard (v2)
+# Some Wins launch video: breakdown and storyboard (v3)
 
-Level 1 (motion graphics) of the workflow he shared: the video is built in
-code, frame by frame, around real recordings of the app. **Sound effects
-only** (the phone's own taps, drops, the print, the shake); music goes on
-after, by him.
+Level 1 of the workflow he shared: the film is built in code, frame by frame,
+around real recordings of the app. **Sound effects only** (the phone's own
+taps, drops, the print, the shake); music goes on after, by him.
 
-## What the four references do (watched frame by frame, 2026-10-07)
+v3 (2026-10-07) answers his notes on v2: monotone type that fits the brand,
+the logo booting up at the start, the real App Store badge at the end, true
+3D device angles, UI that leaves the screen and lands on it, more life, and
+the "clever adds" outside the product that make it feel premium.
 
-| | Rene (0:55) | Legora Skills (0:47) | Okara Dots (1:07) | Wabi 2.0 (1:20) |
-|---|---|---|---|---|
-| Ground | white, black once for contrast | soft grey studio gradient | white | white, two cinematic orb shots |
-| Open | macro push-in on a real chat, pull back to the phone | empty light, "Introducing Skills" | logo + wordmark | orb at sunset, typed line with a cursor |
-| Type | short lines, one phrase in colour, words blur in one by one | slot-machine word roll | one line per beat, grey words filling to black | big word lists behind the phone, one bold at a time |
-| Product | the phone floating on white; real messages arriving | glass UI cards, macro on buttons, shallow focus | each agent: name + status pill + UI tilted in 3D | phone floating, widgets, hearts bursting |
-| Signature | an emoji leaves "l⚽ve" and becomes a bubble (match cut) | a glass tile turns in 3D and opens into the window | a cursor presses "Get started" | 3D objects pop out of the chat |
-| Close | logo draws itself, "Start now", URL | tagline, wordmark | logo, pill CTA | "The all-new [icon] wabi app" |
+## Why the renderer changed
 
-**The shared grammar** (what makes them read as Apple-clean):
-1. One idea per beat, 1.5 to 3 seconds. Never two things competing.
-2. Small centred type; one word carries the colour.
-3. The product is always the real UI: floating, close, alive.
-4. Transitions are carried by an object (an emoji, a tile, a block), never a wipe.
-5. Text beat / product beat alternate, with one contrast beat (black) before the close.
-6. The close: the logo draws itself, one line, the URL.
-7. **The camera never sits still** on a product shot: it pushes, orbits or racks focus, slowly, on a long ease.
+Higgsedit (Higgsfield's editor) only rotates flat in 2D. A phone with
+thickness, a camera that orbits it, and a block that flies out of the screen
+need real perspective, so the film is a page with CSS 3D (a phone built from
+stacked slices of its aluminium band, glass inset inside the rim) rendered
+frame by frame at 2x and encoded natively. Higgsfield stays for what only it
+can do: generated profile pictures for the social burst (his call, later,
+on credits he approves).
 
-## What a stranger can't get from a screenshot of Some Wins
+## The four references, frame by frame (10 fps on every type moment)
 
-1. **Wins are blocks that fall.** Logging is a drop, not a checkbox.
-2. **The goal prints your day.** The tower dances, the Dynamic Island becomes a printer, a photo strip feeds out. **Shake to develop.** Nobody has seen this; it is the hook.
-3. **Friends, as heads, over a shared tower.** Throw a drawing onto it.
-4. **It's yours, by hand.** Doodled blocks, stickers on the strip, a drawing every month (October's skeleton dances).
-5. **Small on purpose.** A goal you set, nothing against you. (One line, never a feature tour.)
+| | Rene | Wabi 2.0 | Okara Dots |
+|---|---|---|---|
+| Open | macro on real bubbles, pull back to the phone | sunset orb, typed line with a cursor | pixel logo morphs into the name |
+| Phone | white phone on white, nearly front-on, often cropped by the frame | phone huge and cropped; widgets fly out to a curved 3D carousel | no phone; UI windows floating in depth |
+| UI ↔ screen | a notification lifts off the lock screen, floats alone, then a phone rises under it and it lands in the chat | a bubble stands alone, the phone forms round it; cards leave the phone into an arc | panels tilted in 3D, cursor presses |
+| Clever adds | ⚽ bounces through "l⚽ve"; a cloud of faces in shallow focus; real people in a park with UI over them | 3D objects (plane, camera, suitcase) burst round a bubble; hearts burst off the screen; avatars burst round "friends" | soft-focus windows drifting behind the logo |
+| Close | logo draws, line, URL | "iOS. Android." | logo, pill CTA |
 
-**The psychology, in order:** curiosity (what is printing out of the
-island?) → recognition (tiny wins anyone has) → reward (the dance, the strip
-developing in your hand) → belonging (friends' heads, a drawing tossed onto
-their tower) → identity (your drawings, your stickers) → ask.
+**Type, exactly:** words never slide; each blurs in (about 0.4 s, 0.1 s
+apart) and arrives grey, then darkens to ink. Leaving, words blur out while an
+anchor word stays and the line re-centres round it. A held line pushes in by
+a few percent. Wabi is fully monotone: ink, with grey only for words still
+arriving. That is the Some Wins brand (one face, ink), so the film is
+monotone; the only colour is the product's own (blocks, photos).
 
-## The camera kit (every product shot uses one)
+**Camera, exactly:** nothing sits still. Slow pushes on long eases, a few
+degrees of orbit, macro on one element, and depth of field on anything behind.
 
-- **Phone**: an iPhone 17 Pro mockup (titanium edge, the real island cut-out), the recording inside the screen.
-- **Hero tilt**: perspective 2400px, rotateY -24°, rotateX 10°, slow drift of 4° over the shot.
-- **Orbit**: rotateY sweeps 35° → -10° across the shot, the phone always centre.
-- **Macro push**: the screen fills the frame, scale 2.6 → 2.2, edge of the phone out of focus.
-- **Top-down**: the phone lying flat, seen from above at 70°, objects rising off it in 3D.
-- **Pair / trio**: two or three phones in depth, the back ones blurred (shallow focus).
-- **Extraction**: a piece of UI (a block, the strip, a drawing) lifts out of the screen in 3D and becomes its own object in the frame.
-- Contact shadow under a phone only, as an object on the ground. Never on chrome or type.
+## What a stranger can't get from a screenshot
 
-## Storyboard (42 seconds, 16:9, 1920x1080, 30fps)
+1. Wins are blocks that fall. 2. The goal prints your day; the Dynamic Island
+is the printer; shake to develop. 3. Friends, as heads. 4. It's yours, by hand
+(doodles, the month's drawing). 5. Small on purpose.
 
-| # | Time | Camera / mockup | Picture | Words | Sound |
+Psychology in order: curiosity → recognition → reward → belonging → identity → ask.
+
+## Storyboard v3 (46.5 s, 16:9, 1920x1080, 30 fps)
+
+| # | Time | Camera | Picture | Words | Sound |
 |---|---|---|---|---|---|
-| 1 | 0.0–3.5 | **Macro push** on the phone's top, black ground | The Dynamic Island alone, huge. It stretches into the printer; the strip feeds out frame by frame toward camera. | (none) | island whoosh, a printer tick per frame |
-| 2 | 3.5–6.0 | **Extraction**: the strip leaves the phone, pulls back to centre, white ground | The undeveloped strip floating, turning slightly. | "Every day has a few wins." ("wins" in green) | soft paper settle |
-| 3 | 6.0–10.0 | Type only | Slot roll: "I [drank some water / went outside / walked the dog / finished the essay]". On each roll the phrase drops out of the line as a coloured block. | as left | click per roll, drop per block |
-| 4 | 10.0–14.5 | **Hero tilt**, slow push | The blocks fall into a phone; real recording: blocks dropping onto the tower, his head floating above. | "Every win is a block." | block drops |
-| 5 | 14.5–18.0 | **Trio** in depth, rack focus front to back | Three phones: a photo block (Yosemite), a doodled block, a plain block. Focus moves across them. | "Snap it. Doodle it. Or just tap it." | shutter, pencil, tap |
-| 6 | 18.0–21.0 | **Macro push** on the crest | The goal ring fills, "3/3"; pull back, the tower dances. | "Hit your goal," | rising chime |
-| 7 | 21.0–27.0 | **Orbit** around one phone | Real recording: the island prints the strip, it drops into the hand, the phone shakes (the whole mockup shakes), it develops, a finger turns it over. | "and your day prints." → "Shake to develop." | printer, shake rattle, develop shimmer |
-| 8 | 27.0–29.5 | **Extraction** | The developed strip lifts out of the phone and lands face up beside it, on a transparent ground. | "Share it anywhere." | paper slide |
-| 9 | 29.5–34.0 | **Pair** in depth | Front: a crew's tower with friends' heads floating; a drawing is thrown and lands on the blocks. Back, blurred: the chat. | "Better with friends." | pop, drawing landing |
-| 10 | 34.0–37.0 | **Top-down**, phone flat | Memories: the month; October's skeleton rises off the screen and dances. | "Every month, its own drawing." | bones rattle |
-| 11 | 37.0–39.0 | Black | — | "Small wins. Stacked." | silence, one low tap |
-| 12 | 39.0–42.0 | White | The logo draws itself (the app's own launch strokes), "Some Wins", then "On the App Store". | as left | pencil stroke, final tap |
-
-## Photos in the footage
-
-The app's own demo photographs he chose, filtered to ones fit for a
-stranger: Yosemite, the dog, the coast, his kayak, the trail, the team, the
-gym. No close faces of other people, nothing private. (His Photos library is
-locked by macOS privacy; more can come from a folder he picks.)
+| 0 | 0.0 | inside the screen, pulling back | The app's launch: the logo draws itself full frame; we pull out of the screen and the phone forms round it; it turns to a 3D hero angle as the app opens | | pencil stroke, air, tap |
+| 1 | 3.8 | type | The wins themselves (dog, breakfast, Yosemite, kayak, the doodle) burst out round the line in depth, then fall | "Every day has a few small wins." | pops, fall |
+| 2 | 6.8 | type, drum | A 3D word drum rolls: "I drank some water / went outside / walked the dog…"; each one drops a block that lands in a row | | tick per roll, thud per block |
+| 3 | 11.0 | hero 3D, slow orbit | A photo block flies out of the camera and lands on the real tower; the tower keeps building | "Every win is a block." | air, landing |
+| 4 | 15.4 | extraction | Three blocks lift off the screen and hang in depth as the phone falls away | "Snap it. Doodle it. Or just tap it." | shutter, pencil, tap |
+| 5 | 19.3 | macro, low | The crest fills and coloured blocks burst off the screen | "Hit your goal," | chime, pops |
+| 6 | 21.9 | high, over the island | The island opens into a printer; the strip feeds out | "and your day prints." | printer ticks |
+| 7 | 25.1 | the whole phone shakes in 3D | The strip develops | "Shake to develop." | rattle, shimmer |
+| 8 | 28.5 | extraction | The real strip leaves the screen, turns over, and hangs beside the phone | "Share it anywhere." | lift, turn, paper |
+| 9 | 32.3 | type, then rise | Friends' faces burst round the line in shallow focus, the phone rises, the faces fly into the crew bubble, heads pop out | "Better with friends." | pops |
+| 10 | 37.1 | lying back, top-down | October's skeleton dances | "Every month, its own drawing." | bones |
+| 11 | 40.3 | black | The full stop lands as a block | "Small wins. Stacked." | low tap, landing |
+| 12 | 42.6 | the launch again | The logo draws, "Some Wins" in Zen Maru, the official App Store badge | | pencil, tap |
 
 ## Rules for the build
 
-- Real app footage only for the product (simulator, 9:41 status bar), in the phone mockup. No mock UI.
-- Type: SF Pro for lines, Zen Maru for the wordmark. One accent per line, a block colour.
-- No shadows on chrome or type, no glow. A phone's contact shadow only.
-- No em dashes, no surveillance language.
-- Sound: synthesised effects only, matched to on-screen events. No music.
-- Deterministic render: every frame drawn from the clock, so a change re-renders exactly.
+- Real app footage only, in the phone; pieces that leave the screen are crops of the same frame.
+- Type: SF Pro, ink only (grey only while a word arrives); Zen Maru for the wordmark.
+- No shadows, no glow. Hairline and depth of field separate things.
+- The App Store badge is Apple's official artwork, unaltered.
+- No em dashes, no surveillance language. Photos: his chosen set; friends' faces with their OK.
+- Deterministic: every frame drawn from the clock, so a change re-renders exactly.
