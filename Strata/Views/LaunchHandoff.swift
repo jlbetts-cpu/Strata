@@ -41,20 +41,25 @@ struct LaunchHandoff: View {
                                            .mindfulness, .creativity, .social]
         .map { $0.style.baseColor }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         if !finished {
             TimelineView(.animation(paused: !running)) { context in
-                // **No roll, for everyone** (the owner, 2026-10-03: "its a
-                // clean logo but the animation doesnt really fit the clean
-                // theme"). The S rolled through the block colours; now it
-                // holds a beat and fades, which was Reduce Motion's path and
-                // is the app's path. The roll's frames stay in `LaunchRoll`.
-                let frame = LaunchRoll.frame(at: running ? clock.advance(to: context.date) : 0,
-                                             reduceMotion: true)
-                stage(frame)
-                    .onChange(of: frame.finished) { _, done in
-                        if done { finished = true }
+                let t = running ? clock.advance(to: context.date) : 0
+                Group {
+                    if reduceMotion {
+                        // Still, then the two fades (`LaunchRoll`'s own path).
+                        let frame = LaunchRoll.frame(at: t, reduceMotion: true)
+                        stage(frame)
+                            .onChange(of: frame.finished) { _, done in if done { end() } }
+                    } else {
+                        // **Drawn, then rubbed out** (`LaunchDraw`).
+                        let frame = LaunchDraw.frame(at: t)
+                        drawing(frame)
+                            .onChange(of: frame.finished) { _, done in if done { end() } }
                     }
+                }
             }
             .ignoresSafeArea()
             .allowsHitTesting(false)
@@ -65,7 +70,35 @@ struct LaunchHandoff: View {
                 // frame is committed.
                 DispatchQueue.main.async { running = true }
             }
+            // A launch that never runs to its end (the app sent to the
+            // background mid-way) still lets the crest arrive.
+            .onDisappear { LaunchMoment.shared.finish() }
         }
+    }
+
+    private func end() {
+        finished = true
+        LaunchMoment.shared.finish()
+    }
+
+    /// The mark's strokes on the ground, each trimmed to what is drawn and
+    /// not yet rubbed out: the heavy outline at the body's weight, the rest
+    /// lighter, round at the ends as a pen is.
+    private func drawing(_ f: LaunchDraw.Frame) -> some View {
+        ZStack {
+            Color("LaunchGround")
+            ZStack {
+                ForEach(Array(LogoStrokes.all.enumerated()), id: \.offset) { i, stroke in
+                    LogoStrokeShape(stroke: stroke)
+                        .trim(from: f.erased[i], to: max(f.erased[i], f.drawn[i]))
+                        .stroke(AppColors.drawingInk,
+                                style: StrokeStyle(lineWidth: LaunchRoll.side * (stroke.heavy ? LogoStrokes.outer : LogoStrokes.inner),
+                                                   lineCap: .round, lineJoin: .round))
+                }
+            }
+            .frame(width: LaunchRoll.side, height: LaunchRoll.side)
+        }
+        .opacity(f.groundOpacity)
     }
 
     private func stage(_ f: LaunchRoll.Frame) -> some View {

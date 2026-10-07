@@ -131,6 +131,7 @@ struct GoalCrest: View {
     var side: CGFloat = 60
 
     @State private var choosing = false
+    private var arrived: Bool { LaunchMoment.shared.finished }
     /// How much of the strip is out of the printer, 0 to 1.
     @State private var printed: CGFloat = 0
     @State private var printerOpen = false
@@ -176,6 +177,12 @@ struct GoalCrest: View {
             .zIndex(2)
         }
         .animation(GridConstants.cueIn, value: wins)
+        // **It arrives after the launch** (the owner: drawn, "erased and then
+        // that middle progress comes in"): small and clear until the logo
+        // has been rubbed out, then in on the cue's spring.
+        .scaleEffect(arrived || reduceMotion ? 1 : 0.7)
+        .opacity(arrived ? 1 : 0)
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: arrived)
         .onChange(of: wins) { old, new in
             guard DailyGoal.reached(from: old, to: new, goal: goal) else { return }
             // The tower's dance carries the tap; without motion it does not
