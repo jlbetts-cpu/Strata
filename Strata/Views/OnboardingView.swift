@@ -1550,7 +1550,12 @@ struct OnboardingView: View {
                         previewCategory: Self.firstColour,
                         onSizeChanged: { firstSize = $0 },
                         action: { size in placeFirst(size) },
-                        onOpenMenu: { HapticsEngine.lightTap() }
+                        // A tap is a Quick win here. On the tower a tap opens
+                        // the add sheet; this page has no sheet, so a tap only
+                        // buzzed, and a new user tapping the "+" got nothing
+                        // (found 2026-10-07 by the first-run UI test, which
+                        // had been failing on it since the page was added).
+                        onOpenMenu: { placeFirst(.small) }
                     )
                     .frame(width: blockW, height: blockH)
                 }
