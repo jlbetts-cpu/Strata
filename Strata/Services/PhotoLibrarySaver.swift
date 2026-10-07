@@ -72,6 +72,26 @@ enum PhotoLibrarySaver {
         }
     }
 
+    /// Writes a PNG as it is, so a clear background stays clear: a `UIImage`
+    /// handed to the library is re-encoded without its alpha. Always an
+    /// explicit press of Save, so the Settings toggle does not apply.
+    static func savePNG(_ data: Data) async -> Bool {
+        let status = await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { continuation.resume(returning: $0) }
+        }
+        guard status == .authorized || status == .limited else { return false }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let options = PHAssetResourceCreationOptions()
+                options.uniformTypeIdentifier = "public.png"
+                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: options)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Writes a replay video to the camera roll, asking for add-only
     /// permission the first time.
     ///

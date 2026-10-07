@@ -73,11 +73,25 @@ struct StripBooth: View {
     @State private var dropTilt: Double = 0
     @State private var editing = false
     @State private var saved = false
+    /// The pose-and-share screen is up (`StripStoryComposer`).
+    @State private var telling = false
+    /// **Looking closer** (2026-10-07: "a way to zoom in to it"). Once it
+    /// has developed, a pinch or a double tap brings it up to 3x, and a
+    /// finger then moves around it instead of turning it; a double tap or
+    /// pinching back under 1 puts it back in the hand.
+    @State private var zoom: CGFloat = 1
+    @State private var zoomStart: CGFloat = 1
+    @State private var pan = CGSize.zero
+    @State private var panStart = CGSize.zero
+    private var zoomed: Bool { zoom > 1.02 }
 
     enum Stage { case loading, printing, held }
 
-    /// The strip's width on this screen.
-    static let width: CGFloat = 176
+    /// The strip's width on this screen. It was 176, and the owner could not
+    /// see into the photographs ("it's not really big enough to really look
+    /// at the image"); the height still fits the page (`held`), and a pinch
+    /// goes further (`zoom`).
+    static let width: CGFloat = 228
 
     private var frames: [PhotoStrip.Frame] { strip?.frames(excluding: excluded) ?? [] }
     private var isDeveloped: Bool { developed >= 1 }
@@ -101,10 +115,26 @@ struct StripBooth: View {
             }
         }
         .background(ShakeDetector(usesMotion: false) { shook() }.frame(width: 0, height: 0))
-        .task { await open() }
+        .task {
+            await open()
+            #if DEBUG
+            // `-strataStory 1` opens the Story card once the strip is in.
+            if DebugHarness.argument("-strataStory") == "1" {
+                try? await Task.sleep(for: .milliseconds(600))
+                telling = true
+            }
+            #endif
+        }
         .sheet(isPresented: $editing, onDismiss: { refreshDecor() }) {
             if let strip {
                 StripEditor(strip: strip, excluded: $excluded, paper: $paper)
+            }
+        }
+        // **Share is a Story you turn first** (2026-10-07, his pick: "9:16
+        // Stories strip", turned "at different angles").
+        .fullScreenCover(isPresented: $telling) {
+            if let strip {
+                StripStoryComposer(strip: strip, frames: frames, day: day, paper: paper, decor: decor)
             }
         }
         .statusBarHidden(stage == .printing)
@@ -239,20 +269,18 @@ struct StripBooth: View {
     /// The strip in the middle, held: turned a touch at rest, dark until it
     /// is shaken, then turned in the hand.
     private func held(fitting size: CGSize) -> some View {
-        let room = size.height - 260
+        let room = size.height - 230
         let fit = stripHeight > room && stripHeight > 0 ? room / stripHeight : 1
         let card = CGSize(width: Self.width * fit, height: stripHeight * fit)
         return VStack(spacing: GridConstants.gapSection) {
             ZStack {
-                // **On the ground, under it**: a soft shadow that slides as
-                // the card leans, the one thing that says it is held above
-                // something. It does not turn with the card.
-                RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous)
-                    .fill(Color.black.opacity(isDeveloped ? 0.16 : 0.1))
-                    .frame(width: card.width * 0.92, height: card.height * 0.96)
-                    .blur(radius: 16)
-                    .offset(x: -turnYaw * 0.5, y: 18 + turnPitch * 0.4)
-                    .opacity(facingFront || isDeveloped ? 1 : 0.6)
+                // **On the ground, under it**, as a Pokemon TCG card stands
+                // (`StripGroundShadow`): a contact shadow and a soft one that
+                // slide as the card leans. It does not turn with the card,
+                // and it stays behind when a pinch lifts the card closer.
+                StripGroundShadow(width: card.width, height: card.height, yaw: turnYaw, pitch: turnPitch,
+                                  strength: isDeveloped ? 1 : 0.6)
+                    .opacity(zoomed ? 0 : 1)
                 ZStack {
                     if let strip {
                         // The paper's edge: a sliver of it shows on the side
@@ -280,9 +308,14 @@ struct StripBooth: View {
                 .rotation3DEffect(.degrees(turnPitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
                 .rotationEffect(.degrees(isDeveloped ? 0 : -2.5 + Double(handShake) * 0.06))
                 .offset(x: handShake)
+                .scaleEffect(zoom)
+                .offset(pan)
             }
             .contentShape(Rectangle())
             .gesture(handle(card))
+            .simultaneousGesture(pinch)
+            .simultaneousGesture(TapGesture(count: 2).onEnded { toggleZoom() })
+            .zIndex(1)
             .accessibilityElement(children: .contain)
             .accessibilityAction(named: "Develop") { shook() }
             hint
@@ -315,29 +348,7 @@ struct StripBooth: View {
     /// lit rather than as glowing. The first pass was a bright radial spot and
     /// a stripe added on top; that is the look he named.
     private var glare: some View {
-        let lean = max(-1, min(1, (turnYaw.truncatingRemainder(dividingBy: 180)) / 24))
-        let tip = max(-1, min(1, turnPitch / 24))
-        let turned = min(1, abs(lean) + abs(tip))
-        let lit = (isDeveloped ? 1.0 : 0.6)
-        return ZStack {
-            // The key light: wide and low, from above left, moving with the turn.
-            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0),
-                                   .init(color: .white.opacity(0.06 + 0.08 * turned), location: 0.5),
-                                   .init(color: .white.opacity(0), location: 1)],
-                           startPoint: UnitPoint(x: -0.6 - lean * 0.5, y: -0.4 + tip * 0.4),
-                           endPoint: UnitPoint(x: 1.0 - lean * 0.5, y: 1.2 + tip * 0.4))
-                .blendMode(.screen)
-            // The shade on the far side, so it reads as a lit sheet.
-            LinearGradient(colors: [.black.opacity(0.10 * abs(lean)), .clear],
-                           startPoint: lean > 0 ? .leading : .trailing, endPoint: .center)
-                .blendMode(.multiply)
-            LinearGradient(colors: [.black.opacity(0.08 * abs(tip)), .clear],
-                           startPoint: tip > 0 ? .bottom : .top, endPoint: .center)
-                .blendMode(.multiply)
-        }
-        .opacity(lit)
-        .clipShape(RoundedRectangle(cornerRadius: Self.width * 0.02, style: .continuous))
-        .allowsHitTesting(false)
+        StripLight(yaw: turnYaw, pitch: turnPitch, lit: isDeveloped ? 1.0 : 0.6, corner: Self.width * 0.02)
     }
 
     /// **A finger on the card** (the owner: "Pokemon TCG level card
@@ -349,6 +360,12 @@ struct StripBooth: View {
     private func handle(_ card: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                // Zoomed in, a finger moves around the strip.
+                if zoomed {
+                    pan = CGSize(width: panStart.width + value.translation.width,
+                                 height: panStart.height + value.translation.height)
+                    return
+                }
                 if value.translation == .zero { pressStarted = Date() }
                 let across = value.translation.width
                 if !isDeveloped { follow(across) }
@@ -364,6 +381,10 @@ struct StripBooth: View {
                 }
             }
             .onEnded { value in
+                if zoomed {
+                    panStart = pan
+                    return
+                }
                 let moved = hypot(value.translation.width, value.translation.height)
                 if moved < 8, Date().timeIntervalSince(pressStarted) < 0.35, !isDeveloped { shook() }
                 let total = yaw + dragYaw + value.predictedEndTranslation.width * 0.15 * (abs(dragYaw) > 0 ? 1 : 0)
@@ -383,6 +404,39 @@ struct StripBooth: View {
                 if flipped != wasFlipped { HapticsEngine.lightTap() }
             }
     }
+
+    private var pinch: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                guard isDeveloped else { return }
+                zoom = max(0.85, min(Self.zoomMost, zoomStart * value.magnification))
+            }
+            .onEnded { _ in
+                guard isDeveloped else { return }
+                if zoom < 1.02 {
+                    withAnimation(GridConstants.cardRelease) {
+                        zoom = 1
+                        pan = .zero
+                    }
+                    panStart = .zero
+                }
+                zoomStart = zoom
+            }
+    }
+
+    private func toggleZoom() {
+        guard isDeveloped else { return }
+        HapticsEngine.lightTap()
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardRelease) {
+            zoom = zoomed ? 1 : 2.2
+            pan = .zero
+        }
+        zoomStart = zoom
+        panStart = .zero
+    }
+
+    /// The most a pinch brings the strip up.
+    static let zoomMost: CGFloat = 3
 
     /// The undeveloped strip in the hand: it follows the finger across, a
     /// little less than the finger moves, and every turn back of more than a
@@ -428,6 +482,8 @@ struct StripBooth: View {
                     .transition(.opacity)
             } else {
                 tools
+                    .opacity(zoomed ? 0 : 1)
+                    .allowsHitTesting(!zoomed)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -456,16 +512,18 @@ struct StripBooth: View {
             GlassIconButton(systemName: "pencil", onPage: true, accessibilityLabel: "Edit strip") {
                 editing = true
             }
-            if let image = rendered {
-                ShareLink(item: Image(uiImage: image),
-                          preview: SharePreview("Some Wins", image: Image(uiImage: image))) {
-                    GlassIconLabel(systemName: "square.and.arrow.up", onPage: true)
+            if strip != nil {
+                GlassIconButton(systemName: "square.and.arrow.up", onPage: true,
+                                accessibilityLabel: "Share strip") {
+                    telling = true
                 }
-                .accessibilityLabel("Share strip")
                 GlassIconButton(systemName: saved ? "checkmark" : "square.and.arrow.down", onPage: true,
                                 accessibilityLabel: saved ? "Saved" : "Save strip") {
                     Task {
-                        if await PhotoLibrarySaver.save(image, respectingPreference: false) {
+                        // A PNG, so the strip's rounded corners stay clear;
+                        // drawn at the press, not on every redraw.
+                        guard let data = rendered?.pngData() else { return }
+                        if await PhotoLibrarySaver.savePNG(data) {
                             HapticsEngine.success()
                             saved = true
                         }
@@ -486,13 +544,14 @@ struct StripBooth: View {
         .opacity(stage == .printing ? 0 : 1)
     }
 
-    /// The strip as a picture to keep: its paper and no more, at three
-    /// times a large width.
+    /// The strip as a picture to keep: its paper and no more, flat, at four
+    /// times a large width, on clear.
     private var rendered: UIImage? {
         guard let strip else { return nil }
         let renderer = ImageRenderer(content: StripView(frames: frames, day: day, signature: strip.signature,
                                                         paper: paper, width: 360, developed: 1, decor: decor))
-        renderer.scale = 3
+        renderer.scale = 4
+        renderer.isOpaque = false
         return renderer.uiImage
     }
 

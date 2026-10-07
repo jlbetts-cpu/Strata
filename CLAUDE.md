@@ -272,6 +272,22 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     `updateUIView`); the strip retints its ink to the paper anyway.
   - Simulator taps on sheet buttons can land one behind the next tap. Wait
     and re-screenshot before calling a button broken.
+  - **A clean booth strip** (2026-10-07): a 4% border, a thin 1.6% line of
+    paper between pictures, near-square photo corners. Wider gutters read
+    as separate tiles; he asked for them "a little closer".
+  - **In the hand** it is 228pt wide (176 was too small "to really look at
+    the image"), stands on `StripGroundShadow` (a contact shadow plus a soft
+    one, Pokemon TCG style; on white it was "confusing to see"), and, once
+    developed, pinches or double taps up to 3x and pans.
+  - **Share is a pose, saved on clear** (`StripStoryComposer`): turn, twist
+    and pinch the strip, then share or save a transparent PNG trimmed to
+    the strip, at 5x. **No shadow on the PNG** (his call: it "looks weird
+    on the transparent"); the shadow is on screen only. Saves go through
+    `PhotoLibrarySaver.savePNG`, because a `UIImage` handed to the library
+    loses its alpha; shares are a `.png` file for the same reason.
+  - **Reaching the goal opens the booth only with something to print**
+    (photos or doodled blocks); a day of plain colour dances and opens
+    nothing (his pick, over one empty frame).
 - **The wordmark is Zen Maru Gothic Bold** (`Wordmark`, OFL, bundled and
   subset). Never SF Pro Rounded for the logotype: Apple's licence covers app
   text, not a logo on pictures shared to Instagram.
@@ -1777,13 +1793,24 @@ towers only.** Nothing of this touches Wins, `GoalCrest` or Your day.
   every relaunch here. Landed ids are kept per crew per day
   (`CrewTossShelf.landed`), so only arrivals you have not seen fall; a live
   one waits while a sheet is up. Reduce Motion: placed, faded in.
+  A drawing spawns over the least crowded of six seeded spots (slot and
+  drawings already down count against a spot): three in a row once built a
+  pile into the header. Nothing piles past the header's foot
+  (`TossWorld.ceiling`); a later one lies over the pile instead. Taking one
+  away (a tuck) wakes the rest, so one that lay on it falls.
+  **`TossPhysics.settle` always runs one tick**: a resting body learns the
+  ground rose only when stepped, and a settle that skipped an all-at-rest
+  world left a drawing inside a new block.
 - **Tuck**: hold a drawing, it flies into the bubble (`TossTuckFlight`) and
   `TossCountBadge` counts it on arrival. Per phone, per crew, per day
   (`CrewTossShelf`, `UserDefaults`, keyed by day so midnight needs no job).
   Draw's "Tucked Away" puts one back (it falls in again) or Reports it.
 - Simulator: `-strataSeedCrewTosses <n>` (friends throw, they fall on open),
-  `-strataCrewSheet draw|throw` (`throw` draws and throws yours),
-  `-strataCrewTuckAfter <s>`. Tests: `TossTests`.
+  `-strataCrewTossAfter <s>` (they throw s seconds in, one at a time, so the
+  fall is live), `-strataCrewSheet draw|throw` (`throw` draws and throws
+  yours), `-strataCrewTuckAfter <s>` (the first drawing at rest is held and
+  tucked). Pass `-crews.rulesAccepted.v1 YES` or Crew rules covers the film.
+  Tests: `TossTests`.
 
 ## Words the app says
 

@@ -19,12 +19,18 @@ struct StripView: View {
     var developed: Double = 1
     var decor: InkPicture? = nil
 
-    private var margin: CGFloat { width * 0.045 }
+    /// **A clean booth strip** (the owner, 2026-10-07: "I would prefer if
+    /// the margins of the photos were a little closer so it can be like a
+    /// clean photo strip"). The paper's border stays a border; the space
+    /// between pictures is a thin line of paper, as a booth prints it, where
+    /// both were 4.5% of the width and the photos read as separate tiles.
+    private var margin: CGFloat { width * 0.04 }
+    private var gap: CGFloat { width * 0.016 }
     private var inner: CGFloat { width - 2 * margin }
-    private var corner: CGFloat { width * 0.018 }
+    private var corner: CGFloat { width * 0.008 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: margin) {
+        VStack(alignment: .leading, spacing: gap) {
             if frames.isEmpty {
                 // A day with nothing to print yet: one empty frame, so the
                 // strip is still a strip.
@@ -35,16 +41,16 @@ struct StripView: View {
             ForEach(Array(StripLayout.rows(frames.map(\.size)).enumerated()), id: \.offset) { _, row in
                 switch row {
                 case .pair(let a, let b):
-                    HStack(spacing: margin) {
-                        picture(frames[a], width: (inner - margin) / 2, height: (inner - margin) / 2)
-                        picture(frames[b], width: (inner - margin) / 2, height: (inner - margin) / 2)
+                    HStack(spacing: gap) {
+                        picture(frames[a], width: (inner - gap) / 2, height: (inner - gap) / 2)
+                        picture(frames[b], width: (inner - gap) / 2, height: (inner - gap) / 2)
                     }
                 case .full(let i, let aspect):
                     picture(frames[i], width: inner, height: inner / aspect)
                 }
             }
             foot
-                .padding(.top, margin * 0.5)
+                .padding(.top, margin)
         }
         .padding(margin)
         .frame(width: width, alignment: .leading)
