@@ -311,7 +311,17 @@ enum Dance {
         // The pointing arm; held, it still pumps a little on the off-beat.
         let upper = torso * .about(Rig.rShoulder, 118 * pt + (5 - 10 * pt) * dip(b + 0.5) * env)
         p.bones["RUpper"] = upper
-        let fore = upper * .about(Rig.rElbow, 12 * pt - 6 * (pt - pointed(0.1)))
+        // **The elbow bends** (the owner, 2026-10-07: "the arms still don't
+        // bend or anything, that's the motion I need to see"): it folds as
+        // the arm travels between up and down and shoots straight on the
+        // hit, as a disco point does, with a little pump on the off-beat.
+        let travel = 1 - abs(2 * pointed(0.04) / max(env, 0.001) - 1)
+        let rBend = (80 * travel + 30 * dip(b + 0.5)) * env
+        let rAxis = CGPoint(x: Rig.rElbow.x - Rig.rShoulder.x, y: Rig.rElbow.y - Rig.rShoulder.y)
+        let rLength = hypot(rAxis.x, rAxis.y)
+        let rOpen = 0.12 * rBend * px
+        let fore = upper * .move(rAxis.x / rLength * rOpen, rAxis.y / rLength * rOpen)
+            * .about(Rig.rElbow, 12 * pt - 6 * (pt - pointed(0.1)) + Self.rElbowSign * rBend)
         p.bones["RFore"] = fore
         // The hand flops after the arm stops, as a loose wrist does.
         let hand = fore * .about(Rig.rWrist, -40 * (pt - pointed(0.12)) + 14 * rattle(b - 0.04) * env)
@@ -319,14 +329,18 @@ enum Dance {
         // The other arm hangs as the point goes up and comes up bent as it
         // goes down; the elbow opens as it bends so its knobs never meet.
         let lp = pointed(0.05)
-        // The free arm swings with the hips, a beat behind.
-        let lUpper = torso * .about(Rig.lShoulder, 30 * lp + 12 * sway(0.2))
+        // The free arm swings with the hips, a beat behind, and flaps from
+        // the elbow on every beat: the shoulder lifts it out and the forearm
+        // kicks out to the side, away from the ribs, easing back between.
+        let lPump = (0.5 + 0.5 * cos(.pi * 2 * (b - 0.1))) * env
+        let lElbow = -40 * lp + 55 * lPump
+        let lUpper = torso * .about(Rig.lShoulder, 30 * lp + 12 * sway(0.2) + 14 * lPump)
         p.bones["LUpper"] = lUpper
         let axis = CGPoint(x: Rig.lElbow.x - Rig.lShoulder.x, y: Rig.lElbow.y - Rig.lShoulder.y)
         let axisLength = hypot(axis.x, axis.y)
-        let open = 0.22 * 40 * lp * px
+        let open = 0.22 * abs(lElbow) * px
         let lFore = lUpper * .move(axis.x / axisLength * open, axis.y / axisLength * open)
-            * .about(Rig.lElbow, -40 * lp)
+            * .about(Rig.lElbow, lElbow)
         p.bones["LFore"] = lFore
         p.bones["LHand"] = lFore * .about(Rig.lWrist, 30 * (lp - pointed(0.17)) - 18 * sway(0.4)
                                               + 12 * rattle(b - 0.05) * env)
@@ -358,6 +372,9 @@ enum Dance {
 
         return p
     }
+
+    /// Which way the pointing arm's elbow folds: away from the skull.
+    static let rElbowSign = 1.0
 
     /// The artwork's pixels, which the dance was tuned in, to the drawing's.
     static let px = 900.0 / 1320.0

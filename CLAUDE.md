@@ -344,7 +344,10 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     sway against the hips, the skull wobbles a beat behind on its own pin,
     the free arm swings, both wrists flop, and on each hit every bone above
     the knees clatters on its own line and settles (`Dance.rattle`), a few
-    pixels, never enough for two to touch.
+    pixels, never enough for two to touch. **The elbows bend** ("the arms
+    still don't bend, that's the motion I need to see"): the pointing arm
+    folds mid-swing and shoots straight on the hit; the free arm flaps out
+    from the elbow each beat, to the side, never in toward the ribs.
   - **His pen's weight** (same day: "a bit too thick"): measured 4.0pt at
     290pt; now about 2.6pt (`skeleton.py` OUTSIDE 0.4, INSIDE 0), beside
     `InkPen.width` 2.5. The 2.3pt of 2026-10-06 was too thin.
