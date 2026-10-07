@@ -47,27 +47,41 @@ is the printer; shake to develop. 3. Friends, as heads. 4. It's yours, by hand
 
 Psychology in order: curiosity → recognition → reward → belonging → identity → ask.
 
-## Storyboard v3 (46.5 s, 16:9, 1920x1080, 30 fps)
+## Storyboard v4 (53.5 s, 16:9, 1920x1080, 30 fps)
 
-| # | Time | Camera | Picture | Words | Sound |
-|---|---|---|---|---|---|
-| 0 | 0.0 | inside the screen, pulling back | The app's launch: the logo draws itself full frame, then erases at full size (he likes the erase; keep it close, never under a camera move); we pull out of the screen and the phone forms round it; it turns to a 3D hero angle as the app opens | | pencil stroke, air, tap |
-| 1 | 3.8 | type | The wins themselves (dog, breakfast, Yosemite, kayak, the doodle) burst out round the line in depth, then fall | "Every day has a few small wins." | pops, fall |
-| 2 | 6.8 | type, drum | A 3D word drum rolls: "I drank some water / went outside / walked the dog…"; each one drops a block that lands in a row | | tick per roll, thud per block |
-| 3 | 11.0 | hero 3D, slow orbit | A photo block flies out of the camera and lands on the real tower; the tower keeps building | "Every win is a block." | air, landing |
-| 4 | 15.4 | extraction | Three blocks lift off the screen and hang in depth as the phone falls away | "Snap it. Doodle it. Or just tap it." | shutter, pencil, tap |
-| 5 | 19.3 | macro, low | The crest fills and coloured blocks burst off the screen | "Hit your goal," | chime, pops |
-| 6 | 21.9 | high, over the island | The island opens into a printer; the strip feeds out | "and your day prints." | printer ticks |
-| 7 | 25.1 | the whole phone shakes in 3D | The strip develops | "Shake to develop." | rattle, shimmer |
-| 8 | 28.5 | extraction | The real strip leaves the screen, turns over, and hangs beside the phone | "Share it anywhere." | lift, turn, paper |
-| 9 | 32.3 | type, then rise | Friends' faces burst round the line in shallow focus, the phone rises, the faces fly into the crew bubble, heads pop out | "Better with friends." | pops |
-| 10 | 37.1 | lying back, top-down | October's skeleton dances | "Every month, its own drawing." | bones |
-| 11 | 40.3 | black | The full stop lands as a block | "Small wins. Stacked." | low tap, landing |
-| 12 | 42.6 | the launch again | The logo draws, "Some Wins" in Zen Maru, the official App Store badge | | pencil, tap |
+v4 answers his notes on v3: it is **a photo app with friends**, so his own
+photos (the zip) and friends' faces lead every shot; no doodle or plain
+colour blocks; blocks only ever fall, with gravity, in the order they were
+said; reveals are slower and calmer; the sound is quiet and tactile; the
+crew chat is shown.
+
+| # | Time | Camera | Picture | Words |
+|---|---|---|---|---|
+| 0 | 0.0 | inside the screen, then out | The launch: the logo draws, then erases at full size; we pull out of the screen as the app opens | |
+| 1 | 3.8 | type | His photos (the dog, breakfast, the beach, Yosemite, the kayak) drift forward out of depth round the line, then fall | "Every day has a few small wins." |
+| 2 | 7.2 | type, drum | "I kayaked the bay / had a real breakfast / walked the dog / hiked Yosemite / won the game / went to the beach / had a bonfire / graduated": each photo block falls onto a tower in that order, bottom row first | |
+| 3 | 12.6 | hero 3D, slow orbit | A photo block falls from above the phone into the real tower's next place | "Every win is a block." |
+| 4 | 17.0 | extraction | Three photo blocks lift off the screen and hang in depth | "Snap it. Stack it. Keep it." |
+| 5 | 20.9 | macro, low | The crest fills; colour bursts off the screen | "Hit your goal," |
+| 6 | 23.5 | high, over the island | The island prints the strip | "and your day prints." |
+| 7 | 26.7 | the phone shakes in 3D | The strip develops | "Shake to develop." |
+| 8 | 30.1 | extraction | The real strip leaves the screen, turns over, hangs beside the phone | "Share it anywhere." |
+| 9 | 33.9 | 3D arc, then rise | His photos with friends turn on a curved wall; the phone rises; friends' faces fly into the crew bubble; heads pop out | "Better with friends." |
+| 9b | 38.9 | close, then extraction | The crew chat: today's lines arrive one by one (friends' faces in their circles); "so proud of you 🔥", a reply to his win, lifts off the screen | "Cheer each other on." |
+| 10 | 44.1 | lying back | October's skeleton dances | "Every month, its own drawing." |
+| 11 | 47.3 | black | The full stop lands as a block | "Small wins. Stacked." |
+| 12 | 49.6 | the launch again | The logo draws, "Some Wins", the official App Store badge | |
+
+**Sound (v4):** effects only and quiet (peak -14 dBFS, average about -41):
+modal fingertip taps, felt landings for blocks, soft air for moves, a warm
+bloom for the goal and the develop, pencil and eraser grain for the logo, a
+small printer motor, paper flutter for the shake. Everything goes through
+real rooms (GarageBand's impulse responses). No pitch sweeps, no cartoon.
 
 ## Rules for the build
 
 - Real app footage only, in the phone; pieces that leave the screen are crops of the same frame.
+- Photos only in blocks (no doodle or plain blocks); blocks only fall, with gravity, in order.
 - Type: SF Pro, ink only (grey only while a word arrives); Zen Maru for the wordmark.
 - No shadows, no glow. Hairline and depth of field separate things.
 - The App Store badge is Apple's official artwork, unaltered.
