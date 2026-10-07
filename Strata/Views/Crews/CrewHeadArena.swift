@@ -645,11 +645,18 @@ struct CrewFan: View {
     let crew: Crew
     let me: UUID
     let parking: CrewParking
+    /// **Draw, last in the fan** (2026-10-07). With heads in the bubble a tap
+    /// fans them, so the middle's Draw tab is the fan's last circle: the
+    /// bubble still opens Draw, one step further in.
+    var onDraw: (() -> Void)? = nil
 
     static let side: CGFloat = 56
     static let gap: CGFloat = 10
 
     @State private var centres: [UUID: CGPoint] = [:]
+
+    /// The circles in the fan: the heads, and Draw after them.
+    private var count: Int { parking.parked.compactMap { crew.member($0) }.count + (onDraw == nil ? 0 : 1) }
 
     static func rows(_ count: Int) -> [Range<Int>] {
         guard count > 0 else { return [] }
@@ -665,9 +672,10 @@ struct CrewFan: View {
     var body: some View {
         let parked = parking.parked.compactMap { crew.member($0) }
         VStack(spacing: Self.gap) {
-            ForEach(Self.rows(parked.count), id: \.lowerBound) { range in
+            ForEach(Self.rows(count), id: \.lowerBound) { range in
                 HStack(spacing: Self.gap) {
-                    ForEach(parked[range]) { member in head(member) }
+                    ForEach(parked[range.clamped(to: 0..<parked.count)]) { member in head(member) }
+                    if let onDraw, range.contains(parked.count) { drawCircle(onDraw) }
                 }
             }
         }
@@ -675,6 +683,22 @@ struct CrewFan: View {
         .glassRoundedRect(cornerRadius: 28)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Heads in the bubble")
+    }
+
+    /// A pencil on the disc a head sits on: the middle's Draw tab.
+    private func drawCircle(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "scribble.variable")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .frame(width: Self.side, height: Self.side)
+                .background(Circle().fill(AppColors.quietFill))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.pressSurface)
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
+        .accessibilityLabel("Draw")
+        .accessibilityHint("Draws something for this crew's tower.")
     }
 
     private func head(_ member: CrewMember) -> some View {

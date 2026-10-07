@@ -968,7 +968,12 @@ final class SocialStore {
         let people = Set(crew.members.map(\.profileID))
         return (messagesByCrew[crewID] ?? [])
             .filter { message in
-                message.crewDay == today && people.contains(message.senderProfileID)
+                // A drawing thrown onto the tower is not a line in the chat
+                // (`CrewMessage.isToss`): the tower shows it (`tosses(in:)`),
+                // and so nothing that reads this list (the chat, its dot,
+                // its alerts, a line's reactions) ever meets one.
+                !message.isToss
+                    && message.crewDay == today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
                     && (message.text.isEmpty || CrewWords.isAcceptable(message.text))
                     && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? true)
@@ -999,6 +1004,12 @@ final class SocialStore {
     /// sent, and the receiving phone checks it again (`checkArrivedPhotos`).
     @discardableResult
     func sendDoodle(_ png: Data, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
+        await sendSketch(png, text: "", in: crewID, quoting: winID)
+    }
+
+    /// A doodle with `text` beside it: none for the chat's, the marker for a
+    /// toss. The gate, the photo check and the file are the same for both.
+    private func sendSketch(_ png: Data, text: String, in crewID: CrewID, quoting winID: UUID?) async -> ReplyOutcome {
         guard canReply(), isEnabled(), let crew = crew(crewID), !png.isEmpty else { return .notAllowed }
         if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
         guard await photoCheck(png) else { return .refusedSketch }
@@ -1009,11 +1020,50 @@ final class SocialStore {
             return .notAllowed
         }
         let message = CrewMessage(messageID: id, crewID: crewID, senderProfileID: me,
-                                  crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: "",
+                                  crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: text,
                                   quoteWinID: winID, sketch: url, createdAt: now())
         keep(message)
         await flush()
         return .sent
+    }
+
+    // MARK: Drawings on the tower
+
+    /// **Today's drawings on a crew's tower**: one a person (`CrewTosses`),
+    /// today's in the crew's zone, from people in the crew, nobody you
+    /// blocked, and a friend's only once this phone's photo check has passed
+    /// it, exactly as a doodle in the chat is. Midnight is the filter: the
+    /// day ends and the list is empty, before anyone has deleted anything.
+    func tosses(in crewID: CrewID) -> [CrewMessage] {
+        guard let crew = crew(crewID) else { return [] }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        let people = Set(crew.members.map(\.profileID))
+        return CrewTosses.oneEach((messagesByCrew[crewID] ?? []).filter { message in
+            message.isToss && message.crewDay == today && people.contains(message.senderProfileID)
+                && !blocked.contains(message.senderProfileID)
+                && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? false)
+        })
+    }
+
+    /// Your drawing on this crew's tower today, if you threw one. Read from
+    /// everything held, not from `tosses(in:)`: one the check has not passed
+    /// on a friend's phone is still yours, and still today's one.
+    func myToss(in crewID: CrewID) -> CrewMessage? {
+        guard let crew = crew(crewID) else { return nil }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        return CrewTosses.oneEach((messagesByCrew[crewID] ?? []).filter {
+            $0.senderProfileID == me && $0.crewDay == today
+        }).first
+    }
+
+    /// **Throws today's drawing onto a crew's tower**: a doodle in the
+    /// crew's chat transport, marked (`CrewMessage.tossMarker`). One a day
+    /// per crew; a second is refused here, before anything is written. The
+    /// same gate as the chat (`canReply`) and the same photo check both ways.
+    @discardableResult
+    func toss(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
+        guard myToss(in: crewID) == nil else { return .notAllowed }
+        return await sendSketch(png, text: CrewMessage.tossMarker, in: crewID, quoting: nil)
     }
 
     private func keep(_ message: CrewMessage) {

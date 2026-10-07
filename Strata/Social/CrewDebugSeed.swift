@@ -16,6 +16,14 @@ import UIKit
 ///     -strataSeedCrewChat 1                      a few lines in today's chat,
 ///                                                a reply quoting your win among
 ///                                                them (also with -strataCrewSheet chat)
+///     -strataSeedCrewTosses <n>                  n friends throw a drawing onto
+///                                                today's tower (`CrewToss`); with
+///                                                -strataOpenCrew they fall in
+///     -strataCrewTossAfter <s>                   ...s seconds after launch, live
+///     -strataCrewSheet draw|throw                the middle's Draw tab; `throw`
+///                                                draws and throws one of yours
+///     -strataCrewTuckAfter <s>                   the oldest drawing at rest is
+///                                                tucked into the bubble
 ///     -strataChatReact seed|open                 friends react to the chat's
 ///                                                lines, an emoji pair and a
 ///                                                sticker among them; "open"
@@ -180,6 +188,9 @@ extension DebugHarness {
                 }
             }
         }
+        if let n = argument("-strataSeedCrewTosses").flatMap(Int.init), n > 0 {
+            await seedTosses(n, friends: friends)
+        }
         // `-strataSeedCrewChat 0` with the chat open: its empty state.
         let seedChatFlag = argument("-strataSeedCrewChat")
         if seedChatFlag == "1" || (argument("-strataCrewSheet") == "chat" && seedChatFlag != "0") {
@@ -199,6 +210,87 @@ extension DebugHarness {
             CrewRouter.shared.open = store.crews[index].id
         }
         if let every = crewDropEvery { startDropping(every: every) }
+    }
+
+    /// **Friends' drawings on today's tower** (2026-10-07): the first `n`
+    /// friends in the first crew each throw one, through `toss` exactly as a
+    /// phone would. Drawn from simple paths: a sun over a hill, a heart, a
+    /// star, a flower, a smile, a wave, a house.
+    @MainActor
+    private static func seedTosses(_ n: Int, friends: [SocialStore]) async {
+        guard let crew = SocialStore.shared.crews.first else { return }
+        let inCrew = Array(friends.filter { $0.crew(crew.id) != nil }.prefix(n))
+        // `-strataCrewTossAfter <s>`: they throw s seconds after launch, one
+        // at a time, so the fall can be filmed on a screen already open.
+        let after = argument("-strataCrewTossAfter").flatMap(Double.init)
+        func throwAll() async {
+            for (k, friend) in inCrew.enumerated() {
+                await friend.refresh()
+                friend.canReply = { true }
+                if let png = InkExport.doodlePNG(tossSample(k)) {
+                    await friend.toss(png, in: crew.id)
+                }
+                if after != nil {
+                    await SocialStore.shared.refresh()
+                    try? await Task.sleep(for: .seconds(1.4))
+                }
+            }
+        }
+        guard let after else { await throwAll(); return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(after))
+            await throwAll()
+        }
+    }
+
+    /// The k-th seeded drawing, on a 320pt square.
+    static func tossSample(_ k: Int) -> PKDrawing {
+        let size = CGSize(width: 320, height: 320)
+        func loop(_ n: Int, _ f: (Double) -> CGPoint) -> [CGPoint] { (0...n).map { f(Double($0) / Double(n)) } }
+        switch k % 7 {
+        case 0:
+            return InkSamples.sunOverHill(in: size, width: 7)
+        case 1:
+            // A heart, in one line.
+            return InkSamples.drawing([loop(40) { t in
+                let a = t * 2 * .pi
+                let x = 16 * pow(sin(a), 3), y = -(13 * cos(a) - 5 * cos(2 * a) - 2 * cos(3 * a) - cos(4 * a))
+                return CGPoint(x: 160 + x * 8, y: 150 + y * 8)
+            }], width: 7)
+        case 2:
+            // A five-pointed star.
+            return InkSamples.drawing([loop(10) { t in
+                let i = Int((t * 10).rounded())
+                let a = Double(i) * .pi / 5 - .pi / 2
+                let r: Double = i % 2 == 0 ? 130 : 55
+                return CGPoint(x: 160 + cos(a) * r, y: 170 + sin(a) * r)
+            }], width: 7)
+        case 3:
+            // A flower: petals round a middle, and a stem.
+            let petals = loop(120) { t in
+                let a = t * 2 * .pi
+                let r = 50 + 34 * abs(sin(a * 2.5))
+                return CGPoint(x: 160 + cos(a) * r, y: 120 + sin(a) * r)
+            }
+            let middle = loop(24) { t in CGPoint(x: 160 + cos(t * 2 * .pi) * 18, y: 120 + sin(t * 2 * .pi) * 18) }
+            let stem = loop(12) { t in CGPoint(x: 160 + sin(t * 3) * 10, y: 205 + t * 100) }
+            return InkSamples.drawing([petals, middle, stem], width: 7)
+        case 4:
+            // A smile.
+            let face = loop(48) { t in CGPoint(x: 160 + cos(t * 2 * .pi) * 120, y: 160 + sin(t * 2 * .pi) * 120) }
+            let mouth = loop(16) { t in CGPoint(x: 100 + t * 120, y: 190 + sin(t * .pi) * 40) }
+            let eyes = [[CGPoint(x: 115, y: 115), CGPoint(x: 117, y: 140)], [CGPoint(x: 205, y: 115), CGPoint(x: 203, y: 140)]]
+            return InkSamples.drawing([face, mouth] + eyes, width: 7)
+        case 5:
+            // A wave.
+            return InkSamples.drawing([loop(40) { t in CGPoint(x: 20 + t * 280, y: 160 + sin(t * 4 * .pi) * 50) }], width: 7)
+        default:
+            // A house.
+            return InkSamples.drawing([[CGPoint(x: 60, y: 300), CGPoint(x: 60, y: 160), CGPoint(x: 160, y: 60),
+                                        CGPoint(x: 260, y: 160), CGPoint(x: 260, y: 300), CGPoint(x: 60, y: 300)],
+                                       [CGPoint(x: 135, y: 300), CGPoint(x: 135, y: 230), CGPoint(x: 185, y: 230),
+                                        CGPoint(x: 185, y: 300)]], width: 7)
+        }
     }
 
     /// A morning's chat in the first crew: two friends, you, and a reply
