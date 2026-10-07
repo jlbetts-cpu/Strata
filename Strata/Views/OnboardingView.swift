@@ -107,8 +107,18 @@ struct OnboardingView: View {
     /// and the goal crest is the first thing on the home screen now). The
     /// crest itself, empty, with the number to choose under it.
     private static let goalStep = 6
-    private static let firstWinStep = 7
+    /// **Your three, asked after the goal and skippable** (the owner's pick,
+    /// 2026-10-06: "Yes, ask in onboarding after the goal, skippable"). Wins
+    /// you could do on your worst day (`YourThree`), chosen on a first day,
+    /// which is a good one: the one time a person is asked to plan for a bad
+    /// day while having a good one.
+    private static let threeStep = 7
+    private static let firstWinStep = 8
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
+    @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
+    /// The three being chosen, kept only once the button is pressed: Skip
+    /// leaves nothing behind.
+    @State private var threePicked: [YourThree.Item] = []
     private var lastStep: Int { endsOnFirstWin ? Self.firstWinStep : Self.thanksStep }
 
     // The first-win page's own state.
@@ -494,6 +504,7 @@ struct OnboardingView: View {
                 case Self.headStep: headPage
                 case Self.thanksStep: thanks
                 case Self.goalStep: goalPage
+                case Self.threeStep: threePage
                 case Self.firstWinStep: firstWinPage(in: box)
                 default: EmptyView()
                 }
@@ -539,6 +550,53 @@ struct OnboardingView: View {
         }
         .animation(GridConstants.cueIn, value: dailyGoal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Your three
+
+    /// The picks as words, as the first win's examples are (`firstChip`):
+    /// told apart by air, each with a full 44pt target. A chosen one is set
+    /// in ink with a tick; once three are chosen the rest go quiet.
+    private var threePage: some View {
+        let full = threePicked.count >= YourThree.size
+        return ChipFlow(spacing: GridConstants.gapItem) {
+            ForEach(YourThree.picks) { item in
+                let on = threePicked.contains(item)
+                Button {
+                    HapticsEngine.lightTap()
+                    if on { threePicked.removeAll { $0 == item } } else if !full { threePicked.append(item) }
+                } label: {
+                    HStack(spacing: GridConstants.spacing) {
+                        if on {
+                            Image(systemName: "checkmark")
+                                .font(Typography.headerSmall)
+                                .imageScale(.small)
+                                .transition(.opacity)
+                        }
+                        Text(item.title)
+                            .font(Typography.screenSubtitle)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
+                    .frame(minHeight: Self.tapFloor)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressWord)
+                .disabled(!on && full)
+                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .animation(GridConstants.crossFade, value: threePicked)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        #if DEBUG
+        // `-strataOnboardingThree n`: ticks the first n, a beat after the
+        // page opens, so the chosen state can be photographed without a tap.
+        .task {
+            guard let n = DebugHarness.argument("-strataOnboardingThree").flatMap(Int.init) else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            threePicked = Array(YourThree.picks.prefix(n))
+        }
+        #endif
     }
 
     // MARK: - The camera
@@ -1167,6 +1225,7 @@ struct OnboardingView: View {
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         case Self.goalStep: return "A goal for each day"
+        case Self.threeStep: return YourThree.Copy.onboardingTitle
         case Self.firstWinStep: return "Your first win"
         default: return "Thank you, genuinely"
         }
@@ -1224,6 +1283,7 @@ struct OnboardingView: View {
             : "Find it in Profile, and on your photos. It stays on this phone."
         // What counts, said once; the chips say the rest by example.
         case Self.goalStep: return "Reach it and your tower dances and prints the day's strip."
+        case Self.threeStep: return YourThree.Copy.onboardingLine
         case Self.firstWinStep: return "Anything you already did today counts."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
@@ -1260,7 +1320,10 @@ struct OnboardingView: View {
             // six-page walkthrough offered six times, under a button that
             // already says what happens next. It declines the head here, not
             // the tour: the thank you is still to come.
-            if offersHead { decline }
+            if offersHead { decline("Not now") }
+            // Your three are asked for, never required (the owner's pick:
+            // "skippable"), so this page has the head's way out too.
+            if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }
 
             action
         }
@@ -1294,12 +1357,12 @@ struct OnboardingView: View {
     /// The frame and the `contentShape` are on the LABEL, not on the Button. A
     /// `.frame` outside a Button grows the view and not the hit test, which is
     /// how a 44pt target gets declared and not measured.
-    private var decline: some View {
+    private func decline(_ word: String) -> some View {
         Button {
             HapticsEngine.lightTap()
             withAnimation(GridConstants.motionSnappy) { step += 1 }
         } label: {
-            Text("Not now")
+            Text(word)
                 .font(Typography.headerSmall)
                 .foregroundStyle(AppColors.inkSecondary)
                 .frame(height: Self.tapFloor)
@@ -1358,7 +1421,9 @@ struct OnboardingView: View {
             PrimaryCapsule(waiting: actionTitle,
                            because: step == Self.firstWinStep
                                ? "Not yet. Tap the slot to drop your first win in."
-                               : "Not yet. Draw a block to go on.")
+                               : step == Self.threeStep
+                                   ? YourThree.Copy.onboardingWaiting
+                                   : "Not yet. Draw a block to go on.")
         }
     }
 
@@ -1376,6 +1441,7 @@ struct OnboardingView: View {
     private var canAdvance: Bool {
         if step == 1 { return hasDrawn }
         if step == Self.firstWinStep { return firstLanded != nil }
+        if step == Self.threeStep { return !threePicked.isEmpty }
         return true
     }
 
@@ -1390,6 +1456,7 @@ struct OnboardingView: View {
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
         case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
         case Self.goalStep: return "Set my goal"
+        case Self.threeStep: return YourThree.Copy.onboardingKeep
         case Self.firstWinStep: return "Go to my tower"
         default: return "Start"
         }
@@ -1409,6 +1476,7 @@ struct OnboardingView: View {
             showsHeadMaker = true
             return
         }
+        if step == Self.threeStep { threeRaw = YourThree.encode(threePicked) }
         guard step < lastStep else { finish(); return }
         withAnimation(GridConstants.motionSnappy) { step += 1 }
     }

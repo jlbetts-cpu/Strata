@@ -234,6 +234,18 @@ Testers logged one or two wins a day. The research and every decision are in
 - **Ideas over the add sheet's keyboard** (`WinIdeas`): plan lines, then your
   usual wins, then small ones. Recognition, not recall. Typing narrows them.
 - **Rest days** (`Streaks.Rest`): one a week for you, two for a crew.
+- **Your three** (`YourThree`, in `GoalRing.swift`; the owner's picks,
+  2026-10-06: "Three + a Hard day switch", asked in onboarding after the
+  goal, skippable). Three wins you could do on your worst day, stored as
+  JSON in `@AppStorage("yourThree")`. They lead `WinIdeas.pick`, log as
+  ordinary wins and count toward the goal; in Your day a logged one wears a
+  quiet tick and one not logged is only its words (never an empty circle).
+  **Hard day** stores today's date (`DailyGoal.hardDayKey`), so it resets at
+  midnight; `DailyGoal.today` makes the goal your three, never higher than
+  the set one. **Everything asks `todaysGoal`**: the crest, the cue, the
+  dance, the booth's develop, the evening check-in. Switching it on past
+  the new goal dances and prints when Your day closes. No cue of its own,
+  no sync to crews, and never "missed", "streak" or "minimum" in its copy.
 
 ## The middle of Wins: the goal crest (2026-10-06)
 

@@ -221,6 +221,16 @@ struct MainAppView: View {
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
+    /// The day Hard day was switched on (`DailyGoal.hardDayKey`).
+    @AppStorage(DailyGoal.hardDayKey) private var hardDay = ""
+    /// **The goal everything on Wins asks** (`DailyGoal.today`): your three on
+    /// a hard day, so the ring fills, the tower dances and the strip develops
+    /// on them. `dailyGoal` is only the number you set.
+    private var todaysGoal: Int {
+        DailyGoal.today(goal: dailyGoal, hardDay: hardDay, on: DateUtils.dateString(from: Date()))
+    }
+    /// Today's goal as Your day opened, to tell whether Hard day reached it.
+    @State private var goalAsDayOpened = 0
     /// The booth, open: printing (the goal was just reached) or not.
     @State private var booth: BoothOpening?
     @State private var showsYourDay = false
@@ -1014,7 +1024,7 @@ struct MainAppView: View {
                 // ("Tap the slot to log your first win.").
                 guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
                       let line = WinCue.line(winsToday: blocksToday, now: Date(),
-                                             shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: dailyGoal)
+                                             shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: todaysGoal)
                 else { return }
                 try? await Task.sleep(for: .seconds(1.6))
                 guard !Task.isCancelled, winDraft == nil else { return }
@@ -1170,14 +1180,14 @@ struct MainAppView: View {
         // the fraction in the crew's caption under it. Centred on the row,
         // not between its two buttons, so it holds the same place with crews
         // on or off.
-        GoalCrest(wins: blocksToday, goal: $dailyGoal, openDay: { showsYourDay = true })
+        GoalCrest(wins: blocksToday, goal: todaysGoal, openDay: { showsYourDay = true })
         }
         // **The goal opens the booth and prints the strip** (`StripBooth`;
         // the owner's pick: "Dance, then open the booth"), once a day, when
         // the tower's dance has had its moment.
         .onChange(of: blocksToday) { old, new in
             let today = DateUtils.dateString(from: Date())
-            guard DailyGoal.reached(from: old, to: new, goal: dailyGoal), stripPrintedDay != today else { return }
+            guard DailyGoal.reached(from: old, to: new, goal: todaysGoal), stripPrintedDay != today else { return }
             stripPrintedDay = today
             Task {
                 try? await Task.sleep(for: .seconds(1.8))
@@ -1185,11 +1195,12 @@ struct MainAppView: View {
             }
         }
         .fullScreenCover(item: $booth) { opening in
-            StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= dailyGoal }) {
+            StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= todaysGoal }) {
                 await PhotoStrip.mine(context: modelContext)
             }
         }
-        .sheet(isPresented: $showsYourDay) {
+        .onChange(of: showsYourDay) { _, open in if open { goalAsDayOpened = todaysGoal } }
+        .sheet(isPresented: $showsYourDay, onDismiss: hardDayReachedGoal) {
             YourDaySheet(goal: $dailyGoal) {
                 Task {
                     try? await Task.sleep(for: .milliseconds(450))
@@ -1961,6 +1972,28 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
+    /// **Switching on Hard day can be what reaches the goal**: five set,
+    /// three done, and "Today, your three are enough." That is reaching it,
+    /// so it is met as a win reaching it is: the tower dances and the booth
+    /// prints (`YourThree`), once the sheet is down so both can be seen.
+    /// Lowering the number in Your day is not this, and stays quiet as it
+    /// always has.
+    private func hardDayReachedGoal() {
+        let today = DateUtils.dateString(from: Date())
+        guard hardDay == today, blocksToday >= todaysGoal, blocksToday < goalAsDayOpened else { return }
+        if goalDanceDay != today, !reduceMotion {
+            goalDanceDay = today
+            HapticsEngine.reward()
+            animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
+        }
+        guard stripPrintedDay != today else { return }
+        stripPrintedDay = today
+        Task {
+            try? await Task.sleep(for: .seconds(1.8))
+            booth = BoothOpening(prints: true)
+        }
+    }
+
     /// Keeps the replay notifications warm, and sets the next moment to do it
     /// again. Called on scene-active, from `refreshData()` only when a win
     /// actually landed or a count changed, and at `replayEdge`.
@@ -2359,6 +2392,9 @@ struct MainAppView: View {
         // opened from Your day (`booth-open`).
         case "booth":    selectedTab = .tower; booth = BoothOpening(prints: true)
         case "booth-open": selectedTab = .tower; booth = BoothOpening(prints: false)
+        // Your day (`-strataOpenSheet yourday`), and with its three being
+        // chosen (`yourthree`): both are behind a tap on the crest.
+        case "yourday", "yourthree": selectedTab = .tower; showsYourDay = true
         // The plan is behind a header button, and a header button is the one
         // thing no screenshot script can press. Added for the screen audit:
         // a screen with no scriptable route in is a screen that gets rated
@@ -2448,7 +2484,7 @@ struct MainAppView: View {
                 // switch. A crew's tower keeps its tenth (`CrewTowerModel`).
                 let wins = towerVM.placedBlocks.count
                 let today = DateUtils.dateString(from: Date())
-                if wins >= dailyGoal, goalDanceDay != today {
+                if wins >= todaysGoal, goalDanceDay != today {
                     goalDanceDay = today
                     try? await Task.sleep(for: .milliseconds(180))
                     HapticsEngine.reward()
@@ -2539,7 +2575,7 @@ struct MainAppView: View {
         defer {
             if !goalDanceSeeded {
                 goalDanceSeeded = true
-                if towerVM.placedBlocks.count >= dailyGoal {
+                if towerVM.placedBlocks.count >= todaysGoal {
                     goalDanceDay = DateUtils.dateString(from: Date())
                 }
             }

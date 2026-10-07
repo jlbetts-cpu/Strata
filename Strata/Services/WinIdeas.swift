@@ -21,6 +21,9 @@ import SwiftData
 nonisolated struct WinIdea: Equatable, Sendable, Identifiable {
     let title: String
     let category: HabitCategory
+    /// True for one of your three you typed and never logged: it has no
+    /// colour yet, so a tap names the win and leaves the sheet's colour be.
+    var keepsColour = false
     var id: String { title.lowercased() }
 }
 
@@ -52,10 +55,17 @@ nonisolated enum WinIdeas {
         let day: String
     }
 
-    /// The row: plan lines, then usual wins, then small ones, each once, none
-    /// already logged today, narrowed to those starting a word with what is
-    /// typed. The small ones turn with the day so the row is not a fixture.
-    static func pick(plan: [WinIdea], logged: [Logged], today: String, typed: String = "") -> [WinIdea] {
+    /// The row: your three first (`YourThree`), then plan lines, then usual
+    /// wins, then small ones, each once, none already logged today, narrowed
+    /// to those starting a word with what is typed. The small ones turn with
+    /// the day so the row is not a fixture.
+    ///
+    /// **Your three lead because they are the ones chosen for this moment**:
+    /// a day hard enough to open the sheet and stall at the empty field. Once
+    /// one is logged it drops out like any done idea, so the row never shows
+    /// what is left to do.
+    static func pick(three: [WinIdea] = [], plan: [WinIdea], logged: [Logged], today: String,
+                     typed: String = "") -> [WinIdea] {
         let doneToday = Set(logged.filter { $0.day == today }.map { $0.title.lowercased() })
         var counts: [String: (idea: WinIdea, days: Set<String>)] = [:]
         for log in logged where log.day != today {
@@ -76,7 +86,7 @@ nonisolated enum WinIdeas {
         var seen = doneToday
         var out: [WinIdea] = []
         let words = typed.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        for idea in plan + usual + smalls {
+        for idea in three + plan + usual + smalls {
             let key = idea.id
             guard !idea.title.isEmpty, !seen.contains(key) else { continue }
             if !words.isEmpty {
@@ -94,7 +104,7 @@ nonisolated enum WinIdeas {
     /// last `lookback` days of named wins.
     @MainActor
     static func candidates(context: ModelContext, now: Date = Date(), calendar: Calendar = .current)
-        -> (plan: [WinIdea], logged: [Logged], today: String) {
+        -> (three: [WinIdea], plan: [WinIdea], logged: [Logged], today: String) {
         let today = DateUtils.dateString(from: now)
         let plan = ((try? context.fetch(FetchDescriptor<PlanItem>(sortBy: [SortDescriptor(\.order)]))) ?? [])
             .filter { $0.completedAt == nil && $0.belongs(on: now, calendar: calendar) }
@@ -106,7 +116,18 @@ nonisolated enum WinIdeas {
             guard let habit = log.habit else { return nil }
             return Logged(title: habit.title, category: habit.displayCategory, day: log.dateString)
         }
-        return (plan, logged, today)
+        let three = YourThree.ideas(YourThree.decode(UserDefaults.standard.string(forKey: YourThree.defaultsKey) ?? ""),
+                                    logged: logged)
+        return (three, plan, logged, today)
+    }
+
+    /// The titles of today's wins, for the ticks on your three.
+    @MainActor
+    static func titlesToday(context: ModelContext, now: Date = Date()) -> [String] {
+        let today = DateUtils.dateString(from: now)
+        var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString == today })
+        d.relationshipKeyPathsForPrefetching = [\.habit]
+        return ((try? context.fetch(d)) ?? []).compactMap { $0.habit?.title }
     }
 
     /// The open plan line with these words, ticked: the win already exists,

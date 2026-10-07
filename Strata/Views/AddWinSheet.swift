@@ -62,7 +62,7 @@ struct AddWinSheet: View {
     @State private var title = ""
     /// What the row over the keyboard is chosen from (`WinIdeas`), read once
     /// when the sheet opens.
-    @State private var ideaSource: (plan: [WinIdea], logged: [WinIdeas.Logged], today: String)?
+    @State private var ideaSource: (three: [WinIdea], plan: [WinIdea], logged: [WinIdeas.Logged], today: String)?
     @State private var category: HabitCategory = .health
     @State private var size: BlockSize = .small
     @State private var place: WinPlace?
@@ -506,7 +506,8 @@ struct AddWinSheet: View {
     /// The ideas for what is typed so far (`WinIdeas.pick`).
     private var ideas: [WinIdea] {
         guard let source = ideaSource else { return [] }
-        return WinIdeas.pick(plan: source.plan, logged: source.logged, today: source.today, typed: title)
+        return WinIdeas.pick(three: source.three, plan: source.plan, logged: source.logged, today: source.today,
+                             typed: title)
     }
 
     /// **Wins to recognise, where QuickType's words would be** (`WinIdeas`).
@@ -519,8 +520,12 @@ struct AddWinSheet: View {
                     Button {
                         HapticsEngine.lightTap()
                         title = idea.title
-                        category = idea.category
-                        categoryChosen = true
+                        // One of your three you typed and never logged has
+                        // no colour to give (`WinIdea.keepsColour`).
+                        if !idea.keepsColour {
+                            category = idea.category
+                            categoryChosen = true
+                        }
                     } label: {
                         Text(idea.title)
                             .font(Typography.screenSubtitle)

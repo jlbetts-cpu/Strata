@@ -35,6 +35,135 @@ nonisolated enum DailyGoal {
     }
 
     static func clamped(_ value: Int) -> Int { min(range.upperBound, max(range.lowerBound, value)) }
+
+    /// **Hard day** (the owner's pick, 2026-10-06: "Three + a Hard day
+    /// switch"): the day it was switched on, as a date key. Kept as a day and
+    /// not a flag so it turns itself off at midnight, with nothing to undo.
+    static let hardDayKey = "hardDay"
+
+    /// **The goal for today, which is the one everything asks**: the crest,
+    /// the dance, the booth's develop, the cue and the evening's check-in.
+    /// On a hard day it is your three; never MORE than the goal you set, so a
+    /// hard day can only make the day lighter.
+    static func today(goal: Int, hardDay: String, on day: String) -> Int {
+        hardDay == day ? min(goal, YourThree.size) : goal
+    }
+
+    /// Today's goal from the stored settings, for code with no view to hold
+    /// them (`EveningCheckIn`).
+    static func stored(on day: String, defaults: UserDefaults = .standard) -> Int {
+        today(goal: defaults.object(forKey: defaultsKey) as? Int ?? standard,
+              hardDay: defaults.string(forKey: hardDayKey) ?? "", on: day)
+    }
+}
+
+/// **Your three: wins you could do on your worst day** (the owner,
+/// 2026-10-06: "add people's 3 daily minimums, like these are wins that no
+/// matter what life does, no matter your emotional state, no matter what
+/// perspective of life you have based on the season it's in, you can adhere
+/// to").
+///
+/// A floor chosen ahead, on a good day, is the "minimum viable" habit that
+/// survives a bad one (Fogg's tiny habits; Wood's habit research: what holds
+/// up under stress is what was made small and automatic). So the list is
+/// three, and each is small enough to do in bed.
+///
+/// **Built so it can never read as a debt.** The three are ordinary wins:
+/// logged as any other (`HabitLog`, no mark), counted toward the goal, never
+/// synced to a crew as a list. Not done shows nothing at all, never an empty
+/// circle; done shows a quiet tick. They lead the ideas over the add sheet's
+/// keyboard (`WinIdeas.pick`), and drop out of it once logged today, as every
+/// idea does. No cue of their own: one cue a day stays the rule.
+nonisolated enum YourThree {
+    static let defaultsKey = "yourThree"
+    static let size = 3
+
+    /// One of your three: its words, and its colour when it has one (a pick
+    /// does; a win you typed takes the colour you last gave it).
+    nonisolated struct Item: Codable, Equatable, Hashable, Sendable, Identifiable {
+        let title: String
+        var category: HabitCategory?
+        var id: String { title.lowercased() }
+    }
+
+    /// The picks, in the past-tense voice of `WinIdeas.small`: things a
+    /// person can say they did on their worst day.
+    static let picks: [Item] = [
+        Item(title: "Drank some water", category: .health),
+        Item(title: "Went outside", category: .health),
+        Item(title: "Replied to a message", category: .social),
+        Item(title: "Took my meds", category: .health),
+        Item(title: "Ate a real meal", category: .health),
+        Item(title: "Brushed my teeth", category: .health),
+        Item(title: "Opened a window", category: .mindfulness),
+        Item(title: "Stretched for a minute", category: .health),
+    ]
+
+    /// Every word a person reads here, in one place, so a test can hold them
+    /// to the owner's rules (no long dash; nothing that counts against you).
+    nonisolated enum Copy {
+        static let section = "Your Three"
+        static let footer = "Small enough for your hardest day. Any of them counts."
+        static let empty = "Choose your three"
+        static let pickerTitle = "Three for any day"
+        static let pickerLine = "Pick ones you could do on your worst day."
+        static let ownPrompt = "Or write your own"
+        static let hardDay = "Hard day"
+        static let hardDayLine = "Today, your three are enough."
+        static let onboardingTitle = "Three you can always do"
+        static let onboardingLine = pickerLine
+        static let onboardingKeep = "Keep these"
+        static let onboardingSkip = "Skip"
+        static let onboardingWaiting = "Not yet. Pick one, or skip."
+
+        static var all: [String] {
+            [section, footer, empty, pickerTitle, pickerLine, ownPrompt, hardDay, hardDayLine,
+             onboardingTitle, onboardingLine, onboardingKeep, onboardingSkip, onboardingWaiting]
+        }
+    }
+
+    /// The stored list, read back. Anything unreadable is no list, never a
+    /// crash; past three, only the first three.
+    static func decode(_ raw: String) -> [Item] {
+        guard let data = raw.data(using: .utf8),
+              let items = try? JSONDecoder().decode([Item].self, from: data) else { return [] }
+        return clean(items)
+    }
+
+    static func encode(_ items: [Item]) -> String {
+        guard let data = try? JSONEncoder().encode(clean(items)) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Trimmed, named, each once, three at most.
+    static func clean(_ items: [Item]) -> [Item] {
+        var seen: Set<String> = []
+        var out: [Item] = []
+        for item in items {
+            let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, seen.insert(title.lowercased()).inserted else { continue }
+            out.append(Item(title: title, category: item.category))
+            if out.count == size { break }
+        }
+        return out
+    }
+
+    /// The ones logged today, matched by title the way `WinIdeas.pick`
+    /// matches what is done: case and surrounding space ignored.
+    static func done(_ items: [Item], titlesToday: some Sequence<String>) -> Set<String> {
+        let today = Set(titlesToday.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        return Set(items.map(\.id).filter(today.contains))
+    }
+
+    /// As ideas for the add sheet. A typed one with no colour of its own
+    /// takes the colour it was last logged in, else keeps the sheet's.
+    static func ideas(_ items: [Item], logged: [WinIdeas.Logged]) -> [WinIdea] {
+        items.map { item in
+            if let category = item.category { return WinIdea(title: item.title, category: category) }
+            let last = logged.filter { $0.title.lowercased() == item.id }.max { $0.day < $1.day }
+            return WinIdea(title: item.title, category: last?.category ?? .unlabeled, keepsColour: last == nil)
+        }
+    }
 }
 
 /// **The ring alone, in ink**: a segment per win, the rest the track, drawn
@@ -106,7 +235,9 @@ struct CrestCaption: View {
 /// A tap on either sets the goal.
 struct GoalCrest: View {
     let wins: Int
-    @Binding var goal: Int
+    /// Today's goal (`DailyGoal.today`): your three on a hard day. Read
+    /// only; the number is set in Your day.
+    let goal: Int
     /// Open Your day (`YourDaySheet`), as a crew's middle opens its details.
     var openDay: () -> Void = {}
     /// The crew bubble's side, so the two towers' middles match.

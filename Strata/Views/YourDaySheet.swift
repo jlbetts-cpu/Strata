@@ -7,8 +7,9 @@ import SwiftUI
 ///
 /// The crew's details sheet, for one: the same inset list on the warm page,
 /// the same section labels. You in the ring and today's count; the day's
-/// goal to change; this week as seven small ink rings; today's strip, or a
-/// line saying the goal prints one; and your streak with its rest days.
+/// goal to change; your three and the Hard day switch (`YourThree`); this
+/// week as seven small ink rings; today's strip, or a line saying the goal
+/// prints one; and your streak with its rest days.
 /// Nothing on it counts against you: a ring only fills, and a week is
 /// shown as what was done.
 struct YourDaySheet: View {
@@ -19,9 +20,17 @@ struct YourDaySheet: View {
     @Environment(\.modelContext) private var context
     @State private var counts: [String: Int] = [:]
     @State private var strip: PhotoStrip?
+    @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
+    @AppStorage(DailyGoal.hardDayKey) private var hardDay = ""
+    /// The titles of today's wins, for the ticks on your three.
+    @State private var titlesToday: [String] = []
+    @State private var choosingThree = false
 
     private var today: String { DateUtils.dateString(from: Date()) }
     private var winsToday: Int { counts[today] ?? 0 }
+    private var three: [YourThree.Item] { YourThree.decode(threeRaw) }
+    /// Today's goal (`DailyGoal.today`): your three on a hard day.
+    private var todaysGoal: Int { DailyGoal.today(goal: goal, hardDay: hardDay, on: today) }
 
     var body: some View {
         NavigationStack {
@@ -57,6 +66,7 @@ struct YourDaySheet: View {
                         .formFooter()
                 }
                 .listRowSeparator(.hidden)
+                yourThree
                 Section {
                     week
                 } header: {
@@ -119,17 +129,103 @@ struct YourDaySheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .sheet(isPresented: $choosingThree) {
+            YourThreePicker(initial: three) { chosen in
+                threeRaw = YourThree.encode(chosen)
+                // No three, no hard day: the switch would have nothing to be.
+                if chosen.isEmpty, hardDay == today { setHardDay(false) }
+            }
+        }
         .task {
             counts = Self.counts(context: context)
+            titlesToday = WinIdeas.titlesToday(context: context)
+            #if DEBUG
+            if DebugHarness.openSheet == "yourthree" { choosingThree = true }
+            #endif
             strip = await PhotoStrip.mine(context: context)
         }
+    }
+
+    // MARK: - Your three
+
+    /// **Your three, under the goal** (`YourThree`). Each row is the win; one
+    /// logged today wears a quiet tick, and one not logged is only its words:
+    /// no empty circle, nothing that reads as owed. A tap on any of them
+    /// changes the three. Under them, the switch for a hard day.
+    private var yourThree: some View {
+        let done = YourThree.done(three, titlesToday: titlesToday)
+        return Section {
+            if three.isEmpty {
+                Button { choosingThree = true } label: {
+                    HStack(spacing: GridConstants.gapLabel) {
+                        Text(YourThree.Copy.empty)
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(AppColors.inkTertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+            } else {
+                ForEach(three) { item in
+                    let isDone = done.contains(item.id)
+                    Button { choosingThree = true } label: {
+                        HStack(spacing: GridConstants.gapLabel) {
+                            Text(item.title)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Spacer(minLength: 0)
+                            if isDone {
+                                Image(systemName: "checkmark")
+                                    .font(Typography.headerSmall)
+                                    .foregroundStyle(AppColors.inkTertiary)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel(isDone ? "\(item.title), done today" : item.title)
+                    .accessibilityHint("Changes your three")
+                }
+                Toggle(isOn: Binding(get: { hardDay == today }, set: { setHardDay($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(YourThree.Copy.hardDay)
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                        Text(YourThree.Copy.hardDayLine)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkTertiary)
+                    }
+                }
+                // The switch every form in the app wears (`switchTrack`).
+                .tint(AppColors.switchTrack)
+            }
+        } header: {
+            FormSectionLabel(YourThree.Copy.section)
+        } footer: {
+            Text(YourThree.Copy.footer)
+                .formFooter()
+        }
+        .listRowSeparator(.hidden)
+        .animation(GridConstants.crossFade, value: done)
+    }
+
+    /// Hard day on or off, for today only. The evening's check-in is asked
+    /// again, so a day the switch has met is left alone at 7pm too; it can
+    /// only be taken away here, never added (one cue a day).
+    private func setHardDay(_ on: Bool) {
+        hardDay = on ? today : ""
+        Task { await EveningCheckIn.update(context: context) }
     }
 
     /// What the strip is doing today, in a line.
     private var stripLine: String {
         if StripKeeping.isDeveloped(.me, day: today) { return "Turn it, doodle on it, share it." }
         if strip?.candidates.isEmpty ?? true { return "Photos and doodles from today land here." }
-        return goal - winsToday == 1 ? "One more win prints it." : "Reach your goal to print it."
+        return todaysGoal - winsToday == 1 ? "One more win prints it." : "Reach your goal to print it."
     }
 
     /// You in the ring, larger, and today's count: the crest, as the crew's
@@ -138,19 +234,19 @@ struct YourDaySheet: View {
         Section {
             VStack(spacing: GridConstants.gapItem) {
                 ZStack {
-                    GoalRingStroke(wins: winsToday, goal: goal, line: 6)
+                    GoalRingStroke(wins: winsToday, goal: todaysGoal, line: 6)
                         .padding(5)
                     CrestFace(side: 72)
                 }
                 .frame(width: 104, height: 104)
-                Text("\(winsToday) of \(goal) today")
+                Text("\(winsToday) of \(todaysGoal) today")
                     .font(Typography.headerMedium)
                     .monospacedDigit()
                     .foregroundStyle(AppColors.inkPrimary)
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(winsToday) of \(goal) wins today")
+            .accessibilityLabel("\(winsToday) of \(todaysGoal) wins today")
         }
         .listRowBackground(Color.clear)
     }
@@ -162,7 +258,8 @@ struct YourDaySheet: View {
         return HStack(spacing: 0) {
             ForEach(days, id: \.key) { day in
                 VStack(spacing: GridConstants.spacing) {
-                    GoalRingStroke(wins: day.future ? 0 : counts[day.key] ?? 0, goal: goal, line: 3)
+                    GoalRingStroke(wins: day.future ? 0 : counts[day.key] ?? 0,
+                                   goal: day.key == today ? todaysGoal : goal, line: 3)
                         .frame(width: 30, height: 30)
                         .opacity(day.future ? 0.35 : 1)
                     Text(day.letter)

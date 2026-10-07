@@ -170,12 +170,13 @@ nonisolated enum EveningCheckIn {
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
-                            goal: defaults.object(forKey: DailyGoal.defaultsKey) as? Int ?? DailyGoal.standard)
+                            goal: DailyGoal.stored(on: today, defaults: defaults))
         else { return }
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        let goal = defaults.object(forKey: DailyGoal.defaultsKey) as? Int ?? DailyGoal.standard
+        // Today's goal: your three on a hard day (`DailyGoal.today`).
+        let goal = DailyGoal.stored(on: today, defaults: defaults)
         content.title = logs.count == goal - 1 ? WinCue.oneMore : title
         content.sound = .default
         content.threadIdentifier = NotificationRoute.Thread.daily

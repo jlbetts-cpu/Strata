@@ -150,8 +150,10 @@ struct MemoriesConsistencyTests {
         // Sixteen since 2026-10-05: the month drawing editor's "Bring It to
         // Life", on by default and kept with the drawing
         // (`MonthDrawingEditor`). It wears the token.
-        #expect(rowTints.count == 16,
-                "there are \(rowTints.count) switches in the app and there were 16; a new one needs the token too")
+        // Seventeen since 2026-10-06: Your day's "Hard day", which makes
+        // today's goal your three (`YourThree`). It wears the token.
+        #expect(rowTints.count == 17,
+                "there are \(rowTints.count) switches in the app and there were 17; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
