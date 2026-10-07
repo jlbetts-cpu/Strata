@@ -49,3 +49,26 @@ struct DailyGoalTests {
         #expect(!stroke.contains("baseColor") && !stroke.contains("colours"))
     }
 }
+
+/// **Your day: what the middle of Wins opens** (the owner's pick).
+@Suite("Your day")
+struct YourDayTests {
+    @Test("the week runs Monday to Sunday, today included, days to come marked")
+    func week() {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = .current
+        let tuesday = c.date(from: DateComponents(year: 2026, month: 10, day: 6, hour: 12))!
+        let days = YourDaySheet.weekDays(now: tuesday, calendar: c)
+        #expect(days.count == 7)
+        #expect(days.first?.key == "2026-10-05" && days.last?.key == "2026-10-11")
+        #expect(days.filter(\.future).count == 5)
+    }
+
+    @Test("the crest's head and fraction both open it, as a crew's middle opens its details")
+    func wired() throws {
+        let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
+        #expect(ring.components(separatedBy: "Button { openDay() }").count - 1 == 2)
+        let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
+        #expect(main.contains("YourDaySheet(goal: $dailyGoal)"))
+    }
+}

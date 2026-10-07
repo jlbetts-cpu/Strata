@@ -127,10 +127,11 @@ struct GoalCrest: View {
     @Binding var printing: DayStrip?
     /// Open the strip: the one hanging, or (nil) today's, fetched by the page.
     var openStrip: (DayStrip?) -> Void = { _ in }
+    /// Open Your day (`YourDaySheet`), as a crew's middle opens its details.
+    var openDay: () -> Void = {}
     /// The crew bubble's side, so the two towers' middles match.
     var side: CGFloat = 60
 
-    @State private var choosing = false
     private var arrived: Bool { LaunchMoment.shared.finished }
     /// How much of the strip is out of the printer, 0 to 1.
     @State private var printed: CGFloat = 0
@@ -146,7 +147,7 @@ struct GoalCrest: View {
 
     var body: some View {
         VStack(spacing: GridConstants.spacing) {
-            Button { choosing = true } label: {
+            Button { openDay() } label: {
                 ZStack {
                     GoalRingStroke(wins: wins, goal: goal, line: Self.line)
                         .padding(Self.line / 2 + 2)
@@ -159,10 +160,7 @@ struct GoalCrest: View {
             }
             .buttonStyle(.press)
             .zIndex(1)
-            Button {
-                // Past the goal, the caption hands over the day's strip.
-                if wins >= goal { openStrip(printing) } else { choosing = true }
-            } label: {
+            Button { openDay() } label: {
                 CrestCaption(text: "\(wins)/\(goal)", printer: printerOpen ? Self.printerWidth : nil)
                     // Behind the glass, so the paper comes out of the slot
                     // rather than lying over the printer.
@@ -198,16 +196,12 @@ struct GoalCrest: View {
             guard id != nil, printed == 0 else { return }
             Task { await print() }
         }
-        .popover(isPresented: $choosing) {
-            GoalChooser(goal: $goal)
-                .presentationCompactAdaptation(.popover)
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(wins == 1 ? "1 win today" : "\(wins) wins today")
         .accessibilityValue("Goal \(goal)")
-        .accessibilityHint("Sets the day's goal")
+        .accessibilityHint("Opens your day")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { choosing = true }
+        .accessibilityAction { openDay() }
     }
 }
 
@@ -265,7 +259,7 @@ extension GoalCrest {
 
 /// **You, in the middle**: the head your crews see (`HeadStore.headForCrews`),
 /// so Wins and a crew show the same you; without one, your profile picture.
-private struct CrestFace: View {
+struct CrestFace: View {
     let side: CGFloat
 
     var body: some View {
@@ -276,38 +270,5 @@ private struct CrestFace: View {
         } else {
             ProfileAvatar(side: side)
         }
-    }
-}
-
-/// The goal: minus, the number, plus, and what it is, in one line.
-private struct GoalChooser: View {
-    @Binding var goal: Int
-
-    var body: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            Text("Daily goal")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
-            HStack(spacing: GridConstants.gapLabel) {
-                GlassIconButton(systemName: "minus", onPage: true, accessibilityLabel: "Fewer") {
-                    goal = DailyGoal.clamped(goal - 1)
-                }
-                .disabled(goal <= DailyGoal.range.lowerBound)
-                Text("\(goal)")
-                    .font(Typography.tally)
-                    .monospacedDigit()
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .contentTransition(.numericText(value: Double(goal)))
-                    .frame(minWidth: 44)
-                    .animation(GridConstants.crossFade, value: goal)
-                GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "More") {
-                    goal = DailyGoal.clamped(goal + 1)
-                }
-                .disabled(goal >= DailyGoal.range.upperBound)
-            }
-        }
-        .padding(GridConstants.gapWide)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Daily goal")
     }
 }

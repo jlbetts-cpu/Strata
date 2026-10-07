@@ -224,6 +224,7 @@ struct MainAppView: View {
     /// The day's strip while the crest prints it, and the one opened to keep.
     @State private var printingStrip: DayStrip?
     @State private var openedStrip: DayStrip?
+    @State private var showsYourDay = false
     @AppStorage("stripPrintedDay") private var stripPrintedDay = ""
     @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
@@ -1175,7 +1176,8 @@ struct MainAppView: View {
                   openStrip: { strip in
                       if let strip { openedStrip = strip; return }
                       Task { openedStrip = await DayStrip.today(context: modelContext) }
-                  })
+                  },
+                  openDay: { showsYourDay = true })
         }
         // **The strip prints when the goal is crossed** (`DayStrip`), once a
         // day, a beat after the tower's dance has begun.
@@ -1189,6 +1191,14 @@ struct MainAppView: View {
             }
         }
         .sheet(item: $openedStrip) { DayStripSheet(strip: $0) }
+        .sheet(isPresented: $showsYourDay) {
+            YourDaySheet(goal: $dailyGoal) {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    openedStrip = await DayStrip.today(context: modelContext)
+                }
+            }
+        }
         .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
         //
