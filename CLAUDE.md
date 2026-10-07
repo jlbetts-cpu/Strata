@@ -245,10 +245,24 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
   right". Never colour the ring.
 - **Your head** is `HeadStore.headForCrews` (the one your crews see), else
   your picture. Tapping head or fraction opens `YourDaySheet`.
-- **The caption is the printer.** Reaching the goal: the tower dances, the
-  capsule widens into a glass printer, and the day's strip (`DayStrip`,
-  up to four frames) steps out of the slot UNDER the glass, bottom edge
-  first. Untaken, it goes back in.
+- **The strip is the app's signature, in its own booth** (`StripBooth`,
+  spec `docs/superpowers/specs/2026-10-06-photo-strip-booth.md`). The header
+  printer is gone (the owner: it "looks like an error"). Reaching the goal:
+  the tower dances, then the booth opens and prints the strip, a row and a
+  tap at a time; it lands undeveloped and **a shake (or tap) develops it**
+  in four steps. Then it turns in the hand (drag; flips to a stamped back).
+  Frames pack as the tower does (`StripLayout`), photos and doodled blocks
+  only, never plain colour, up to 8, chosen in `StripEditor`, which also
+  holds stickers, the pen, and the paper: **white or black only**.
+  - `canDevelop` is a closure, asked at the shake: read once at the opening,
+    a booth opened before the day's wins loaded never developed.
+  - The editor's width is fitted to the strip with every win on, once:
+    taking a win off shortens the paper rather than resizing it, so doodles
+    stay on their frames.
+  - Ink follows the paper live (`InkSurface` sets the dark style in
+    `updateUIView`); the strip retints its ink to the paper anyway.
+  - Simulator taps on sheet buttons can land one behind the next tap. Wait
+    and re-screenshot before calling a button broken.
 - **The wordmark is Zen Maru Gothic Bold** (`Wordmark`, OFL, bundled and
   subset). Never SF Pro Rounded for the logotype: Apple's licence covers app
   text, not a logo on pictures shared to Instagram.
@@ -256,6 +270,12 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
   `docs/app-icon/trace_strokes.py`), then an eraser scrubs it out (the owner:
   "make sure it actually feels like an eraser"), then the crest arrives
   (`LaunchMoment`). Regenerate the strokes if the logo changes.
+- **October's drawing is the crow alone, bigger** (the owner, 2026-10-06:
+  "instead of the scarecrow could we just have the bird"). `bird.py` in
+  `docs/illustrations` cuts his crow from the originals at 3x and adds the
+  line weight AFTER enlarging, so its line matches his other drawings on
+  screen. It flies in from out of sight and sits on its own branch over the
+  line. The scarecrow's assets stay in the catalogue, unused.
 
 ## Product direction
 

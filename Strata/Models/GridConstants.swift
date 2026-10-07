@@ -424,6 +424,12 @@ enum GridConstants {
     static let stickerStep = Animation.spring(duration: 0.42, bounce: 0.32)
     /// A frame's worth of strip leaving the printer: quick, then stopped.
     static let stripStep = Animation.easeOut(duration: 0.28)
+    /// The strip dropping free of the printer into the hand: a little give.
+    static let stripDrop = Animation.spring(duration: 0.6, bounce: 0.28)
+    /// The strip let go after a turn, settling face up or face down.
+    static let stripSettle = Animation.spring(duration: 0.55, bounce: 0.22)
+    /// One shake's worth of developing: the dark and the blur lift a step.
+    static let stripDevelop = Animation.easeOut(duration: 0.5)
 
     /// A block fading in where it belongs, or out where it stood. Long enough
     /// to read as a change rather than a cut, short enough to be finished by

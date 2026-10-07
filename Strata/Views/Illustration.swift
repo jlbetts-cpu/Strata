@@ -161,6 +161,14 @@ enum IllustrationMotion {
     }
 
     var layers: [UIImage] { roles.map(\.1) }
+
+    /// **The crow on its own** (the owner, 2026-10-06: "instead of the
+    /// scarecrow could we just have the bird, make it bigger and then fly in
+    /// and sit down"): no face to watch it, and the drawing is the bird
+    /// alone, so it comes from further off, in the drawing's own measure,
+    /// to start out of sight rather than a bird's length away.
+    private var alone: Bool { !roles.contains { $0.0 == .eyes } }
+    private var reach: Double { alone ? 2.4 : 1 }
     var stillLayers: [UIImage] {
         roles.filter { $0.0 != .crowDown && $0.0 != .crowOut }.map(\.1)
     }
@@ -236,8 +244,9 @@ enum IllustrationMotion {
     }
 
     private func crow(at t: Double, play: Int) -> LayerPose {
-        if play <= 1 { return Crow.arriving(at: t, flies: flies) }
-        return t < Crow.away ? Crow.leaving(at: t, flies: flies) : Crow.arriving(at: t - Crow.away, flies: flies)
+        if play <= 1 { return Crow.arriving(at: t, flies: flies, reach: reach) }
+        return t < Crow.away ? Crow.leaving(at: t, flies: flies, reach: reach)
+                             : Crow.arriving(at: t - Crow.away, flies: flies, reach: reach)
     }
 
     /// How much of each drawing of the crow shows: perched on the shoulder,
@@ -467,18 +476,21 @@ enum IllustrationMotion {
         /// the change, so the beat reads as motion rather than a flicker.
         static func flap(_ stroke: Double) -> Double { smooth((stroke + 0.28) / 0.56) }
 
-        static func arriving(at t: Double, flies: Bool) -> LayerPose {
+        /// `reach` stretches the flight (and the bob of the wingbeats) for a
+        /// drawing that is the bird alone, so it is measured in birds.
+        static func arriving(at t: Double, flies: Bool, reach: Double = 1) -> LayerPose {
             if t >= arrive { return .rest }
             if t < fly {
                 let u = t / fly
                 // Fast in, slowing to the perch, along a curve that dips
                 // under the straight line like a swoop.
                 let e = IllustrationMotion.easeOut(u)
-                let p = IllustrationMotion.curve(from: from, to: .zero, bend: CGPoint(x: 0.22, y: 0.08), at: e)
+                let p = IllustrationMotion.curve(from: CGPoint(x: from.x * reach, y: from.y * reach), to: .zero,
+                                                 bend: CGPoint(x: 0.22 * reach, y: 0.08 * reach), at: e)
                 let beating = 1 - smooth((u - 0.5) / 0.15)
                 // The body rises as the wings come down, and sinks as they
                 // lift: a quarter beat behind the stroke.
-                let lift = -sin(t * .pi * 2 * beats) * 0.011 * beating
+                let lift = -sin(t * .pi * 2 * beats) * 0.011 * reach * beating
                 // The brake: the body tips back over the last fifth.
                 let brake = max(0, (u - 0.8) / 0.2)
                 let tilt = -16 * (1 - e) + 14 * sin(brake * .pi / 2) * (1 - brake * 0.6)
@@ -495,7 +507,7 @@ enum IllustrationMotion {
                              rotation: tilt, opacity: 1, anchor: .bottom)
         }
 
-        static func leaving(at t: Double, flies: Bool) -> LayerPose {
+        static func leaving(at t: Double, flies: Bool, reach: Double = 1) -> LayerPose {
             if t < crouch {
                 let u = t / crouch
                 let dip = sin(u * .pi / 2) * 0.12
@@ -504,10 +516,10 @@ enum IllustrationMotion {
             }
             let u = min((t - crouch) / (away - crouch), 1)
             let e = IllustrationMotion.easeIn(u) * 0.7 + u * 0.3
-            let p = IllustrationMotion.curve(from: .zero, to: CGPoint(x: -0.2, y: -0.65),
-                                             bend: CGPoint(x: 0.28, y: -0.18), at: e)
+            let p = IllustrationMotion.curve(from: .zero, to: CGPoint(x: -0.2 * reach, y: -0.65 * reach),
+                                             bend: CGPoint(x: 0.28 * reach, y: -0.18 * reach), at: e)
             let release = 0.12 * exp(-(t - crouch) * 22)
-            let lift = -sin((t - crouch) * .pi * 2 * beats) * 0.011
+            let lift = -sin((t - crouch) * .pi * 2 * beats) * 0.011 * reach
             let squash = flies ? 0 : (stroke(t - crouch) + 1) * 0.5 * 0.07
             return LayerPose(x: p.x, y: p.y + lift,
                              scaleX: 1 + release * 0.5, scaleY: 1 - squash - release,

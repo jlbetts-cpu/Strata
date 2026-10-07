@@ -689,7 +689,7 @@ struct MemoriesView: View {
         Group {
             // **Your own drawing first, when the month has one** (spec
             // section 4). The default is never touched, so "Use Original"
-            // brings it straight back, with October's scarecrow animation.
+            // brings it straight back, with October's bird flying in.
             if let own = MonthDrawingStore.shared.drawing(for: key) {
                 // Your line under your drawing, set as the owner's are.
                 VStack(spacing: GridConstants.gapItem) {
@@ -698,6 +698,24 @@ struct MemoriesView: View {
                     if let line = own.line { DrawingLine(text: line) }
                 }
                 .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
+            } else if let bird = UIImage(named: "Month" + month + "Bird") {
+                // **The bird alone, bigger** (the owner, 2026-10-06: "instead
+                // of the scarecrow could we just have the bird, make it bigger
+                // and then fly in and sit down"). His crow, cut from the
+                // scarecrow's shoulder at three times (`docs/illustrations/
+                // bird.py`): it flies in and sits on its own branch, over the
+                // line. The scarecrow's assets stay in the catalogue.
+                Illustration(art: Self.clear(like: bird),
+                             line: MonthLines.shared.line(for: key) ?? Self.monthLine[month],
+                             height: Self.birdHeight,
+                             motion: .crowLands(crow: bird,
+                                                head: UIImage(named: "Month" + month + "BirdHead"),
+                                                wingsDown: UIImage(named: "Month" + month + "BirdDown"),
+                                                wingsOut: UIImage(named: "Month" + month + "BirdOut"),
+                                                eyes: nil, nose: nil, mouth: nil),
+                             onRest: Self.artPlayed)
+                    .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
+                                           originalLine: Self.monthLine[month]))
             } else if let art = UIImage(named: "Month" + month) {
                 Illustration(art: art, line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: 290,
                              motion: UIImage(named: "Month" + month + "Crow").map {
@@ -738,6 +756,17 @@ struct MemoriesView: View {
             }
         }
         #endif
+    }
+
+    /// The bird's drawing at the scarecrow's pixels to the point, two, so its
+    /// line is the same weight on screen as every other drawing's.
+    static let birdHeight: CGFloat = 170
+
+    /// An empty layer the bird's size: the still ground under its flight.
+    static func clear(like image: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in }
     }
 
     /// The month's drawing has played: the tip may now point at it.

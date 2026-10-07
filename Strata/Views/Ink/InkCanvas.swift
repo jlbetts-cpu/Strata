@@ -262,17 +262,22 @@ struct InkCanvas<Accessory: View>: View {
     /// one black pen as everywhere; the canvas is shown as in dark mode,
     /// where PencilKit draws black ink white.
     var lightInk = false
+    /// A picture under the ink, inside the well: the photo strip, drawn on
+    /// in the strip's editor (`StripEditor`). Nil everywhere else.
+    var underlay: AnyView? = nil
     var accessory: Accessory
 
     init(controller: InkController, aspectRatio: CGFloat? = nil,
          ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
          cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false,
+         underlay: AnyView? = nil,
          @ViewBuilder accessory: () -> Accessory) {
         self.controller = controller
         self.aspectRatio = aspectRatio
         self.ground = ground
         self.cornerRadius = cornerRadius
         self.lightInk = lightInk
+        self.underlay = underlay
         self.accessory = accessory()
     }
 
@@ -290,6 +295,7 @@ struct InkCanvas<Accessory: View>: View {
         // a line drawn across a sticker lands on top of it, and a finger
         // that starts on one moves it (`InkStickerLayer`).
         let surface = ZStack {
+            if let underlay { underlay.allowsHitTesting(false) }
             InkStickerLayer(controller: controller, interactive: false)
             InkSurface(controller: controller, lightInk: lightInk)
                 .accessibilityLabel("Drawing")
@@ -309,9 +315,10 @@ struct InkCanvas<Accessory: View>: View {
 extension InkCanvas where Accessory == EmptyView {
     init(controller: InkController, aspectRatio: CGFloat? = nil,
          ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
-         cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false) {
+         cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false,
+         underlay: AnyView? = nil) {
         self.init(controller: controller, aspectRatio: aspectRatio, ground: ground,
-                  cornerRadius: cornerRadius, lightInk: lightInk) { EmptyView() }
+                  cornerRadius: cornerRadius, lightInk: lightInk, underlay: underlay) { EmptyView() }
     }
 }
 
@@ -437,6 +444,9 @@ private struct InkSurface: UIViewRepresentable {
 
     func updateUIView(_ canvas: OwnUndoCanvas, context: Context) {
         context.coordinator.controller = controller
+        // Followed live, so a well whose ground turns dark (the strip's
+        // paper) redraws the ink it already holds to read on it.
+        canvas.overrideUserInterfaceStyle = lightInk ? .dark : .unspecified
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {

@@ -18,7 +18,7 @@ struct YourDaySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var counts: [String: Int] = [:]
-    @State private var strip: DayStrip?
+    @State private var strip: PhotoStrip?
 
     private var today: String { DateUtils.dateString(from: Date()) }
     private var winsToday: Int { counts[today] ?? 0 }
@@ -64,28 +64,28 @@ struct YourDaySheet: View {
                 }
                 .listRowSeparator(.hidden)
                 Section {
-                    if let strip, !strip.frames.isEmpty, winsToday >= goal {
-                        Button {
-                            dismiss()
-                            openStrip()
-                        } label: {
-                            HStack(spacing: GridConstants.gapLabel) {
-                                DayStripView(strip: strip, width: 64)
-                                Text("Keep, share or change its paper.")
-                                    .font(Typography.bodyLarge)
-                                    .foregroundStyle(AppColors.inkPrimary)
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(AppColors.inkTertiary)
+                    // **Growing all day, dark until it develops** (the
+                    // owner's pick: "Yes, undeveloped"). A tap opens the booth.
+                    Button {
+                        dismiss()
+                        openStrip()
+                    } label: {
+                        HStack(spacing: GridConstants.gapLabel) {
+                            if let strip {
+                                StripView(frames: strip.frames(excluding: StripKeeping.excluded(.me, day: today)),
+                                          day: today, signature: strip.signature, paper: StripKeeping.paper,
+                                          width: 64, developed: StripKeeping.isDeveloped(.me, day: today) ? 1 : 0,
+                                          decor: StripDecor.picture(owner: .me, day: today))
                             }
+                            Text(stripLine)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(AppColors.inkTertiary)
                         }
-                        .buttonStyle(.press)
-                    } else {
-                        Text(goal - winsToday == 1 ? "One more win prints today's strip."
-                                                   : "Reach your goal to print today's strip.")
-                            .font(Typography.bodyLarge)
-                            .foregroundStyle(AppColors.inkSecondary)
                     }
+                    .buttonStyle(.press)
                 } header: {
                     FormSectionLabel("Today's Strip")
                 }
@@ -121,8 +121,15 @@ struct YourDaySheet: View {
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         .task {
             counts = Self.counts(context: context)
-            strip = await DayStrip.today(context: context)
+            strip = await PhotoStrip.mine(context: context)
         }
+    }
+
+    /// What the strip is doing today, in a line.
+    private var stripLine: String {
+        if StripKeeping.isDeveloped(.me, day: today) { return "Turn it, doodle on it, share it." }
+        if strip?.candidates.isEmpty ?? true { return "Photos and doodles from today land here." }
+        return goal - winsToday == 1 ? "One more win prints it." : "Reach your goal to print it."
     }
 
     /// You in the ring, larger, and today's count: the crest, as the crew's

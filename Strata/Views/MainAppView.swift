@@ -221,9 +221,8 @@ struct MainAppView: View {
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
-    /// The day's strip while the crest prints it, and the one opened to keep.
-    @State private var printingStrip: DayStrip?
-    @State private var openedStrip: DayStrip?
+    /// The booth, open: printing (the goal was just reached) or not.
+    @State private var booth: BoothOpening?
     @State private var showsYourDay = false
     @AppStorage("stripPrintedDay") private var stripPrintedDay = ""
     @State private var eveningDecided = ""
@@ -1171,31 +1170,30 @@ struct MainAppView: View {
         // the fraction in the crew's caption under it. Centred on the row,
         // not between its two buttons, so it holds the same place with crews
         // on or off.
-        GoalCrest(wins: blocksToday, goal: $dailyGoal,
-                  printing: $printingStrip,
-                  openStrip: { strip in
-                      if let strip { openedStrip = strip; return }
-                      Task { openedStrip = await DayStrip.today(context: modelContext) }
-                  },
-                  openDay: { showsYourDay = true })
+        GoalCrest(wins: blocksToday, goal: $dailyGoal, openDay: { showsYourDay = true })
         }
-        // **The strip prints when the goal is crossed** (`DayStrip`), once a
-        // day, a beat after the tower's dance has begun.
+        // **The goal opens the booth and prints the strip** (`StripBooth`;
+        // the owner's pick: "Dance, then open the booth"), once a day, when
+        // the tower's dance has had its moment.
         .onChange(of: blocksToday) { old, new in
             let today = DateUtils.dateString(from: Date())
             guard DailyGoal.reached(from: old, to: new, goal: dailyGoal), stripPrintedDay != today else { return }
             stripPrintedDay = today
             Task {
-                try? await Task.sleep(for: .seconds(1.4))
-                printingStrip = await DayStrip.today(context: modelContext)
+                try? await Task.sleep(for: .seconds(1.8))
+                booth = BoothOpening(prints: true)
             }
         }
-        .sheet(item: $openedStrip) { DayStripSheet(strip: $0) }
+        .fullScreenCover(item: $booth) { opening in
+            StripBooth(owner: .me, prints: opening.prints, canDevelop: { blocksToday >= dailyGoal }) {
+                await PhotoStrip.mine(context: modelContext)
+            }
+        }
         .sheet(isPresented: $showsYourDay) {
             YourDaySheet(goal: $dailyGoal) {
                 Task {
                     try? await Task.sleep(for: .milliseconds(450))
-                    openedStrip = await DayStrip.today(context: modelContext)
+                    booth = BoothOpening(prints: false)
                 }
             }
         }
@@ -2357,6 +2355,10 @@ struct MainAppView: View {
         case "settings": selectedTab = .memories; profileOpensSettings = true; profileOrigin = .memories
         case "profile":  selectedTab = .memories; profileOrigin = .memories
         case "add":      selectedTab = .tower; winDraft = WinDraft()
+        // The booth, printing as at the goal (`-strataOpenSheet booth`), or
+        // opened from Your day (`booth-open`).
+        case "booth":    selectedTab = .tower; booth = BoothOpening(prints: true)
+        case "booth-open": selectedTab = .tower; booth = BoothOpening(prints: false)
         // The plan is behind a header button, and a header button is the one
         // thing no screenshot script can press. Added for the screen audit:
         // a screen with no scriptable route in is a screen that gets rated
@@ -3753,4 +3755,10 @@ private struct DebugFlipTabs: ViewModifier {
         content
         #endif
     }
+}
+
+/// The booth, asked for: printing when the goal was just reached.
+struct BoothOpening: Identifiable {
+    let id = UUID()
+    let prints: Bool
 }
