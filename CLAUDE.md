@@ -73,6 +73,15 @@ was dropped outright because the owner's was already wired in.
 form wells a white rim, a frosted band or a blurred edge. Those say "you built
 this and it is standing on something", which is a block's claim.
 
+**A popover cannot present.** The photo picker opened from inside the
+sticker popover did nothing on the simulator and crashed on a phone (New
+Sticker, 2026-10-06). Close the popover, then present from the host a beat
+later (`StickerMaking`); and a full-screen cover cannot rise from a toolbar
+item, so hang it on the page.
+
+**`.onGeometryChange` before `.offset`**, or the frame is where the view was
+laid out, not where it is seen (the cue over the slot, measured 47pt off).
+
 ## The block, and why it is built the way it is
 
 From Figma "Apollo" (`248:14`). The effect is LAYERED, not styled: a block with
@@ -200,10 +209,31 @@ curve. All masses fall the same, because they do. Mass decides the landing
 only. Do not add easing-out at the end — a falling object does not decelerate
 into the ground, and arriving at peak speed is what makes the landing land.
 
-**The tower dances every tenth win** (`GridConstants.danceEvery`). One wave,
-two phases, delays taken from each block's row. It refuses to start while
-anything is dropping. Known gap: the water reflection does not participate, so
-the tower sways and its reflection sits still.
+**Your tower dances when you reach the day's goal** (`GoalRing`, the owner,
+2026-10-06: "when you reach your goal thats when the tower dances"), once a
+day, at the crossing, never on a rebuild. It was every tenth win; a crew's
+tower still dances every tenth (`GridConstants.danceEvery`) and when the last
+person posts (`CrewTowerModel.everyoneIn`). One wave, two phases, delays taken
+from each block's row. It refuses to start while anything is dropping. Known
+gap: the water reflection does not participate, so the tower sways and its
+reflection sits still.
+
+## Logging more wins, without guilt (2026-10-06)
+
+Testers logged one or two wins a day. The research and every decision are in
+**`docs/logging-more-wins.md`**; read it before touching any of these:
+
+- **One cue a day, however it comes.** The morning reminder (empty days), the
+  dark bubble over the slot (`WinCue`), and the 7pm "Anything else today?"
+  (`EveningCheckIn`) exclude each other. Never add a second prompt to a day.
+- **The cue is the chat's own dark line** (the owner's pick): ink, page-colour
+  type, `radiusSurface`. It asks, never counts, never says what was missed.
+- **The goal ring only fills** (`GoalRing`): no red, no shortfall, full past
+  the goal. Each win is a segment in its block's colour. It sits where a
+  crew tower has its faces.
+- **Ideas over the add sheet's keyboard** (`WinIdeas`): plan lines, then your
+  usual wins, then small ones. Recognition, not recall. Typing narrows them.
+- **Rest days** (`Streaks.Rest`): one a week for you, two for a crew.
 
 ## Product direction
 
