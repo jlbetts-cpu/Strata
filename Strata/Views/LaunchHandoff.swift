@@ -90,13 +90,28 @@ struct LaunchHandoff: View {
             ZStack {
                 ForEach(Array(LogoStrokes.all.enumerated()), id: \.offset) { i, stroke in
                     LogoStrokeShape(stroke: stroke)
-                        .trim(from: f.erased[i], to: max(f.erased[i], f.drawn[i]))
+                        .trim(from: 0, to: f.drawn[i])
                         .stroke(AppColors.drawingInk,
                                 style: StrokeStyle(lineWidth: LaunchRoll.side * (stroke.heavy ? LogoStrokes.outer : LogoStrokes.inner),
                                                    lineCap: .round, lineJoin: .round))
                 }
             }
             .frame(width: LaunchRoll.side, height: LaunchRoll.side)
+            // **Rubbed out**: the eraser's swath, scrubbing back and forth,
+            // cut out of the drawing, its edge a little soft as a rubber's is.
+            .mask {
+                Rectangle()
+                    .overlay {
+                        EraserScrub()
+                            .trim(from: 0, to: f.wiped)
+                            .stroke(Color.black, style: StrokeStyle(lineWidth: LaunchRoll.side * LaunchDraw.eraserWidth,
+                                                                    lineCap: .round, lineJoin: .round))
+                            .blur(radius: 1.5)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+                    .frame(width: LaunchRoll.side * 1.4, height: LaunchRoll.side * 1.4)
+            }
         }
         .opacity(f.groundOpacity)
     }
@@ -164,5 +179,21 @@ private final class RollClock {
         if let last { elapsed += min(max(now.timeIntervalSince(last), 0), 1.0 / 30) }
         last = now
         return elapsed
+    }
+}
+
+/// The eraser's back-and-forth, in the mark's square (`LaunchDraw.scrub`).
+private struct EraserScrub: Shape {
+    func path(in rect: CGRect) -> Path {
+        // The mask is drawn larger than the mark; map the mark's square
+        // (its middle 1/1.4) onto it.
+        let side = rect.width / 1.4
+        let origin = CGPoint(x: rect.midX - side / 2, y: rect.midY - side / 2)
+        var path = Path()
+        for (i, p) in LaunchDraw.scrub.enumerated() {
+            let point = CGPoint(x: origin.x + p.0 * side, y: origin.y + p.1 * side)
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        return path
     }
 }
