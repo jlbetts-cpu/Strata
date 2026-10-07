@@ -250,6 +250,12 @@ final class MapGestureTests: XCTestCase {
         app.buttons["Start"].tap()
         Thread.sleep(forTimeInterval: 2)
 
+        // **The day's goal** (2026-10-06): a page between the thank you and
+        // the first win, its number left at the default.
+        XCTAssertTrue(app.buttons["Set my goal"].waitForExistence(timeout: 15), "no goal page")
+        app.buttons["Set my goal"].tap()
+        Thread.sleep(forTimeInterval: 2)
+
         // **The first win** (2026-10-05). The walkthrough no longer ends on
         // Start: its last page is the tower's slot. A chip fills the title in
         // and one tap drops the block; the walkthrough then hands over by

@@ -102,7 +102,13 @@ struct OnboardingView: View {
 
     private static let headStep = 4
     private static let thanksStep = 5
-    private static let firstWinStep = 6
+    /// **The day's goal, set before the first win** (2026-10-06: the owner,
+    /// "we need to make sure people understand the product from the gecko",
+    /// and the goal crest is the first thing on the home screen now). The
+    /// crest itself, empty, with the number to choose under it.
+    private static let goalStep = 6
+    private static let firstWinStep = 7
+    @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     private var lastStep: Int { endsOnFirstWin ? Self.firstWinStep : Self.thanksStep }
 
     // The first-win page's own state.
@@ -487,6 +493,7 @@ struct OnboardingView: View {
                 case 3: memories(in: box)
                 case Self.headStep: headPage
                 case Self.thanksStep: thanks
+                case Self.goalStep: goalPage
                 case Self.firstWinStep: firstWinPage(in: box)
                 default: EmptyView()
                 }
@@ -494,6 +501,44 @@ struct OnboardingView: View {
             .frame(width: box.width, height: box.height)
         }
         .padding(.bottom, Self.airArt)
+    }
+
+    // MARK: - The goal
+
+    /// The crest as Wins will show it, empty, and the number under it: what
+    /// is being chosen is visible as it is chosen (each step adds a segment).
+    private var goalPage: some View {
+        VStack(spacing: GridConstants.gapSection) {
+            // No caption: the number under the ring says it once, and the
+            // ring's segments say it again without words.
+            ZStack {
+                GoalRingStroke(wins: 0, goal: dailyGoal, line: 6)
+                    .padding(5)
+                CrestFace(side: 92)
+            }
+            .frame(width: 128, height: 128)
+            .stillGlassCircle()
+            HStack(spacing: GridConstants.gapWide) {
+                GlassIconButton(systemName: "minus", onPage: true, accessibilityLabel: "Fewer") {
+                    dailyGoal = DailyGoal.clamped(dailyGoal - 1)
+                }
+                .disabled(dailyGoal <= DailyGoal.range.lowerBound)
+                Text("\(dailyGoal)")
+                    .font(Typography.tally)
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .contentTransition(.numericText(value: Double(dailyGoal)))
+                    .frame(minWidth: 44)
+                GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "More") {
+                    dailyGoal = DailyGoal.clamped(dailyGoal + 1)
+                }
+                .disabled(dailyGoal >= DailyGoal.range.upperBound)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Wins a day, \(dailyGoal)")
+        }
+        .animation(GridConstants.cueIn, value: dailyGoal)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - The camera
@@ -1121,6 +1166,7 @@ struct OnboardingView: View {
         case 2: return "A win can be a photograph"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
+        case Self.goalStep: return "A goal for each day"
         case Self.firstWinStep: return "Your first win"
         default: return "Thank you, genuinely"
         }
@@ -1177,6 +1223,7 @@ struct OnboardingView: View {
             ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."
             : "Find it in Profile, and on your photos. It stays on this phone."
         // What counts, said once; the chips say the rest by example.
+        case Self.goalStep: return "Reach it and your tower dances and prints the day's strip."
         case Self.firstWinStep: return "Anything you already did today counts."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
@@ -1342,6 +1389,7 @@ struct OnboardingView: View {
         case 2: return "Go on"
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
         case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
+        case Self.goalStep: return "Set my goal"
         case Self.firstWinStep: return "Go to my tower"
         default: return "Start"
         }
