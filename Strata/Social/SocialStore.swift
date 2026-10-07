@@ -868,6 +868,11 @@ final class SocialStore {
             if let existing { shared.crewDay = existing.crewDay }
             upsertLocal(shared)
             enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: shared), fields: CrewRecords.fields(shared)))
+            // The picture it had, once nothing shows it: a redrawn doodle, a
+            // replaced photograph, or one taken off (`copy`).
+            if let old = existing?.photo, old != shared.photo {
+                try? FileManager.default.removeItem(at: old)
+            }
         }
         record(win, in: [])
         await flush()
@@ -2013,8 +2018,18 @@ final class SocialStore {
     func clearHeldBackPhoto() { heldBackPhoto = nil }
 
     /// The derivative, kept where this crew's photos live.
+    ///
+    /// **A new file for every picture, never the same name again.** This
+    /// wrote "<win>.jpg" each time, so a redrawn doodle (or a new photograph)
+    /// landed at the path the crew block was already showing: `CrewPhotoView`
+    /// keys its cache and its load on the URL, the block's look compared
+    /// equal, and your own crew tower kept drawing the old doodle until the
+    /// app was relaunched (the owner, 2026-10-06: doodles should "work well
+    /// in crew"). A friend's phone was already right, since what it unpacks
+    /// is named by the record's change tag. `update` removes the old file.
     private func copy(_ data: Data, to crewID: CrewID, win: UUID) -> URL? {
-        let url = directory.appending(path: "Photos/\(crewID.rawValue)/\(win.uuidString).jpg")
+        let url = directory.appending(
+            path: "Photos/\(crewID.rawValue)/\(win.uuidString)-\(UUID().uuidString.prefix(8)).jpg")
         do { try write(data, to: url); return url } catch {
             Self.log.error("photo for \(crewID.rawValue, privacy: .public) not kept: \(error)")
             return nil

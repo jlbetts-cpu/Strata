@@ -62,6 +62,15 @@ struct PlacedBlock: Identifiable, Equatable {
         var myReaction: String? = nil
 
         var hasPhoto: Bool { imageFileName != nil || sharedPhoto != nil }
+        var hasDoodle: Bool { doodleFileName != nil }
+
+        /// **A block with a picture on it is its own block**: a photograph,
+        /// or a doodle (the owner, 2026-10-06: "colors still merge even when
+        /// there is a doodle on the block ... they should count as their own
+        /// block"). `BlockMerge` leaves these out, so a doodle is never
+        /// hidden under a run it was folded into. Take the doodle off and the
+        /// block is plain colour again, and joins its neighbours again.
+        var standsAlone: Bool { hasPhoto || hasDoodle }
 
         init(habit: Habit, log: HabitLog) {
             title = habit.title

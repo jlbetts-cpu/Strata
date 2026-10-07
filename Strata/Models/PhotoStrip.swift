@@ -135,14 +135,15 @@ enum StripPaper: String, CaseIterable, Identifiable {
 extension PhotoStrip {
     /// Your strip for a day: the day's wins that carry a picture.
     @MainActor
-    static func mine(day: String = DateUtils.dateString(from: Date()), context: ModelContext) async -> PhotoStrip {
+    static func mine(day: String = DateUtils.dateString(from: Date()), context: ModelContext,
+                     files: InkFiles = .shared) async -> PhotoStrip {
         var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == day && $0.completed })
         d.relationshipKeyPathsForPrefetching = [\.habit]
         let logs = ((try? context.fetch(d)) ?? [])
             .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
         var frames: [Frame] = []
         for log in logs {
-            guard let picture = await picture(for: log) else { continue }
+            guard let picture = await picture(for: log, files: files) else { continue }
             let title = log.habit?.title ?? ""
             frames.append(Frame(id: log.id, title: title == QuickWinService.untitled ? "" : title,
                                 size: log.habit?.blockSize ?? .small, picture: picture))
@@ -153,15 +154,18 @@ extension PhotoStrip {
     }
 
     /// A win's picture: its photograph, or its doodle on its block's colour.
-    /// A plain block has none, and stays off the strip.
+    /// A plain block has none, and stays off the strip, so a win whose
+    /// doodle was taken off leaves the strip with it (`DoodledBlockTests`
+    /// holds both halves).
     @MainActor
-    static func picture(for log: HabitLog) async -> UIImage? {
+    static func picture(for log: HabitLog, files: InkFiles = .shared) async -> UIImage? {
         if let name = log.imageFileName,
            let photo = await ImageManager.shared.loadFullImage(fileName: name) {
             return ImageManager.resizeIfNeeded(photo, maxDimension: 1100)
         }
         if let doodle = log.doodleFileName,
-           let data = BlockDoodles.crewPicture(doodle, colour: log.habit?.displayCategory ?? .unlabeled) {
+           let data = BlockDoodles.crewPicture(doodle, colour: log.habit?.displayCategory ?? .unlabeled,
+                                               files: files) {
             return UIImage(data: data)
         }
         return nil

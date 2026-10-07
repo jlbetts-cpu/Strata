@@ -21,9 +21,9 @@ enum BlockMerge {
     /// Works out, for every block, which of its sides continue into a
     /// same-colour neighbour.
     ///
-    /// Photo blocks never merge: an image has its own edges, and running two
-    /// photographs together would read as one broken picture rather than as
-    /// one piece. Colour is the only thing that merges.
+    /// Photo and doodle blocks never merge: an image has its own edges, and
+    /// running two pictures together would read as one broken picture rather
+    /// than as one piece. Colour is the only thing that merges.
     ///
     /// O(cells) — each block writes its footprint into a lookup grid once, then
     /// each block reads its four neighbours. Recomputed only when the tower is
@@ -75,7 +75,15 @@ enum BlockMerge {
         // Photos still cannot merge. A block wearing a photograph is not the
         // colour it would have to become, and half a merged shape showing an
         // image is two objects pretending to be one.
-        let mergeable = blocks.filter { !$0.look.hasPhoto }
+        //
+        // **Nor can doodles** (the owner, 2026-10-06: "colors still merge even
+        // when there is a doodle on the block"). This read `hasPhoto` alone,
+        // so a doodled block joined a same-colour neighbour, and a member of
+        // a run draws only its label: the run's surface covered the doodle
+        // and it was gone from the tower. A doodle is a picture drawn on the
+        // block, so it stands alone exactly as a photograph does
+        // (`Look.standsAlone`).
+        let mergeable = blocks.filter { !$0.look.standsAlone }
         guard mergeable.count > 1 else { return [] }
 
         var cellOwner: [GridCell: PlacedBlock] = [:]

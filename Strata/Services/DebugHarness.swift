@@ -1169,13 +1169,25 @@ enum DebugHarness {
         let mono = Int(argument("-strataSeedMono") ?? "0") ?? 0
         // NAMED, since named blocks merge now. Unnamed ones only exercise the
         // old path, where a member had nothing to draw.
+        // `-strataSeedMonoDoodle <i>` draws a doodle on the i-th of them, so
+        // a doodled block can be seen standing alone among same-colour
+        // neighbours (the owner, 2026-10-06: "colors still merge even when
+        // there is a doodle on the block"). Through `BlockDoodles.save`, the
+        // path Add Win writes with.
+        let doodled = argument("-strataSeedMonoDoodle").flatMap(Int.init)
         for i in 0..<mono {
-            _ = try? QuickWinService.logWin(
+            let win = try? QuickWinService.logWin(
                 title: titles[i % titles.count],
                 category: .health,
                 size: sizes[i % sizes.count],
                 context: context, tower: tower
             )
+            if i == doodled, let log = (win?.habit.logs ?? []).first {
+                let canvas = CGSize(width: 300, height: 300)
+                log.doodleFileName = BlockDoodles.save(InkSamples.sunOverHill(in: canvas),
+                                                       canvas: canvas, replacing: log.doodleFileName)
+                try? context.save()
+            }
         }
 
         // A record that spans weeks, so History has something real to be
