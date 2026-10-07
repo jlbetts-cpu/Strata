@@ -47,36 +47,44 @@ is the printer; shake to develop. 3. Friends, as heads. 4. It's yours, by hand
 
 Psychology in order: curiosity → recognition → reward → belonging → identity → ask.
 
-## Storyboard v4 (53.5 s, 16:9, 1920x1080, 30 fps)
+## Storyboard v5 (45.6 s, cut to the music)
 
-v4 answers his notes on v3: it is **a photo app with friends**, so his own
-photos (the zip) and friends' faces lead every shot; no doodle or plain
-colour blocks; blocks only ever fall, with gravity, in the order they were
-said; reveals are slower and calmer; the sound is quiet and tactile; the
-crew chat is shown.
+v5 answers his notes on v4: TikTok pace (57.7 s down to 45.6 s, every shot
+played 1.2x to 1.7x of its authored timing), show the camera, the journal and
+doodling, the strip's real back, all three block sizes, no glitches on
+camera, more varied animation per shot (Muse, the fifth reference), and his
+music: Monume, "Product Launch" (Pixabay, 110 BPM). The track's drop
+(8.70 s) lands on the pull-out from the screen, and **every cut falls on a
+beat**: each shot lasts a whole number of beats.
 
-| # | Time | Camera | Picture | Words |
-|---|---|---|---|---|
-| 0 | 0.0 | inside the screen, then out | The launch: the logo draws, then erases at full size; we pull out of the screen as the app opens | |
-| 1 | 3.8 | type | His photos (the dog, breakfast, the beach, Yosemite, the kayak) drift forward out of depth round the line, then fall | "Every day has a few small wins." |
-| 2 | 7.2 | type, drum | "I kayaked the bay / had a real breakfast / walked the dog / hiked Yosemite / won the game / went to the beach / had a bonfire / graduated": each photo block falls onto a tower in that order, bottom row first | |
-| 3 | 12.6 | hero 3D, slow orbit | A photo block falls from above the phone into the real tower's next place | "Every win is a block." |
-| 4 | 17.0 | extraction | Three photo blocks lift off the screen and hang in depth | "Snap it. Stack it. Keep it." |
-| 5 | 20.9 | macro, low | The crest fills; colour bursts off the screen | "Hit your goal," |
-| 6 | 23.5 | high, over the island | The island prints the strip | "and your day prints." |
-| 7 | 26.7 | the phone shakes in 3D | The strip develops | "Shake to develop." |
-| 8 | 30.1 | extraction | The real strip leaves the screen, turns over, hangs beside the phone | "Share it anywhere." |
-| 9 | 33.9 | 3D arc, then rise | His photos with friends turn on a curved wall; the phone rises; friends' faces fly into the crew bubble; heads pop out | "Better with friends." |
-| 9b | 38.9 | close, then extraction | The crew chat: today's lines arrive one by one (friends' faces in their circles); "so proud of you 🔥", a reply to his win, lifts off the screen | "Cheer each other on." |
-| 10 | 44.1 | lying back | October's skeleton dances | "Every month, its own drawing." |
-| 11 | 47.3 | black | The full stop lands as a block | "Small wins. Stacked." |
-| 12 | 49.6 | the launch again | The logo draws, "Some Wins", the official App Store badge | |
+**Muse (Meta), frame by frame:** objects sitting inline in the sentence; a
+middle line that swaps with an icon; a full-screen grid of tiny objects
+rippling in; a macro into one calendar day as it changes; a typed field with
+a cursor; badges on the close. Taken: inline photos in line 1, the typed
+journal line, the photo grid behind "Small wins. Stacked.", the dive into a
+calendar day, and the shutter freezing the frame.
 
-**Sound (v4):** effects only and quiet (peak -14 dBFS, average about -41):
-modal fingertip taps, felt landings for blocks, soft air for moves, a warm
-bloom for the goal and the develop, pencil and eraser grain for the logo, a
-small printer motor, paper flutter for the shake. Everything goes through
-real rooms (GarageBand's impulse responses). No pitch sweeps, no cartoon.
+| # | Beats | Picture | Words |
+|---|---|---|---|
+| 0 | (to the drop) | Logo draws, erases at full size; out of the screen as the app opens | |
+| 1 | 4 | His photos pop inline into the sentence | "Every day has a few small wins." |
+| 2 | 8 | Word drum; photo blocks fall in order, Quick, Regular and a Deep 2x2 | "I kayaked the bay / ... / played with the team" |
+| 3 | 10 | The real camera with his night-market clip as the lens (debug `-strataFakeLens`): compose, draw a wide block out of the shutter, the frame freezes and pops off the screen, pick a look, name it | "Snap it." "Pick a look." "Name it." |
+| 4 | 4 | That photo falls into the next free slot of his real tower | "Every win is a block." |
+| 4b | 6 | The journal: the line writes in, the doodle (moon, sparkle, taco) draws on in the app's ink | "Write it down." (typed) "Doodle on it." |
+| 5 | 4 | Crest fills, colour bursts off the screen | "Hit your goal," |
+| 6 | 4 | Island prints the strip | "and your day prints." |
+| 7 | 6 | Shake; the strip develops at real speed | "Shake to develop." |
+| 8 | 6 | The strip leaves the screen, turns to its real back (Some Wins, the date), turns back | "Share it anywhere." |
+| 9 | 6 | His photos with friends on a 3D arc; faces fly into the crew bubble | "Better with friends." |
+| 9b | 6 | The crew chat; a reply lifts off the screen | "Cheer each other on." |
+| 10 | 4 | October's skeleton, then a dive into the calendar's days | "Every month, its own drawing." |
+| 11 | 4 | Grid of all his photos ripples in; the full stop lands as a block | "Small wins. Stacked." |
+| 12 | 6 | Logo draws, "Some Wins", App Store badge | |
+
+**Never on camera:** the dark tab bar that lingers after leaving the camera
+(a known Liquid Glass cost, written down in `MainAppView`), and the purple
+placeholder before a new block's photo loads. Both are cut around.
 
 ## Rules for the build
 

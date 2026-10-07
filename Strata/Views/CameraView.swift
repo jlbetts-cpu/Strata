@@ -204,6 +204,15 @@ struct CameraView: View {
 
             ZStack {
                 CameraPreview(session: camera.session, box: previewBox)
+                #if DEBUG
+                // `-strataFakeLens`: a video where the lens would be, so the
+                // camera can be filmed in the simulator (`FakeLens`).
+                if let lens = FakeLens.shared {
+                    FakeLensView(lens: lens)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                #endif
                 // **The front camera, touched, live** (`LiveRetouch`). Over
                 // the plain preview, which stays underneath for focus and
                 // exposure taps and shows until the first touched frame is
@@ -218,7 +227,7 @@ struct CameraView: View {
                 //
                 // Over the preview rather than instead of it, so the one
                 // layout serves both states and nothing below has to move.
-                if camera.isDenied && !Self.debugRetouchStill { accessRefused }
+                if camera.isDenied && !Self.debugRetouchStill && !Self.debugFakeLens { accessRefused }
 
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
@@ -1932,6 +1941,14 @@ private struct FocusReticle: View {
 /// The Metal layer `LiveRetouch` draws the front camera into, sized to the
 /// viewfinder in pixels.
 extension CameraView {
+    static var debugFakeLens: Bool {
+        #if DEBUG
+        FakeLens.shared != nil
+        #else
+        false
+        #endif
+    }
+
     static var debugRetouchStill: Bool {
         #if DEBUG
         DebugHarness.argument("-strataRetouchStill") != nil

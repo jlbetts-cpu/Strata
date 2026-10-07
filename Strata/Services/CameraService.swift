@@ -70,6 +70,12 @@ final class CameraService: NSObject {
 
     func requestAccess() async {
         #if DEBUG
+        // `-strataFakeLens`: the video is the lens, so the camera is allowed.
+        if FakeLens.shared != nil {
+            isAuthorized = true
+            isDenied = false
+            return
+        }
         if DebugHarness.cameraDenied {
             isAuthorized = false
             isDenied = true
@@ -530,6 +536,10 @@ final class CameraService: NSObject {
     // MARK: - Capture
 
     func capture(_ completion: @escaping (UIImage?) -> Void) {
+        #if DEBUG
+        // `-strataFakeLens`: the frame of the video on screen is the photograph.
+        if let lens = FakeLens.shared { completion(lens.snapshot()); return }
+        #endif
         guard isConfigured, !isCapturing else { completion(nil); return }
         isCapturing = true
         onCaptured = completion
