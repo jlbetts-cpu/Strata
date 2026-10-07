@@ -60,6 +60,9 @@ struct AddWinSheet: View {
     @State private var wellTop: CGFloat = 0
 
     @State private var title = ""
+    /// What the row over the keyboard is chosen from (`WinIdeas`), read once
+    /// when the sheet opens.
+    @State private var ideaSource: (plan: [WinIdea], logged: [WinIdeas.Logged], today: String)?
     @State private var category: HabitCategory = .health
     @State private var size: BlockSize = .small
     @State private var place: WinPlace?
@@ -488,7 +491,56 @@ struct AddWinSheet: View {
                         .focused($titleFocused)
                         .submitLabel(.done)
                         .onSubmit { Task { await save() } }
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                if !isEditing, !ideas.isEmpty { ideaRow }
+                            }
+                        }
         }
+        .task {
+            guard !isEditing, ideaSource == nil else { return }
+            ideaSource = WinIdeas.candidates(context: modelContext)
+        }
+    }
+
+    /// The ideas for what is typed so far (`WinIdeas.pick`).
+    private var ideas: [WinIdea] {
+        guard let source = ideaSource else { return [] }
+        return WinIdeas.pick(plan: source.plan, logged: source.logged, today: source.today, typed: title)
+    }
+
+    /// **Wins to recognise, where QuickType's words would be** (`WinIdeas`).
+    /// A tap names the win and gives it its colour; the keyboard stays, so a
+    /// word can still be changed before Add.
+    private var ideaRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: GridConstants.gapTight) {
+                ForEach(ideas) { idea in
+                    Button {
+                        HapticsEngine.lightTap()
+                        title = idea.title
+                        category = idea.category
+                        categoryChosen = true
+                    } label: {
+                        Text(idea.title)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .lineLimit(1)
+                            .padding(.horizontal, GridConstants.gapItem)
+                            .frame(minHeight: 34)
+                            .background(Capsule().fill(AppColors.quietFill))
+                            .frame(minHeight: GlassIconButton.defaultSide)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Names the win")
+                }
+            }
+            .padding(.horizontal, GridConstants.gapTight)
+        }
+        // Clipped to the bar: a chip running past the glass looked loose.
+        .clipShape(Capsule())
+        .animation(GridConstants.crossFade, value: ideas.map(\.id))
     }
 
     /// **What a failed press says, under the name, in the break.**
@@ -1631,6 +1683,10 @@ struct AddWinSheet: View {
             if initialCrews == nil { CrewChoice.save(crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
         }
+        // A plan line logged by name (from the row over the keyboard, or
+        // typed) is done on the plan too, so it does not wait there for a
+        // second win (`WinIdeas`).
+        WinIdeas.tickPlanLine(named: title, context: modelContext)
         finish(win.habit)
     }
 
