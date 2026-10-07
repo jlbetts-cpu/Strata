@@ -339,6 +339,15 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     called the 2.3pt Crews weight "too thin" for this.
   - `-strataRenderDance 1` renders every frame to Documents/dance from the
     app's own code: use it when the machine is too loaded to film.
+  - **Loose, as bones are** (2026-10-07: "his movement feels extremely
+    stiff, not everything moving, he is a skeleton after all"): the ribs
+    sway against the hips, the skull wobbles a beat behind on its own pin,
+    the free arm swings, both wrists flop, and on each hit every bone above
+    the knees clatters on its own line and settles (`Dance.rattle`), a few
+    pixels, never enough for two to touch.
+  - **His pen's weight** (same day: "a bit too thick"): measured 4.0pt at
+    290pt; now about 2.6pt (`skeleton.py` OUTSIDE 0.4, INSIDE 0), beside
+    `InkPen.width` 2.5. The 2.3pt of 2026-10-06 was too thin.
 - **Memories no longer draws replay posters nobody sees** (2026-10-07): eight
   `ImageRenderer` posters and 116 thumbnail reads on every visit, behind the
   stutter after the page appears. The first-tap freeze itself (tab built

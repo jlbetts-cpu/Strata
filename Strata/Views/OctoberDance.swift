@@ -258,6 +258,20 @@ enum Dance {
         return from + (to - from) * back((x - Double(k)) / 0.42)
     }
 
+    /// **The bones' rattle** (the owner, 2026-10-07: "his movement feels
+    /// extremely stiff, not everything moving, he is a skeleton after all").
+    /// A hit sets every loose bone ringing a little on its own pin and dying
+    /// away within a fifth of a beat: a damped wobble after each beat.
+    static func rattle(_ b: Double) -> Double {
+        var total = 0.0
+        for hit in [0.0, 1.0, 2.0] {
+            let u = b - hit
+            guard u > 0 else { continue }
+            total += exp(-u / 0.16) * sin(2 * .pi * u / 0.2)
+        }
+        return total
+    }
+
     /// Down on the beat: the knees give as the point lands.
     static func dip(_ b: Double, lag: Double = 0) -> Double {
         let x = (b - lag).truncatingRemainder(dividingBy: 1)
@@ -278,28 +292,35 @@ enum Dance {
         let groove = 0.5 * cos(.pi * (b - 0.12)) * env
         func pointed(_ lag: Double) -> Double { point(b - lag) * env }
 
+        // A sway at half the beat, for everything that hangs loose.
+        func sway(_ lag: Double) -> Double { sin(.pi * (b - lag)) * env }
+
         var p = Pose()
-        let P = Mat.move(-30 * size * px * groove, (12 * dip(b) + 5 * dip(b + 0.5)) * size * px * env)
-            * .about(Rig.pelvis, 5 * size * groove)
+        let P = Mat.move(-36 * size * px * groove, (12 * dip(b) + 5 * dip(b + 0.5)) * size * px * env)
+            * .about(Rig.pelvis, 7 * size * groove)
         p.bones["Pelvis"] = P
-        // The torso leans into the point, a breath behind the hips.
-        let torso = P * .move(0, 3 * px * dip(b, lag: 0.05) * env)
-            * .about(Rig.waist, (5 * (0.5 * env - pointed(0.06)) - 2 * env - 3 * groove))
+        // The torso leans into the point a breath behind the hips, and
+        // sways against them, so the spine bends rather than tilts as one.
+        let torso = P * .move(4 * px * sway(0.1), 4 * px * dip(b, lag: 0.05) * env)
+            * .about(Rig.waist, (5 * (0.5 * env - pointed(0.06)) - 2 * env - 3 * groove + 4 * sway(0.15)))
         p.bones["Ribs"] = torso
-        // The head lags the body, tilts with the point, nods on the beat.
+        // The head lags the body, tilts with the point, nods on the beat,
+        // and wobbles a beat behind on its own pin.
         p.bones["Skull"] = torso * .move(0, 7 * px * dip(b, lag: 0.12) * env)
-            * .about(Rig.neck, 7 * size * (0.5 * env - pointed(0.16)))
+            * .about(Rig.neck, 7 * size * (0.5 * env - pointed(0.16)) + 7 * sway(0.3) + 5 * rattle(b - 0.06) * env)
         // The pointing arm; held, it still pumps a little on the off-beat.
         let upper = torso * .about(Rig.rShoulder, 118 * pt + (5 - 10 * pt) * dip(b + 0.5) * env)
         p.bones["RUpper"] = upper
         let fore = upper * .about(Rig.rElbow, 12 * pt - 6 * (pt - pointed(0.1)))
         p.bones["RFore"] = fore
-        let hand = fore * .about(Rig.rWrist, -40 * (pt - pointed(0.12)))
+        // The hand flops after the arm stops, as a loose wrist does.
+        let hand = fore * .about(Rig.rWrist, -40 * (pt - pointed(0.12)) + 14 * rattle(b - 0.04) * env)
         p.bones["RHand"] = hand
         // The other arm hangs as the point goes up and comes up bent as it
         // goes down; the elbow opens as it bends so its knobs never meet.
         let lp = pointed(0.05)
-        let lUpper = torso * .about(Rig.lShoulder, 30 * lp)
+        // The free arm swings with the hips, a beat behind.
+        let lUpper = torso * .about(Rig.lShoulder, 30 * lp + 12 * sway(0.2))
         p.bones["LUpper"] = lUpper
         let axis = CGPoint(x: Rig.lElbow.x - Rig.lShoulder.x, y: Rig.lElbow.y - Rig.lShoulder.y)
         let axisLength = hypot(axis.x, axis.y)
@@ -307,7 +328,8 @@ enum Dance {
         let lFore = lUpper * .move(axis.x / axisLength * open, axis.y / axisLength * open)
             * .about(Rig.lElbow, -40 * lp)
         p.bones["LFore"] = lFore
-        p.bones["LHand"] = lFore * .about(Rig.lWrist, 30 * (lp - pointed(0.17)))
+        p.bones["LHand"] = lFore * .about(Rig.lWrist, 30 * (lp - pointed(0.17)) - 18 * sway(0.4)
+                                              + 12 * rattle(b - 0.05) * env)
         // The legs: feet planted, knees where the hips put them.
         for (side, out, light) in [("L", 1.0, smooth(-groove * 2)), ("R", -1.0, smooth(groove * 2))] {
             let hip = side == "L" ? Rig.lHip : Rig.rHip
@@ -319,6 +341,19 @@ enum Dance {
             p.bones[side + "Thigh"] = thigh
             p.bones[side + "Shin"] = shin
             p.bones[side + "Foot"] = .identity
+        }
+
+        // **The clatter**: on each hit every bone above the knees shakes on
+        // its own line for an instant, the ribs and skull most, and is still
+        // again before the next. A few of the drawing's pixels: enough to
+        // read as loose bones, never enough for two to touch.
+        let r = rattle(b) * env
+        let jiggle: [(String, Double, Double)] = [("Skull", 2.4, -1.6), ("Ribs", -1.8, 1.4), ("Pelvis", 1.4, 1.0),
+                                                   ("LUpper", -1.6, 1.2), ("LFore", 1.8, -1.4),
+                                                   ("RUpper", 1.2, 1.6), ("RFore", -1.4, -1.2)]
+        for (bone, dx, dy) in jiggle {
+            guard let m = p.bones[bone] else { continue }
+            p.bones[bone] = Mat.move(dx * 1.8 * px * r, dy * 1.8 * px * r) * m
         }
 
         return p

@@ -26,10 +26,14 @@ from bold_lines import bold, ASSETS
 CANVAS = (600, 320, 1500, 1640)
 OUT_HEIGHT = 900
 K = OUT_HEIGHT / (CANVAS[3] - CANVAS[1])
-# The thicker, smooth outline (the owner, 2026-10-06: the 2.3pt Crews weight
-# "looked too thin, I liked the thicker outline that was smoothish and
-# minimal, felt more premium"): about 2.9pt on screen.
-OUTSIDE, INSIDE = 2.5, 1.25
+# **His pen's weight, not heavier** (the owner, 2026-10-07: "make sure the
+# skeleton matches the style, I feel like right now it feels a bit too
+# thick"). Measured at Memories' 290pt it was 4.0pt, the heaviest line in
+# the app, where his own pen draws 2.5pt (`InkPen.width`). His Procreate
+# line is already about 2.4pt at this size, so the outside takes only a
+# touch more (about 2.6pt) and the inside nothing. The day before, 2.3pt
+# "looked too thin": this sits just above it.
+OUTSIDE, INSIDE = 0.4, 0.0
 
 BONES = {   # the pieces of each bone, by the order they are first met
     'Skull': [5, 7, 8, 10, 11], 'Ribs': [12], 'Pelvis': [15, 16, 17],
@@ -81,7 +85,7 @@ SMALL = {'RHand', 'LHand', 'LFoot', 'RFoot'}
 
 def save(name, alpha, small=False):
     rgba = Image.new('RGBA', alpha.size, (0, 0, 0, 0)); rgba.putalpha(alpha)
-    if small: out = bold(rgba, 0.7, 0.7)
+    if small: out = bold(rgba, 0.0, 0.0)
     else: out = bold(rgba, OUTSIDE, INSIDE)
     folder = f'{ASSETS}/{name}.imageset'
     os.makedirs(folder, exist_ok=True)
