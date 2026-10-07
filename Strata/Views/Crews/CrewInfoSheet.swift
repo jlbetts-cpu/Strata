@@ -28,6 +28,9 @@ struct CrewInfoSheet: View {
     @State private var thanked = false
     /// A crew day playing, presented from the page rather than a List row.
     @State private var replay: Replay?
+    /// The crew's strip today, and its booth (`PhotoStrip.crew`).
+    @State private var strip: PhotoStrip?
+    @State private var showsStrip = false
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -38,6 +41,7 @@ struct CrewInfoSheet: View {
             if let crew {
                 List {
                     identity(crew)
+                    stripSection
                     CrewStatsSections(crew: crew) { replay = $0 }
                     Section {
                         ForEach(members(crew)) { member in
@@ -150,8 +154,49 @@ struct CrewInfoSheet: View {
         .fullScreenCover(item: $replay) { shown in
             ReplayView(replay: shown) { replay = nil }
         }
+        .fullScreenCover(isPresented: $showsStrip, onDismiss: { Task { strip = await PhotoStrip.crew(crewID) } }) {
+            StripBooth(owner: .crew(crewID.rawValue), day: strip?.day ?? DateUtils.dateString(from: Date())) {
+                await PhotoStrip.crew(crewID)
+            }
+        }
+        .task { strip = await PhotoStrip.crew(crewID) }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// **The crew's strip** (the owner: "add it to crew as well"), set as
+    /// yours is in Your day: the strip small, a line, and the booth a tap
+    /// away. Nothing to tap until someone has sent a photo or a doodle.
+    private var stripSection: some View {
+        let frames = strip.map { $0.frames(excluding: StripKeeping.excluded($0.owner, day: $0.day)) } ?? []
+        return Section {
+            Button {
+                showsStrip = true
+            } label: {
+                HStack(spacing: GridConstants.gapLabel) {
+                    if let strip, !frames.isEmpty {
+                        StripView(frames: frames, day: strip.day, signature: strip.signature,
+                                  paper: StripKeeping.paper, width: 64,
+                                  developed: StripKeeping.isDeveloped(strip.owner, day: strip.day) ? 1 : 0,
+                                  decor: StripDecor.picture(owner: strip.owner, day: strip.day))
+                    }
+                    Text(frames.isEmpty ? "Photos and doodles sent here today make the strip."
+                                        : "Everyone's photos and doodles from today.")
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(frames.isEmpty ? AppColors.inkSecondary : AppColors.inkPrimary)
+                    Spacer(minLength: 0)
+                    if !frames.isEmpty {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(AppColors.inkTertiary)
+                    }
+                }
+            }
+            .buttonStyle(.press)
+            .disabled(frames.isEmpty)
+        } header: {
+            FormSectionLabel("Today's Strip")
+        }
+        .listRowSeparator(.hidden)
     }
 
     /// What this crew may tell you. Mute for a while or until you say, as
