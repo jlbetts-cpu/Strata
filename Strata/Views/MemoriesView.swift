@@ -569,6 +569,16 @@ struct MemoriesView: View {
     /// any other month. It does not scroll.
     private var pageHeader: some View {
         ZStack {
+            // **One glass container for the header's discs** (2026-10-07,
+            // the owner: "the screen just randomly glitches, very rarely
+            // elements disappear or turn to black"). The map, the replay and
+            // the head were three glass effects drawn apart, one of them
+            // inserted and removed with a scale as replays load; iOS 26 is
+            // known to drop or blacken glass drawn that way for a frame, and
+            // Apple's guidance is to group neighbouring glass in one
+            // container. Blend distance 0, under the gap, so they never fuse
+            // (the `HeaderGlassPair` note in GlassIconButton.swift).
+            GlassGroup {
             HStack(spacing: 8) {
                 // **THE MAP, AS A BUTTON.** The owner: "the map would be a
                 // button on the top instead of the Memories sheet being a
@@ -580,6 +590,7 @@ struct MemoriesView: View {
                 Spacer(minLength: 0)
                 recapButton
                 ProfileButton { openProfile?() }
+            }
             }
             MonthPicker(
                 title: vm.monthTitle,

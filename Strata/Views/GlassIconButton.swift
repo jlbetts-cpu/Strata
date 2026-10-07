@@ -357,3 +357,18 @@ enum GlassRecipe {
 // capsule. The same day the two became one page and one button (`DayIcon`),
 // and a group of one is not a group. If two glass discs ever stand together
 // again, that is the number to keep: blend under the gap.
+
+/// **Neighbouring glass, drawn as one** (2026-10-07): `GlassEffectContainer`
+/// where there is one, at blend distance 0 so the discs never fuse, and the
+/// content as it is before iOS 26, where glass is a material anyway.
+struct GlassGroup<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 0) { content }
+        } else {
+            content
+        }
+    }
+}
