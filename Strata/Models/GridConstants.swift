@@ -432,6 +432,16 @@ enum GridConstants {
     static let stripDevelop = Animation.easeOut(duration: 0.5)
     /// The Dynamic Island stretching into the strip's printer and back.
     static let islandMorph = Animation.spring(response: 0.5, dampingFraction: 0.78)
+    /// **The island opening as the system's does** (the owner, 2026-10-07:
+    /// "make sure the pill animation actually looks good and is like an
+    /// animation the pill would actually do, super clean"): quick out of
+    /// rest with a small overshoot past its open size, settling back.
+    static let islandOpen = Animation.spring(response: 0.42, dampingFraction: 0.68)
+    /// And back to rest once the strip is free: firmer, no overshoot, so it
+    /// tucks into the real island rather than bouncing past it.
+    static let islandClose = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    /// The printer's nudge as each frame feeds out: a breath of height.
+    static let islandFeed = Animation.spring(response: 0.2, dampingFraction: 0.5)
     /// A card under a finger: follows it closely, with no lag to fight.
     static let cardFollow = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.86)
     /// A card let go: back to rest with a little give, as a held card wobbles.

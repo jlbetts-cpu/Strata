@@ -303,6 +303,12 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     sheen is a bit too much").
   - **Every strip prints before it develops**, however the booth opened,
     when it may develop; only at the goal before.
+  - **The island moves as the system's does** ("like an animation the pill
+    would actually do, super clean"): the drawn pill rests a hair inside
+    the real island (120x35 under ~125x37), so it appears and goes with no
+    fade; it springs open with a small overshoot (`islandOpen`), breathes
+    2pt with each frame fed (`islandFeed`), and after the drop springs back
+    to rest (`islandClose`) before it is taken away. Filmed at 20fps.
   - **Share is a pose, saved on clear** (`StripStoryComposer`): turn, twist
     and pinch the strip, then share or save a transparent PNG trimmed to
     the strip, at 5x. Saves go through

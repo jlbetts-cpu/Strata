@@ -54,6 +54,11 @@ struct StripBooth: View {
     @State private var tilt = CardTilt()
     /// The island stretched into the printer.
     @State private var islandOpen = false
+    /// The drawn pill is up at all. It rests a hair inside the real island,
+    /// so it can appear and go with no fade and still never be seen at rest.
+    @State private var pillShown = false
+    /// A breath of height as each frame feeds out (`islandFeed`).
+    @State private var feedPulse: CGFloat = 0
     /// **Shaken by hand, as a Polaroid is** (the owner, 2026-10-07: "make it
     /// so you can physically shake your phone or like shake it with your hand
     /// to reveal the photostrip"). Before it develops the strip follows a
@@ -158,7 +163,11 @@ struct StripBooth: View {
         if printsNow {
             try? await Task.sleep(for: .milliseconds(450))
             settled = true
-            withAnimation(GridConstants.islandMorph) { islandOpen = true }
+            // Up at rest, hidden in the real island, then out of it: the
+            // island itself seems to stretch, as the system's does.
+            pillShown = true
+            try? await Task.sleep(for: .milliseconds(30))
+            withAnimation(GridConstants.islandOpen) { islandOpen = true }
         }
         let loaded = await loading
         strip = loaded
@@ -198,7 +207,7 @@ struct StripBooth: View {
     private func island(safeTop: CGFloat, fit: CGFloat) -> some View {
         let hasIsland = safeTop >= 51
         let width = islandOpen ? Self.width * fit + 30 : (hasIsland ? 120 : 60)
-        let height: CGFloat = islandOpen ? 46 : 35
+        let height: CGFloat = (islandOpen ? 46 : 35) + feedPulse
         #if DEBUG
         // `-strataIslandProbe 1`: the resting pill in red with a ring 4pt
         // wider in blue, held still, so each phone's screenshot shows whether
@@ -216,7 +225,9 @@ struct StripBooth: View {
             .fill(Color.black)
             .frame(width: width, height: height)
             .padding(.top, (hasIsland ? safeTop - 48 : 6) + (islandOpen ? 0 : 0.8))
-            .opacity(settled && islandOpen ? 1 : 0)
+            // Never faded: at rest it is inside the real island, so it can
+            // simply be there or not.
+            .opacity(settled && pillShown ? 1 : 0)
             .ignoresSafeArea()
             .accessibilityLabel("Printing today's strip"))
     }
@@ -250,8 +261,12 @@ struct StripBooth: View {
         let steps = max(1, StripLayout.rows(frames.map(\.size)).count) + 1
         for step in 1...steps {
             withAnimation(GridConstants.stripStep) { printed = CGFloat(step) / CGFloat(steps) }
+            // The printer works: a breath of height with each frame.
+            withAnimation(GridConstants.islandFeed) { feedPulse = 2 }
             HapticsEngine.lightTap()
-            try? await Task.sleep(for: .milliseconds(430))
+            try? await Task.sleep(for: .milliseconds(140))
+            withAnimation(GridConstants.islandFeed) { feedPulse = 0 }
+            try? await Task.sleep(for: .milliseconds(290))
         }
         try? await Task.sleep(for: .milliseconds(250))
         // Free of the printer: it drops into the hand, turning as it goes,
@@ -260,9 +275,13 @@ struct StripBooth: View {
         withAnimation(GridConstants.stripDrop) {
             drop = heldTop - printTop
             dropTilt = -2.5
-            islandOpen = false
         }
-        try? await Task.sleep(for: .milliseconds(700))
+        // A beat behind the strip, the island draws back into itself, and
+        // once it is the real island's size again the drawn one goes.
+        try? await Task.sleep(for: .milliseconds(120))
+        withAnimation(GridConstants.islandClose) { islandOpen = false }
+        try? await Task.sleep(for: .milliseconds(580))
+        pillShown = false
         var still = Transaction()
         still.disablesAnimations = true
         withTransaction(still) {
