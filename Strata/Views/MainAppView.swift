@@ -215,6 +215,11 @@ struct MainAppView: View {
     /// `.sheet(item:)` makes the payload the identity of the presentation, so
     /// there is nothing left for anything else to null out.
     @State private var winDraft: WinDraft?
+    /// **The day's cue over the slot** (`WinCue`), while it is up, and where
+    /// the slot is on screen for it to rise from.
+    @State private var winCue: String?
+    @State private var slotFrame: CGRect = .zero
+    @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
     @State private var pendingDraft: WinDraft?
@@ -960,9 +965,60 @@ struct MainAppView: View {
 
     // MARK: - Main Content
 
+    /// The cue, risen just over the slot, on whichever side keeps it on
+    /// screen: a line arriving above the place a win is logged.
+    @ViewBuilder
+    private var winCueLayer: some View {
+        if let line = winCue, slotFrame != .zero {
+            GeometryReader { geo in
+                let origin = geo.frame(in: .global).origin
+                let slot = slotFrame.offsetBy(dx: -origin.x, dy: -origin.y)
+                let left = slot.midX < geo.size.width / 2
+                let margin = GridConstants.horizontalPadding
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    HStack(spacing: 0) {
+                        if !left { Spacer(minLength: margin) }
+                        WinCueBubble(text: line) {
+                            withAnimation(.easeIn(duration: 0.2)) { winCue = nil }
+                            winDraft = WinDraft()
+                        }
+                        if left { Spacer(minLength: margin) }
+                    }
+                    .padding(.leading, left ? max(margin, slot.minX) : 0)
+                    .padding(.trailing, left ? 0 : max(margin, geo.size.width - slot.maxX))
+                }
+                .frame(width: geo.size.width, height: max(0, slot.minY - GridConstants.gapTight))
+                .transition(reduceMotion ? .opacity
+                            : .scale(scale: 0.86, anchor: left ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
+            }
+        }
+    }
+
     private var towerTab: some View {
         towerTabContent()
             .background { geometryTracker }
+            .overlay { winCueLayer }
+            // Asked a beat after the tower settles, once a day (`WinCue`).
+            .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(blocksToday)") {
+                // A win landed or the tab changed: a cue on screen has had
+                // its answer, or is somewhere it no longer belongs.
+                if winCue != nil { withAnimation(.easeIn(duration: 0.2)) { winCue = nil } }
+                // Not before a first win ever: the tower's own line asks then
+                // ("Tap the slot to log your first win.").
+                guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
+                      let line = WinCue.line(winsToday: blocksToday, now: Date(),
+                                             shownOn: winCueDay.isEmpty ? nil : winCueDay)
+                else { return }
+                try? await Task.sleep(for: .seconds(1.6))
+                guard !Task.isCancelled, winDraft == nil else { return }
+                winCueDay = DateUtils.dateString(from: Date())
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.3)) {
+                    winCue = line
+                }
+                try? await Task.sleep(for: .seconds(9))
+                withAnimation(.easeIn(duration: 0.25)) { winCue = nil }
+            }
             // Pinned to the page, not to the tower. The tally used to sit under
             // the bottom row, which meant it moved every time the tower grew
             // and put a caption between the tower and the tab bar. Here it is
@@ -3140,6 +3196,8 @@ struct MainAppView: View {
                     onOpenMenu: { winDraft = WinDraft() }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
+                // Measured inside the offset, so it is where the slot is SEEN.
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { slotFrame = $0 }
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
                 .companionObstacle("slot")
                 // No animation modifier here.
