@@ -897,7 +897,22 @@ enum DebugHarness {
     /// files the same shape as `ImageManager.save` produces: 2560 on the
     /// longest side, HEIC, with enough fine detail that the encoder cannot
     /// throw the cost away.
-    static var seedsRealPhotos: Bool { ProcessInfo.processInfo.arguments.contains("-strataSeedRealPhotos") }
+    static var seedsRealPhotos: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataSeedRealPhotos") && argument("-strataSeedRealPhotos") != "demo"
+    }
+
+    /// `-strataSeedRealPhotos demo`: the bundled demo photographs, for
+    /// footage that has to look like a person's day (the launch video,
+    /// 2026-10-07). Taken in turn, so a tower shows a dozen different ones.
+    nonisolated(unsafe) private static var demoPhotoNext = 0
+    private static func demoPhoto() -> UIImage? {
+        guard argument("-strataSeedRealPhotos") == "demo" else { return nil }
+        demoPhotoNext += 1
+        // The ones fit to show a stranger: places, the dog, the kayak, the
+        // team. No close faces and nothing private (his rule for the video).
+        let shown = [1, 3, 5, 6, 10, 2, 7]
+        return UIImage(named: "DemoPhoto\(shown[(demoPhotoNext - 1) % shown.count])")
+    }
 
     /// One encoded blob per category, made once and written under many names.
     ///
@@ -955,6 +970,59 @@ enum DebugHarness {
         return data
     }
 
+    private struct ShowcaseWin: Decodable {
+        let title: String
+        let category: String
+        var size: String? = nil
+        var photo: String? = nil
+        var doodle: Bool? = nil
+        var back: Int? = nil
+    }
+    private struct Showcase: Decodable {
+        let today: [ShowcaseWin]
+        var past: [ShowcaseWin]? = nil
+    }
+
+    private static func seedShowcase(from folder: URL, context: ModelContext, tower: Tower?) {
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent("showcase.json")),
+              let showcase = try? JSONDecoder().decode(Showcase.self, from: data) else {
+            NSLog("[showcase] no readable showcase.json in %@", folder.path)
+            return
+        }
+        // Past first, oldest first, then today in order, so today's tower is
+        // built in the order the list gives.
+        let past = (showcase.past ?? []).sorted { ($0.back ?? 1) > ($1.back ?? 1) }
+        for item in past + showcase.today {
+            let day = Calendar.current.date(byAdding: .day, value: -(item.back ?? 0), to: Date()) ?? Date()
+            guard let win = try? QuickWinService.logWin(
+                title: item.title,
+                category: HabitCategory(rawValue: item.category) ?? .health,
+                size: BlockSize(rawValue: item.size ?? "") ?? .small,
+                on: day, context: context, tower: tower),
+                  let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) else { continue }
+            if let photo = item.photo,
+               let image = UIImage(contentsOfFile: folder.appendingPathComponent(photo).path) {
+                log.imageFileName = writeSeedImage(image, for: win.logID)
+            } else if item.doodle == true {
+                let canvas = CGSize(width: 300, height: 300)
+                log.doodleFileName = BlockDoodles.save(InkSamples.sunOverHill(in: canvas),
+                                                       canvas: canvas, replacing: log.doodleFileName)
+            }
+        }
+        try? context.save()
+    }
+
+    private static func writeSeedImage(_ image: UIImage, for logID: UUID) -> String? {
+        guard let data = image.jpegData(compressionQuality: 0.86) else { return nil }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("strata-images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let name = "\(logID.uuidString)_seed.jpg"
+        guard (try? data.write(to: dir.appendingPathComponent(name))) != nil else { return nil }
+        ImageDerivatives.bake(from: image, original: name, tier: ImageDerivatives.small, in: dir)
+        return name
+    }
+
     private static func seedPhoto(for logID: UUID, category: HabitCategory) -> String? {
         if seedsRealPhotos {
             guard let data = realPhotoData(category) else { return nil }
@@ -976,7 +1044,7 @@ enum DebugHarness {
         // that was fine; on a BLOCK it read as a line drawn through the middle
         // of the block, and a tower of them looked broken. A fixture is not
         // allowed to look like a bug.
-        let image = gradientImage(category)
+        let image = demoPhoto() ?? gradientImage(category)
         guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir = docs.appendingPathComponent("strata-images", isDirectory: true)
@@ -1071,6 +1139,7 @@ enum DebugHarness {
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
+            || argument("-strataSeedShowcase") != nil
             || argument("-strataSeedTodos") != nil
             // **`-strataSeedPlan` was missing here and the flag did nothing**
             // (found 2026-10-01). `seed()` returns before its plan branch
@@ -1188,6 +1257,15 @@ enum DebugHarness {
                                                        canvas: canvas, replacing: log.doodleFileName)
                 try? context.save()
             }
+        }
+
+        // `-strataSeedShowcase <folder>`: a day of real wins with his own
+        // photographs, for the launch video (2026-10-07). The folder holds
+        // `showcase.json` ({"today": [...], "past": [...]}, each a title,
+        // category, size, photo file and, for past ones, days back) and the
+        // photographs it names. Logged through the app's own path.
+        if let folder = argument("-strataSeedShowcase") {
+            seedShowcase(from: URL(fileURLWithPath: folder), context: context, tower: tower)
         }
 
         // A record that spans weeks, so History has something real to be
