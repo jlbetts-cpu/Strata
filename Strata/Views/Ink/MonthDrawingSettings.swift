@@ -57,6 +57,12 @@ struct MonthDrawingSettingsView: View {
                 .frame(height: 220)
                 .accessibilityLabel("Your drawing for the month")
                 .id(own.picture)
+        } else if UIImage(named: "Month" + MonthName.of(month) + "SkelSkull") != nil {
+            // October's is his dancing skeleton now (2026-10-07: "the month
+            // drawing wasn't updated in the settings from the skeleton
+            // change"), shown here as he drew it, standing still.
+            OctoberDance(line: nil, height: 220, still: true)
+                .accessibilityLabel("The month's drawing")
         } else if let art = UIImage(named: "Month" + MonthName.of(month)) {
             Image(uiImage: art)
                 .renderingMode(.template)

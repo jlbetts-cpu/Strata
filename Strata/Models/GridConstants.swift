@@ -430,6 +430,8 @@ enum GridConstants {
     static let stripSettle = Animation.spring(duration: 0.55, bounce: 0.22)
     /// One shake's worth of developing: the dark and the blur lift a step.
     static let stripDevelop = Animation.easeOut(duration: 0.5)
+    /// The Dynamic Island stretching into the strip's printer and back.
+    static let islandMorph = Animation.spring(response: 0.5, dampingFraction: 0.78)
     /// A card under a finger: follows it closely, with no lag to fight.
     static let cardFollow = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.86)
     /// A card let go: back to rest with a little give, as a held card wobbles.

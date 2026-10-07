@@ -8,10 +8,12 @@ import UIKit
 /// what the simulator's Device › Shake sends. Each shake is reported once,
 /// however long it lasts. No permission is needed for either.
 struct ShakeDetector: UIViewRepresentable {
+    var usesMotion = true
     var onShake: () -> Void
 
     func makeUIView(context: Context) -> ShakeView {
         let view = ShakeView()
+        view.usesMotion = usesMotion
         view.onShake = onShake
         return view
     }
@@ -39,11 +41,17 @@ struct ShakeDetector: UIViewRepresentable {
             super.didMoveToWindow()
             if window != nil {
                 becomeFirstResponder()
-                start()
+                // The accelerometer is read by the card's `CardTilt` where
+                // there is one (the booth), so the two do not compete for it.
+                if usesMotion { start() }
             } else {
                 stop()
             }
         }
+
+        /// Read the accelerometer here too. Off in the booth, whose card
+        /// already reads it.
+        var usesMotion = true
 
         override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
             if motion == .motionShake { report() }

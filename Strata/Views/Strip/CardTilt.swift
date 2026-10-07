@@ -23,12 +23,30 @@ final class CardTilt {
 
     @ObservationIgnored private let motion = CMMotionManager()
     @ObservationIgnored private var reference: CMAttitude?
+    /// A shake of the phone, from the same feed as the tilt: one reader of
+    /// the motion sensors, not two competing (the booth's `ShakeDetector`
+    /// keeps only UIKit's shake gesture, which is also the simulator's).
+    @ObservationIgnored var onShake: () -> Void = {}
+    /// False under Reduce Motion: the shake is still heard, the card does not
+    /// lean with the phone.
+    @ObservationIgnored var leans = true
+    @ObservationIgnored private var lastShake = Date.distantPast
+    /// A jolt over this, in g, after gravity is taken out. Gentler than the
+    /// first 1.35: a person shaking a photo does not snap their wrist.
+    static let shakeAt = 1.05
 
     func start() {
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
         motion.deviceMotionUpdateInterval = 1.0 / 60
         motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
-            guard let self, let attitude = data?.attitude.copy() as? CMAttitude else { return }
+            guard let self, let data, let attitude = data.attitude.copy() as? CMAttitude else { return }
+            let a = data.userAcceleration
+            if (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot() > Self.shakeAt,
+               Date().timeIntervalSince(self.lastShake) > 0.32 {
+                self.lastShake = Date()
+                self.onShake()
+            }
+            guard self.leans else { return }
             guard let reference = self.reference else { self.reference = attitude; return }
             attitude.multiply(byInverseOf: reference)
             let deg = 180 / Double.pi

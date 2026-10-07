@@ -34,7 +34,6 @@ struct StripBooth: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var space
 
     @State private var strip: PhotoStrip?
     @State private var excluded: Set<UUID> = []
@@ -53,6 +52,25 @@ struct StripBooth: View {
     @State private var pressStarted = Date()
     /// The phone's own tilt (`CardTilt`).
     @State private var tilt = CardTilt()
+    /// The island stretched into the printer.
+    @State private var islandOpen = false
+    /// **Shaken by hand, as a Polaroid is** (the owner, 2026-10-07: "make it
+    /// so you can physically shake your phone or like shake it with your hand
+    /// to reveal the photostrip"). Before it develops the strip follows a
+    /// finger side to side; each turn back counts, and two make a shake.
+    @State private var handShake: CGFloat = 0
+    @State private var shakeTurns = 0
+    @State private var shakeEdge: CGFloat = 0
+    @State private var shakeHeading: CGFloat = 0
+    /// The booth has finished sliding up: before then the drawn pill would
+    /// ride up the screen under the real island, a second island.
+    @State private var settled = false
+    /// Where the printed strip and the held one sit on screen (their tops),
+    /// and the drop between them as it falls into the hand.
+    @State private var printTop: CGFloat = 0
+    @State private var heldTop: CGFloat = 0
+    @State private var drop: CGFloat = 0
+    @State private var dropTilt: Double = 0
     @State private var editing = false
     @State private var saved = false
 
@@ -68,17 +86,21 @@ struct StripBooth: View {
         GeometryReader { geo in
             ZStack {
                 WarmBackground().ignoresSafeArea()
+                // Laid out from the start, unseen while it prints, so the
+                // printed strip knows where in the hand it will land.
+                held(fitting: geo.size)
+                    .opacity(stage == .held ? 1 : 0)
+                    .allowsHitTesting(stage == .held)
                 if stage == .printing {
-                    printing
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 72)
-                } else if stage == .held {
-                    held(fitting: geo.size)
+                    printing(fitting: geo.size, safeTop: geo.safeAreaInsets.top)
                 }
                 chrome
             }
+            .overlay(alignment: .top) {
+                if stage == .printing { island(safeTop: geo.safeAreaInsets.top, fit: fit(geo.size)) }
+            }
         }
-        .background(ShakeDetector { shook() }.frame(width: 0, height: 0))
+        .background(ShakeDetector(usesMotion: false) { shook() }.frame(width: 0, height: 0))
         .task { await open() }
         .sheet(isPresented: $editing, onDismiss: { refreshDecor() }) {
             if let strip {
@@ -91,14 +113,26 @@ struct StripBooth: View {
     // MARK: Stages
 
     private func open() async {
-        let loaded = await load()
+        let already = StripKeeping.isDeveloped(owner, day: day)
+        let printsNow = prints && !already && !reduceMotion
+        // The island opens into the printer at once, and holds while the
+        // day's pictures load: the wait is the printer warming, not a blank.
+        if printsNow { stage = .printing }
+        async let loading = load()
+        if printsNow {
+            try? await Task.sleep(for: .milliseconds(450))
+            settled = true
+            withAnimation(GridConstants.islandMorph) { islandOpen = true }
+        }
+        let loaded = await loading
         strip = loaded
         excluded = StripKeeping.excluded(owner, day: day)
         refreshDecor()
-        let already = StripKeeping.isDeveloped(owner, day: day)
         developed = already ? 1 : 0
-        if prints && !already && !reduceMotion {
-            stage = .printing
+        #if DEBUG
+        if DebugHarness.argument("-strataIslandProbe") != nil { return }
+        #endif
+        if printsNow {
             await printOut()
         } else {
             printed = 1
@@ -106,42 +140,77 @@ struct StripBooth: View {
         }
     }
 
-    /// The printer, its slot, and the strip stepping out of it under the
-    /// glass, bottom edge first, a frame and a tap at a time.
-    private var printing: some View {
-        VStack(spacing: 0) {
-            printer
-                .zIndex(1)
+    /// The strip's scale, so a long one fits the room under it.
+    private func fit(_ size: CGSize) -> CGFloat {
+        let room = size.height - 260
+        return stripHeight > room && stripHeight > 0 ? room / stripHeight : 1
+    }
+
+    /// **The island is the printer** (the owner, 2026-10-07: "the glass
+    /// printer right now doesn't look premium, what if we made the pill turn
+    /// into the printer", "the actual Apple pill"). A black pill drawn exactly
+    /// over the Dynamic Island stretches to the strip's width and feeds it
+    /// down, then shrinks back into the island. On a phone without one, the
+    /// same pill grows from the top edge and goes back into it.
+    ///
+    /// The island's place is the safe area's top less 48 (14pt on a 17 Pro,
+    /// 11 on a 14 Pro). At rest the pill is 120 by 35, a touch smaller than
+    /// every island (125 by 36.7 the smallest), and it fades in as it starts
+    /// to stretch and out as it shrinks back (the owner: "make sure it works
+    /// with all the devices that have the dynamic island"), so a point of
+    /// difference between one model's island and another's never shows.
+    private func island(safeTop: CGFloat, fit: CGFloat) -> some View {
+        let hasIsland = safeTop >= 51
+        let width = islandOpen ? Self.width * fit + 30 : (hasIsland ? 120 : 60)
+        let height: CGFloat = islandOpen ? 46 : 35
+        #if DEBUG
+        // `-strataIslandProbe 1`: the resting pill in red with a ring 4pt
+        // wider in blue, held still, so each phone's screenshot shows whether
+        // it sits wholly and evenly under the real island.
+        if DebugHarness.argument("-strataIslandProbe") != nil {
+            return AnyView(ZStack {
+                Capsule().fill(Color.blue).frame(width: 128, height: 43)
+                Capsule().fill(Color.red).frame(width: 120, height: 35)
+            }
+            .padding(.top, (hasIsland ? safeTop - 48 : 6) + 0.8 - 4)
+            .ignoresSafeArea())
+        }
+        #endif
+        return AnyView(Capsule()
+            .fill(Color.black)
+            .frame(width: width, height: height)
+            .padding(.top, (hasIsland ? safeTop - 48 : 6) + (islandOpen ? 0 : 0.8))
+            .opacity(settled && islandOpen ? 1 : 0)
+            .ignoresSafeArea()
+            .accessibilityLabel("Printing today's strip"))
+    }
+
+    /// The strip feeding out of the island, foot first, a frame and a tap
+    /// at a time, and then dropping free into the hand: one view the whole
+    /// way, so the fall is a fall and not a cut.
+    private func printing(fitting size: CGSize, safeTop: CGFloat) -> some View {
+        let fit = fit(size)
+        let slot = (safeTop >= 51 ? safeTop - 48 : 6) + 46 - safeTop - 8
+        return VStack(spacing: 0) {
             if let strip {
                 StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
                           width: Self.width, developed: 0, decor: decor)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
                     .frame(height: max(0, stripHeight * printed), alignment: .bottom)
                     .clipped()
-                    .matchedGeometryEffect(id: "strip", in: space, anchor: .top)
-                    .offset(y: -18)
+                    .scaleEffect(fit, anchor: .top)
+                    .frame(width: Self.width * fit, height: max(0, stripHeight * printed) * fit, alignment: .top)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { printTop = $0 }
+                    .rotationEffect(.degrees(dropTilt))
+                    .offset(y: drop)
             }
         }
-    }
-
-    /// The printer: a slab of glass with a dark slot across it.
-    private var printer: some View {
-        ZStack {
-            Capsule()
-                .fill(AppColors.inkPrimary.opacity(0.9))
-                .frame(width: Self.width + 14, height: 6)
-            Capsule()
-                .fill(LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom))
-                .frame(width: Self.width + 14, height: 6)
-        }
-        .frame(width: Self.width + 64, height: 54)
-        .glassCapsule(onPage: true)
-        .transition(.move(edge: .top).combined(with: .opacity))
-        .accessibilityLabel("Printing today's strip")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, slot)
     }
 
     private func printOut() async {
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .milliseconds(350))
         let steps = max(1, StripLayout.rows(frames.map(\.size)).count) + 1
         for step in 1...steps {
             withAnimation(GridConstants.stripStep) { printed = CGFloat(step) / CGFloat(steps) }
@@ -149,9 +218,22 @@ struct StripBooth: View {
             try? await Task.sleep(for: .milliseconds(430))
         }
         try? await Task.sleep(for: .milliseconds(250))
-        // Free of the printer: it drops into the hand.
+        // Free of the printer: it drops into the hand, turning as it goes,
+        // and the island closes behind it.
         HapticsEngine.snap()
-        withAnimation(GridConstants.stripDrop) { stage = .held }
+        withAnimation(GridConstants.stripDrop) {
+            drop = heldTop - printTop
+            dropTilt = -2.5
+            islandOpen = false
+        }
+        try? await Task.sleep(for: .milliseconds(700))
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            stage = .held
+            drop = 0
+            dropTilt = 0
+        }
     }
 
     /// The strip in the middle, held: turned a touch at rest, dark until it
@@ -190,13 +272,14 @@ struct StripBooth: View {
                             .opacity(facingFront ? 0 : 1)
                     }
                 }
-                .matchedGeometryEffect(id: "strip", in: space, anchor: .top)
                 .scaleEffect(fit)
                 .frame(height: stripHeight * fit)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { heldTop = $0 }
                 .rotation3DEffect(.degrees(yaw + dragYaw + press.width + tilt.yaw), axis: (x: 0, y: 1, z: 0),
                                   perspective: 0.45)
                 .rotation3DEffect(.degrees(turnPitch), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
-                .rotationEffect(.degrees(isDeveloped ? 0 : -2.5))
+                .rotationEffect(.degrees(isDeveloped ? 0 : -2.5 + Double(handShake) * 0.06))
+                .offset(x: handShake)
             }
             .contentShape(Rectangle())
             .gesture(handle(card))
@@ -205,7 +288,11 @@ struct StripBooth: View {
             hint
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { if !reduceMotion { tilt.start() } }
+        .onAppear {
+            tilt.onShake = { shook() }
+            tilt.leans = !reduceMotion
+            tilt.start()
+        }
         .onDisappear { tilt.stop() }
     }
 
@@ -264,6 +351,7 @@ struct StripBooth: View {
             .onChanged { value in
                 if value.translation == .zero { pressStarted = Date() }
                 let across = value.translation.width
+                if !isDeveloped { follow(across) }
                 // Far across, and developed: turning it over.
                 if isDeveloped, abs(across) > Self.turnStart {
                     dragYaw = (across - (across > 0 ? Self.turnStart : -Self.turnStart)) * 0.75
@@ -287,10 +375,42 @@ struct StripBooth: View {
                     dragYaw = 0
                     press = .zero
                     pitch = 0
+                    handShake = 0
                 }
+                shakeTurns = 0
+                shakeEdge = 0
+                shakeHeading = 0
                 if flipped != wasFlipped { HapticsEngine.lightTap() }
             }
     }
+
+    /// The undeveloped strip in the hand: it follows the finger across, a
+    /// little less than the finger moves, and every turn back of more than a
+    /// small distance is counted; two turns are one shake, a step developed.
+    private func follow(_ across: CGFloat) {
+        withAnimation(GridConstants.cardFollow) { handShake = across * 0.55 }
+        // `shakeHeading` is the farthest this swing has gone from where the
+        // last one turned (`shakeEdge`), signed.
+        let d = across - shakeEdge
+        let sameWay = shakeHeading == 0 || (d > 0) == (shakeHeading > 0)
+        if sameWay, abs(d) >= abs(shakeHeading) {
+            shakeHeading = d
+        } else if !sameWay || abs(shakeHeading) - abs(d) > 10 {
+            // Turned back: a swing, if it went far enough.
+            if abs(shakeHeading) > Self.shakeSwing {
+                shakeTurns += 1
+                if shakeTurns >= 2 {
+                    shakeTurns = 0
+                    shook()
+                }
+            }
+            shakeEdge += shakeHeading
+            shakeHeading = across - shakeEdge
+        }
+    }
+
+    /// How far one swing of a hand shake has to go to count.
+    static let shakeSwing: CGFloat = 22
 
     /// How far across a finger goes before it is turning the card over
     /// rather than leaning it, and how far a press leans it.

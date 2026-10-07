@@ -36,6 +36,8 @@ struct OctoberDance: View {
     var line: String?
     var height: CGFloat = 290
     var onRest: (@MainActor () -> Void)? = nil
+    /// His drawing standing still, for a page that only shows it (Settings).
+    var still = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var playedAt: Date?
@@ -58,7 +60,7 @@ struct OctoberDance: View {
 
     @ViewBuilder
     private var stage: some View {
-        if reduceMotion {
+        if reduceMotion || still {
             scene(Dance.pose(at: .infinity, play: 1))
                 .onAppear { onRest?() }
         } else if !awake {

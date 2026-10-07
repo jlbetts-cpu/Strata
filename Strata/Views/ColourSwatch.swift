@@ -267,6 +267,20 @@ struct ColourSwatchRow: View {
                 .accessibilityLabel(cat.rawValue)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
+            // **The colour says what it is** (2026-10-07: in testing someone
+            // "was confused what the color categories were for"). The chosen
+            // one's name, quiet, at the end of the row: a word beside the
+            // circle answers it without a legend or a tour.
+            if showsSelection {
+                Text(category.rawValue.capitalized)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .contentTransition(.opacity)
+                    .padding(.leading, GridConstants.gapTight)
+                    .accessibilityHidden(true)
+            }
             Spacer(minLength: 0)
         }
         // **PULLED BACK ONTO THE MARGIN.**
