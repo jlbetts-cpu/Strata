@@ -31,6 +31,8 @@ struct DailyGoalTests {
         let four = Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date())!
         #expect(WinCue.line(winsToday: 4, now: four, shownOn: nil, goal: 6) == WinCue.anythingElse)
         #expect(WinCue.line(winsToday: 6, now: four, shownOn: nil, goal: 6) == nil)
+        #expect(WinCue.line(winsToday: 5, now: four, shownOn: nil, goal: 6) == WinCue.oneMore)
+        #expect(!WinCue.oneMore.contains("\u{2014}"))
     }
 
     @Test("the ring sits in the header's middle, and the Wins tower dances at the goal")

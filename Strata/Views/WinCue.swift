@@ -22,6 +22,9 @@ nonisolated enum WinCue {
     /// keyboard already say that small ones count, so the bubble only asks.
     static let emptyDay = "What have you done so far?"
     static let anythingElse = "Anything else today?"
+    /// One short of the goal: the nearer the goal, the harder people push
+    /// (the goal gradient), and it says what the goal is for.
+    static let oneMore = "One more and your tower dances."
     /// From when each is asked, and the most wins the second is asked at.
     static let emptyFrom = 9
     static let elseFrom = 15
@@ -37,7 +40,9 @@ nonisolated enum WinCue {
         let hour = calendar.component(.hour, from: now)
         guard hour < 23 else { return nil }
         if winsToday == 0, hour >= emptyFrom { return emptyDay }
-        if winsToday >= 1, winsToday < (goal ?? elseUpTo + 1), hour >= elseFrom { return anythingElse }
+        if winsToday >= 1, winsToday < (goal ?? elseUpTo + 1), hour >= elseFrom {
+            return goal.map { winsToday == $0 - 1 } == true ? oneMore : anythingElse
+        }
         return nil
     }
 }

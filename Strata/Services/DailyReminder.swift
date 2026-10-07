@@ -175,7 +175,8 @@ nonisolated enum EveningCheckIn {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        content.title = title
+        let goal = defaults.object(forKey: DailyGoal.defaultsKey) as? Int ?? DailyGoal.standard
+        content.title = logs.count == goal - 1 ? WinCue.oneMore : title
         content.sound = .default
         content.threadIdentifier = NotificationRoute.Thread.daily
         content.categoryIdentifier = DailyReminder.category

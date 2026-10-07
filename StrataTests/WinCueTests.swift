@@ -30,7 +30,7 @@ struct WinCueTests {
 
     @Test("the words ask; they never count or say what was missed")
     func words() {
-        for line in [WinCue.emptyDay, WinCue.anythingElse] {
+        for line in [WinCue.emptyDay, WinCue.anythingElse, WinCue.oneMore] {
             for banned in ["forgot", "missed", "haven't", "only", "streak", "\u{2014}"] {
                 #expect(!line.lowercased().contains(banned), "\(line)")
             }
