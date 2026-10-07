@@ -37,10 +37,76 @@ nonisolated enum DailyGoal {
     static func clamped(_ value: Int) -> Int { min(range.upperBound, max(range.lowerBound, value)) }
 }
 
-struct GoalRing: View {
+/// **The ring alone**, segment per win in its block's colour, the rest the
+/// track: drawn round whatever sits in the middle (your head on Wins; a
+/// crew's bubble, once crews have goals), so the two towers share one ring.
+struct GoalRingStroke: View {
     let wins: Int
-    /// Today's wins' colours, in the order they landed: each is its own
-    /// segment, so the ring is the tower's day in miniature.
+    var colours: [Color] = []
+    let goal: Int
+    var line: CGFloat = 4
+    /// Half the space between two segments, as a share of the ring.
+    private static let gap = 0.018
+
+    /// One segment a win toward the goal; past it, one for every win, so
+    /// the ring stays full and keeps the day's colours.
+    private var segments: Int { max(1, max(goal, wins)) }
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<segments, id: \.self) { i in
+                let span = 1.0 / Double(segments)
+                Circle()
+                    .trim(from: Double(i) * span + Self.gap, to: Double(i + 1) * span - Self.gap)
+                    .stroke(i < wins ? colour(i) : AppColors.inkPrimary.opacity(0.08),
+                            style: StrokeStyle(lineWidth: line, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+        }
+        .animation(GridConstants.cueIn, value: wins)
+        .accessibilityHidden(true)
+    }
+
+    private func colour(_ i: Int) -> Color {
+        colours.indices.contains(i) ? colours[i] : AppColors.inkPrimary
+    }
+}
+
+/// **The caption under a tower's middle**: a crew's name, or the goal's
+/// fraction. One glass capsule for both towers (it was the crew header's
+/// own), so the two read as the same object.
+struct CrestCaption: View {
+    let text: String
+    var chevron = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(text)
+                .font(Typography.headerSmall)
+                .monospacedDigit()
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1)
+                .contentTransition(.numericText())
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(Typography.headerSmall)
+                    .imageScale(.small)
+                    .foregroundStyle(AppColors.inkTertiary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .glassCapsule(onPage: true)
+    }
+}
+
+/// **The middle of the Wins header** (the owner, 2026-10-06: "make it so we
+/// can have the head in there and the fraction under like where the name
+/// would be in the crew ... as close to the crew experience as possible").
+/// Your head in the ring, the day's fraction in the crew's caption under it.
+/// A tap on either sets the goal.
+struct GoalCrest: View {
+    let wins: Int
     var colours: [Color] = []
     @Binding var goal: Int
     /// The crew bubble's side, so the two towers' middles match.
@@ -51,45 +117,38 @@ struct GoalRing: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let line: CGFloat = 4
-    /// Half the space between two segments, as a share of the ring.
-    private static let gap = 0.018
-
-    /// One segment a win toward the goal; past it, one for every win, so
-    /// the ring stays full and keeps the day's colours.
-    private var segments: Int { max(1, max(goal, wins)) }
-
-    private func colour(_ i: Int) -> Color {
-        colours.indices.contains(i) ? colours[i] : AppColors.inkPrimary
-    }
 
     var body: some View {
-        Button { choosing = true } label: {
-            ZStack {
-                ForEach(0..<segments, id: \.self) { i in
-                    let span = 1.0 / Double(segments)
-                    Circle()
-                        .trim(from: Double(i) * span + Self.gap, to: Double(i + 1) * span - Self.gap)
-                        .stroke(i < wins ? colour(i) : AppColors.inkPrimary.opacity(0.08),
-                                style: StrokeStyle(lineWidth: Self.line, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
+        VStack(spacing: GridConstants.spacing) {
+            Button { choosing = true } label: {
+                ZStack {
+                    GoalRingStroke(wins: wins, colours: colours, goal: goal, line: Self.line)
+                        .padding(Self.line / 2 + 2)
+                    CrestFace(side: side - 2 * (Self.line + 6))
                 }
-                Text("\(wins)")
-                    .font(Typography.headerMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .contentTransition(.numericText(value: Double(wins)))
+                .frame(width: side, height: side)
+                .stillGlassCircle()
+                .scaleEffect(swell && !reduceMotion ? 1.1 : 1)
+                .contentShape(Circle())
             }
-            .padding(Self.line + 4)
-            .frame(width: side, height: side)
-            .stillGlassCircle()
-            .scaleEffect(swell && !reduceMotion ? 1.1 : 1)
+            .buttonStyle(.press)
+            .zIndex(1)
+            Button { choosing = true } label: {
+                CrestCaption(text: "\(wins)/\(goal)")
+                    // A 44pt target round the capsule, as the crew's has.
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+            }
+            // `.plain`: a scaling press on interactive glass cancels the tap
+            // on a phone (`CrewReactions`); the crew's caption is the same.
+            .buttonStyle(.plain)
+            .zIndex(2)
         }
-        .buttonStyle(.press)
         .animation(GridConstants.cueIn, value: wins)
         .onChange(of: wins) { old, new in
             guard DailyGoal.reached(from: old, to: new, goal: goal) else { return }
             // The tower's dance carries the tap; without motion it does not
-            // dance, so the ring does.
+            // dance, so the crest does.
             if reduceMotion { HapticsEngine.success() }
             withAnimation(GridConstants.cueIn) { swell = true }
             Task {
@@ -101,9 +160,28 @@ struct GoalRing: View {
             GoalChooser(goal: $goal)
                 .presentationCompactAdaptation(.popover)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(wins == 1 ? "1 win today" : "\(wins) wins today")
         .accessibilityValue("Goal \(goal)")
         .accessibilityHint("Sets the day's goal")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { choosing = true }
+    }
+}
+
+/// **You, in the middle**: the head your crews see (`HeadStore.headForCrews`),
+/// so Wins and a crew show the same you; without one, your profile picture.
+private struct CrestFace: View {
+    let side: CGFloat
+
+    var body: some View {
+        if let rig = HeadStore.shared.headForCrews {
+            LivingHeadView(rig: rig, side: side * ProfileAvatar.headShare, liveliness: .calm)
+                .frame(width: side, height: side)
+                .accessibilityHidden(true)
+        } else {
+            ProfileAvatar(side: side)
+        }
     }
 }
 

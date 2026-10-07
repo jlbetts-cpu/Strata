@@ -518,19 +518,9 @@ struct CrewTowerView: View {
                         .accessibilityAction { tapBubble() }
                         .zIndex(1)
                     Button { showsInfo = true } label: {
-                        HStack(spacing: 4) {
-                            Text(crew.displayName(excluding: store.me))
-                                .font(Typography.headerSmall)
-                                .foregroundStyle(AppColors.inkPrimary)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(Typography.headerSmall)
-                                .imageScale(.small)
-                                .foregroundStyle(AppColors.inkTertiary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .glassCapsule(onPage: true)
+                        // The caption the Wins tower's goal uses too
+                        // (`CrestCaption`), so the two middles are one object.
+                        CrestCaption(text: crew.displayName(excluding: store.me), chevron: true)
                         // Wide enough for a long name at a large text size,
                         // clear of the two buttons either side.
                         .frame(maxWidth: 240)

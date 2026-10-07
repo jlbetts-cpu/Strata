@@ -1129,6 +1129,7 @@ struct MainAppView: View {
         // Centred, not baseline-aligned: there is no type left in this row to
         // sit a baseline on, and two capsules of the same height centre on
         // each other exactly.
+        ZStack(alignment: .top) {
         HStack(alignment: .center, spacing: GridConstants.gapTight) {
             // **Mine on the left, the crew on the right** (owner-approved,
             // 2026-10-05). The day's page is ONE glass button at the leading
@@ -1160,10 +1161,13 @@ struct MainAppView: View {
                 CrewsButton { crewPath = [.list] }
             }
         }
-        // **The day's goal in the middle** (`GoalRing`), where a crew's tower
-        // has its faces: centred on the row, not between its two buttons, so
-        // it holds the same place with crews on or off.
-        .overlay { GoalRing(wins: blocksToday, colours: todaysColours, goal: $dailyGoal) }
+        // **The day's goal in the middle** (`GoalCrest`), laid out as a
+        // crew's tower lays out its faces and name: your head in the ring,
+        // the fraction in the crew's caption under it. Centred on the row,
+        // not between its two buttons, so it holds the same place with crews
+        // on or off.
+        GoalCrest(wins: blocksToday, colours: todaysColours, goal: $dailyGoal)
+        }
         .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
         //

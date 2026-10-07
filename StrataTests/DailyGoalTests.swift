@@ -38,7 +38,7 @@ struct DailyGoalTests {
     @Test("the ring sits in the header's middle, and the Wins tower dances at the goal")
     func wired() throws {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
-        #expect(main.contains(".overlay { GoalRing(wins: blocksToday, colours: todaysColours, goal: $dailyGoal) }"))
+        #expect(main.contains("GoalCrest(wins: blocksToday, colours: todaysColours, goal: $dailyGoal)"))
         #expect(main.contains("if wins >= dailyGoal, goalDanceDay != today {"))
         #expect(!main.contains("wins % GridConstants.danceEvery"), "the tenth-win dance gave way to the goal")
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
