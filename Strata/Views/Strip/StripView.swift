@@ -18,26 +18,19 @@ struct StripView: View {
     var width: CGFloat = 160
     var developed: Double = 1
     var decor: InkPicture? = nil
+    var style: StripStyle = .current
 
-    /// **A clean booth strip** (the owner, 2026-10-07: "I would prefer if
-    /// the margins of the photos were a little closer so it can be like a
-    /// clean photo strip"). The paper's border stays a border; the space
-    /// between pictures is a thin line of paper, as a booth prints it, where
-    /// both were 4.5% of the width and the photos read as separate tiles.
-    private var margin: CGFloat { width * 0.04 }
-    private var gap: CGFloat { width * 0.016 }
+    private var margin: CGFloat { width * style.edge }
+    private var gap: CGFloat { width * style.gap }
     private var inner: CGFloat { width - 2 * margin }
-    /// **A block's corner** (the owner, 2026-10-07: "I'd love it if the
-    /// photo card sort of matched the blocks, with the blur line styling, the
-    /// corner curve"). The curve of a block two cells wide, scaled with the
-    /// strip, and the pictures inside it concentric with it.
-    var outerCorner: CGFloat { Self.corner(forWidth: width) }
+    var outerCorner: CGFloat { width * style.outerCorner }
     /// The strip's corner at any width: its back, its turning edge and its
     /// light take the same curve.
-    static func corner(forWidth width: CGFloat) -> CGFloat {
-        GridConstants.blockCornerRadius(forCell: width * 0.5)
-    }
-    private var corner: CGFloat { max(1, outerCorner - margin) }
+    static func corner(forWidth width: CGFloat) -> CGFloat { width * StripStyle.current.outerCorner }
+    private var corner: CGFloat { width * style.photoCorner }
+    /// The foot's type keeps its own inset from the paper's edge, however
+    /// tight the pictures sit to it.
+    private var footInset: CGFloat { max(0, width * 0.045 - margin) }
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -61,24 +54,27 @@ struct StripView: View {
                 }
             }
             foot
-                .padding(.top, margin)
+                .padding(.horizontal, footInset)
+                .padding(.top, width * 0.04)
         }
         .padding(margin)
         .frame(width: width, alignment: .leading)
         // The block's material, without its shadow: the paper lit from
         // inside (a colour) or flat (black, white), the block's wash rising
         // to the foot, and its rim, brightest along the top edge.
+        // The rim is drawn on the paper, under the pictures: with the
+        // pictures this close to the edge, a rim over them is a frame.
         .background {
             Rectangle().fill(paper.fill)
                 .overlay(BlockWash(opacity: GridConstants.blockScrimOpacity))
+                .overlay {
+                    RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
+                        .strokeBorder(BlockRim.gradient(in: colorScheme),
+                                      lineWidth: GridConstants.blockRimWidth * min(1, width / 177))
+                }
         }
         .overlay { decoration }
         .clipShape(RoundedRectangle(cornerRadius: outerCorner, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
-                .strokeBorder(BlockRim.gradient(in: colorScheme),
-                              lineWidth: GridConstants.blockRimWidth * min(1, width / 177))
-        }
     }
 
     private func picture(_ frame: PhotoStrip.Frame, width w: CGFloat, height h: CGFloat) -> some View {
@@ -181,4 +177,41 @@ enum StripDecor {
     }
 
     private static let cache = NSCache<NSString, InkPicture>()
+}
+
+/// **How tight the strip is printed** (the owner, 2026-10-07: "the photos
+/// are pretty much super close to each other, like maybe 2px apart and 2px
+/// from the edge ... we should probably opt for 0-2px roundness because we
+/// are building a photo strip and they are usually not rounded ... the
+/// outside can be a little rounded but those inside squares should be more
+/// like editorial than our blocks"). Every measure is a share of the
+/// strip's width, set at the booth's 228pt, so the thumbnail in Your day
+/// and the PNG at 5x are the same picture.
+///
+/// Researched: a booth strip is four stacked frames with thin paper
+/// gutters, square-cornered pictures, and caption room at the foot
+/// (photo booth 2x6 strips; Korea's Life Four Cuts).
+struct StripStyle: Equatable {
+    /// Paper round the pictures.
+    var edge: CGFloat
+    /// Paper between pictures.
+    var gap: CGFloat
+    /// The pictures' corners.
+    var photoCorner: CGFloat
+    /// The paper's corners.
+    var outerCorner: CGFloat
+
+    private static func pt(_ points: CGFloat) -> CGFloat { points / 228 }
+
+    /// 2pt everywhere, square pictures, the paper a touch rounded.
+    static let editorial = StripStyle(edge: pt(2), gap: pt(2), photoCorner: 0, outerCorner: pt(4))
+    /// A booth's white border round tight gutters.
+    static let booth = StripStyle(edge: pt(8), gap: pt(2), photoCorner: 0, outerCorner: pt(3))
+    /// A hairline of paper, nearly a contact sheet.
+    static let hairline = StripStyle(edge: pt(1), gap: pt(1), photoCorner: 0, outerCorner: pt(2))
+    /// The 2pt spacing with the softest corners he allowed.
+    static let soft = StripStyle(edge: pt(2), gap: pt(2), photoCorner: pt(2), outerCorner: pt(10))
+
+    /// His pick, 2026-10-07: "I like the booth version".
+    static let current = booth
 }

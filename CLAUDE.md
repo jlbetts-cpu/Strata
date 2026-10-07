@@ -272,12 +272,17 @@ next: **one ring (`GoalRingStroke`) that wraps any face, one caption
     `updateUIView`); the strip retints its ink to the paper anyway.
   - Simulator taps on sheet buttons can land one behind the next tap. Wait
     and re-screenshot before calling a button broken.
-  - **A clean booth strip** (2026-10-07): a 4% border, a thin 1.6% line of
-    paper between pictures. Wider gutters read as separate tiles; he asked
-    for them "a little closer".
-  - **It is a block's material** ("matched the blocks ... the corner curve"):
-    `StripView.corner(forWidth:)` is a two-cell block's curve, photos are
-    concentric inside it, the paper takes `BlockWash` and `BlockRim`, and a
+  - **Printed like a booth strip** (`StripStyle.booth`, 2026-10-07, his
+    pick "I like the booth version"): an 8pt paper border, 2pt gutters,
+    **square pictures**, the paper's own corner 3pt. His words: "maybe 2px apart and 2px from the
+    edge ... 0-2px roundness ... the inside squares should be more like
+    editorial than our blocks". Researched: booth strips are stacked frames
+    with thin paper gutters, square corners, caption room at the foot.
+    Four variants were rendered (editorial, booth, hairline, soft); booth
+    ships, and the others are one line each in `StripStyle`. The foot keeps
+    its own inset. Superseded: the block-corner strip of the same morning.
+  - **Still a block's material**: `BlockWash`, and `BlockRim` drawn on the
+    paper UNDER the pictures (over them, at 2pt, it framed every photo); a
     colour paper is lit from inside (`EtherealFill`). No `BlockSurface`: it
     brings the block's elevation shadow, and the strip has none.
   - **Paper is one button** (`StripPaper`: black, white, the six category
