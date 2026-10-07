@@ -2733,8 +2733,9 @@ struct MainAppView: View {
                 rows: block.rowSpan,
                 hex: block.look.displayCategory.style.baseHexString,
                 // Named for the source file, so an unchanged photograph keeps
-                // an unchanged snapshot and nothing is rewritten.
-                photo: block.look.imageFileName.map { "\($0).jpg" })
+                // an unchanged snapshot and nothing is rewritten. A doodled
+                // block goes as its picture (`widgetDoodleName`).
+                photo: block.look.imageFileName.map { "\($0).jpg" } ?? Self.widgetDoodleName(block.look))
         }
         // **Lifetime, not today.** The tower is pinned to today, so
         // `placedBlocks.count` and `blocksToday` are the same number — the
@@ -2867,17 +2868,40 @@ struct MainAppView: View {
     /// CLAUDE.md: `imageFileName` points at real user photographs. Nothing
     /// here opens them for writing, moves them, or deletes them; it asks
     /// `ImageManager` for a thumbnail and writes a NEW file elsewhere.
+    /// **A doodled block on the widget** (the owner, 2026-10-07: "I do want
+    /// you to do the doodle on the widgets"): the block's colour with his ink
+    /// on it, the picture a crew is sent (`BlockDoodles.crewPicture`). Named
+    /// for the doodle and the colour, so a redraw (a new file each save) or a
+    /// new colour is exported again and nothing else is.
+    static func widgetDoodleName(_ look: PlacedBlock.Look) -> String? {
+        look.doodleFileName.map { "\($0)-\(look.displayCategory.rawValue).jpg" }
+    }
+
     private func exportWidgetPhotos(for blocks: [PlacedBlock]) {
         guard let directory = WidgetSnapshot.photoDirectory else {
             WidgetReloader.reload()
             return
         }
         let wanted = blocks.compactMap(\.look.imageFileName)
+        // Doodles are drawn here, on the main actor (`ImageRenderer`), and
+        // only those not already on disk.
+        var doodles: [String: Data] = [:]
+        var doodleNames = Set<String>()
+        for block in blocks {
+            guard let doodle = block.look.doodleFileName, let name = Self.widgetDoodleName(block.look) else { continue }
+            doodleNames.insert(name)
+            guard !FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path),
+                  let data = BlockDoodles.crewPicture(doodle, colour: block.look.displayCategory) else { continue }
+            doodles[name] = data
+        }
         Task.detached(priority: .utility) {
             try? FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)
 
-            var keep = Set<String>()
+            var keep = doodleNames
+            for (name, data) in doodles {
+                try? data.write(to: directory.appendingPathComponent(name), options: .atomic)
+            }
             for name in wanted {
                 let destination = directory.appendingPathComponent("\(name).jpg")
                 keep.insert(destination.lastPathComponent)
