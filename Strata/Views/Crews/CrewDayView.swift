@@ -181,7 +181,8 @@ enum CrewGallery {
                                 file: win.photo,
                                 // Nil is how the viewer knows it is yours.
                                 byline: win.senderProfileID == me ? nil : CrewTowerModel.senderLine(win, me: me, names: names),
-                                block: win.photo == nil ? win.colour : nil)
+                                block: win.photo == nil ? win.colour : nil,
+                                colour: win.colour)
         }
     }
 }

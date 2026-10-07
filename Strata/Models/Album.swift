@@ -485,6 +485,9 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     /// and its reactions and its Report live in one place (the owner,
     /// 2026-10-02). Nil for a photograph.
     var block: HabitCategory? = nil
+    /// **A crew win's colour, photograph or not**: what Do It Too plans it
+    /// in. Nil for your own.
+    var colour: HabitCategory? = nil
 
     /// What VoiceOver says for this photograph in a grid or a strip of many:
     /// its name and its day, "Photo, 21 September" when it has no name. The

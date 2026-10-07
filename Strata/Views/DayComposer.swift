@@ -67,6 +67,30 @@ enum DayComposing {
     /// The Plan: what was sent becomes a line at the end of the plan, in the
     /// colour the tower has least of, as a line started by tapping below the
     /// last one is (`PlanLines.addLine`).
+    /// **Do It Too** (2026-10-06, the retention pass the owner approved: "the
+    /// ritual of winning together"): a friend's win, put on your own plan in
+    /// its colour and size, so seeing what they did turns into doing it.
+    /// Nothing is sent: they never learn you copied it.
+    @discardableResult
+    static func doItToo(_ title: String, colour: HabitCategory, size: BlockSize,
+                        context: ModelContext) -> PlanItem? {
+        let words = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return nil }
+        let all = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
+        if let already = onPlan(words, in: all) { return already }
+        let line = PlanItem(text: words, order: (all.map(\.order).max() ?? -1) + 1, category: colour)
+        line.sizeRaw = size.rawValue
+        context.insert(line)
+        try? context.save()
+        return line
+    }
+
+    /// The same words already waiting on the plan, not yet done.
+    static func onPlan(_ title: String, in all: [PlanItem]) -> PlanItem? {
+        let words = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return all.first { $0.completedAt == nil && $0.text.compare(words, options: .caseInsensitive) == .orderedSame }
+    }
+
     @discardableResult
     static func addPlanLine(_ text: String, after all: [PlanItem], habits: [Habit],
                             context: ModelContext) -> PlanItem? {

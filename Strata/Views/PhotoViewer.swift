@@ -54,6 +54,8 @@ struct PhotoViewer: View {
     @State private var editingLog: HabitLog?
     @State private var saving = false
     @State private var saved: Set<String> = []
+    /// Friends' wins put on your plan from here, by photo id.
+    @State private var planned: Set<String> = []
     /// The decoded pictures, keyed by file name.
     ///
     /// Loading lives HERE rather than in the page, for two reasons. The share
@@ -455,6 +457,23 @@ struct PhotoViewer: View {
             }
             if crew != nil, let current {
                 if current.byline != nil {
+                    // A friend's win, on your own plan (`DayComposing.doItToo`).
+                    if let title = current.title, let colour = current.colour {
+                        let done = planned.contains(current.id)
+                            || DayComposing.onPlan(title, in: (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []) != nil
+                        Button {
+                            if DayComposing.doItToo(title, colour: colour, size: current.size,
+                                                    context: modelContext) != nil {
+                                HapticsEngine.success()
+                                planned.insert(current.id)
+                            }
+                        } label: {
+                            Label(done ? "On Your Plan" : "Do It Too",
+                                  systemImage: done ? "checkmark" : "checklist")
+                        }
+                        .disabled(done)
+                        Divider()
+                    }
                     if let onHide {
                         Button { onHide(current); onClose() } label: {
                             Label("Hide for Me", systemImage: "eye.slash")
