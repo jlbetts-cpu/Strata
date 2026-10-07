@@ -2,10 +2,10 @@ import Testing
 import Foundation
 @testable import Strata
 
-/// **Your three, and the Hard day switch** (the owner, 2026-10-06: "add
-/// people's 3 daily minimums ... wins that no matter what life does ... you
-/// can adhere to"; his picks: "Three + a Hard day switch", and "Yes, ask in
-/// onboarding after the goal, skippable").
+/// **Your three** (the owner, 2026-10-06: "add people's 3 daily minimums ...
+/// wins that no matter what life does ... you can adhere to"; asked in
+/// onboarding after the goal, skippable). The Hard day switch that came with
+/// them is gone (2026-10-07, his pick).
 @MainActor
 @Suite("Your three")
 struct YourThreeTests {
@@ -68,19 +68,12 @@ struct YourThreeTests {
         #expect(YourThree.done(three, titlesToday: []).isEmpty)
     }
 
-    @Test("Hard day makes today's goal your three, for today only, and never raises it")
-    func hardDay() {
-        #expect(DailyGoal.today(goal: 6, hardDay: today, on: today) == 3)
-        #expect(DailyGoal.today(goal: 6, hardDay: today, on: "2026-10-07") == 6, "it resets at midnight")
-        #expect(DailyGoal.today(goal: 6, hardDay: "", on: today) == 6)
-        #expect(DailyGoal.today(goal: 2, hardDay: today, on: today) == 2, "a hard day only makes it lighter")
-
+    @Test("today's goal is the goal you set: there is no Hard day")
+    func noHardDay() {
         let defaults = UserDefaults(suiteName: "YourThreeTests.\(UUID())")!
         #expect(DailyGoal.stored(on: today, defaults: defaults) == DailyGoal.standard)
         defaults.set(8, forKey: DailyGoal.defaultsKey)
-        defaults.set(today, forKey: DailyGoal.hardDayKey)
-        #expect(DailyGoal.stored(on: today, defaults: defaults) == 3)
-        #expect(DailyGoal.stored(on: "2026-10-07", defaults: defaults) == 8)
+        #expect(DailyGoal.stored(on: today, defaults: defaults) == 8)
     }
 
     @Test("the words: no long dash, and nothing that counts against you")
@@ -120,5 +113,19 @@ struct YourThreeTests {
         #expect(!sheet.contains("circle\")"), "not done is only its words, never an empty circle")
         let ideas = SourceSweep.code(try SourceSweep.read("Strata/Services/WinIdeas.swift"))
         #expect(ideas.contains("for idea in three + plan + usual + smalls"))
+    }
+
+    @Test("pinned at the top of every day's plan, ticked from today's wins, never stored per day")
+    func inThePlan() throws {
+        let lines = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanLines.swift"))
+        #expect(lines.contains("if onThree != nil { yourThree }"), "above the day's own lines")
+        #expect(lines.contains("YourThree.done(three, titlesToday: WinIdeas.titlesToday(context: modelContext))"),
+                "the tick is today's wins, so midnight resets it with no sweep")
+        #expect(!lines.contains("PlanItem(text: item.title"), "never written into the plan as lines")
+        let day = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
+        #expect(day.contains("onThree: onThree)"))
+        let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
+        #expect(main.contains("pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)"),
+                "a press opens Add with it written, as a plan line does")
     }
 }

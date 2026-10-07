@@ -221,16 +221,10 @@ struct MainAppView: View {
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
-    /// The day Hard day was switched on (`DailyGoal.hardDayKey`).
-    @AppStorage(DailyGoal.hardDayKey) private var hardDay = ""
-    /// **The goal everything on Wins asks** (`DailyGoal.today`): your three on
-    /// a hard day, so the ring fills, the tower dances and the strip develops
-    /// on them. `dailyGoal` is only the number you set.
-    private var todaysGoal: Int {
-        DailyGoal.today(goal: dailyGoal, hardDay: hardDay, on: DateUtils.dateString(from: Date()))
-    }
-    /// Today's goal as Your day opened, to tell whether Hard day reached it.
-    @State private var goalAsDayOpened = 0
+    /// **The goal everything on Wins asks**: the crest, the cue, the dance
+    /// and the booth. It was your three on a Hard day; Hard day is gone
+    /// (2026-10-07), so it is the number you set.
+    private var todaysGoal: Int { dailyGoal }
     /// The booth, open: printing (the goal was just reached) or not.
     @State private var booth: BoothOpening?
     @State private var showsYourDay = false
@@ -635,7 +629,17 @@ struct MainAppView: View {
             // 2026-10-05). It replaced the Plan sheet and today's Journal
             // sheet, then was one mixed page for an evening.
             DaySheet(dateString: DateUtils.dateString(from: Date()),
-                     tabs: .wins, opening: dayOpeningTab) { item in
+                     tabs: .wins, opening: dayOpeningTab, onThree: { three in
+                // One of your three, from the top of the plan: written in the
+                // add sheet, small, in its colour (a typed one with no colour
+                // takes the one it was last logged in, as the ideas do).
+                let colour = three.category
+                    ?? WinIdeas.candidates(context: modelContext).three
+                        .first { $0.title.lowercased() == three.id && !$0.keepsColour }?.category
+                pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)
+                returnsToPlan = true
+                isPlanning = false
+            }) { item in
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
@@ -1203,8 +1207,7 @@ struct MainAppView: View {
                 }
             }
         }
-        .onChange(of: showsYourDay) { _, open in if open { goalAsDayOpened = todaysGoal } }
-        .sheet(isPresented: $showsYourDay, onDismiss: hardDayReachedGoal) {
+        .sheet(isPresented: $showsYourDay) {
             YourDaySheet(goal: $dailyGoal) { day in
                 Task {
                     try? await Task.sleep(for: .milliseconds(450))
@@ -1974,25 +1977,6 @@ struct MainAppView: View {
     private var blocksToday: Int {
         let today = DateUtils.dateString(from: Date())
         return logs.filter { $0.dateString == today && $0.completed }.count
-    }
-
-    /// **Switching on Hard day can be what reaches the goal**: five set,
-    /// three done, and "Today, your three are enough." That is reaching it,
-    /// so it is met as a win reaching it is: the tower dances and the booth
-    /// prints (`YourThree`), once the sheet is down so both can be seen.
-    /// Lowering the number in Your day is not this, and stays quiet as it
-    /// always has.
-    private func hardDayReachedGoal() {
-        let today = DateUtils.dateString(from: Date())
-        guard hardDay == today, blocksToday >= todaysGoal, blocksToday < goalAsDayOpened else { return }
-        if goalDanceDay != today, !reduceMotion {
-            goalDanceDay = today
-            HapticsEngine.reward()
-            animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
-        }
-        guard stripPrintedDay != today else { return }
-        stripPrintedDay = today
-        openBoothWhenFree(prints: true)
     }
 
     /// **The booth opens when the screen is free** (found 2026-10-07). It

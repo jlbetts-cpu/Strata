@@ -36,24 +36,15 @@ nonisolated enum DailyGoal {
 
     static func clamped(_ value: Int) -> Int { min(range.upperBound, max(range.lowerBound, value)) }
 
-    /// **Hard day** (the owner's pick, 2026-10-06: "Three + a Hard day
-    /// switch"): the day it was switched on, as a date key. Kept as a day and
-    /// not a flag so it turns itself off at midnight, with nothing to undo.
-    static let hardDayKey = "hardDay"
-
-    /// **The goal for today, which is the one everything asks**: the crest,
-    /// the dance, the booth's develop, the cue and the evening's check-in.
-    /// On a hard day it is your three; never MORE than the goal you set, so a
-    /// hard day can only make the day lighter.
-    static func today(goal: Int, hardDay: String, on day: String) -> Int {
-        hardDay == day ? min(goal, YourThree.size) : goal
-    }
+    /// **Hard day is gone** (the owner, 2026-10-07: "I don't understand the
+    /// point of checking the hard day thing"; his pick: remove it). It made
+    /// today's goal your three for a day. Your three stay, as the first lines
+    /// of each day's Plan (`YourThree.plan`); the goal is the one you set.
 
     /// Today's goal from the stored settings, for code with no view to hold
     /// them (`EveningCheckIn`).
     static func stored(on day: String, defaults: UserDefaults = .standard) -> Int {
-        today(goal: defaults.object(forKey: defaultsKey) as? Int ?? standard,
-              hardDay: defaults.string(forKey: hardDayKey) ?? "", on: day)
+        defaults.object(forKey: defaultsKey) as? Int ?? standard
     }
 }
 
@@ -108,8 +99,6 @@ nonisolated enum YourThree {
         static let pickerTitle = "Three for any day"
         static let pickerLine = "Pick ones you could do on your worst day."
         static let ownPrompt = "Or write your own"
-        static let hardDay = "Hard day"
-        static let hardDayLine = "Today, your three are enough."
         static let onboardingTitle = "Three you can always do"
         static let onboardingLine = pickerLine
         static let onboardingKeep = "Keep these"
@@ -117,7 +106,7 @@ nonisolated enum YourThree {
         static let onboardingWaiting = "Not yet. Pick one, or skip."
 
         static var all: [String] {
-            [section, footer, empty, pickerTitle, pickerLine, ownPrompt, hardDay, hardDayLine,
+            [section, footer, empty, pickerTitle, pickerLine, ownPrompt,
              onboardingTitle, onboardingLine, onboardingKeep, onboardingSkip, onboardingWaiting]
         }
     }
@@ -235,8 +224,7 @@ struct CrestCaption: View {
 /// A tap on either sets the goal.
 struct GoalCrest: View {
     let wins: Int
-    /// Today's goal (`DailyGoal.today`): your three on a hard day. Read
-    /// only; the number is set in Your day.
+    /// Today's goal, the one you set. Read only; the number is set in Your day.
     let goal: Int
     /// Open Your day (`YourDaySheet`), as a crew's middle opens its details.
     var openDay: () -> Void = {}

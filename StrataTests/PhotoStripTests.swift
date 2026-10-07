@@ -96,7 +96,7 @@ struct PhotoStripTests {
         let booth = try String(contentsOf: root.appending(path: "Strata/Views/Strip/StripBooth.swift"), encoding: .utf8)
         let main = try String(contentsOf: root.appending(path: "Strata/Views/MainAppView.swift"), encoding: .utf8)
         #expect(booth.contains("var canDevelop: () -> Bool"))
-        // Today's goal: your three on a hard day (`DailyGoal.today`).
+        // Today's goal, the one you set.
         #expect(main.contains("canDevelop: { blocksToday >= todaysGoal }"))
     }
 }

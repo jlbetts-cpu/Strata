@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// The crew's details sheet, for one: the same inset list on the warm page,
 /// the same section labels. You in the ring and today's count; the day's
-/// goal to change; your three and the Hard day switch (`YourThree`); this
+/// goal to change; your three (`YourThree`); this
 /// week as seven small ink rings; today's strip, or a line saying the goal
 /// prints one; and your streak with its rest days.
 /// Nothing on it counts against you: a ring only fills, and a week is
@@ -24,7 +24,6 @@ struct YourDaySheet: View {
     /// The last week's strips, newest first (`PhotoStrip.earlier`).
     @State private var earlier: [PhotoStrip] = []
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
-    @AppStorage(DailyGoal.hardDayKey) private var hardDay = ""
     /// The titles of today's wins, for the ticks on your three.
     @State private var titlesToday: [String] = []
     @State private var choosingThree = false
@@ -32,8 +31,8 @@ struct YourDaySheet: View {
     private var today: String { DateUtils.dateString(from: Date()) }
     private var winsToday: Int { counts[today] ?? 0 }
     private var three: [YourThree.Item] { YourThree.decode(threeRaw) }
-    /// Today's goal (`DailyGoal.today`): your three on a hard day.
-    private var todaysGoal: Int { DailyGoal.today(goal: goal, hardDay: hardDay, on: today) }
+    /// Today's goal: the one you set (Hard day, which lowered it, is gone).
+    private var todaysGoal: Int { goal }
 
     var body: some View {
         NavigationStack {
@@ -136,8 +135,6 @@ struct YourDaySheet: View {
         .sheet(isPresented: $choosingThree) {
             YourThreePicker(initial: three) { chosen in
                 threeRaw = YourThree.encode(chosen)
-                // No three, no hard day: the switch would have nothing to be.
-                if chosen.isEmpty, hardDay == today { setHardDay(false) }
             }
         }
         .task {
@@ -191,7 +188,7 @@ struct YourDaySheet: View {
     /// **Your three, under the goal** (`YourThree`). Each row is the win; one
     /// logged today wears a quiet tick, and one not logged is only its words:
     /// no empty circle, nothing that reads as owed. A tap on any of them
-    /// changes the three. Under them, the switch for a hard day.
+    /// changes the three.
     private var yourThree: some View {
         let done = YourThree.done(three, titlesToday: titlesToday)
         return Section {
@@ -230,18 +227,6 @@ struct YourDaySheet: View {
                     .accessibilityLabel(isDone ? "\(item.title), done today" : item.title)
                     .accessibilityHint("Changes your three")
                 }
-                Toggle(isOn: Binding(get: { hardDay == today }, set: { setHardDay($0) })) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(YourThree.Copy.hardDay)
-                            .font(Typography.bodyLarge)
-                            .foregroundStyle(AppColors.inkPrimary)
-                        Text(YourThree.Copy.hardDayLine)
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(AppColors.inkTertiary)
-                    }
-                }
-                // The switch every form in the app wears (`switchTrack`).
-                .tint(AppColors.switchTrack)
             }
         } header: {
             FormSectionLabel(YourThree.Copy.section)
@@ -251,14 +236,6 @@ struct YourDaySheet: View {
         }
         .listRowSeparator(.hidden)
         .animation(GridConstants.crossFade, value: done)
-    }
-
-    /// Hard day on or off, for today only. The evening's check-in is asked
-    /// again, so a day the switch has met is left alone at 7pm too; it can
-    /// only be taken away here, never added (one cue a day).
-    private func setHardDay(_ on: Bool) {
-        hardDay = on ? today : ""
-        Task { await EveningCheckIn.update(context: context) }
     }
 
     /// What the strip is doing today, in a line.

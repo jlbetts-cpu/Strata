@@ -43,6 +43,16 @@ struct PlanLines: View {
     /// The empty plan's ghost row was tapped: the page's own way to start a
     /// line (the Plan's bar, `DayComposer`). Without one, it starts a line.
     var onStart: (() -> Void)? = nil
+    /// One of your three was pressed: the caller opens the add sheet with it
+    /// written. Nil hides them (a page that is not today's plan).
+    var onThree: ((YourThree.Item) -> Void)? = nil
+
+    /// **Your three, pinned at the top of every day's plan** (the owner,
+    /// 2026-10-07: "why don't they go into the plan everyday"; his pick:
+    /// "Pinned at the top, every day"). Not plan lines: nothing is stored
+    /// per day. A tick is read off today's wins (`YourThree.done`), so they
+    /// come back unticked at midnight without a sweep.
+    @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
 
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
@@ -155,6 +165,7 @@ struct PlanLines: View {
         // separator below has to ask how many there are.
         let lines = items
         VStack(alignment: .leading, spacing: 0) {
+            if onThree != nil { yourThree }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(lines) { item in
                     row(item)
@@ -195,6 +206,59 @@ struct PlanLines: View {
         }
         .padding(.top, GridConstants.gapTight)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Your three
+
+    private var three: [YourThree.Item] { YourThree.decode(threeRaw) }
+
+    @ViewBuilder
+    private var yourThree: some View {
+        let three = three
+        if !three.isEmpty {
+            // Read as Your day reads them (today's logs), and again whenever
+            // the wins change: `habits` is what makes this body re-run.
+            let done = habits.isEmpty ? [] : YourThree.done(three, titlesToday: WinIdeas.titlesToday(context: modelContext))
+            VStack(alignment: .leading, spacing: 0) {
+                FormSectionLabel(YourThree.Copy.section)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.bottom, GridConstants.gapTight)
+                ForEach(three) { item in
+                    threeRow(item, isDone: done.contains(item.id))
+                }
+            }
+            // Space, not a rule, between them and the day's own lines: a
+            // section's gap, so the empty plan's ghost row under them reads
+            // as the plan and not as a fourth of three.
+            .padding(.bottom, GridConstants.gapSection)
+        }
+    }
+
+    /// A row as a plan line draws it, without the text field: your three are
+    /// changed in Your day, so here the words are only read. A logged one
+    /// wears its block, ticked, and the words go quiet, as a ticked line's
+    /// do; pressing it again does nothing, because the win is the tick.
+    private func threeRow(_ item: YourThree.Item, isDone: Bool) -> some View {
+        Button {
+            guard !isDone else { return }
+            HapticsEngine.lightTap()
+            onThree?(item)
+        } label: {
+            HStack(spacing: GridConstants.spacing) {
+                PlanBullet(category: item.category ?? .unlabeled, isDone: isDone)
+                    .frame(width: Self.tapTarget, height: Self.tapTarget)
+                Text(item.title)
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(isDone ? AppColors.inkTertiary : AppColors.inkPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
+            .padding(.trailing, GridConstants.horizontalPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(isDone ? "\(item.title), done" : "Log \(item.title) as a win")
     }
 
     // MARK: - Suggestions

@@ -238,6 +238,9 @@ struct DaySheet: View {
     let tabSet: DayTabSet
     /// A plan line's block pressed: the caller opens the add sheet.
     var onComplete: (PlanItem) -> Void = { _ in }
+    /// One of your three pressed, at the top of the plan: the caller opens
+    /// the add sheet with it written.
+    var onThree: ((YourThree.Item) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -296,9 +299,11 @@ struct DaySheet: View {
     /// `opening` is the tab to show first; a past day's set has only the
     /// Journal, so it opens there whatever is passed.
     init(dateString: String, tabs: DayTabSet, opening: DayTab = .plan,
+         onThree: ((YourThree.Item) -> Void)? = nil,
          onComplete: @escaping (PlanItem) -> Void = { _ in }) {
         self.dateString = dateString
         self.tabSet = tabs
+        self.onThree = onThree
         self.onComplete = onComplete
         _tab = State(initialValue: tabs.opening(opening))
     }
@@ -467,7 +472,7 @@ struct DaySheet: View {
     private var planTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
             PlanLines(focused: $planFocus, onComplete: onComplete,
-                      onStart: { planFocus = planComposerID })
+                      onStart: { planFocus = planComposerID }, onThree: onThree)
                 .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollDismissesKeyboard(.interactively)

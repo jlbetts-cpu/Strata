@@ -234,18 +234,15 @@ Testers logged one or two wins a day. The research and every decision are in
 - **Ideas over the add sheet's keyboard** (`WinIdeas`): plan lines, then your
   usual wins, then small ones. Recognition, not recall. Typing narrows them.
 - **Rest days** (`Streaks.Rest`): one a week for you, two for a crew.
-- **Your three** (`YourThree`, in `GoalRing.swift`; the owner's picks,
-  2026-10-06: "Three + a Hard day switch", asked in onboarding after the
-  goal, skippable). Three wins you could do on your worst day, stored as
-  JSON in `@AppStorage("yourThree")`. They lead `WinIdeas.pick`, log as
-  ordinary wins and count toward the goal; in Your day a logged one wears a
-  quiet tick and one not logged is only its words (never an empty circle).
-  **Hard day** stores today's date (`DailyGoal.hardDayKey`), so it resets at
-  midnight; `DailyGoal.today` makes the goal your three, never higher than
-  the set one. **Everything asks `todaysGoal`**: the crest, the cue, the
-  dance, the booth's develop, the evening check-in. Switching it on past
-  the new goal dances and prints when Your day closes. No cue of its own,
-  no sync to crews, and never "missed", "streak" or "minimum" in its copy.
+- **Your three** (`YourThree`, in `GoalRing.swift`; asked in onboarding
+  after the goal, skippable). Three wins you could do on your worst day,
+  stored as JSON in `@AppStorage("yourThree")`. They lead `WinIdeas.pick`,
+  log as ordinary wins and count toward the goal; in Your day a logged one
+  wears a quiet tick and one not logged is only its words (never an empty
+  circle). **No Hard day** (removed 2026-10-07, his pick: "I don't
+  understand the point of checking the hard day thing"): today's goal is
+  the goal you set, and everything asks `todaysGoal`. No cue of its own, no
+  sync to crews, and never "missed", "streak" or "minimum" in its copy.
 
 ## The middle of Wins: the goal crest (2026-10-06)
 
@@ -1749,6 +1746,44 @@ crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
   anywhere, NOT the tower switch: a first head starts with the tower switch
   off, and gating on it meant a friend's head never reached anyone. A system permission prompt survives an
 uninstall in the simulator; reboot it.
+
+### Drawings thrown onto a crew's tower (2026-10-07)
+
+The owner: "each person in the group can throw in one drawing per day ... it
+disappears at midnight, and can be put back in the middle", then, the same
+evening, "none of the doodles should go [on Wins], just keep it in the crew
+chats that you made the doodle for ... like the crew tower". So: **crew
+towers only.** Nothing of this touches Wins, `GoalCrest` or Your day.
+
+- **Where you draw**: the bubble (empty) opens `CrewMiddleSheet` on **Draw**;
+  with heads parked the fan's last circle is Draw. The name opens it on
+  **Crew** (`CrewInfoSheet`, untouched). The switch is the day sheet's two
+  words, laid over the bar (`CrewMiddleSheet.switchTop`), because the Crew
+  tab keeps its own `NavigationStack`. Draw is `InkCanvas` square, "Throw
+  it in" (`PrimaryCapsule`), then the drawing small and "Back tomorrow".
+- **Transport: a chat doodle, marked** (`CrewToss.swift`). `text` is
+  `CrewMessage.tossMarker` (U+2063 U+2064, invisible, survives the decoder's
+  trim and `CrewWords`). **No new field**: a field on a production record
+  type needs a schema deploy first. `messages(in:)` drops tosses, so the
+  chat, its dot, alerts and line reactions never see one;
+  `tosses(in:)` is the tower's list: one per sender per crew day (first
+  wins), members only, blocked hidden, a friend's only after this phone's
+  photo check. An older build shows a toss as a wordless doodle in the chat.
+- **Landing** (`TossPhysics`, pure, `CrewTossLayer` draws it): `dropGravity`,
+  restitution 0.3, a seeded tilt, on `TowerSkyline` tops, the slot (a
+  solid: never covered), the floor and each other. Blocks still falling are
+  left out of the skyline, and a resting drawing hops onto ground that rose
+  under it. Seeded by message id salted with your profile id: same place on
+  every relaunch here. Landed ids are kept per crew per day
+  (`CrewTossShelf.landed`), so only arrivals you have not seen fall; a live
+  one waits while a sheet is up. Reduce Motion: placed, faded in.
+- **Tuck**: hold a drawing, it flies into the bubble (`TossTuckFlight`) and
+  `TossCountBadge` counts it on arrival. Per phone, per crew, per day
+  (`CrewTossShelf`, `UserDefaults`, keyed by day so midnight needs no job).
+  Draw's "Tucked Away" puts one back (it falls in again) or Reports it.
+- Simulator: `-strataSeedCrewTosses <n>` (friends throw, they fall on open),
+  `-strataCrewSheet draw|throw` (`throw` draws and throws yours),
+  `-strataCrewTuckAfter <s>`. Tests: `TossTests`.
 
 ## Words the app says
 

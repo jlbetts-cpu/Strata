@@ -175,7 +175,7 @@ nonisolated enum EveningCheckIn {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        // Today's goal: your three on a hard day (`DailyGoal.today`).
+        // Today's goal, as you set it.
         let goal = DailyGoal.stored(on: today, defaults: defaults)
         content.title = logs.count == goal - 1 ? WinCue.oneMore : title
         content.sound = .default
