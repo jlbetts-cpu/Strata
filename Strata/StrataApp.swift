@@ -189,6 +189,13 @@ struct StrataApp: App {
             .environment(focusFilterService)
             #if DEBUG
             .task { await DebugHarness.seedCrewIfAsked() }
+            // `-strataInitCloudSchema 1`, on a phone signed in to iCloud:
+            // writes the store's CloudKit schema to Development (`CloudSchemaInit`).
+            .task {
+                guard CloudSchemaInit.isAsked else { return }
+                try? await Task.sleep(for: .seconds(4))
+                CloudSchemaInit.runAndShow()
+            }
             #endif
             .onAppear {
                 // **Not wrapped in a Task.** `reindex` spawns its own
