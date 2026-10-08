@@ -32,6 +32,38 @@ final class CloudKitCrewCloud: CrewCloud {
     private var cache: [CrewID: [String: RecordFields]] = [:]
     private var tokens: [CrewID: CKServerChangeToken] = [:]
 
+    /// The private database's change token, so a push asks only what changed
+    /// since the last one (`CrewPushRoute`).
+    private static let privateTokenKey = "crews.privateDatabaseToken"
+
+    func privateCrewZonesChanged() async -> Bool {
+        let defaults = UserDefaults.standard
+        let saved = defaults.data(forKey: Self.privateTokenKey).flatMap {
+            try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: $0)
+        }
+        var token = saved
+        var zones: [String] = []
+        do {
+            var more = true
+            while more {
+                let changes = try await container.privateCloudDatabase.databaseChanges(since: token)
+                zones += changes.modifications.map(\.zoneID.zoneName)
+                zones += changes.deletions.map(\.zoneID.zoneName)
+                token = changes.changeToken
+                more = changes.moreComing
+            }
+        } catch {
+            // An expired token or no network: refresh, as before.
+            defaults.removeObject(forKey: Self.privateTokenKey)
+            return true
+        }
+        if let token, let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
+            defaults.set(data, forKey: Self.privateTokenKey)
+        }
+        // The first ask on a phone has nothing to compare with: refresh.
+        return saved == nil || CrewPushRoute.touchesCrews(zones)
+    }
+
     init(containerID: String? = nil, me: UUID? = nil, directory: URL? = nil) {
         container = CKContainer(identifier: containerID ?? SharedModelContainer.cloudKitContainerID)
         myProfileID = me ?? ProfileStore.profileID
@@ -93,6 +125,8 @@ final class CloudKitCrewCloud: CrewCloud {
         cache.removeAll()
         tokens.removeAll()
         prepared = false
+        // A write still waiting would bring the old cache back.
+        pendingSave?.cancel()
         try? FileManager.default.removeItem(at: cacheURL)
     }
 
@@ -611,7 +645,7 @@ final class CloudKitCrewCloud: CrewCloud {
 
     // MARK: The cache on disk
 
-    private struct Saved: Codable {
+    nonisolated private struct Saved: Codable, Sendable {
         var cache: [String: [String: RecordFields]]
         var tokens: [String: Data]
     }
@@ -637,11 +671,26 @@ final class CloudKitCrewCloud: CrewCloud {
                 saved.tokens[crew.rawValue] = data
             }
         }
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try JSONEncoder().encode(saved).write(to: cacheURL, options: .atomic)
-        } catch {
-            Self.log.error("crew cache not written: \(error)")
+        // **Encoded off the main actor, and a burst written once** (2026-10-08,
+        // the scale audit). It encoded every crew's records and wrote the file
+        // on the main actor after every save, delete and sync, which with a
+        // crew open is every few seconds. The snapshot is taken here, so what
+        // is written is what the cache was; a newer save cancels an older
+        // write that has not started. It is a cache: the tokens are in the
+        // same file, so a write that never lands just means a fuller fetch.
+        pendingSave?.cancel()
+        let url = cacheURL, folder = directory, log = Self.log
+        pendingSave = Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try JSONEncoder().encode(saved).write(to: url, options: .atomic)
+            } catch {
+                log.error("crew cache not written: \(error)")
+            }
         }
     }
+
+    private var pendingSave: Task<Void, Never>?
 }

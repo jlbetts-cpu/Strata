@@ -42,8 +42,8 @@ enum CrewNotifications {
     /// The silent push from both databases: crews you started live in your
     /// private one, crews you joined in your shared one.
     static func subscribe(_ container: CKContainer) async {
-        for (scope, id) in [(container.privateCloudDatabase, "crews-private"),
-                            (container.sharedCloudDatabase, "crews-shared")] {
+        for (scope, id) in [(container.privateCloudDatabase, CrewPushRoute.privateID),
+                            (container.sharedCloudDatabase, CrewPushRoute.sharedID)] {
             let subscription = CKDatabaseSubscription(subscriptionID: id)
             let info = CKSubscription.NotificationInfo()
             info.shouldSendContentAvailable = true

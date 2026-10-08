@@ -19,6 +19,10 @@ nonisolated struct CrewInvite: @unchecked Sendable {
 /// allowed to leave the phone are `SocialStore`'s; this layer moves fields.
 @MainActor
 protocol CrewCloud: AnyObject {
+    /// A crew zone in the private database changed since the last ask
+    /// (`CrewPushRoute`). A requirement, so the CloudKit cloud's answer is
+    /// the one called through `any CrewCloud`, not the default below.
+    func privateCrewZonesChanged() async -> Bool
     /// `ProfileStore.profileID` on this phone, or, once `prepare` has run on
     /// a second phone of the same person, the one their first phone made.
     var myProfileID: UUID { get }
@@ -78,6 +82,13 @@ protocol CrewCloud: AnyObject {
     func listen(for plan: CrewPingPlan) async throws
     /// Where a crew's zone lives, for the notification extension to read it.
     func zoneLocation(of crew: CrewID) -> (owner: String, joined: Bool)?
+}
+
+extension CrewCloud {
+    /// Whether a crew's zone in your private database changed since the last
+    /// ask (`CrewPushRoute`). A cloud that cannot tell says yes, which is the
+    /// old behaviour: refresh.
+    func privateCrewZonesChanged() async -> Bool { true }
 }
 
 extension CrewCloud {

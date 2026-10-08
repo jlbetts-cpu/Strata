@@ -167,6 +167,14 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     nonisolated func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         guard CrewsFlag.isUsable else { return .noData }
+        switch CrewPushRoute.route(userInfo: userInfo) {
+        case .notCrews:
+            return .noData
+        case .checkPrivate:
+            guard await SocialStore.shared.cloud.privateCrewZonesChanged() else { return .noData }
+        case .crews:
+            break
+        }
         await SocialStore.shared.refresh()
         return .newData
     }
