@@ -2258,8 +2258,10 @@ struct MainAppView: View {
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false) {
+        #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
+        #endif
         do {
             // The colour the slot has been showing, not a fresh roll.
             let win = try QuickWinService.logWin(
@@ -2727,11 +2729,15 @@ struct MainAppView: View {
 
     @discardableResult
     private func refreshData() -> Set<UUID> {
-        let probeStart = CACurrentMediaTime()
         // Measured 2026-10-08 with `-strataPerfProbe`: 15 to 47ms with a year
         // of wins (1,425) and 42 to 55ms with a week (25). The size of the
         // history does not move it, so the root `@Query` of every Habit stays.
+        // The probe is DEBUG only, as `PerfProbe` is: unguarded, it failed the
+        // release archive of build 109.
+        #if DEBUG
+        let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.refreshData", since: probeStart) }
+        #endif
         // Single-pass log index — O(n) once, then O(1) lookups downstream
         var logsByDate: [String: [HabitLog]] = [:]
         for log in logs {
