@@ -22,6 +22,7 @@ nonisolated enum PrivacyPolicyText {
         ]),
         ("Photos", [
             "A photo you attach is copied into Some Wins' own storage so the block still has it if you later remove the original. Deleting a win deletes its photo with it.",
+            "Photos are kept on this device, not in Some Wins' iCloud sync. They are in your iPhone's iCloud Backup if that is on, and in the backup file you can make in Settings.",
         ]),
         ("Places", [
             "Some Wins asks first, and iOS will not give it a position until you say yes. After that, Some Wins notes where a photo was taken, at the moment you take it, so your wins can appear on your map. It checks only while the camera is open, never in the background. The place is kept with the win on your device and in your iCloud, and is never sent to a crew.",
