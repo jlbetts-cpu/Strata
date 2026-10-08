@@ -75,6 +75,8 @@ final class StoreSyncStatus {
         /// Nil when it succeeded. The short form, because a CloudKit error's
         /// full text runs to hundreds of characters of record names.
         var failure: String?
+        /// The failure was the person's iCloud being full.
+        var quotaExceeded = false
     }
 
     /// The last of each kind of event CloudKit reported. Setup happens once per
@@ -90,6 +92,30 @@ final class StoreSyncStatus {
     /// True once an import has succeeded, which is the evidence that this
     /// device has heard from the other one.
     var hasImported: Bool { lastImport?.succeeded == true }
+
+    /// **The one sync failure Settings says out loud** (2026-10-08): the last
+    /// export failed because iCloud is full. Every win still saves to the
+    /// phone, so nothing is lost today, but a person who believes they are
+    /// backed up and is not is exactly how the owner lost his wins once. The
+    /// next successful export clears it.
+    var iCloudIsFull: Bool { lastExport.map { !$0.succeeded && $0.quotaExceeded } ?? false }
+
+    /// Whether CloudKit's error says the account is out of space, looking
+    /// inside a partial failure and an underlying error, which is where
+    /// mirroring puts it.
+    nonisolated static func isQuotaExceeded(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == CKErrorDomain {
+            if ns.code == CKError.Code.quotaExceeded.rawValue { return true }
+            if ns.code == CKError.Code.partialFailure.rawValue,
+               let parts = ns.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Error],
+               parts.values.contains(where: { isQuotaExceeded($0) }) {
+                return true
+            }
+        }
+        if let under = ns.userInfo[NSUnderlyingErrorKey] as? Error { return isQuotaExceeded(under) }
+        return false
+    }
 
     /// One line, for the log and for `-strataReportStore`-shaped debugging.
     var summary: String {
@@ -135,7 +161,8 @@ final class StoreSyncStatus {
                     as? NSPersistentCloudKitContainer.Event else { return }
             let moment = Moment(at: event.endDate ?? event.startDate,
                                 succeeded: event.succeeded,
-                                failure: event.error.map(Self.shortReason))
+                                failure: event.error.map(Self.shortReason),
+                                quotaExceeded: event.error.map { Self.isQuotaExceeded($0) } ?? false)
             let type = event.type
             Task { @MainActor in StoreSyncStatus.shared.record(type, moment, ended: event.endDate != nil) }
         }

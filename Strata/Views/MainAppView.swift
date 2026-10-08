@@ -612,6 +612,8 @@ struct MainAppView: View {
         .modifier(FirstWinInvitePrompt(blockCount: towerVM.placedBlocks.count,
                                        crewPath: $crewPath,
                                        towerCard: { shareCard() }))
+        // The one automatic review ask (`ReviewPrompt`, 2026-10-08).
+        .modifier(ReviewPrompt(blockCount: towerVM.placedBlocks.count, isCalm: { reviewIsCalm }))
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
         // Setting one flag false and another true together asks UIKit to present a sheet
@@ -1731,6 +1733,15 @@ struct MainAppView: View {
     @State private var goalDanceSeeded = false
     /// Where the Wins tab's stack has gone: Crews, then a crew.
     @State private var crewPath: [CrewRoute] = []
+
+    /// **Calm enough to ask for a review** (`ReviewPrompt`, 2026-10-08): on
+    /// the tower itself, nothing falling, and none of this view's sheets,
+    /// covers or pushes up. Read when the moment comes, so it is current.
+    private var reviewIsCalm: Bool {
+        selectedTab == .tower && crewPath.isEmpty && !animCoord.isCascading
+            && !isPlanning && winDraft == nil && editingHabit == nil && booth == nil
+            && !showsTipAsk && !showsYourDay && profileOrigin == nil
+    }
 
  
 

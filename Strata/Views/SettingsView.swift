@@ -21,7 +21,6 @@ struct SettingsView: View {
     /// emptied, and stays on it with the reason if it is not.
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.requestReview) private var requestReview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query private var habits: [Habit]
@@ -683,8 +682,18 @@ struct SettingsView: View {
             } footer: {
                 // Said where the two rows are, because the fear this answers is
                 // "will restoring wipe what I have now".
-                Text("A backup is one zip file with your wins and your photographs in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
-                    .formFooter()
+                VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                    // **Only when iCloud is full** (2026-10-08). The one sync
+                    // failure worth a sentence: wins still save, but they stop
+                    // leaving the phone, and nothing else in the app says so.
+                    // Beside the backup, which is the answer to it.
+                    if StoreSyncStatus.shared.iCloudIsFull {
+                        Text("iCloud is full, so new wins are saved on this iPhone only.")
+                            .formFooter()
+                    }
+                    Text("A backup is one zip file with your wins and your photographs in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
+                        .formFooter()
+                }
             }
 
             // MARK: - Support Some Wins (the tip jar, 2026-10-08)
@@ -702,7 +711,11 @@ struct SettingsView: View {
                 // address the privacy policy already publishes, so the app has
                 // one contact rather than two. Swap both when the domain is
                 // real.
-                Link(destination: URL(string: "mailto:jbett5@hotmail.com")!) {
+                //
+                // **The address is `Support.address` now, and the row works
+                // without a mail account** (2026-10-08): the composer, else
+                // any mail app, else the address to copy (`FeedbackButton`).
+                FeedbackButton {
                     Label {
                         HStack {
                             Text("Send Feedback")
@@ -725,14 +738,18 @@ struct SettingsView: View {
                     }
                 }
 
-                Button {
-                    requestReview()
-                } label: {
-                    Label {
-                        Text("Rate on App Store")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "star")
+                // **The review page, not `requestReview`** (2026-10-08): that
+                // call is a no-op once iOS has used its quota, so this row
+                // sometimes did nothing. Hidden until `SomeWinsAppStoreID` is
+                // in Info.plist; the automatic ask is `ReviewPrompt`.
+                if let review = Support.reviewURL(appStoreID: Support.appStoreID) {
+                    Link(destination: review) {
+                        Label {
+                            Text("Rate on App Store")
+                                .foregroundStyle(AppColors.inkPrimary)
+                        } icon: {
+                            SettingsIcon(systemName: "star")
+                        }
                     }
                 }
             } header: {
