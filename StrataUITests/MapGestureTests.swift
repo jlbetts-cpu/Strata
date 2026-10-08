@@ -20,7 +20,11 @@ final class MapGestureTests: XCTestCase {
         app.launchArguments += [
             "-strataStartTab", "history",
             "-strataSeedHistory", "50",
-            "-strataSeedPlaces", "1"
+            "-strataSeedPlaces", "1",
+            // The map is a push from Memories now, behind a tap, so landing on
+            // the tab no longer shows it; these three waited 40s for a probe
+            // on a screen that was never opened.
+            "-strataOpenMap", "1"
         ]
         app.launch()
         return app
@@ -189,30 +193,31 @@ final class MapGestureTests: XCTestCase {
                       "drawing a bigger block did not unlock the page — the slot is not resizing")
     }
 
-    /// A clean first run, all the way through, ending on a tower with a block
-    /// on it.
+    /// A clean first run, all the way through, ending on the tower.
     ///
     /// **This is what a reviewer does first**, and until now nothing checked
     /// it: every other test in this project launches with harness flags that
     /// skip onboarding entirely, so the one path every single user takes was
-    /// the one path never exercised. It walks the five pages, draws a real
-    /// block on the tutorial, and then asserts the welcome win actually landed
-    /// on the tower — which is the join between onboarding and the app, and
-    /// the thing most likely to be quietly broken.
-    func testAFirstRunEndsOnATowerWithABlockOnIt() throws {
+    /// the one path never exercised.
+    ///
+    /// **Rewritten for the rebuilt onboarding** (2026-10-08, `docs/superpowers/
+    /// specs/2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
+    /// try-it board is the first page; the camera, map, Your three and first-win
+    /// pages are gone (the owner: "that should be explained in the app"). So
+    /// the walk is Skip, draw a block, What else, Not now, One more thing, Set
+    /// my goal, and the join it asserts is the tower with its slot ready: the
+    /// first win is now made on the real tower, not queued from onboarding.
+    func testAFirstRunEndsOnTheTower() throws {
         let app = XCUIApplication()
         // Deliberately no `-strataShowOnboarding`: this has to be the real
         // first-launch path, decided by `hasOnboarded`.
-        // A first run means a store that has never been used. Without this
-        // the test passes alone and fails in a suite, because an earlier test
-        // has already left wins on the tower and the welcome block — which may
-        // only ever be created once — is correctly skipped.
         app.launchArguments += ["-strataResetOnboarding", "1", "-strataResetStore", "1"]
         app.launch()
 
-        XCTAssertTrue(app.buttons["Let me try"].waitForExistence(timeout: 45),
-                      "a clean launch did not open onboarding")
-        app.buttons["Let me try"].tap()
+        // The film, which a person can leave from its first frame.
+        let skip = app.buttons["Skip"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 45), "a clean launch did not open on the film")
+        skip.tap()
         Thread.sleep(forTimeInterval: 2)
 
         // The tutorial will not let you past until a block is drawn OUT.
@@ -222,74 +227,44 @@ final class MapGestureTests: XCTestCase {
         start.press(forDuration: 0.5, thenDragTo: start.withOffset(CGVector(dx: 160, dy: 0)))
         Thread.sleep(forTimeInterval: 2)
 
-        for label in ["What else", "Go on"] {
-            XCTAssertTrue(app.buttons[label].waitForExistence(timeout: 15), "no \(label) button")
-            app.buttons[label].tap()
-            Thread.sleep(forTimeInterval: 2)
-        }
-        // The map page's button asks for location when it can.
-        let onward = app.buttons.matching(NSPredicate(
-            format: "label == %@ OR label == %@", "Turn on places", "One more thing")).firstMatch
-        XCTAssertTrue(onward.waitForExistence(timeout: 15), "no button on the map page")
-        onward.tap()
-        Thread.sleep(forTimeInterval: 3)
-        dismissSystemAlerts(app)
-
-        // **The head page, which did not exist when this test was written.**
-        // Onboarding gained a step: `lastStep` went 4 to 5. Its primary button
-        // opens the head maker, which needs a front camera and therefore
-        // cannot run here at all — "Not now" is the secondary that moves on
-        // without one, and is the only path a simulator has.
-        let notNow = app.buttons["Not now"]
-        if notNow.waitForExistence(timeout: 10) {
-            notNow.tap()
-            Thread.sleep(forTimeInterval: 2)
-        }
-
-        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 15), "no Start button")
-        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["What else"].waitForExistence(timeout: 15), "no What else button")
+        app.buttons["What else"].tap()
         Thread.sleep(forTimeInterval: 2)
 
-        // **The day's goal** (2026-10-06): a page between the thank you and
-        // the first win, its number left at the default.
+        // The head page. Its primary opens the head maker, which needs a front
+        // camera and cannot run here; "Not now" moves on without one. A
+        // simulator that already holds a head (an earlier test made one) shows
+        // "One more thing" instead, since there is nothing to offer.
+        let onFromHead = app.buttons.matching(NSPredicate(
+            format: "label == %@ OR label == %@", "Not now", "One more thing")).firstMatch
+        XCTAssertTrue(onFromHead.waitForExistence(timeout: 15),
+                      "no head page. On screen: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label))")
+        onFromHead.tap()
+        Thread.sleep(forTimeInterval: 2)
+
+        XCTAssertTrue(app.buttons["One more thing"].waitForExistence(timeout: 15), "no thank-you page")
+        app.buttons["One more thing"].tap()
+        Thread.sleep(forTimeInterval: 2)
+
+        // The day's goal, its number left at the default. The last page.
         XCTAssertTrue(app.buttons["Set my goal"].waitForExistence(timeout: 15), "no goal page")
         app.buttons["Set my goal"].tap()
-        Thread.sleep(forTimeInterval: 2)
-
-        // **Your three** (2026-10-06): asked after the goal, and skippable,
-        // which is the path this test takes so the first win is the only win.
-        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 15), "no Skip on the three page")
-        app.buttons["Skip"].tap()
-        Thread.sleep(forTimeInterval: 2)
-
-        // **The first win** (2026-10-05). The walkthrough no longer ends on
-        // Start: its last page is the tower's slot. A chip fills the title in
-        // and one tap drops the block; the walkthrough then hands over by
-        // itself. This replaced the "Welcome" block this test used to look for.
-        let chip = app.buttons["Made the bed"]
-        XCTAssertTrue(chip.waitForExistence(timeout: 15), "no example chips on the last page")
-        chip.tap()
-        let firstSlot = app.descendants(matching: .any)["Log a win"]
-        XCTAssertTrue(firstSlot.waitForExistence(timeout: 15), "no slot on the first-win page")
-        firstSlot.tap()
+        dismissSystemAlerts(app)
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
-        // tower. A shorter wait catches the loading skeleton, and here it
-        // caught a screen with no static text on it at all.
-        Thread.sleep(forTimeInterval: 22)
+        // tower. A shorter wait catches the loading skeleton.
+        Thread.sleep(forTimeInterval: 18)
 
-        // **The join.** Onboarding queues the first win; `MainAppView` logs
-        // it against the active tower (`OnboardingFirstWin`). If that
-        // hand-off breaks, a new user lands on an empty tower and the whole
-        // endowed-progress idea is silently gone.
-        let firstWin = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Made th")).firstMatch
-        if !firstWin.waitForExistence(timeout: 30) {
-            // Dump the tree rather than guess. `XCTFail(app.debugDescription)`
-            // is the only channel that reaches the xcodebuild log — test
-            // `print` does not — and CLAUDE.md records that it has settled
-            // two long-running failures in minutes after hours of theorising.
-            let labels = app.staticTexts.allElementsBoundByIndex
-                .prefix(30).map(\.label).joined(separator: " | ")
-            XCTFail("the first run ended on a tower with no block on it. On screen: \(labels)")
+        // **The join.** Onboarding hands over to the tower, and the tower's
+        // own slot is where the first win is made. If the hand-off breaks, a
+        // new user lands somewhere with nothing to press.
+        // The empty tower is its own branch (`towerEmptyStateMessage` hung on
+        // the slot) and carries no `todaysTower` identifier, so the join is
+        // the line that only an empty Wins tab shows, and its slot, pressable.
+        let hint = app.staticTexts["Tap the slot to log your first win."]
+        let firstSlot = app.buttons["Log a win"]
+        if !(hint.waitForExistence(timeout: 30) && firstSlot.waitForExistence(timeout: 10)
+             && firstSlot.isHittable) {
+            XCTFail("the first run did not end on the tower with its slot. Tree: \(app.debugDescription.prefix(6000))")
         }
     }
 
