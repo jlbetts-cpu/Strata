@@ -904,6 +904,7 @@ final class SocialStore {
             enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: shared), fields: CrewRecords.fields(shared)))
         }
         record(win, in: chosen.filter { crew($0) != nil })
+        nudgeLive()
         await flush()
     }
 
@@ -1122,6 +1123,7 @@ final class SocialStore {
     }
 
     private func keep(_ message: CrewMessage) {
+        nudgeLive()
         messagesByCrew[message.crewID, default: []].append(message)
         enqueue(.init(crew: message.crewID, type: .message, name: CrewRecords.name(of: message),
                       fields: CrewRecords.fields(message)))
@@ -1248,6 +1250,7 @@ final class SocialStore {
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
         }
+        nudgeLive()
         await flush()
     }
 
@@ -1330,6 +1333,7 @@ final class SocialStore {
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
         }
+        nudgeLive()
         await flush()
         return .sent
     }
@@ -1386,25 +1390,178 @@ final class SocialStore {
     /// owner, 2026-10-02: "update immediately... on everyones end"). A
     /// silent push is only a nudge and iOS delays it at will; this does not
     /// wait for one. Nothing changed costs one small request.
-    func refreshLive(_ crewID: CrewID) async {
-        guard isEnabled(), !isRefreshing else { return }
+    ///
+    /// **A change reads that one crew, not every crew** (the 2026-10-08
+    /// audit). Any change used to start a full `refresh()`: every zone
+    /// listed and synced, the share fetched, pings replanned, every few
+    /// seconds while a friend was typing. The zone's records are already
+    /// here once `syncOnly` returns, so only that crew is rebuilt from them
+    /// (`refreshCrew`). A crew that is gone, or a full refresh asked for
+    /// meanwhile, still goes the whole way.
+    ///
+    /// Returns whether anything changed, which the crew screen paces its
+    /// next ask by (`CrewLivePace`). Asks nothing while CloudKit has said to
+    /// wait (`syncRetryAfter`).
+    @discardableResult
+    func refreshLive(_ crewID: CrewID) async -> Bool {
+        guard isEnabled(), !isRefreshing, now() >= syncRetryAfter else { return false }
         await flush()
+        let changed: Bool
         do {
-            if try await cloud.syncOnly(crewID) { await refresh() }
+            changed = try await cloud.syncOnly(crewID)
         } catch {
             Self.log.error("live sync of \(crewID.rawValue, privacy: .public) failed: \(error)")
+            noteBackoff(error)
+            // Ended, or you were removed: the full refresh says so.
+            if Self.ckErrors(error).contains(where: { $0.code == .zoneNotFound || $0.code == .userDeletedZone }) {
+                await refresh()
+            }
+            return false
         }
+        guard changed else { return false }
+        // A full refresh started meanwhile reads this zone too: it goes round
+        // once more rather than racing this one.
+        if isRefreshing { refreshAgain = true; return true }
+        isRefreshing = true
+        refreshAgain = false
+        let found = await refreshCrew(crewID)
+        isRefreshing = false
+        if !found || refreshAgain {
+            await refresh()
+        } else if announces {
+            await CrewNotifications.announce(self)
+            await CrewNotifications.announceReactions(self)
+            await CrewNotifications.announceMessages(self)
+            await checkArrivedPhotos()
+        }
+        return true
     }
 
     /// Whether this store says what is new as notifications. The phone's own
     /// store does; a test's or a debug friend's never does.
     @ObservationIgnored var announces = false
 
+    /// **Bumped when you post, say or react** (2026-10-08): the crew screen
+    /// goes back to asking every 3 seconds (`CrewLivePace`), since an
+    /// answer is likeliest just after you did something.
+    private(set) var liveNudge = 0
+    private func nudgeLive() { liveNudge &+= 1 }
+
     @ObservationIgnored private var refreshAgain = false
     /// Crews whose name or picture is being saved right now.
     @ObservationIgnored private var editing: [CrewID: Crew] = [:]
+    /// **Not before: CloudKit asked this phone to wait** (2026-10-08). Set
+    /// from `retryAfterSeconds` when a sync or a write is refused as rate
+    /// limited, zone busy or service unavailable; until then neither the
+    /// live sync nor a full refresh asks anything.
+    @ObservationIgnored private var syncRetryAfter: Date = .distantPast
+
+    private func noteBackoff(_ error: Error) {
+        guard let wait = Self.serverBackoff(error) else { return }
+        syncRetryAfter = max(syncRetryAfter, now().addingTimeInterval(wait))
+    }
+
+    /// One crew's wins, reactions and chat as fetched, with this phone's
+    /// writes still on their way laid over them. Nil wins: the fetch failed,
+    /// which is not a day with no wins.
+    private struct Held {
+        var wins: [SharedWin]?
+        var reactions: [Reaction]
+        var messages: [CrewMessage]
+    }
+
+    private func held(in crew: Crew) async -> Held {
+        let people = Set(crew.members.map(\.profileID))
+        var wins: [SharedWin]?
+        do {
+            var fetched = try await cloud.fetchWins(in: crew.id)
+            // A write of ours still on its way wins over what the
+            // cloud has: it is newer.
+            for entry in outbox.entries where entry.crew == crew.id && entry.type == .sharedWin {
+                fetched.removeAll { $0.winID.uuidString == entry.name }
+                if let fields = entry.fields, let mine = CrewRecords.sharedWin(fields, crew: crew.id) {
+                    fetched.append(mine)
+                }
+            }
+            // Only people in the crew: someone removed is gone with
+            // their wins, whoever's phone had not yet deleted them
+            // (the 2026-10-03 audit: they came back as "A friend").
+            // And out of every tag: someone removed from a crew is
+            // dropped from its tags (shared wins, spec 1).
+            wins = fetched.filter { people.contains($0.senderProfileID) }
+                .map { win -> SharedWin in
+                    var win = win
+                    win.withPeople.removeAll { !people.contains($0) }
+                    return win
+                }
+                .sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
+        } catch {
+            Self.log.error("fetching wins in \(crew.id.rawValue, privacy: .public) failed: \(error)")
+        }
+        var reactions = (try? await cloud.fetchReactions(in: crew.id)) ?? reactionsByCrew[crew.id] ?? []
+        for entry in outbox.entries where entry.crew == crew.id && entry.type == .reaction {
+            reactions.removeAll { $0.id == entry.name }
+            if let fields = entry.fields, let mine = CrewRecords.reaction(fields, crew: crew.id) { reactions.append(mine) }
+        }
+        // The day chat, the same way: a failed fetch keeps what was
+        // held, a line of ours still on its way wins, and only members'.
+        var messages = (try? await cloud.fetchMessages(in: crew.id)) ?? messagesByCrew[crew.id] ?? []
+        for entry in outbox.entries where entry.crew == crew.id && entry.type == .message {
+            messages.removeAll { $0.messageID.uuidString == entry.name }
+            if let fields = entry.fields, let mine = CrewRecords.message(fields, crew: crew.id) {
+                messages.append(mine)
+            }
+        }
+        return Held(wins: wins,
+                    reactions: reactions.filter { people.contains($0.profileID) }.sorted { $0.id < $1.id },
+                    messages: messages.filter { people.contains($0.senderProfileID) }
+                        .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) })
+    }
+
+    /// **In a fixed order**, members, wins and reactions alike. A fetch
+    /// hands them back in dictionary order, so an unchanged crew compared
+    /// as changed on every refresh and the whole crew screen redrew: a
+    /// 96ms hitch every 15 seconds with nobody posting (measured with
+    /// `-strataPerfProbe`, 2026-10-02).
+    private static func ordered(_ crew: Crew) -> Crew {
+        var crew = crew
+        crew.members.sort { ($0.joinedAt, $0.profileID.uuidString) < ($1.joinedAt, $1.profileID.uuidString) }
+        return crew
+    }
+
+    /// A name or picture still being saved wins over what was fetched.
+    private func withEdits(_ crew: Crew) -> Crew {
+        guard let edit = editing[crew.id] else { return crew }
+        var crew = crew
+        crew.name = edit.name
+        crew.photo = edit.photo
+        return crew
+    }
+
+    /// **One crew, rebuilt from the records its zone sync just brought**
+    /// (2026-10-08). False when the crew is not there to rebuild (ended,
+    /// removed, or not yet known here): the caller then does a full refresh.
+    private func refreshCrew(_ crewID: CrewID) async -> Bool {
+        guard crews.contains(where: { $0.id == crewID }),
+              let fetched = try? await cloud.fetchCrew(crewID) else { return false }
+        let crew = withEdits(Self.ordered(fetched))
+        let held = await held(in: crew)
+        // Read again after the awaits: the list may have moved meanwhile.
+        guard let i = crews.firstIndex(where: { $0.id == crewID }) else { return false }
+        if crews[i] != crew { crews[i] = crew }
+        let wins = held.wins ?? winsByCrew[crewID] ?? []
+        if winsByCrew[crewID] != wins { winsByCrew[crewID] = wins }
+        if reactionsByCrew[crewID] != held.reactions { reactionsByCrew[crewID] = held.reactions }
+        if messagesByCrew[crewID] != held.messages { messagesByCrew[crewID] = held.messages }
+        if let counted = held.wins { recordHistory([crewID: counted], for: [crew]) }
+        recomputeUnread()
+        prune()
+        return true
+    }
 
     private func refreshOnce() async {
+        // CloudKit said to wait: nothing is asked until it has passed.
+        guard now() >= syncRetryAfter else { return }
         await cloud.prepare()
         // Who the crews belong to, kept before any change can be announced.
         if defaults.string(forKey: Self.accountKey) == nil, case .signedIn(let who) = await cloud.account() {
@@ -1412,72 +1569,17 @@ final class SocialStore {
         }
         await flush()
         do {
-            // **In a fixed order**, members, wins and reactions alike. A
-            // fetch hands them back in dictionary order, so an unchanged crew
-            // compared as changed on every refresh and the whole crew screen
-            // redrew: a 96ms hitch every 15 seconds with nobody posting
-            // (measured with `-strataPerfProbe`, 2026-10-02).
-            let fetched = try await cloud.fetchCrews().map { crew -> Crew in
-                var crew = crew
-                crew.members.sort { ($0.joinedAt, $0.profileID.uuidString) < ($1.joinedAt, $1.profileID.uuidString) }
-                return crew
-            }
+            let fetched = try await cloud.fetchCrews().map(Self.ordered)
             var wins: [CrewID: [SharedWin]] = [:]
             var counted: [CrewID: [SharedWin]] = [:]
-            for crew in fetched {
-                do {
-                    var held = try await cloud.fetchWins(in: crew.id)
-                    // A write of ours still on its way wins over what the
-                    // cloud has: it is newer.
-                    for entry in outbox.entries where entry.crew == crew.id && entry.type == .sharedWin {
-                        held.removeAll { $0.winID.uuidString == entry.name }
-                        if let fields = entry.fields, let mine = CrewRecords.sharedWin(fields, crew: crew.id) {
-                            held.append(mine)
-                        }
-                    }
-                    // Only people in the crew: someone removed is gone with
-                    // their wins, whoever's phone had not yet deleted them
-                    // (the 2026-10-03 audit: they came back as "A friend").
-                    let people = Set(crew.members.map(\.profileID))
-                    // And out of every tag: someone removed from a crew is
-                    // dropped from its tags (shared wins, spec 1).
-                    wins[crew.id] = held.filter { people.contains($0.senderProfileID) }
-                        .map { win -> SharedWin in
-                            var win = win
-                            win.withPeople.removeAll { !people.contains($0) }
-                            return win
-                        }
-                        .sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
-                    counted[crew.id] = wins[crew.id]
-                } catch {
-                    Self.log.error("fetching wins in \(crew.id.rawValue, privacy: .public) failed: \(error)")
-                    wins[crew.id] = winsByCrew[crew.id] ?? []
-                }
-            }
             var reactions: [CrewID: [Reaction]] = [:]
-            for crew in fetched {
-                var held = (try? await cloud.fetchReactions(in: crew.id)) ?? reactionsByCrew[crew.id] ?? []
-                for entry in outbox.entries where entry.crew == crew.id && entry.type == .reaction {
-                    held.removeAll { $0.id == entry.name }
-                    if let fields = entry.fields, let mine = CrewRecords.reaction(fields, crew: crew.id) { held.append(mine) }
-                }
-                let people = Set(crew.members.map(\.profileID))
-                reactions[crew.id] = held.filter { people.contains($0.profileID) }.sorted { $0.id < $1.id }
-            }
-            // The day chat, the same way: a failed fetch keeps what was
-            // held, a line of ours still on its way wins, and only members'.
             var messages: [CrewID: [CrewMessage]] = [:]
             for crew in fetched {
-                var held = (try? await cloud.fetchMessages(in: crew.id)) ?? messagesByCrew[crew.id] ?? []
-                for entry in outbox.entries where entry.crew == crew.id && entry.type == .message {
-                    held.removeAll { $0.messageID.uuidString == entry.name }
-                    if let fields = entry.fields, let mine = CrewRecords.message(fields, crew: crew.id) {
-                        held.append(mine)
-                    }
-                }
-                let people = Set(crew.members.map(\.profileID))
-                messages[crew.id] = held.filter { people.contains($0.senderProfileID) }
-                    .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
+                let held = await held(in: crew)
+                wins[crew.id] = held.wins ?? winsByCrew[crew.id] ?? []
+                counted[crew.id] = held.wins
+                reactions[crew.id] = held.reactions
+                messages[crew.id] = held.messages
             }
             // Writes for crews that are gone (ended, or you were removed) can
             // never be sent: drop them rather than retry them for ever.
@@ -1487,14 +1589,7 @@ final class SocialStore {
             let known = Set(fetched.map(\.id)).union(fresh)
             for gone in Set(outbox.entries.map(\.crew)).subtracting(known) { outbox.drop(crew: gone) }
             for gone in Set(crews.map(\.id)).subtracting(known) { forget(gone) }
-            // A name or picture still being saved wins over what was fetched.
-            let merged = fetched.map { crew -> Crew in
-                guard let edit = editing[crew.id] else { return crew }
-                var crew = crew
-                crew.name = edit.name
-                crew.photo = edit.photo
-                return crew
-            }
+            let merged = fetched.map(withEdits)
             if crews != merged { crews = merged }
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
@@ -1505,6 +1600,7 @@ final class SocialStore {
             prune()
         } catch {
             Self.log.error("fetching crews failed: \(error)")
+            noteBackoff(error)
         }
     }
 
@@ -1521,9 +1617,16 @@ final class SocialStore {
         repeat {
             flushAgain = false
             for entry in outbox.entries {
+                // A crew whose iCloud is full: its saves wait, uncounted.
+                // Deletes still go, since they are what makes room.
+                if entry.fields != nil, let until = quotaWait[entry.crew], now() < until { continue }
                 do {
                     if let fields = entry.fields {
                         try await cloud.save(fields, type: entry.type, name: entry.name, in: entry.crew)
+                        if fullCrews.contains(entry.crew) {
+                            fullCrews.remove(entry.crew)
+                            quotaWait[entry.crew] = nil
+                        }
                         await pingIfNew(entry.type, fields, in: entry.crew)
                     } else {
                         try await cloud.delete(type: entry.type, name: entry.name, in: entry.crew)
@@ -1531,6 +1634,18 @@ final class SocialStore {
                     outbox.removeIfUnchanged(entry)
                 } catch {
                     Self.log.error("\(entry.type.rawValue, privacy: .public) to \(entry.crew.rawValue, privacy: .public) not sent: \(error)")
+                    // **A full iCloud is a wait, not a failure** (the
+                    // 2026-10-08 audit). The live sync flushes every few
+                    // seconds, so twenty counted tries took about a minute
+                    // and the post was dropped without a word. It waits now,
+                    // uncounted, and the crew screen says why
+                    // (`fullCrews`). Other crews, on other people's iCloud,
+                    // carry on.
+                    if Self.isQuotaExceeded(error) {
+                        quotaWait[entry.crew] = now().addingTimeInterval(Self.quotaPause(error))
+                        if !fullCrews.contains(entry.crew) { fullCrews.insert(entry.crew) }
+                        continue
+                    }
                     // **No signal is not a failure** (the 2026-10-03 audit). A
                     // dropped connection, a busy server or a rate limit says
                     // nothing about the write, and counting them gave up on
@@ -1539,6 +1654,7 @@ final class SocialStore {
                     // asks, and the rest of the queue waits with them.
                     if let wait = Self.transientWait(error) {
                         retryAfter = now().addingTimeInterval(wait)
+                        noteBackoff(error)
                         break
                     }
                     outbox.noteFailure(entry)
@@ -1555,6 +1671,41 @@ final class SocialStore {
     @ObservationIgnored private var flushAgain = false
     /// Not before: set by a transient failure.
     @ObservationIgnored private var retryAfter: Date = .distantPast
+
+    /// **Crews whose starter's iCloud is full** (2026-10-08): a save came
+    /// back `quotaExceeded`. New wins wait in the outbox until a save goes
+    /// through again; the crew screen says so in one line (`fullWords`).
+    private(set) var fullCrews: Set<CrewID> = []
+    static let fullWords = "The crew's iCloud is full, so new wins wait to send."
+    /// When a full crew's saves are next tried.
+    @ObservationIgnored private var quotaWait: [CrewID: Date] = [:]
+
+    /// A CloudKit error and, for a partial failure, each item's own.
+    nonisolated static func ckErrors(_ error: Error) -> [CKError] {
+        guard let ck = error as? CKError else { return [] }
+        return [ck] + (ck.partialErrorsByItemID?.values.compactMap { $0 as? CKError } ?? [])
+    }
+
+    nonisolated static func isQuotaExceeded(_ error: Error) -> Bool {
+        ckErrors(error).contains { $0.code == .quotaExceeded }
+    }
+
+    /// How long a full crew's saves wait: what CloudKit says, at least half
+    /// a minute, since room comes back only when someone deletes something.
+    nonisolated static func quotaPause(_ error: Error) -> TimeInterval {
+        max(ckErrors(error).compactMap(\.retryAfterSeconds).max() ?? 60, 30)
+    }
+
+    /// **How long CloudKit asked everyone to wait** (2026-10-08): rate
+    /// limited, zone busy or service unavailable, from `retryAfterSeconds`.
+    /// Nil for anything else. What `syncRetryAfter` is set from.
+    nonisolated static func serverBackoff(_ error: Error) -> TimeInterval? {
+        let busy = ckErrors(error).filter {
+            $0.code == .requestRateLimited || $0.code == .zoneBusy || $0.code == .serviceUnavailable
+        }
+        guard !busy.isEmpty else { return nil }
+        return max(busy.compactMap(\.retryAfterSeconds).max() ?? 5, 1)
+    }
 
     /// How long to wait before trying again, when `error` says nothing about
     /// the write itself (no network, a busy or limited server, iCloud signed

@@ -179,26 +179,37 @@ final class CloudKitCrewCloud: CrewCloud {
             if cache[crewID]?[Self.namesKey] == nil, let share = try? await share(for: crewID) {
                 keepNames(of: share, in: crewID)
             }
-            let records = cache[crewID] ?? [:]
-            guard let fields = records["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"] else { continue }
-            let names = records[Self.namesKey] ?? [:]
-            let members = records.filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }
-                .values.compactMap { fields -> CrewMember? in
-                    // Someone the developer has banned is in no crew, on any
-                    // phone; their wins and reactions go with them, because
-                    // the store keeps only members' (see `refreshBans`).
-                    if let user = fields[Self.creatorKey]?.string, banned.contains(user) { return nil }
-                    guard var member = CrewRecords.member(fields) else { return nil }
-                    if member.firstName.isEmpty, let user = fields[Self.creatorKey]?.string,
-                       let given = names[user]?.string {
-                        member.firstName = given
-                    }
-                    return member
-                }
-            if let crew = CrewRecords.crew(fields, id: crewID, members: members) { crews.append(crew) }
+            if let crew = cachedCrew(crewID) { crews.append(crew) }
         }
         saveCache()
         return crews.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// **One crew from the cache, no request** (2026-10-08): the live sync
+    /// has just brought its zone up to date with `syncOnly`.
+    func fetchCrew(_ crew: CrewID) async throws -> Crew? {
+        guard zones[crew] != nil else { return nil }
+        return cachedCrew(crew)
+    }
+
+    private func cachedCrew(_ crewID: CrewID) -> Crew? {
+        let records = cache[crewID] ?? [:]
+        guard let fields = records["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"] else { return nil }
+        let names = records[Self.namesKey] ?? [:]
+        let members = records.filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }
+            .values.compactMap { fields -> CrewMember? in
+                // Someone the developer has banned is in no crew, on any
+                // phone; their wins and reactions go with them, because
+                // the store keeps only members' (see `refreshBans`).
+                if let user = fields[Self.creatorKey]?.string, banned.contains(user) { return nil }
+                guard var member = CrewRecords.member(fields) else { return nil }
+                if member.firstName.isEmpty, let user = fields[Self.creatorKey]?.string,
+                   let given = names[user]?.string {
+                    member.firstName = given
+                }
+                return member
+            }
+        return CrewRecords.crew(fields, id: crewID, members: members)
     }
 
     // MARK: Moderation

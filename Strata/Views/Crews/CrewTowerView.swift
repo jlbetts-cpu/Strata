@@ -232,13 +232,25 @@ struct CrewTowerView: View {
         .onChange(of: crew?.members) { _, _ in rebuild() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays live: this crew's changes
-        // every 3 seconds (`refreshLive`, one small request when nothing
-        // moved), since a push is only a nudge to look and may never come.
+        // (`refreshLive`, one small request when nothing moved), since a
+        // push is only a nudge to look and may never come. **Paced**
+        // (2026-10-08, `CrewLivePace`): every 3 seconds while things move,
+        // every 12 once three asks found nothing, and quick again the
+        // moment you post, say or react. Waited out in single seconds so a
+        // nudge is heard at once, and never by cancelling a request.
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            var pace = CrewLivePace()
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
-                await store.refreshLive(crewID)
+                let nudge = store.liveNudge
+                var waited: TimeInterval = 0
+                while waited < pace.interval, !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    waited += 1
+                    if store.liveNudge != nudge { pace.nudged(); break }
+                }
+                guard !Task.isCancelled else { return }
+                pace.asked(changed: await store.refreshLive(crewID))
             }
         }
         .sheet(isPresented: $showsInfo) {
@@ -589,6 +601,17 @@ struct CrewTowerView: View {
                     .zIndex(2)
                     .accessibilityLabel("\(crew.displayName(excluding: store.me)), details")
                     .accessibilityAddTraits(.isHeader)
+                    // **The starter's iCloud is full** (2026-10-08): one
+                    // quiet line while new wins wait in the outbox, rather
+                    // than posts that vanish (`SocialStore.fullCrews`).
+                    if store.fullCrews.contains(crewID) {
+                        Text(SocialStore.fullWords)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 240)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }

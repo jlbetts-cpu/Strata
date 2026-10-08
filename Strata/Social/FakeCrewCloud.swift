@@ -37,6 +37,9 @@ final class FakeCrewCloud: CrewCloud {
     let world: FakeCrewWorld
     let myProfileID: UUID
     var offline = false
+    /// What every save throws while set, as CloudKit would (a full iCloud,
+    /// a rate limit). Nil saves.
+    var saveError: Error?
     private(set) var calls = 0
 
     init(world: FakeCrewWorld? = nil, me: UUID = UUID()) {
@@ -136,6 +139,7 @@ final class FakeCrewCloud: CrewCloud {
 
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws {
         try touch()
+        if let saveError { throw saveError }
         guard world.zones[crew]?.participants.contains(myProfileID) == true else { throw CrewError.unknownCrew }
         world.zones[crew]?.records["\(type.rawValue)/\(name)"] = fields
     }

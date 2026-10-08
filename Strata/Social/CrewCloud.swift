@@ -41,6 +41,9 @@ protocol CrewCloud: AnyObject {
     func accept(_ invite: CrewInvite) async throws -> CrewID
     /// Every crew this phone is in, with its members.
     func fetchCrews() async throws -> [Crew]
+    /// One crew, with its members, as last synced: what a live sync reads
+    /// after `syncOnly` brought its zone up to date. Nil when it is gone.
+    func fetchCrew(_ crew: CrewID) async throws -> Crew?
     /// Every shared win still in a crew's zone.
     func fetchWins(in crew: CrewID) async throws -> [SharedWin]
     /// Every reaction in a crew's zone.
@@ -78,6 +81,12 @@ extension CrewCloud {
     /// A pretend cloud has nothing to fetch: it says something may have
     /// changed and lets the full refresh find out.
     func syncOnly(_ crew: CrewID) async throws -> Bool { true }
+
+    /// Out of every crew, by default. CloudKit reads its own cache instead,
+    /// with no request at all.
+    func fetchCrew(_ crew: CrewID) async throws -> Crew? {
+        try await fetchCrews().first { $0.id == crew }
+    }
 }
 
 /// The iCloud account behind the crews, as far as can be told right now.
