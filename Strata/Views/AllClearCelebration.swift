@@ -105,17 +105,30 @@ private struct BurstBlock: View {
     private static let width: CGFloat = 402
     private static let flight: Double = 1.6
 
+    /// Seven in a cycle: four small, two regular, one deep.
+    private static let sizes: [BlockSize] = [.small, .medium, .small, .hard, .small, .medium, .small]
+
     private static func out3(_ x: Double) -> Double { 1 - pow(1 - min(max(x, 0), 1), 3) }
 
     var body: some View {
         let i = Double(index)
         let angle = i / Double(count) * 2 * .pi + 0.3
         let speed = 0.55 + Double((index * 37) % 10) / 22
-        let side = Self.width * (0.05 + CGFloat((index * 13) % 5) / 140)
+        // **The three block sizes, smaller** (2026-10-08, the owner: "the
+        // confetti should be the small medium large block look", then
+        // "actually a lot smaller but keep the shapes in mind"). One cell of
+        // 6 to 7pt, a quarter of the film's 20 to 31pt squares, and each piece
+        // is a quick 1x1, a regular 2x1 or a deep 2x2 of it, gutter and corner
+        // in the tower's own proportions; mostly small ones, as a day is.
+        let size = Self.sizes[index % Self.sizes.count]
+        let cell = 6 + CGFloat((index * 13) % 2)
+        let gutter = cell * 0.1
+        let w = cell * CGFloat(size.columnSpan) + gutter * CGFloat(size.columnSpan - 1)
+        let h = cell * CGFloat(size.rowSpan) + gutter * CGFloat(size.rowSpan - 1)
         let spinSign: Double = index.isMultiple(of: 2) ? -1 : 1
-        RoundedRectangle(cornerRadius: side * 0.24, style: .continuous)
+        RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell), style: .continuous)
             .fill(colour)
-            .frame(width: side, height: side)
+            .frame(width: w, height: h)
             .keyframeAnimator(initialValue: 0.0, trigger: launched) { content, u in
                 let reach = Self.out3(u / 0.9)
                 let x = cos(angle) * speed * Self.width * 0.55 * reach
