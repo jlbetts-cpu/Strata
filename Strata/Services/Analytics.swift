@@ -28,11 +28,24 @@ final class Analytics {
     nonisolated static let queueLimit = 500
     /// A return after this long away is a new session (the SDK's rule).
     nonisolated static let sessionGap: TimeInterval = 5 * 60
+    /// The ordinary wait between flushes.
+    nonisolated static let flushDelay: TimeInterval = 10
+    /// **The longest a 429 makes us wait** (2026-10-08). TelemetryDeck stops
+    /// ingesting above the plan's cap and says so with 429; retrying every
+    /// ten seconds into that is a phone talking to a wall all day.
+    nonisolated static let maxBackoff: TimeInterval = 10 * 60
 
     struct Config: Sendable {
         var appID: String
         var namespace: String?
         var testMode: Bool
+        /// **The share of installs that send at all, 0 to 1** (2026-10-08).
+        /// The free tier is about 50,000 events a month and stops ingesting
+        /// above it, so past that the owner turns this down in Info.plist
+        /// (`SomeWinsTelemetrySampleRate`) rather than losing whole days.
+        /// Decided per install, never per event, so a sampled install's
+        /// funnel is whole; every event carries the rate so counts scale back.
+        var sampleRate: Double = 1
 
         static var fromBundle: Config {
             let info = Bundle.main.infoDictionary ?? [:]
@@ -43,7 +56,21 @@ final class Analytics {
             #endif
             return Config(appID: (info["SomeWinsTelemetryAppID"] as? String ?? "").trimmingCharacters(in: .whitespaces),
                           namespace: (info["SomeWinsTelemetryNamespace"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                          testMode: test)
+                          testMode: test,
+                          sampleRate: sampleRate(from: info["SomeWinsTelemetrySampleRate"]))
+        }
+
+        /// A plist number or a string of one, clamped to 0...1; anything
+        /// missing or unreadable is 1, everyone.
+        nonisolated static func sampleRate(from value: Any?) -> Double {
+            let raw: Double?
+            switch value {
+            case let n as NSNumber: raw = n.doubleValue
+            case let s as String: raw = Double(s.trimmingCharacters(in: .whitespaces))
+            default: raw = nil
+            }
+            guard let raw, raw.isFinite else { return 1 }
+            return min(1, max(0, raw))
         }
 
         var isEnabled: Bool { !appID.isEmpty }
@@ -62,6 +89,12 @@ final class Analytics {
     private var backgroundedAt: Date?
     private var flushing: Task<Void, Never>?
     private let context: [String: String]
+    /// The screens already counted this session (`screen` is once each).
+    private var screensSeen: Set<String> = []
+    /// Zero, or how long the last 429 asked us to stay away.
+    private(set) var backoff: TimeInterval = 0
+    /// No send before this, after a 429.
+    private var holdUntil: Date?
 
     init(config: Config = .fromBundle, defaults: UserDefaults = .standard,
          now: @escaping () -> Date = Date.init,
@@ -74,24 +107,71 @@ final class Analytics {
         defaults.register(defaults: [Self.shareKey: true])
     }
 
-    var isSharing: Bool { config.isEnabled && defaults.bool(forKey: Self.shareKey) }
+    /// On, given an app ID, and this install inside the sample.
+    var isSharing: Bool {
+        config.isEnabled && defaults.bool(forKey: Self.shareKey)
+            && Self.isSampled(install: installID, rate: config.sampleRate)
+    }
+
+    /// **In or out for the life of the install**, from its own random id:
+    /// the first 8 bytes of its SHA-256 as a fraction of the whole range.
+    /// Never per event, which would cut every funnel at random places.
+    nonisolated static func isSampled(install: String, rate: Double) -> Bool {
+        guard rate < 1 else { return true }
+        guard rate > 0 else { return false }
+        let digest = SHA256.hash(data: Data(("somewins.sample." + install).utf8))
+        let top = digest.prefix(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
+        return Double(top) / Double(UInt64.max) < rate
+    }
 
     // MARK: - Recording
 
     /// Records one event. Does nothing when the switch is off or no app ID
     /// was given.
+    ///
+    /// **`screen` goes once per screen per session** (2026-10-08): it fired on
+    /// every tab change and was most of the volume, while "was Camera opened
+    /// this session" is the whole of what it is read for.
     func signal(_ event: AnalyticsEvent, _ fields: [AnalyticsField] = []) {
         guard isSharing else { return }
         startSessionIfNeeded()
-        enqueue(type: event.rawValue, payload: Dictionary(fields.map(\.pair), uniquingKeysWith: { _, last in last }))
+        let payload = Dictionary(fields.map(\.pair), uniquingKeysWith: { _, last in last })
+        if event == .screen {
+            let name = payload["screen"] ?? ""
+            guard !screensSeen.contains(name) else { return }
+            screensSeen.insert(name)
+        }
+        enqueue(type: event.rawValue, payload: payload)
     }
 
-    /// Settings turned the switch off: nothing held is sent.
+    /// Settings turned the switch off: nothing held is sent, and the install
+    /// is forgotten, so turning it back on is a new anonymous install rather
+    /// than the old one picking up where it left off.
     func stopSharing() {
         defaults.set(false, forKey: Self.shareKey)
+        forgetInstall()
+    }
+
+    /// **Drops what is held and the identity it was held under** (2026-10-08):
+    /// the queue, the install id, the first-day stamp and this session. Used
+    /// by the switch going off and by Reset All Data, so neither leaves the
+    /// old anonymous id behind to be linked to what comes after.
+    func forgetInstall() {
         queue.removeAll()
         flushing?.cancel()
         flushing = nil
+        Self.forgetIdentity(in: defaults)
+        sessionID = UUID()
+        sessionStarted = false
+        screensSeen = []
+        backoff = 0
+        holdUntil = nil
+    }
+
+    /// The stored half of `forgetInstall`, for a caller with no instance.
+    nonisolated static func forgetIdentity(in defaults: UserDefaults) {
+        defaults.removeObject(forKey: installKey)
+        defaults.removeObject(forKey: firstDayKey)
     }
 
     // MARK: - Sessions
@@ -101,6 +181,7 @@ final class Analytics {
         if let away = backgroundedAt, now().timeIntervalSince(away) > Self.sessionGap {
             sessionID = UUID()
             sessionStarted = false
+            screensSeen = []
         }
         backgroundedAt = nil
         startSessionIfNeeded()
@@ -127,6 +208,7 @@ final class Analytics {
 
     private func enqueue(type: String, payload: [String: String]) {
         var merged = context
+        merged["sampleRate"] = String(config.sampleRate)
         for (k, v) in payload { merged[k] = v }
         queue.append([
             "appID": config.appID,
@@ -143,8 +225,9 @@ final class Analytics {
 
     private func scheduleFlush() {
         guard flushing == nil else { return }
+        let wait = max(Self.flushDelay, backoff)
         flushing = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
             await self?.flush()
             self?.flushing = nil
@@ -153,9 +236,11 @@ final class Analytics {
     }
 
     /// Sends what is held, a batch at a time. A batch the server refuses as
-    /// malformed is dropped (the SDK's list); anything else stays for later.
+    /// malformed is dropped (the SDK's list); a 429 keeps it and backs off;
+    /// anything else stays for later.
     func flush() async {
         guard isSharing, !queue.isEmpty, let url = endpoint else { return }
+        if let holdUntil, now() < holdUntil { return }
         let batch = Array(queue.prefix(Self.batchLimit))
         guard let body = try? JSONSerialization.data(withJSONObject: batch) else {
             queue.removeFirst(batch.count)
@@ -169,9 +254,22 @@ final class Analytics {
         // The queue may have moved while the request was out: take off only
         // what was sent, from the front where it still is.
         let sent = min(batch.count, queue.count)
+        if status == 429 {
+            backoff = Self.nextBackoff(after: backoff)
+            holdUntil = now().addingTimeInterval(backoff)
+            return
+        }
         if let status, (200..<300).contains(status) || Self.dropped.contains(status) {
             queue.removeFirst(sent)
+            backoff = 0
+            holdUntil = nil
         }
+    }
+
+    /// Doubles from twice the ordinary wait (20s, 40s, 80s...), never past
+    /// `maxBackoff`.
+    nonisolated static func nextBackoff(after current: TimeInterval) -> TimeInterval {
+        min(maxBackoff, max(flushDelay, current) * 2)
     }
 
     nonisolated static let dropped: Set<Int> = [400, 401, 403, 404, 413, 422, 501, 505]
@@ -192,15 +290,17 @@ final class Analytics {
     /// salt; TelemetryDeck hashes it again on its server. Deleting the app
     /// forgets it.
     var clientUser: String {
-        let install: String
-        if let kept = defaults.string(forKey: Self.installKey) {
-            install = kept
-        } else {
-            install = UUID().uuidString
-            defaults.set(install, forKey: Self.installKey)
-        }
+        let install = installID
         let salt = "somewins.analytics.v1.4f6c1d2e9b8a7c3d5e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2"
         return SHA256.hash(data: Data((install + salt).utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The random install id, made on first use.
+    var installID: String {
+        if let kept = defaults.string(forKey: Self.installKey) { return kept }
+        let made = UUID().uuidString
+        defaults.set(made, forKey: Self.installKey)
+        return made
     }
 
     // MARK: - Context every event carries
@@ -287,6 +387,10 @@ enum AnalyticsEvent: String, Sendable, CaseIterable {
     case tipPurchased = "tip_purchased"
     case tipAsk = "tip_ask"
     case screen
+    /// MetricKit reported a crash, hang, CPU or disk-write exception
+    /// (`Diagnostics`, 2026-10-08). One per kind per delivery, coarse fields
+    /// only: never a stack, never anything a person made.
+    case diagnostic
 }
 
 /// **Closed on purpose.** Each case carries an enum, a bool or a bucket, never
@@ -298,6 +402,9 @@ enum AnalyticsField: Sendable, Equatable {
     enum Action: String, Sendable { case shown, done, skipped, played, finished, soundOn = "sound_on", tipped, dismissed }
     enum Tier: String, Sendable { case small, medium, large }
     enum Screen: String, Sendable { case wins, camera, memories, settings, crews, chat, profile, journal }
+    enum Diagnostic: String, Sendable, CaseIterable {
+        case crash, hang, cpuException = "cpu_exception", diskWrite = "disk_write"
+    }
 
     case size(Size)
     case source(Source)
@@ -311,6 +418,16 @@ enum AnalyticsField: Sendable, Equatable {
     case action(Action)
     case tier(Tier)
     case screen(Screen)
+    case diagnostic(Diagnostic)
+    /// How many of one kind arrived together. Bucketed as `goal` is.
+    case count(Int)
+    /// A Mach exception type, a small number by definition; outside 0...64
+    /// it is "other", so nothing larger can ride along.
+    case exceptionType(Int)
+    /// A POSIX signal number, bucketed the same way.
+    case signalNumber(Int)
+    /// The build a diagnostic came from, which may not be the running one.
+    case appBuild(Int)
 
     var pair: (String, String) {
         switch self {
@@ -324,6 +441,13 @@ enum AnalyticsField: Sendable, Equatable {
         case .action(let v): ("action", v.rawValue)
         case .tier(let v): ("tier", v.rawValue)
         case .screen(let v): ("screen", v.rawValue)
+        case .diagnostic(let v): ("diagnostic", v.rawValue)
+        case .count(let v): ("count", v > 10 ? "11+" : String(max(0, v)))
+        case .exceptionType(let v): ("exception_type", Self.small(v))
+        case .signalNumber(let v): ("signal", Self.small(v))
+        case .appBuild(let v): ("diagnostic_build", String(max(0, v)))
         }
     }
+
+    private static func small(_ v: Int) -> String { (0...64).contains(v) ? String(v) : "other" }
 }

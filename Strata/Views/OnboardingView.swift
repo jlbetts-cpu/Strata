@@ -237,6 +237,12 @@ struct OnboardingView: View {
             #endif
             await runFall()
         }
+        // **No `shown` per page** (2026-10-08). Every page is left by `done`
+        // or `skipped`, so those two already draw the funnel: the last page
+        // with one is where a person stopped. A third event per page was a
+        // third of onboarding's volume against a 50,000-a-month cap, and said
+        // nothing the other two do not.
+
         // **The head on the page underneath sleeps while the maker is up.**
         //
         // A cover does not make the page under it disappear, so the head page's
@@ -245,14 +251,14 @@ struct OnboardingView: View {
         // BEFORE the cover modifier, or the maker's own head would sleep too,
         // and ANDed with what this view inherits, because onboarding is itself
         // presented as a cover from Settings. Same shape as `ProfileView`.
-        .onChange(of: step, initial: true) { _, s in
-            Analytics.shared.signal(.onboardingStep, [.step(s), .action(.shown)])
-        }
         .environment(\.headsAwake, coveringHeadsAwake && !showsHeadMaker)
         // A made head moves you on. Closing the maker without one leaves you
         // here, where "Not now" is one press away.
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
             guard heads.head != nil, step == Self.headStep else { return }
+            // The head page is left from here, not from `advance`, so its
+            // `done` is said here or the funnel shows everyone stopping at it.
+            Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
             withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
         }) {
             HeadMakerView()
@@ -1724,6 +1730,8 @@ struct OnboardingView: View {
         ripple = LatticeRipple(column: 0, row: 0, columnSpan: size.columnSpan, rowSpan: size.rowSpan)
         HapticsEngine.success()
         guard finishes else { return }
+        // The first-win page ends here, not in `advance`: its `done`.
+        Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
         Task {
             try? await Task.sleep(for: .milliseconds(1600))
             finish()

@@ -53,6 +53,10 @@ struct StrataApp: App {
         // Tips finished wherever they were bought, and their prices ready
         // for Settings (`TipJar`).
         TipJar.shared.start()
+        // **Crashes and hangs reach the owner without a crash SDK**
+        // (2026-10-08): MetricKit's daily delivery, kept and counted by
+        // `Diagnostics`. Subscribed at launch, or a day's report is missed.
+        Diagnostics.shared.start()
         // **Crews reach iCloud only when they are on**, chosen here, before
         // anything can touch `SocialStore.shared` and fix its cloud. Off, the
         // store keeps a fake that nothing reaches. The debug seed keeps the
