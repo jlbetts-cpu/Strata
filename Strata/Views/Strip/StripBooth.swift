@@ -275,6 +275,7 @@ struct StripBooth: View {
     }
 
     private func printOut() async {
+        Analytics.shared.signal(.stripPrinted)
         try? await Task.sleep(for: .milliseconds(350))
         let steps = max(1, StripLayout.rows(frames.map(\.size)).count) + 1
         // **One motion, not six** (2026-10-08): the feed runs the whole way on

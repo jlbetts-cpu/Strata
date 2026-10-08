@@ -284,3 +284,25 @@ struct AnalyticsTests {
         }
     }
 }
+
+/// **Every event the dashboard can show is sent from somewhere** (2026-10-08).
+/// Eight of twenty-one were defined and never sent (goal reached, strip
+/// printed and shared, journal, doodle, invite, head, replay), so the
+/// dashboard the owner asked for would have shown zero for exactly the
+/// features he wanted to know about.
+///
+/// Self-test: remove `Analytics.shared.signal(.goalReached` from MainAppView
+/// and this fails naming goalReached.
+@Suite("Analytics coverage")
+struct AnalyticsCoverageTests {
+    @Test("every AnalyticsEvent has a call site outside Analytics.swift")
+    func everyEventIsSent() {
+        let hits = MemoriesConsistencyTests.codeLines()
+            .filter { $0.text.contains("signal(.") && !$0.file.hasSuffix("Services/Analytics.swift") }
+            .map(\.text).joined(separator: "\n")
+        for event in AnalyticsEvent.allCases {
+            let name = String(describing: event)
+            #expect(hits.contains("signal(.\(name)"), "\(name) is never sent")
+        }
+    }
+}

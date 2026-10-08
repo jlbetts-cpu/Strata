@@ -363,6 +363,7 @@ struct ReplayView: View {
     }
 
     private func saveVideo() {
+        Analytics.shared.signal(.replaySaved)
         let load = load
         video.save(replay: replay, images: { await load.all() }, now: now, isSample: isSample)
     }

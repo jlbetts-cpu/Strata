@@ -184,6 +184,10 @@ struct StripStoryComposer: View {
                     GlassIconLabel(systemName: "square.and.arrow.up", onPage: true)
                 }
                 .accessibilityLabel("Share strip")
+                // Opening the sheet, which is all a ShareLink reports.
+                .simultaneousGesture(TapGesture().onEnded {
+                    Analytics.shared.signal(.stripShared, [.destination(.other)])
+                })
                 GlassIconButton(systemName: saved ? "checkmark" : "square.and.arrow.down", onPage: true,
                                 accessibilityLabel: saved ? "Saved" : "Save strip") {
                     Task {
@@ -191,6 +195,7 @@ struct StripStoryComposer: View {
                         if await PhotoLibrarySaver.savePNG(data) {
                             HapticsEngine.success()
                             saved = true
+                            Analytics.shared.signal(.stripShared, [.destination(.saved)])
                         }
                     }
                 }

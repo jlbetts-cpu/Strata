@@ -453,6 +453,7 @@ final class HeadStore {
         roster.add(Entry(id: id, name: name ?? suggestedName(), created: Date(),
                          folder: Self.folder(for: id)))
         persistRoster()
+        Analytics.shared.signal(.headMade)
         undressed = rig
         head = rig
         dress()

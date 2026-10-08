@@ -56,7 +56,10 @@ enum DayNotes {
         guard entry.note != words || entry.symbol != mark else { return }
         entry.note = words
         entry.symbol = mark
-        do { try context.save() } catch { NSLog("[journal] the day's note did not save: \(error)") }
+        do {
+            try context.save()
+            if words != nil || mark != nil { Analytics.shared.signal(.journalWritten) }
+        } catch { NSLog("[journal] the day's note did not save: \(error)") }
     }
 
     /// Whether the day has a note (the journal button says "Written").

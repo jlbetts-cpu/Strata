@@ -1216,6 +1216,7 @@ struct MainAppView: View {
             let today = DateUtils.dateString(from: Date())
             guard DailyGoal.reached(from: old, to: new, goal: todaysGoal), stripPrintedDay != today else { return }
             stripPrintedDay = today
+            Analytics.shared.signal(.goalReached, [.goal(todaysGoal)])
             // **Only with something to print** (2026-10-07, his pick:
             // "Doodled blocks only"): photographs and doodled blocks make a
             // strip; a day of plain colour blocks dances and opens nothing,

@@ -28,6 +28,7 @@ enum CrewSharing {
     /// the share sheet's preview, over the collaboration Messages sends;
     /// through a link it travels with the link as a picture.
     static func invite(_ crewID: CrewID, card: UIImage? = nil) async {
+        Analytics.shared.signal(.crewInviteSent)
         let card = card ?? nextCard
         nextCard = nil
         let store = SocialStore.shared

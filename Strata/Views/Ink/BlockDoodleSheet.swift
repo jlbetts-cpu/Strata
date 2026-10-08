@@ -45,6 +45,9 @@ struct BlockDoodleSheet: View {
             .toolbar {
                 InkSheetToolbar(confirm: "Done", onCancel: { dismiss() }, onConfirm: {
                     HapticsEngine.lightTap()
+                    if !ink.drawing.strokes.isEmpty || !ink.stickers.isEmpty {
+                        Analytics.shared.signal(.doodleDrawn)
+                    }
                     onDone(InkDoodle(drawing: ink.drawing, stickers: ink.stickers, canvas: canvasSize))
                     dismiss()
                 })
