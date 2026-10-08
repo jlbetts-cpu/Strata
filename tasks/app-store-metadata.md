@@ -63,7 +63,7 @@ MEMORIES
 Every day you logged something is a block in your month's calendar. Open a day to see its tower and its photos. Some evenings, a win from a year ago today comes back. Weekly and monthly replays drop every win into one tower you can save as a video.
 
 CREWS, WITHOUT A FEED
-Start a crew with up to 8 friends and share a tower for the day. React to a friend's win, reply with a short line only they see, and tag the people a win was with. There are no likes, no follower counts and nothing to scroll.
+Start a crew of up to 8 people and share a tower for the day. React to a friend's win, or say something in the day's chat, and tag the people a win was with. There are no likes, no follower counts and nothing to scroll.
 
 EMPTY DAYS ARE FINE
 A day with nothing on it stays empty, and that is all it does. Nothing is counted against you, nothing resets, and nothing nags.
@@ -76,12 +76,18 @@ Some Wins is not a medical app and does not diagnose or treat ADHD.
 
 ### Screenshot captions, in order
 
-1. One tap. It counts.
-2. Log from the Lock Screen
-3. Your day, in blocks
-4. A year ago today
-5. Up to 8 friends, one tower
-6. Empty days are fine
+Made 2026-10-07 in the launch film's look; the files are in the launch kit
+(`~/Desktop/Some Wins launch kit/App Store screenshots/`, 1320 x 2868). The
+first three carry the page (about 1 in 10 people scroll past the third), so
+they are who it is for, the mechanic, and the relief.
+
+1. Made for ADHD brains. / A list of what you did, not what you didn't.
+2. Snap it. It's a block. / The photo becomes the win.
+3. Nothing resets. / Empty days stay empty. Small wins still count.
+4. Hit your goal, get a print. / Shake to develop your day.
+5. Better with friends. / A private crew. No feed, no likes.
+6. Write it down. Doodle on it. / A few lines, or a drawing, for the day.
+7. Every choice, explained. / The research is in the app. No account, no ads.
 
 ### Categories
 

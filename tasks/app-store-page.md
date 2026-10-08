@@ -22,14 +22,18 @@ make the page say something the app does not do (guidelines 2.3.1 and 2.3.3).
    paragraph of the description and the Social Networking category all have to
    go. If crews ship on, `CrewsFlag` has to change in the release. Pick one
    before capture.
+   **Decided 2026-10-07 by the owner: crews ship ON in 1.0.** `CrewsFlag` still
+   has to change for the release, after the capabilities and CloudKit setup in
+   `tasks/active.md` (Crews) are done; until then an App Store build hides them.
 2. **"Up to 8 friends" is one too many.** `CrewCaps.members = 8` counts the
    person who started the crew. Say "up to 8 people" (the privacy policy
    already does). Affects the description and caption 5 in
-   `tasks/app-store-metadata.md`.
+   `tasks/app-store-metadata.md`. **Fixed 2026-10-07** in the description.
 3. **"Reply with a short line only they see" is no longer true.** Since
    2026-10-05 a reply posts into the crew's day chat, quoting the win, where the
    crew can read it. The description sentence needs rewording, for example:
-   "React to a friend's win, or say something in the day's chat."
+   "React to a friend's win, or say something in the day's chat." **Fixed
+   2026-10-07.**
 4. **"A year ago today" is no longer a screen.** The in-app line was removed on
    2026-10-06 (`4caef11`); only the evening Past Wins notification remains. A
    screenshot of it would show a notification, not the app in use. Dropped from
