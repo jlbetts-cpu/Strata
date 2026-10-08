@@ -14,8 +14,9 @@ import Foundation
 /// tell it about pings for its own crews, from anyone but itself and the
 /// people it blocked, so every ping that reaches a phone is one it should
 /// hear about. The extension then reads the real win, with permission, from
-/// the crew's own zone and writes the words. The sender deletes a ping after
-/// a day.
+/// the crew's own zone and writes the words. The sender deletes its own pings
+/// ten minutes after sending them (`SocialStore.pingLifetime`, 600 seconds),
+/// at its next refresh.
 nonisolated enum CrewPingRecord {
     static let type = "Ping"
     /// The crew: the tag of its zone name.
