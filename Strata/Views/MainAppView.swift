@@ -228,6 +228,8 @@ struct MainAppView: View {
     /// The booth, open: printing (the goal was just reached) or not.
     @State private var booth: BoothOpening?
     @State private var showsYourDay = false
+    /// The one tip ask, after a booth closes (`TipJar.takeAsk`).
+    @State private var showsTipAsk = false
     @AppStorage("stripPrintedDay") private var stripPrintedDay = ""
     @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
@@ -936,6 +938,7 @@ struct MainAppView: View {
             // when the camera's view finally disappears under the new tab.
             if oldTab == .camera { RingBrightness.restore() }
             HapticsEngine.tick()
+            Analytics.shared.signal(.screen, [.screen(newTab == .tower ? .wins : newTab == .camera ? .camera : .memories)])
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
             }
@@ -1203,7 +1206,17 @@ struct MainAppView: View {
                 openBoothWhenFree(prints: true)
             }
         }
-        .fullScreenCover(item: $booth) { opening in
+        .fullScreenCover(item: $booth, onDismiss: {
+            // **The one tip ask** follows a strip just developed, from the
+            // third on, once ever (`TipJar.shouldAsk`); a beat after the
+            // booth has gone, never over it.
+            guard TipJar.shared.takeAsk(today: DateUtils.dateString(from: Date())),
+                  !TipJar.shared.products.isEmpty else { return }
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                showsTipAsk = true
+            }
+        }) { opening in
             if let day = opening.day {
                 // An earlier day: a keepsake, so it develops when opened.
                 StripBooth(owner: .me, day: day, prints: false) {
@@ -1215,6 +1228,7 @@ struct MainAppView: View {
                 }
             }
         }
+        .sheet(isPresented: $showsTipAsk) { TipAskSheet() }
         .sheet(isPresented: $showsYourDay) {
             YourDaySheet(goal: $dailyGoal) { day in
                 Task {

@@ -511,6 +511,8 @@ struct StripBooth: View {
         if developed >= 1 {
             if all { AccessibilityNotification.Announcement("Strip developed").post() }
             StripKeeping.setDeveloped(owner, day: day)
+            Analytics.shared.signal(.stripDeveloped)
+            if owner == .me { TipJar.shared.noteStripDeveloped() }
             Task {
                 try? await Task.sleep(for: .milliseconds(450))
                 HapticsEngine.success()

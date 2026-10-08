@@ -153,8 +153,10 @@ struct MemoriesConsistencyTests {
         // Sixteen again since 2026-10-07: Your day's "Hard day" switch came
         // and went (the owner: "I don't understand the point of checking the
         // hard day thing"; his pick: remove it).
-        #expect(rowTints.count == 16,
-                "there are \(rowTints.count) switches in the app and there were 16; a new one needs the token too")
+        // Seventeen since 2026-10-08: Settings' "Share Anonymous Usage", on
+        // by default, the switch for `Analytics`. It wears the token.
+        #expect(rowTints.count == 17,
+                "there are \(rowTints.count) switches in the app and there were 17; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**

@@ -589,6 +589,7 @@ final class SocialStore {
         if isRefreshing { refreshAgain = true }
         await shareMyself()
         if announces { await CrewNotifications.askOnce() }
+        Analytics.shared.signal(.crewCreated)
         return (crew, url)
     }
 
@@ -619,6 +620,7 @@ final class SocialStore {
         await refresh()
         await shareMyself()
         if announces { await CrewNotifications.askOnce() }
+        Analytics.shared.signal(.crewJoined)
         return self.crew(id) ?? crew
     }
 
@@ -990,6 +992,7 @@ final class SocialStore {
         guard canReply(), isEnabled(), let crew = crew(crewID), !words.isEmpty else { return .notAllowed }
         if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
         guard CrewWords.isAcceptable(words) else { return .refusedWords }
+        Analytics.shared.signal(.crewMessageSent)
         let message = CrewMessage(messageID: UUID(), crewID: crewID, senderProfileID: me,
                                   crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: words,
                                   quoteWinID: winID, createdAt: now())
@@ -1171,6 +1174,7 @@ final class SocialStore {
         guard isEnabled(), crew(crewID) != nil,
               let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
               win.senderProfileID != me else { return }
+        Analytics.shared.signal(.crewReaction)
         let name = Reaction.name(winID: winID, profileID: me)
         var list = reactionsByCrew[crewID] ?? []
         let previous = list.first { $0.id == name }

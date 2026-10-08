@@ -50,6 +50,9 @@ struct StrataApp: App {
         if DebugHarness.argument("-strataTipsShow") == "1" { Tips.showAllTipsForTesting() }
         #endif
         try? Tips.configure([.displayFrequency(.immediate)])
+        // Tips finished wherever they were bought, and their prices ready
+        // for Settings (`TipJar`).
+        TipJar.shared.start()
         // **Crews reach iCloud only when they are on**, chosen here, before
         // anything can touch `SocialStore.shared` and fix its cloud. Off, the
         // store keeps a fake that nothing reaches. The debug seed keeps the
@@ -232,7 +235,9 @@ struct StrataApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 try? SharedModelContainer.shared.mainContext.save()
+                Analytics.shared.didEnterBackground()
             }
+            if newPhase == .active { Analytics.shared.didBecomeActive() }
             if newPhase == .active, CrewsFlag.isOn {
                 Task { await SocialStore.shared.refresh() }
             }

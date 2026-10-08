@@ -62,9 +62,16 @@ struct PrivacyPolicyView: View {
          + "your name and a profile photo. Your journal stays in your own iCloud "
          + "and is never shared with a crew. That is the whole of it."),
         ("Where it is stored",
-         "On your device. Some Wins has no account, no server, and no analytics. "
+         "On your device. Some Wins has no account and no server of its own. "
          + "Nothing you log is sent anywhere unless you send a win to a crew, "
          + "and nobody but you can read it unless you do."),
+        ("Anonymous usage",
+         "Some Wins counts which parts of the app are used, like a win being logged "
+         + "or a strip being printed, so the parts that do not work can be fixed. The "
+         + "counts go to TelemetryDeck with a random number in place of anything about "
+         + "you, and never include what you write, what you photograph or where you "
+         + "are. They are not used to track you. Turn them off in Settings, Share "
+         + "Anonymous Usage."),
         ("Photos",
          "A photo you attach is copied into Some Wins' own storage on your device so "
          + "the block still has it if you later remove the original. Deleting a win "

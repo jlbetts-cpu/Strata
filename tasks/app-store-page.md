@@ -243,9 +243,9 @@ look is not a first impression.
 | Location | No | | | | Coordinates are stored beside the photo on the device and never sent; a crew copy has no place. The place-name lookup is a real-time Apple request, not retained. |
 | Contacts | No | | | | Invites go through the system share sheet; contacts never pass through the app. |
 | Health and Fitness | No | | | | No HealthKit code. ADHD is the design target, not data the app holds. |
-| Usage Data, Diagnostics | No | | | | No analytics, no crash SDK. Apple's opt-in crash reports are Apple's. |
-| Purchases | No | | | | StoreKit purchases are handled by Apple; the app reads its own entitlement on the device. |
-| Identifiers > Device ID | No | | | | Nothing reads an advertising or vendor id. |
+| **Usage Data > Product Interaction** | **Yes (2026-10-08)** | No | No | Analytics | Anonymous usage counts to TelemetryDeck (`Analytics.swift`): which features are used, never content. Off in Settings, Share Anonymous Usage. Diagnostics stays No: no crash SDK. |
+| **Purchases > Purchase History** | **Yes (2026-10-08)** | No | No | Analytics | A `tip_purchased` count with its tier, nothing else. The purchase itself is Apple's. |
+| **Identifiers > Device ID** | **Yes (2026-10-08)** | No | No | Analytics | A random install id, hashed, for TelemetryDeck's counts. Not the advertising or vendor id. |
 | User Content (photos, names, journal) shared within a crew | No | | | | It lives in users' own iCloud, shared by Apple, and the developer cannot read it (Apple's definition of "collect" is "transmitting data off the device in a way that allows you ... to access it"). Reasoning in `docs/crews-app-store-privacy.md` and the manifest comments. |
 
 **Tracking:** No. No ATT prompt, `NSPrivacyTracking` false, no tracking

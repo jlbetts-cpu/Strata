@@ -44,6 +44,7 @@ struct SettingsView: View {
     @AppStorage(PastWinReminder.defaultsKey) private var pastWinRemindersOn = true
     /// Off by default (spec section 2). `JournalLock` reads the same key.
     @AppStorage(JournalLock.defaultsKey) private var locksJournal = false
+    @AppStorage(Analytics.shareKey) private var sharesUsage = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
     /// The sample replay being previewed, from the Replays section.
@@ -686,6 +687,10 @@ struct SettingsView: View {
                     .formFooter()
             }
 
+            // MARK: - Support Some Wins (the tip jar, 2026-10-08)
+
+            TipJarSection()
+
             // MARK: - Section 4: Support
 
             Section {
@@ -765,6 +770,26 @@ struct SettingsView: View {
                     } icon: {
                         SettingsIcon(systemName: "hand.raised")
                     }
+                }
+                // **Anonymous usage, on unless turned off** (2026-10-08,
+                // `docs/superpowers/specs/2026-10-08-analytics-design.md`):
+                // counts of what is used, never what anyone writes or takes.
+                Toggle(isOn: $sharesUsage) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Share Anonymous Usage")
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Text("Counts of what is used, never what you write or photograph.")
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                    } icon: {
+                        SettingsIcon(systemName: "chart.bar")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+                .onChange(of: sharesUsage) { _, on in
+                    if !on { Analytics.shared.stopSharing() }
                 }
             } footer: {
                 // **KEPT, deliberately, against the rule** (flag 19,

@@ -141,10 +141,22 @@ enum QuickWinService {
         context.insert(log)
 
         try context.save()
+        Analytics.shared.signal(.winLogged, [.size(size.analytics)])
         // The log's id is returned rather than looked up later: it is the id
         // the tower will place, and re-deriving it from habit.logs afterwards
         // is exactly the lookup that intermittently came back empty and cost
         // the block its drop animation.
         return (habit, log.id)
+    }
+}
+
+extension BlockSize {
+    /// The size as the app names it to people, for `Analytics`.
+    var analytics: AnalyticsField.Size {
+        switch self {
+        case .small: .quick
+        case .medium: .regular
+        default: .deep
+        }
     }
 }

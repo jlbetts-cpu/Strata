@@ -1,0 +1,64 @@
+{
+  "identifier": "1B161986",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "1.99",
+      "familyShareable": false,
+      "internalID": "2632566343",
+      "localizations": [
+        {
+          "description": "A small tip to the developer. Unlocks nothing.",
+          "displayName": "Small Tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "somewins.tip.small",
+      "referenceName": "Small Tip",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "8422426686",
+      "localizations": [
+        {
+          "description": "A kind tip to the developer. Unlocks nothing.",
+          "displayName": "Kind Tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "somewins.tip.medium",
+      "referenceName": "Kind Tip",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "9.99",
+      "familyShareable": false,
+      "internalID": "3324385610",
+      "localizations": [
+        {
+          "description": "A generous tip to the developer. Unlocks nothing.",
+          "displayName": "Generous Tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "somewins.tip.large",
+      "referenceName": "Generous Tip",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_applicationInternalID": "",
+    "_developerTeamID": "W34J6358L7",
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

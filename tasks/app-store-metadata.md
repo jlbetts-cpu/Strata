@@ -69,7 +69,7 @@ EMPTY DAYS ARE FINE
 A day with nothing on it stays empty, and that is all it does. Nothing is counted against you, nothing resets, and nothing nags.
 
 PRIVATE BY DEFAULT
-No account. No ads. No analytics. What you log stays on your phone and in your own iCloud. A win reaches a crew only when you send it there.
+No account. No ads. Anonymous usage counts only, never what you log. What you log stays on your phone and in your own iCloud. A win reaches a crew only when you send it there.
 
 Some Wins is not a medical app and does not diagnose or treat ADHD.
 ```
