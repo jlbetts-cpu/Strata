@@ -87,6 +87,19 @@ final class StickerStore {
         writeIndex()
     }
 
+    /// **Every sticker, file and all: Reset All Data only** (2026-10-08).
+    /// Unlike `remove`, the files go too, because after a reset there is no
+    /// day, sketch or strip left for them to be on.
+    func removeAll() {
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        for file in files where file.pathExtension == "png" && file.lastPathComponent.hasPrefix("sticker-") {
+            try? FileManager.default.removeItem(at: file)
+        }
+        names = []
+        cache = [:]
+        writeIndex()
+    }
+
     func image(_ name: String) -> UIImage? {
         if let hit = cache[name] { return hit }
         guard let image = UIImage(contentsOfFile: directory.appending(path: name).path) else { return nil }

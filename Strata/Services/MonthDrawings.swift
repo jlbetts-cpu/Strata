@@ -111,6 +111,12 @@ final class MonthDrawingStore {
         revision += 1
     }
 
+    /// Reset All Data took the files: forget what was read, and redraw.
+    func forgetAll() {
+        cache = [:]
+        revision += 1
+    }
+
     /// "Use Original": the month's files go, and the default shows again.
     func remove(_ month: String) {
         if let old = drawing(for: month) { files.remove(old.picture) }

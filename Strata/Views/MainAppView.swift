@@ -3706,6 +3706,15 @@ struct MainAppView: View {
         // Reset runs once, on purpose, so one line about it is worth having in
         // a device log rather than only in DEBUG.
         NSLog("[strata-reset] photographs removed: \(removedPhotos.count) of \(photoNames.count)")
+        // 3b. What lives beside the record (2026-10-08): drawings, strips and
+        //     stickers, a strip's choices, the tip ask's counters, and the
+        //     anonymous analytics id, so what comes after is not linked to
+        //     what went. After the commit, like the photographs.
+        let removedInk = StoreReset.removeKeepsakes()
+        StickerStore.shared.removeAll()
+        MonthDrawingStore.shared.forgetAll()
+        Analytics.shared.forgetInstall()
+        NSLog("[strata-reset] ink files removed: \(removedInk)")
         #if DEBUG
         NSLog("[strata-reset] remaining after reset: \(remaining.line)")
         #endif

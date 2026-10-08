@@ -164,6 +164,49 @@ enum StoreReset {
         }
     }
 
+    // MARK: - What lives beside the record
+
+    /// **Reset All Data left the person's drawings and stickers behind**
+    /// (2026-10-08 audit). The record went, but the journal's sketches, the
+    /// block doodles, the month drawings and the strips are files in
+    /// `Documents/strata-ink`, the stickers are files of their own, and a
+    /// strip's choices, the tip ask's counters and the anonymous analytics id
+    /// are in UserDefaults. The confirmation says "every win and photo"; a
+    /// sticker cut out of a photograph is one.
+    ///
+    /// Called only AFTER the rows have committed, like the photographs, so a
+    /// reset that did not happen never takes the files a surviving record
+    /// still draws. Crews are not touched here, and the tipped count is kept:
+    /// it is the record of a purchase, not something the person made.
+    ///
+    /// - Returns: how many ink files were removed.
+    @discardableResult
+    static func removeKeepsakes(ink: InkFiles = .shared, defaults: UserDefaults = .standard) -> Int {
+        var removed = 0
+        for url in ink.all() {
+            // Plain files only: nothing here may ever take a folder.
+            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? true
+            guard !isFolder else { continue }
+            if (try? FileManager.default.removeItem(at: url)) != nil { removed += 1 }
+        }
+        for key in keepsakeKeys(in: defaults.dictionaryRepresentation().keys) {
+            defaults.removeObject(forKey: key)
+        }
+        Analytics.forgetIdentity(in: defaults)
+        return removed
+    }
+
+    /// The UserDefaults keys a reset clears: every strip's frames-left-out and
+    /// developed flag (`StripKeeping`, any owner and day), the chosen paper
+    /// and the old paper key, and the tip ask's counters. Not `tips.count`.
+    static func keepsakeKeys(in keys: some Sequence<String>) -> [String] {
+        let exact: Set<String> = ["strip.paper.chosen", "strip.paper",
+                                  TipJar.askedKey, TipJar.stripsKey, TipJar.inviteDayKey]
+        return keys.filter { key in
+            exact.contains(key) || key.hasPrefix("strip.developed.") || key.hasPrefix("strip.out.")
+        }
+    }
+
     /// What is still in the store, for every model in the schema.
     static func remaining(context: ModelContext) -> Remaining {
         var out = Remaining()
