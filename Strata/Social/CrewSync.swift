@@ -76,6 +76,11 @@ enum CrewSync {
     }
 
     private static func saw(_ context: ModelContext) {
+        // **Not a save that only links a photograph's iCloud copy**
+        // (2026-10-08). That changes the win's row and nothing about the win;
+        // sending it would re-send every crew-held photograph the backfill
+        // touches. See `StoreStamp.isQuiet`.
+        guard !StoreStamp.isQuiet else { return }
         let store = store()
         var changed: [UUID: HabitLog] = [:]
         for model in context.changedModelsArray {

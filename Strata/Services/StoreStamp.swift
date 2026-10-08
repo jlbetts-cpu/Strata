@@ -61,6 +61,12 @@ enum StoreStamp {
     private(set) static var saves = 0
     #endif
 
+    /// **True inside `withoutStamping`, for `CrewSync` as well as for this
+    /// file** (2026-10-08). A save that only links a photograph's iCloud copy
+    /// (`WinPhotoStore.save`) changes the win it hangs on, and is not an edit:
+    /// nothing a person or a crew could see moved.
+    static var isQuiet: Bool { suppressed > 0 }
+
     static func withoutStamping<T>(_ body: () throws -> T) rethrows -> T {
         suppressed += 1
         defer { suppressed -= 1 }

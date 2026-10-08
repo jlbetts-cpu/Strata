@@ -386,8 +386,10 @@ struct CloudKitValidatorProbe {
         let result = open(SharedModelContainer.schema)
         NSLog("[ck-probe] app -> \(result)")
         #expect(result == "OPENED")
+        // `WinPhoto` too, since the photographs began to sync (2026-10-08).
         let reason = try validatorReason([Habit.self, HabitLog.self, MoodLog.self,
-                                           Tower.self, PlanFolder.self, PlanItem.self])
+                                           Tower.self, PlanFolder.self, PlanItem.self,
+                                           WinPhoto.self])
         NSLog("[ck-probe] app reason -> \(reason ?? "none")")
         #expect(reason == nil)
     }

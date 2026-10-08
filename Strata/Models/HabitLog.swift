@@ -42,6 +42,19 @@ final class HabitLog {
     /// than inline in the record. Kept exactly as it is.
     @Attribute(.externalStorage) var imageData: Data? // Retained temporarily for migration
     var imageFileName: String?
+    /// **The photograph's iCloud copy** (2026-10-08). `imageFileName` is still
+    /// what every screen reads; this is what lets a restored phone write that
+    /// file back. See `WinPhoto`.
+    ///
+    /// **Cascade, so deleting a win deletes its picture in iCloud as well.**
+    /// Without it the bytes would stay in the person's iCloud, counting against
+    /// their storage, for a win that no longer exists anywhere. Taking a
+    /// photograph off a win that stays is `WinPhotoStore.detach`.
+    ///
+    /// Optional, which is the CloudKit rule for a to-one. Declared on this side
+    /// so the inverse key path points into `WinPhoto`, which is nonisolated,
+    /// rather than out of it into this main-actor model.
+    @Relationship(deleteRule: .cascade, inverse: \WinPhoto.log) var photo: WinPhoto?
     var imageURL: String?       // Deprecated — retained for schema compatibility; holds `doodleFileName`
     var videoURL: String?       // Deprecated — retained for schema compatibility
     var imageFlipped: Bool = false  // Deprecated — retained for schema compatibility

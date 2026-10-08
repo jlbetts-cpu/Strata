@@ -1167,7 +1167,11 @@ enum PhotoRemoval {
         )
         do {
             try context.transaction {
-                for log in try context.fetch(descriptor) { log.imageFileName = nil }
+                for log in try context.fetch(descriptor) {
+                    log.imageFileName = nil
+                    // And its iCloud copy, in the same transaction (2026-10-08).
+                    WinPhotoStore.detach(from: log, context: context)
+                }
             }
         } catch {
             NSLog("[strata-photo] could not clear the reference to \(fileName), so the file stays: \(error)")

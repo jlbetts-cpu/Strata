@@ -2259,6 +2259,9 @@ struct MainAppView: View {
                         log.imageFileName = name
                         try? modelContext.save()
                         scheduleRefresh()
+                        // Its iCloud copy, made off the main actor once the
+                        // block already has its face.
+                        WinPhotoStore.attachSoon(fileName: name, to: log, context: modelContext)
                     }
                 }
             }
@@ -2420,6 +2423,13 @@ struct MainAppView: View {
         // `testAFirstRunEndsOnATowerWithABlockOnIt`, which is the only test
         // that walks the real first launch.
         dropWelcomeWinIfNeeded()
+
+        // **Photographs to and from iCloud** (2026-10-08): writes out copies
+        // that arrived, and later makes copies of photographs that predate
+        // sync. Before the sweep, which waits for it. See `PhotoSync`.
+        if SharedModelContainer.opening.savesToDisk {
+            PhotoSync.shared.start(container: modelContext.container)
+        }
 
         // After the store is settled and before anything draws from disk.
         pruneOrphanedImages()
@@ -2805,20 +2815,15 @@ struct MainAppView: View {
         // gets to start.
         let imageDirectory = ImageManager.shared.imageDirectory
         Task.detached(priority: .utility) { ImageDerivatives.ensureFolder(in: imageDirectory) }
-        let referenced: Set<String>
-        do {
-            let logs = try modelContext.fetch(FetchDescriptor<HabitLog>())
-            referenced = Set(logs.compactMap(\.imageFileName))
-        } catch {
-            // A fetch that threw tells us nothing about what is referenced,
-            // and acting on nothing here deletes everything.
-            NSLog("[strata] orphan sweep skipped: \(error)")
-            return
-        }
-        let removed = ImageManager.shared.pruneOrphans(referenced: referenced)
-        if removed > 0 {
-            NSLog("[strata] orphan sweep removed \(removed) unreferenced photographs")
-        }
+        // **Through `PhotoSync`, which may hold it** (2026-10-08). Under iCloud
+        // sync "no win names this file" can be briefly false for a photograph
+        // that is fine: a copy written out before its win arrived, or a phone
+        // whose rows are still coming. The sweep now also keeps every name a
+        // `WinPhoto` carries, and waits until no copy is being written and
+        // this install has heard from iCloud once (`PhotoSync.pruneAllowed`).
+        // The do/catch that keeps a failed fetch from reading as "nothing is
+        // referenced" moved with it.
+        PhotoSync.shared.pruneWhenSafe(context: modelContext)
         // **The derivative migration, after the sweep** so it never bakes a
         // photograph the sweep was about to remove. Detached at background
         // priority and a few seconds late, so a launch never waits on it; it
@@ -3698,6 +3703,11 @@ struct MainAppView: View {
             NSLog("[strata-reset] could not read the record, so the reset did not run: \(error)")
             return false
         }
+
+        // Nothing may write a photograph out or make a copy while the record
+        // goes: a pass still running would put files back for rows that have
+        // just been deleted.
+        PhotoSync.shared.stopForReset()
 
         // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME, in one
         //    transaction.

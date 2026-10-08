@@ -68,10 +68,13 @@ enum TaggedWinKeeper {
         // A photo that does not copy leaves the win kept without it.
         if let file = win.photo, let image = UIImage(contentsOfFile: file.path) {
             do {
-                entry.imageFileName = try await ImageManager.shared.save(image: image, for: entry.id)
+                let name = try await ImageManager.shared.save(image: image, for: entry.id)
+                entry.imageFileName = name
                 entry.cropPositionX = win.cropX
                 entry.cropPositionY = win.cropY
                 try context.save()
+                // Kept is yours, so it backs up like yours (2026-10-08).
+                await WinPhotoStore.attach(fileName: name, to: entry, context: context)
             } catch {
                 log.error("kept the win, not its photo: \(error)")
             }

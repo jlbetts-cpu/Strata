@@ -688,7 +688,9 @@ struct SettingsView: View {
                     // leaving the phone, and nothing else in the app says so.
                     // Beside the backup, which is the answer to it.
                     if StoreSyncStatus.shared.iCloudIsFull {
-                        Text("iCloud is full, so new wins are saved on this iPhone only.")
+                        // "and photos" (2026-10-08): photographs sync now,
+                        // and a full iCloud stops them first.
+                        Text("iCloud is full, so new wins and photos are saved on this iPhone only.")
                             .formFooter()
                     }
                     Text("A backup is one zip file with your wins, photographs, drawings and stickers in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")

@@ -115,6 +115,12 @@ enum StoreReset {
                 // `PlanItem` was not in the original list. A plan line survived
                 // Reset All Data, which under sync is a row that outlives a
                 // reset and comes back to a fresh install.
+                //
+                // `WinPhoto` first (2026-10-08). Deleting a log cascades to its
+                // copy, but a copy that arrived before its win has no log to
+                // cascade from, and a row left here is a photograph left in the
+                // person's iCloud after they asked for everything to go.
+                for item in try context.fetch(FetchDescriptor<WinPhoto>()) { context.delete(item) }
                 for item in try context.fetch(FetchDescriptor<HabitLog>()) { context.delete(item) }
                 for item in try context.fetch(FetchDescriptor<Habit>()) { context.delete(item) }
                 for item in try context.fetch(FetchDescriptor<PlanFolder>()) { context.delete(item) }
@@ -224,6 +230,7 @@ enum StoreReset {
         count(MoodLog.self)
         count(Tower.self)
         count(PlanItem.self)
+        count(WinPhoto.self)
         return out
     }
 }

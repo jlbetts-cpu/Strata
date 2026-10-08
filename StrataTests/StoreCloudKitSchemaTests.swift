@@ -19,8 +19,10 @@ import CoreData
 @Suite("StoreCloudKitSchema")
 struct StoreCloudKitSchemaTests {
 
+    /// `WinPhoto` joined on 2026-10-08, when the photographs began to sync.
     private var appTypes: [any PersistentModel.Type] {
-        [Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self]
+        [Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self,
+         WinPhoto.self]
     }
 
     // MARK: - The schema
@@ -40,18 +42,21 @@ struct StoreCloudKitSchemaTests {
     @Test("the check actually read the whole schema")
     func schemaWasReallyRead() {
         let seen = StoreSchemaRules.coverage(in: appTypes)
-        #expect(seen.entities == 6)
+        // Seven since `WinPhoto` (2026-10-08). Exact, so a model dropped from
+        // the schema fails here rather than passing an emptier walk.
+        #expect(seen.entities == 7)
         // Measured: 80 attributes across the six models. The floor is under
         // that rather than equal to it, because adding a field must not fail
         // this test, while the schema quietly emptying must. A model going
         // missing would take a dozen with it.
         #expect(seen.attributes >= 70)
         // Habit.logs, Habit.tower, Habit.planFolder, HabitLog.habit,
-        // Tower.habits, PlanFolder.habits.
-        #expect(seen.relationships == 6)
+        // Tower.habits, PlanFolder.habits, and since 2026-10-08 HabitLog.photo
+        // and its inverse WinPhoto.log.
+        #expect(seen.relationships == 8)
     }
 
-    @Test("the schema the app opens and the schema that was checked are the same six models")
+    @Test("the schema the app opens and the schema that was checked are the same seven models")
     func schemaMatchesTheContainer() {
         #expect(SharedModelContainer.schema == Schema(appTypes))
     }

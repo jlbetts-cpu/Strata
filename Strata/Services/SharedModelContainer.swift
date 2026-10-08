@@ -117,8 +117,20 @@ enum SharedModelContainer {
 
     /// Every model the store holds, in one place so the ladder's rungs cannot
     /// drift apart from each other.
+    ///
+    /// **`WinPhoto` joined on 2026-10-08**, so the photographs sync as well as
+    /// the wins. A new entity and a new optional relationship are an additive
+    /// change, which SwiftData migrates in place with no plan (this app has no
+    /// `VersionedSchema`, and needs none for this). The CloudKit side is
+    /// additive too, and it is not automatic in production: the
+    /// `CD_WinPhoto` record type and `CD_HabitLog`'s new `CD_photo` field are
+    /// made in the Development environment the first time a debug build with
+    /// an iCloud account runs, and must be deployed to Production from the
+    /// CloudKit Console before a TestFlight or App Store build can send a
+    /// single photograph.
     static var schema: Schema {
-        Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self])
+        Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self,
+                WinPhoto.self])
     }
 
     /// The iCloud container whose PRIVATE database the store mirrors to.

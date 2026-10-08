@@ -205,6 +205,14 @@ final class StoreSyncStatus {
         // lands, so after the import there are two. See `StoreDedupe`.
         if type == .import, moment.succeeded {
             StoreDedupe.mergeDuplicateTowers(in: SharedModelContainer.shared.mainContext)
+            // **And photographs may have come down with it** (2026-10-08): an
+            // iCloud copy is a row until `PhotoSync` writes it out as a file.
+            PhotoSync.shared.storeImported()
+        }
+        // The photo backfill pauses on a full iCloud and resumes on the next
+        // export that gets through. See `PhotoSync.pausedForQuotaKey`.
+        if type == .export {
+            PhotoSync.shared.exportFinished(succeeded: moment.succeeded, quotaExceeded: moment.quotaExceeded)
         }
     }
 

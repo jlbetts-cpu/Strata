@@ -39,8 +39,15 @@ enum WinDeletion {
         }
         return Pending(
             undo: {
-                copy.restore(in: context)
+                let restored = copy.restore(in: context)
                 try? context.save()
+                // The delete took each photograph's iCloud copy with it (the
+                // cascade); the undo puts them back (2026-10-08).
+                for log in restored {
+                    if let name = log.imageFileName {
+                        WinPhotoStore.attachSoon(fileName: name, to: log, context: context)
+                    }
+                }
             },
             finish: {
                 for name in names { ImageManager.shared.deleteImage(fileName: name) }
@@ -99,7 +106,9 @@ private struct WinCopy {
         }
     }
 
-    func restore(in context: ModelContext) {
+    @discardableResult
+    func restore(in context: ModelContext) -> [HabitLog] {
+        var restored: [HabitLog] = []
         let h = Habit(title: title, category: category, blockSize: blockSize)
         h.id = id; h.frequencyRawValues = frequencyRawValues; h.createdAt = createdAt
         h.scheduledTime = scheduledTime; h.reminderEnabled = reminderEnabled; h.isTodo = isTodo
@@ -126,6 +135,7 @@ private struct WinCopy {
             l.timeZoneIdentifier = c.timeZoneIdentifier
             context.insert(l)
             l.updatedAt = c.updatedAt
+            restored.append(l)
         }
         h.updatedAt = updatedAt
         // The line this win came from is done again.
@@ -135,5 +145,6 @@ private struct WinCopy {
                 line.completedAt = logs.first?.completedAt ?? createdAt
             }
         }
+        return restored
     }
 }

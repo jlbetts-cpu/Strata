@@ -1750,6 +1750,9 @@ struct AddWinSheet: View {
         // same rule in the viewer.
         let name = log.imageFileName
         log.imageFileName = nil
+        // Its iCloud copy goes in the same save (2026-10-08), so iCloud never
+        // holds a picture of a win that no longer has one.
+        WinPhotoStore.detach(from: log, context: modelContext)
         do {
             try modelContext.save()
             if let name { ImageManager.shared.deleteImage(fileName: name) }
@@ -1836,6 +1839,10 @@ struct AddWinSheet: View {
         if let previous, previous != name {
             ImageManager.shared.deleteImage(fileName: previous)
         }
+        // **Its iCloud copy, without holding the sheet** (2026-10-08). The
+        // re-encode is a moment off the main actor; a replaced photograph's
+        // old copy is swapped out in the same step.
+        WinPhotoStore.attachSoon(fileName: name, to: log, context: modelContext)
         return true
     }
 

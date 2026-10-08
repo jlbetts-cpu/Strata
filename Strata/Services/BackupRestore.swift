@@ -433,6 +433,12 @@ enum BackupRestore {
             return report
         }
         report.daysAdded = daysAdded.count
+        // **The restored photographs' iCloud copies come from the backfill**
+        // (2026-10-08), not from attaching each one here: a restore is
+        // hundreds of photographs, the backfill already finds every
+        // photographed win with no copy, newest first and throttled, and one
+        // path for "a photograph with no copy" is one path to get right.
+        PhotoSync.shared.backfillSoon()
         return report
     }
 

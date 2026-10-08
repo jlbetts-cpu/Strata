@@ -41,8 +41,17 @@ struct StoreResetTests {
             let habit = Habit(title: "Win \(i)", category: .health)
             habit.tower = tower
             context.insert(habit)
-            context.insert(HabitLog(habit: habit, dateString: "2026-09-0\(i + 1)", completed: true))
+            let log = HabitLog(habit: habit, dateString: "2026-09-0\(i + 1)", completed: true)
+            context.insert(log)
+            // A photograph's iCloud copy on one win, and one that arrived
+            // before its win (2026-10-08). Both must go.
+            if i == 0 {
+                let photo = WinPhoto(fileName: "reset-copy.heic", data: Data([1, 2, 3]))
+                context.insert(photo)
+                log.photo = photo
+            }
         }
+        context.insert(WinPhoto(fileName: "reset-copy-without-a-win.heic", data: Data([4, 5, 6])))
         try context.save()
     }
 
@@ -59,7 +68,8 @@ struct StoreResetTests {
 
         let after = StoreReset.deleteEverything(context: context)
         #expect(after.isEmpty, "the store was not emptied: \(after.line)")
-        for name in ["HabitLog", "Habit", "PlanFolder", "MoodLog", "Tower", "PlanItem"] {
+        #expect(before.counts["WinPhoto"] == 2)
+        for name in ["HabitLog", "Habit", "PlanFolder", "MoodLog", "Tower", "PlanItem", "WinPhoto"] {
             #expect(after.counts[name] == 0, "\(name) survived the reset")
         }
     }
