@@ -12,6 +12,10 @@ import Foundation
 /// the version. Nothing personal goes in: no name, no account, no wins.
 nonisolated enum Support {
     static let address = "jbett5@hotmail.com"
+
+    /// The hosted Terms of Use (`docs/terms.html`, beside the privacy policy).
+    /// Here rather than on a screen: the URL carries the repository's name.
+    static let termsURL = URL(string: "https://jlbetts-cpu.github.io/Strata/terms.html")!
     static let subject = "Some Wins feedback"
 
     /// Info.plist key for the App Store's numeric app ID, once there is one.

@@ -29,7 +29,9 @@ struct QoLFixTests {
     @Test("a crew's notification tapped on a cold launch opens on Wins")
     func crewColdLaunch() throws {
         let main = try code("Strata/Views/MainAppView.swift")
-        #expect(main.contains(".onAppear { if CrewRouter.shared.open != nil { selectedTab = .tower } }"))
+        // `wantsWinsTab` (2026-10-08) is `open != nil` OR an invitation
+        // waiting on the rules and the age (`CrewGate`): both land on Wins.
+        #expect(main.contains(".onAppear { if CrewRouter.shared.wantsWinsTab { selectedTab = .tower } }"))
         let tower = try code("Strata/Views/Crews/CrewTowerView.swift")
         let refresh = try body(of: ".onChange(of: store.today(in: crewID)) {", until: ".onChange(of: crew?.members)", in: tower)
         #expect(refresh.contains("openWinFromNotification()"),

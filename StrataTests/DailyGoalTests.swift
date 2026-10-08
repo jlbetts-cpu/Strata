@@ -40,7 +40,17 @@ struct DailyGoalTests {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         // Today's goal, the one you set.
         #expect(main.contains("GoalCrest(wins: blocksToday, goal: todaysGoal,"))
-        #expect(main.contains("if wins >= todaysGoal, goalDanceDay != today {"))
+        // **The dance marks its day only once it has started** (2026-10-08,
+        // the owner: "i hit the goal and the tower didnt dance"). This used to
+        // pin `if wins >= todaysGoal, goalDanceDay != today {`, the line that
+        // marked the day BEFORE asking for the dance, which is the bug: a
+        // refused dance spent the day. Now the goal reads the tower, and the
+        // day is written after `triggerJubilation` says yes.
+        #expect(main.contains("towerVM.placedBlocks.count >= todaysGoal else { return }"))
+        let celebrate = try #require(main.components(separatedBy: "private func celebrateGoalIfDue()").dropFirst().first)
+        let started = try #require(celebrate.range(of: "animCoord.triggerJubilation("))
+        let marked = try #require(celebrate.range(of: "guard started else { return }\n        goalDanceDay = today"))
+        #expect(started.lowerBound < marked.lowerBound, "the day is marked before the dance is asked for")
         #expect(!main.contains("wins % GridConstants.danceEvery"), "the tenth-win dance gave way to the goal")
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
         #expect(!ring.contains("Color.red") && !ring.contains(".red"), "the ring never shows a shortfall")

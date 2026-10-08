@@ -94,7 +94,9 @@ struct RoughEdgesTests {
                 "the chat opens on an empty field again")
         #expect(chat.contains("TextField(\"Message\", text: draftField"))
         let send = try body(of: "private func send() {", until: "// MARK: - Report and Block", in: chat)
-        #expect(send.contains("== .sent {") && send.contains("CrewDrafts.clearChat(crewID, ifStill: text)"))
+        // A `switch` since the send throttle (2026-10-08) added `.throttled`;
+        // the draft is still cleared only on `.sent`.
+        #expect(send.contains("case .sent:\n                CrewDrafts.clearChat(crewID, ifStill: text)"))
         #expect(!send.contains("CrewDrafts.keepChat(\"\""), "send wipes the kept draft before it knows")
         let panel = try code("Strata/Views/Crews/CrewReactions.swift")
         #expect(!panel.contains("draft = \"\"\n                            replying = true"),

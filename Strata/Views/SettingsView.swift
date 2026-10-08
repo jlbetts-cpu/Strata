@@ -788,6 +788,25 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "hand.raised")
                     }
                 }
+                // **The Terms of Use** (2026-10-08): crews carry other
+                // people's photos and words, so the rules, the takedown route
+                // and the tips' terms need a home a reviewer can reach.
+                // Hosted beside the privacy policy (`docs/terms.html`).
+                Link(destination: Support.termsURL) {
+                    Label {
+                        HStack {
+                            Text("Terms of Use")
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
+                                .foregroundStyle(AppColors.inkQuiet)
+                                .accessibilityHidden(true)
+                        }
+                    } icon: {
+                        SettingsIcon(systemName: "doc.text")
+                    }
+                }
                 // **Anonymous usage, on unless turned off** (2026-10-08,
                 // `docs/superpowers/specs/2026-10-08-analytics-design.md`):
                 // counts of what is used, never what anyone writes or takes.

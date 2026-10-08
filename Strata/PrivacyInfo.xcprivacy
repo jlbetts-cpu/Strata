@@ -203,6 +203,36 @@
 			</array>
 		</dict>
 		<!--
+		    Crash and freeze counts (`Diagnostics`, MetricKit, 2026-10-08): the
+		    kind, a bucketed count, a crash's exception type and signal number,
+		    and the build. Never a stack trace. NOT LINKED, NOT TRACKING,
+		    ANALYTICS.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePerformanceData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<!--
 		    That a tip was bought, and which of the three. NOT LINKED, NOT TRACKING, ANALYTICS.
 		-->
 		<dict>
@@ -235,9 +265,24 @@
 		    to say "there is no app group"; there has been one since the
 		    widget.) No managed configuration.
 
-		    Nothing else in the app touches a required-reason API. Audited:
-		    no file-timestamp calls, no disk-space calls, no system-boot-time
-		    calls, no active-keyboard calls.
+		    The three below were missing until 2026-10-08, when an audit found
+		    the old line here ("no file-timestamp calls, no disk-space calls")
+		    was untrue; an upload without them is refused (ITMS-91053).
+
+		    File timestamps, C617.1 (files in the app's own container):
+		    HeadStore reads a head folder's creation date to order heads;
+		    ImageDerivatives and CrewFaces read modification dates to know when
+		    a cached picture is stale. Nothing is shown or sent.
+
+		    Disk space, E174.1 (checking there is room before writing):
+		    ImageManager.freeBytes pauses the photo migration on a nearly full
+		    phone rather than failing every write.
+
+		    Active keyboards, 54BD.1 (the right UI for the keyboard):
+		    CrewReactions' EmojiField asks for the emoji keyboard so a reaction
+		    opens straight onto emoji. The list is not stored or sent.
+
+		    No system-boot-time calls (CACurrentMediaTime only).
 		-->
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
@@ -246,6 +291,30 @@
 			<array>
 				<string>CA92.1</string>
 				<string>1C8F.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryActiveKeyboards</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>54BD.1</string>
 			</array>
 		</dict>
 	</array>

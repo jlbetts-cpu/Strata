@@ -138,7 +138,8 @@ struct CohesionPassTests {
         let delegate = try MorningSource.read("Social/StrataAppDelegate.swift")
         let launch = delegate.components(separatedBy: "didFinishLaunchingWithOptions").last ?? ""
         let setsDelegate = try #require(launch.range(of: "UNUserNotificationCenter.current().delegate = self"))
-        let gate = try #require(launch.range(of: "guard CrewsFlag.isOn else { return true }"))
+        // `isUsable` (2026-10-08): the flag AND iOS 26, which crews now need.
+        let gate = try #require(launch.range(of: "guard CrewsFlag.isUsable else { return true }"))
         #expect(setsDelegate.lowerBound < gate.lowerBound, "the delegate is behind the Crews flag again")
         for item in ReplayReminder.upcoming(now: now, calendar: calendar, hasWins: { _ in true }) {
             #expect(!item.body.contains("Find it in Memories"))
