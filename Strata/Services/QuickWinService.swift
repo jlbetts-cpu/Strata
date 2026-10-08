@@ -127,9 +127,14 @@ enum QuickWinService {
         // Unlabeled, so it draws no icon — but carrying a colour, so it still
         // looks like part of the tower. Two facts, stored separately.
         if category == .unlabeled {
+            // **Today's tower, which is the one on screen** (2026-10-08, the
+            // scale audit). It fetched every win ever logged, on the main
+            // actor, to count colours the person cannot see: a year of wins
+            // for one block, and a spread judged against last spring.
             let colour = spontaneous ?? {
-                let siblings = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
-                return spontaneousCategory(existing: siblings)
+                let logs = (try? context.fetch(FetchDescriptor<HabitLog>(
+                    predicate: #Predicate { $0.dateString == today }))) ?? []
+                return spontaneousCategory(existing: logs.compactMap(\.habit))
             }()
             habit.spontaneousCategoryRaw = colour.rawValue
         }

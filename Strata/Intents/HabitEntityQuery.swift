@@ -7,11 +7,12 @@ struct HabitEntityQuery: EntityQuery {
     func entities(for identifiers: [UUID]) async throws -> [HabitEntity] {
         try await MainActor.run { try StoreUnavailableIntentError.check() }
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<Habit>()
+        // By id in the store, not every win fetched and filtered (2026-10-08:
+        // every win is its own Habit, so "every win" grows without bound).
+        let descriptor = FetchDescriptor<Habit>(predicate: #Predicate { identifiers.contains($0.id) })
         let habits = (try? context.fetch(descriptor)) ?? []
-        let idSet = Set(identifiers)
         let todayStr = Self.todayString()
-        return habits.filter { idSet.contains($0.id) }.map { Self.toEntity($0, todayStr: todayStr) }
+        return habits.map { Self.toEntity($0, todayStr: todayStr) }
     }
 
     /// The most recent wins, for a picker in Shortcuts.
@@ -22,15 +23,16 @@ struct HabitEntityQuery: EntityQuery {
     func suggestedEntities() async throws -> [HabitEntity] {
         try await MainActor.run { try StoreUnavailableIntentError.check() }
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<Habit>()
-        let habits = (try? context.fetch(descriptor)) ?? []
+        // The latest logs, newest first, rather than every win and every log
+        // sorted in memory (2026-10-08). A hundred logs hold twenty titled
+        // wins on any real tower.
+        var descriptor = FetchDescriptor<HabitLog>(sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+        descriptor.fetchLimit = 100
+        let logs = (try? context.fetch(descriptor)) ?? []
         let todayStr = Self.todayString()
-        func latest(_ habit: Habit) -> Date {
-            (habit.logs ?? []).compactMap(\.completedAt).max() ?? .distantPast
-        }
-        return habits
-            .filter { $0.title != QuickWinService.untitled }
-            .sorted { latest($0) > latest($1) }
+        var seen = Set<UUID>()
+        return logs.compactMap(\.habit)
+            .filter { $0.title != QuickWinService.untitled && seen.insert($0.id).inserted }
             .prefix(20)
             .map { Self.toEntity($0, todayStr: todayStr) }
     }

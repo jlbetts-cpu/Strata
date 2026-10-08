@@ -2135,7 +2135,11 @@ struct MainAppView: View {
             return
         }
         #endif
-        nextWinCategory = QuickWinService.spontaneousCategory(existing: Array(habits))
+        // Counted against today's tower, the one the slot stands in
+        // (2026-10-08): it counted every win ever logged, so the colour the
+        // slot promised was "least used since you installed", not "least
+        // used on this screen".
+        nextWinCategory = QuickWinService.spontaneousCategory(existing: towerVM.placedBlocks.compactMap(\.habit))
     }
 
     /// The first block, dropped once, when somebody finishes onboarding.
@@ -2752,7 +2756,7 @@ struct MainAppView: View {
             spotlightIndexTask = Task {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
-                SpotlightIndexer.reindex(container: SharedModelContainer.shared)
+                SpotlightIndexer.indexToday(container: SharedModelContainer.shared)
             }
         }
 
