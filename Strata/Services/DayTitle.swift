@@ -72,6 +72,9 @@ nonisolated enum DayTitle {
     static func date(forKey key: String, calendar: Calendar) -> Date? {
         let bits = key.split(separator: "-").compactMap { Int($0) }
         guard bits.count == 3 else { return nil }
-        return calendar.date(from: DateComponents(year: bits[0], month: bits[1], day: bits[2], hour: 12))
+        // The key's numbers are Gregorian (`DateUtils.keyFormatter`), so they
+        // are read in Gregorian, in `calendar`'s zone.
+        return DateUtils.keyCalendar(in: calendar.timeZone)
+            .date(from: DateComponents(year: bits[0], month: bits[1], day: bits[2], hour: 12))
     }
 }

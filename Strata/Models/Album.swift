@@ -405,7 +405,9 @@ nonisolated extension Album {
             // What a `DateFormatter()` made on the spot would have used:
             // Foundation's default zone, which is not always `TimeZone.current`.
             f.locale = posix ? Locale(identifier: "en_US_POSIX") : NSLocale.current
-            f.calendar = NSCalendar.current
+            // A key is Gregorian on every phone (`DateUtils.keyFormatter`,
+            // 2026-10-08); only display follows the reader's calendar.
+            f.calendar = posix ? Calendar(identifier: .gregorian) : NSCalendar.current
             f.timeZone = NSTimeZone.default
             f.dateFormat = format
             made[key] = f
@@ -520,7 +522,9 @@ nonisolated extension Album {
         for photo in photos {
             byMonth[String(photo.dateString.prefix(7)), default: []].append(photo)
         }
-        let thisYear = calendar.component(.year, from: now)
+        // The key's year is Gregorian, so this year is read in Gregorian too,
+        // or a Buddhist phone calls every month "another year".
+        let thisYear = DateUtils.keyCalendar(in: calendar.timeZone).component(.year, from: now)
         return byMonth.keys.sorted(by: >).map { key in
             let sorted = (byMonth[key] ?? []).sorted { $0.date > $1.date }
             let sameYear = Int(key.prefix(4)) == thisYear

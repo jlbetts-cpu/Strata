@@ -18,11 +18,8 @@ import SwiftUI
 // MARK: - Time Formatting Helpers
 
 enum BlockTimeFormatter {
-    static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    /// A key formatter: Gregorian and POSIX (`DateUtils.keyFormatter`).
+    static let dateFormatter = DateUtils.keyFormatter("yyyy-MM-dd")
 
 }
 

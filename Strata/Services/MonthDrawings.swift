@@ -54,8 +54,10 @@ final class MonthDrawingStore {
     init(files: InkFiles) { self.files = files }
 
     /// "2026-10": the calendar month a date falls in, in the calendar given.
+    /// Gregorian numbers in `calendar`'s zone, as every key is
+    /// (`DateUtils.keyFormatter`, 2026-10-08).
     nonisolated static func key(for date: Date, calendar: Calendar = .current) -> String {
-        let parts = calendar.dateComponents([.year, .month], from: date)
+        let parts = DateUtils.keyCalendar(in: calendar.timeZone).dateComponents([.year, .month], from: date)
         return String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
     }
 

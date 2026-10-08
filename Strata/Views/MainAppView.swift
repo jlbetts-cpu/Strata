@@ -1853,11 +1853,8 @@ struct MainAppView: View {
         }
     }
 
-    private static let dateStringFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    /// A key formatter: Gregorian and POSIX (`DateUtils.keyFormatter`).
+    private static let dateStringFormatter = DateUtils.keyFormatter("yyyy-MM-dd")
 
 
     // MARK: - Skeleton Build-Up

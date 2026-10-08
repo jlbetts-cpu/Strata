@@ -17,8 +17,9 @@ enum BackupExport {
     /// folder, which is why the reader finds `wins.json` by suffix rather than
     /// by rebuilding this string.
     static func name(on date: Date) -> String {
-        let stamp = DateFormatter()
-        stamp.dateFormat = "yyyy-MM-dd"
+        // Gregorian, as every key is (`DateUtils.keyFormatter`): a Buddhist
+        // phone named its backup 2569.
+        let stamp = DateUtils.keyFormatter("yyyy-MM-dd")
         return "Some Wins Backup \(stamp.string(from: date))"
     }
 

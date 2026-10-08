@@ -748,7 +748,9 @@ struct MemoriesView: View {
 
     /// The chosen month's photographs, as one untitled section.
     private var monthPhotos: [GallerySection] {
-        let parts = MemoriesViewModel.mondayCalendar.dateComponents([.year, .month], from: vm.selectedMonth)
+        // Gregorian, the calendar the gallery's keys are written in.
+        let parts = DateUtils.keyCalendar(in: MemoriesViewModel.mondayCalendar.timeZone)
+            .dateComponents([.year, .month], from: vm.selectedMonth)
         let key = String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
         return vm.gallery.filter { $0.id == key }
     }

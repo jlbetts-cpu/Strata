@@ -51,8 +51,10 @@ struct ReplayPeriod: Hashable, Identifiable {
     /// One day, `yyyy-MM-dd`, of the crew called `name`.
     static func day(_ key: String, name: String?, calendar: Calendar = .current) -> ReplayPeriod? {
         let bits = key.split(separator: "-").compactMap { Int($0) }
+        // Read in Gregorian, which is what a key is written in.
         guard bits.count == 3,
-              let start = calendar.date(from: DateComponents(year: bits[0], month: bits[1], day: bits[2])) else { return nil }
+              let start = DateUtils.keyCalendar(in: calendar.timeZone)
+                .date(from: DateComponents(year: bits[0], month: bits[1], day: bits[2])) else { return nil }
         return ReplayPeriod(kind: .day, days: [key], firstDay: start, calendar: calendar, name: name)
     }
 
@@ -61,8 +63,10 @@ struct ReplayPeriod: Hashable, Identifiable {
         return ReplayPeriod(kind: kind, days: days, firstDay: first, calendar: calendar)
     }
 
+    /// Gregorian numbers in `calendar`'s zone, as every key is
+    /// (`DateUtils.keyFormatter`, 2026-10-08).
     static func key(_ date: Date, calendar: Calendar) -> String {
-        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        let c = DateUtils.keyCalendar(in: calendar.timeZone).dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
     }
 
