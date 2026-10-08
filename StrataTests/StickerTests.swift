@@ -36,7 +36,7 @@ struct StickerTests {
         #expect(JournalMark.spoken("🌻") == "🌻")
     }
 
-    @Test("stickers are kept newest first, read back, and deleted with their file")
+    @Test("stickers are kept newest first, read back, and removed from the picker but not from what wears them")
     func kept() throws {
         let store = store()
         let first = try #require(store.add(square(.red)))
@@ -47,7 +47,10 @@ struct StickerTests {
         #expect(StickerStore(directory: store.directory).names == [second, first])
         store.remove(first)
         #expect(store.names == [second])
-        #expect(!FileManager.default.fileExists(atPath: store.directory.appending(path: first).path))
+        // Changed 2026-10-08: deleting the file left every day, sketch and
+        // strip that wore it with a gap. Out of the picker, still drawn.
+        #expect(store.image(first) != nil, "a removed sticker still draws where it was placed")
+        #expect(StickerStore(directory: store.directory).names == [second], "and stays out of the picker")
     }
 
     @Test("the oldest goes when the limit is passed")

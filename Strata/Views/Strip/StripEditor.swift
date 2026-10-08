@@ -25,9 +25,13 @@ struct StripEditor: View {
     /// and the doodles stay where they were drawn.
     @State private var tallest: CGFloat = 0
     @State private var canvas: CGSize = .zero
-    @State private var loaded = false
+    /// **Which wins are on it, as edited here**: written back only on Done.
+    /// It edited the booth's own set live, so Cancel or a swipe down still
+    /// kept every frame taken off (the 2026-10-08 audit).
+    @State private var draft: Set<UUID>?
+    private var current: Set<UUID> { draft ?? excluded }
 
-    private var frames: [PhotoStrip.Frame] { strip.frames(excluding: excluded) }
+    private var frames: [PhotoStrip.Frame] { strip.frames(excluding: current) }
 
     var body: some View {
         NavigationStack {
@@ -40,6 +44,7 @@ struct StripEditor: View {
                               ground: AnyShapeStyle(Color.clear),
                               cornerRadius: StripView.corner(forWidth: width),
                               lightInk: paper.lightInk,
+                              darkInk: !paper.lightInk,
                               underlay: AnyView(StripView(frames: frames, day: strip.day, signature: strip.signature,
                                                           paper: paper, width: width, developed: 1)))
                         .frame(width: width)
@@ -75,12 +80,13 @@ struct StripEditor: View {
                                     stickers: ink.stickers.map { $0.scaled(by: k) },
                                     canvas: CGSize(width: canvas.width * k, height: canvas.height * k),
                                     owner: strip.owner, day: strip.day)
+                    if let draft { excluded = draft }
                     dismiss()
                 })
             }
             .background { WarmBackground().ignoresSafeArea() }
         }
-        .interactiveDismissDisabled(ink.canUndo)
+        .interactiveDismissDisabled(ink.canUndo || (draft != nil && draft != excluded))
         // Opened from the booth's sticker button: straight to the stickers,
         // once the sheet has risen (a popover from a sheet still rising
         // does not appear).
@@ -97,10 +103,22 @@ struct StripEditor: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: GridConstants.gapTight) {
                     ForEach(strip.candidates) { frame in
-                        let on = !excluded.contains(frame.id)
+                        // On the strip, not merely "not left out": only the
+                        // first `PhotoStrip.most` make it, so a ninth showed
+                        // ticked and was not there.
+                        let on = frames.contains { $0.id == frame.id }
                         Button {
+                            var next = current
+                            if on {
+                                // Never the last one: an empty strip is not a strip.
+                                guard frames.count > 1 else { HapticsEngine.warning(); return }
+                                next.insert(frame.id)
+                            } else {
+                                guard frames.count < PhotoStrip.most else { HapticsEngine.warning(); return }
+                                next.remove(frame.id)
+                            }
                             HapticsEngine.lightTap()
-                            if on { excluded.insert(frame.id) } else { excluded.remove(frame.id) }
+                            draft = next
                         } label: {
                             Image(uiImage: frame.picture)
                                 .resizable()
@@ -146,10 +164,12 @@ struct StripEditor: View {
         let size = CGSize(width: width, height: width * ratio)
         guard size.width > 0, size != canvas else { return }
         canvas = size
-        guard !loaded, let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
-        loaded = true
+        // **Reloaded at every size until you draw** (as `MonthDrawingEditor`
+        // learned): the width settles after the first layout, and loading
+        // once at the first width saved the drawing smaller on every Done.
+        guard !ink.canUndo, let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
         let k = size.width / kept.canvas.width
         ink.load(kept.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
-                 stickers: kept.stickers.map { $0.scaled(by: k) })
+                 stickers: kept.stickers.map { $0.scaled(by: k).clamped(toCanvas: size) })
     }
 }

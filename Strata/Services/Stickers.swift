@@ -68,14 +68,22 @@ final class StickerStore {
         }
         cache[name] = sticker
         names.insert(name, at: 0)
-        while names.count > Self.limit { forget(names.removeLast()) }
+        // Past the limit the oldest leaves the PICKER; its file stays, since a
+        // day, a sketch or a strip may be wearing it (the 2026-10-08 audit).
+        while names.count > Self.limit { names.removeLast() }
         writeIndex()
         return name
     }
 
+    /// **Takes a sticker out of your stickers; never off what it is on.**
+    /// The file stays: a day marked with it, a sketch, a month drawing or a
+    /// strip it was placed on all keep showing it, as a sent sticker stays in
+    /// a conversation. It used to delete the file, which left an empty
+    /// smiley in the journal, a dot on the calendar and a gap in every
+    /// drawing the next time it was saved.
     func remove(_ name: String) {
         names.removeAll { $0 == name }
-        forget(name)
+        cache[name] = nil
         writeIndex()
     }
 
@@ -84,11 +92,6 @@ final class StickerStore {
         guard let image = UIImage(contentsOfFile: directory.appending(path: name).path) else { return nil }
         cache[name] = image
         return image
-    }
-
-    private func forget(_ name: String) {
-        cache[name] = nil
-        try? FileManager.default.removeItem(at: directory.appending(path: name))
     }
 
     private func writeIndex() {

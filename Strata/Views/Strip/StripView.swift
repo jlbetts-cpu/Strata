@@ -115,13 +115,18 @@ struct StripView: View {
     @ViewBuilder
     private var decoration: some View {
         if let decor {
+            // **At its own shape, from the top** (the 2026-10-08 audit): it
+            // filled whatever height the strip had, so a strip that gained a
+            // row stretched every doodle and turned stickers into ovals. The
+            // strip's clip cuts whatever runs past a shorter strip.
             ZStack {
                 if let stickers = decor.stickers {
-                    Image(uiImage: stickers).resizable()
+                    Image(uiImage: stickers).resizable().aspectRatio(contentMode: .fit)
                 }
-                Image(uiImage: decor.ink).renderingMode(.template).resizable()
+                Image(uiImage: decor.ink).renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
                     .foregroundStyle(paper.type)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .allowsHitTesting(false)
         }
     }

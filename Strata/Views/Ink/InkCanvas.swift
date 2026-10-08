@@ -268,6 +268,11 @@ struct InkCanvas<Accessory: View>: View {
     /// one black pen as everywhere; the canvas is shown as in dark mode,
     /// where PencilKit draws black ink white.
     var lightInk = false
+    /// **The ink drawn dark whatever the phone's appearance**: on white strip
+    /// paper in dark mode the canvas inherited dark and drew white on white
+    /// (the 2026-10-08 audit). The journal leaves both off and follows the
+    /// phone.
+    var darkInk = false
     /// A picture under the ink, inside the well: the photo strip, drawn on
     /// in the strip's editor (`StripEditor`). Nil everywhere else.
     var underlay: AnyView? = nil
@@ -276,6 +281,7 @@ struct InkCanvas<Accessory: View>: View {
     init(controller: InkController, aspectRatio: CGFloat? = nil,
          ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
          cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false,
+         darkInk: Bool = false,
          underlay: AnyView? = nil,
          @ViewBuilder accessory: () -> Accessory) {
         self.controller = controller
@@ -283,6 +289,7 @@ struct InkCanvas<Accessory: View>: View {
         self.ground = ground
         self.cornerRadius = cornerRadius
         self.lightInk = lightInk
+        self.darkInk = darkInk
         self.underlay = underlay
         self.accessory = accessory()
     }
@@ -303,7 +310,7 @@ struct InkCanvas<Accessory: View>: View {
         let surface = ZStack {
             if let underlay { underlay.allowsHitTesting(false) }
             InkStickerLayer(controller: controller, interactive: false)
-            InkSurface(controller: controller, lightInk: lightInk)
+            InkSurface(controller: controller, lightInk: lightInk, darkInk: darkInk)
                 .accessibilityLabel("Drawing")
                 .accessibilityHint("Draw with one finger")
             InkStickerLayer(controller: controller, interactive: true)
@@ -322,9 +329,9 @@ extension InkCanvas where Accessory == EmptyView {
     init(controller: InkController, aspectRatio: CGFloat? = nil,
          ground: AnyShapeStyle = AnyShapeStyle(AppColors.quietFill),
          cornerRadius: CGFloat = GridConstants.blockCornerRadius, lightInk: Bool = false,
-         underlay: AnyView? = nil) {
+         darkInk: Bool = false, underlay: AnyView? = nil) {
         self.init(controller: controller, aspectRatio: aspectRatio, ground: ground,
-                  cornerRadius: cornerRadius, lightInk: lightInk, underlay: underlay) { EmptyView() }
+                  cornerRadius: cornerRadius, lightInk: lightInk, darkInk: darkInk, underlay: underlay) { EmptyView() }
     }
 }
 
@@ -428,6 +435,7 @@ struct InkControls<Accessory: View>: View {
 private struct InkSurface: UIViewRepresentable {
     let controller: InkController
     var lightInk = false
+    var darkInk = false
 
     /// How far the canvas zooms in. One finger always draws; two pan and
     /// pinch. At 1 the page is exactly the well, so nothing scrolls.
@@ -440,7 +448,7 @@ private struct InkSurface: UIViewRepresentable {
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
-        if lightInk { canvas.overrideUserInterfaceStyle = .dark }
+        canvas.overrideUserInterfaceStyle = lightInk ? .dark : darkInk ? .light : .unspecified
         // Scrolling is on so that a zoomed page can be panned; at a scale of
         // 1 the content is the well's own size (`OwnUndoCanvas.layoutSubviews`)
         // and there is nowhere to go. The strokes stay in the page's own
@@ -466,7 +474,7 @@ private struct InkSurface: UIViewRepresentable {
         context.coordinator.controller = controller
         // Followed live, so a well whose ground turns dark (the strip's
         // paper) redraws the ink it already holds to read on it.
-        canvas.overrideUserInterfaceStyle = lightInk ? .dark : .unspecified
+        canvas.overrideUserInterfaceStyle = lightInk ? .dark : darkInk ? .light : .unspecified
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
