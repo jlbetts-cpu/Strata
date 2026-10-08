@@ -62,14 +62,45 @@ nonisolated struct CrewOutbox: Codable, Equatable, Sendable {
         Set(entries.filter { $0.type == .sharedWin && $0.name == winID.uuidString && $0.fields != nil }.map(\.crew))
     }
 
+    /// A file that is there but cannot be read is set aside, never read as
+    /// "nothing waiting": the next write would put an empty outbox over it,
+    /// and every win still on its way to a crew would be lost without a word.
     static func load(from url: URL) -> CrewOutbox {
-        guard let data = try? Data(contentsOf: url),
-              let outbox = try? JSONDecoder().decode(CrewOutbox.self, from: data) else { return CrewOutbox() }
-        return outbox
+        guard let data = try? Data(contentsOf: url) else { return CrewOutbox() }
+        if let outbox = try? JSONDecoder().decode(CrewOutbox.self, from: data) { return outbox }
+        let aside = url.deletingLastPathComponent()
+            .appending(path: "outbox.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+        try? FileManager.default.copyItem(at: url, to: aside)
+        return CrewOutbox()
     }
 
     func write(to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(self).write(to: url, options: .atomic)
+    }
+}
+
+// One entry another build wrote, that this one cannot read, costs that entry
+// and not the whole queue; a missing `attempts` is a first attempt.
+extension CrewOutbox {
+    private struct Lossy: Decodable {
+        let entry: Entry?
+        init(from decoder: Decoder) throws { entry = try? Entry(from: decoder) }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        entries = (try c.decodeIfPresent([Lossy].self, forKey: .entries) ?? []).compactMap(\.entry)
+    }
+}
+
+extension CrewOutbox.Entry {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        crew = try c.decode(CrewID.self, forKey: .crew)
+        type = try c.decode(CrewRecordType.self, forKey: .type)
+        name = try c.decode(String.self, forKey: .name)
+        fields = try c.decodeIfPresent(RecordFields.self, forKey: .fields)
+        attempts = try c.decodeIfPresent(Int.self, forKey: .attempts) ?? 0
     }
 }

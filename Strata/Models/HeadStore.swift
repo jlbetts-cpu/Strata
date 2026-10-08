@@ -104,6 +104,21 @@ final class HeadStore {
         var name: String
         var created: Date
         var folder: String
+
+        init(id: UUID, name: String, created: Date, folder: String) {
+            self.id = id; self.name = name; self.created = created; self.folder = folder
+        }
+
+        /// Only the id and the folder find a head on disk, so only they are
+        /// required: a file written by another build that lacks a name or a
+        /// date still lists the head rather than failing the whole roster.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(UUID.self, forKey: .id)
+            folder = try c.decode(String.self, forKey: .folder)
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? HeadStore.firstHeadName
+            created = try c.decodeIfPresent(Date.self, forKey: .created) ?? .distantPast
+        }
     }
 
     /// Every head, and which one is in use.
@@ -121,6 +136,21 @@ final class HeadStore {
         var version = 1
         var heads: [Entry] = []
         var activeID: UUID?
+
+        init(version: Int = 1, heads: [Entry] = [], activeID: UUID? = nil) {
+            self.version = version; self.heads = heads; self.activeID = activeID
+        }
+
+        /// Every key optional: the synthesized decoder ignores the defaults
+        /// above, so one key missing (an older or newer build's file) would
+        /// fail the whole decode, and a failed decode used to be read as "no
+        /// heads" and written back over the list.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+            heads = try c.decodeIfPresent([Entry].self, forKey: .heads) ?? []
+            activeID = try c.decodeIfPresent(UUID.self, forKey: .activeID)
+        }
 
         var active: Entry? { heads.first { $0.id == activeID } }
 
@@ -666,9 +696,21 @@ final class HeadStore {
     /// Entries whose folder refuses to resolve, or whose `head.json` has gone,
     /// are dropped from the LIST. Nothing on disk is removed for them.
     nonisolated static func loadedRoster(in support: URL, legacyName: String) -> Roster {
-        var roster = readRoster(in: support) ?? Roster()
-        let before = roster
         let manager = FileManager.default
+        let file = support.appending(path: rosterFile)
+        var roster = readRoster(in: support) ?? Roster()
+        var before = roster
+        // **A list that is there but unreadable is not an empty list.** It was
+        // read as one and written back, which took every head in `Heads/` off
+        // the app on launch while their folders sat on disk. The file is kept
+        // beside the new one, never written over, and the list is rebuilt from
+        // the folders themselves (`HeadRosterTests.anUnreadableListIsRebuilt`).
+        if readRoster(in: support) == nil, manager.fileExists(atPath: file.path) {
+            let aside = support.appending(path: "heads.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? manager.copyItem(at: file, to: aside)
+            roster = rebuiltRoster(in: support)
+            before = Roster(version: -1)       // always written: the bad file must not stay the list
+        }
         roster.heads = roster.heads.filter { entry in
             guard let url = resolve(folder: entry.folder, in: support) else { return false }
             return manager.fileExists(atPath: url.appending(path: "head.json").path)
@@ -683,6 +725,26 @@ final class HeadStore {
         roster.settle()
         if roster != before { writeRoster(roster, in: support) }
         return roster
+    }
+
+    /// The heads in `Heads/`, found by their own `head.json`, for when the
+    /// list itself cannot be read. Names are lost with the list, so they are
+    /// numbered as new ones would be; the order is the order they were made.
+    nonisolated static func rebuiltRoster(in support: URL) -> Roster {
+        let manager = FileManager.default
+        let heads = support.appending(path: "Heads", directoryHint: .isDirectory)
+        let names = (try? manager.contentsOfDirectory(atPath: heads.path)) ?? []
+        var found: [Entry] = []
+        for name in names where !name.hasPrefix(".") {
+            let folder = heads.appending(path: name, directoryHint: .isDirectory)
+            guard manager.fileExists(atPath: folder.appending(path: "head.json").path) else { continue }
+            let made = (try? folder.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            found.append(Entry(id: UUID(uuidString: name) ?? UUID(), name: "", created: made, folder: "Heads/\(name)"))
+        }
+        found.sort { $0.created < $1.created }
+        // The legacy `Head/` is adopted after this, in front, and takes index 0.
+        for i in found.indices { found[i].name = "Head \(i + 2)" }
+        return Roster(heads: found)
     }
 
     /// `addsOnly`: a file that is already there is left exactly as it is (a

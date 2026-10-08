@@ -32,6 +32,9 @@ import UIKit
 ///   `aFolderOutsideTheAppDirectoryIsRefused` deletes a file outside the app.
 /// - Make `Roster.add` leave `activeID` alone and
 ///   `addingAHeadPutsItInUse` fails.
+/// - Read an unreadable `heads.json` as an empty list again and
+///   `anUnreadableListIsRebuilt` fails with no heads: every made head gone
+///   from the app while its folder sits on disk.
 @Suite("HeadRoster")
 struct HeadRosterTests {
 
@@ -98,6 +101,38 @@ struct HeadRosterTests {
         #expect(shape(stored) == shape(roster))
         let again = HeadStore.loadedRoster(in: support, legacyName: "Me")
         #expect(shape(again) == shape(roster), "adopting is idempotent")
+    }
+
+    @Test("an unreadable list is kept aside and rebuilt from the head folders, never written over as empty")
+    @MainActor
+    func anUnreadableListIsRebuilt() throws {
+        let support = try support()
+        let id = UUID()
+        let made = support.appending(path: HeadStore.folder(for: id), directoryHint: .isDirectory)
+        HeadStore.writeVersion2Fixture(to: made)
+        let garbage = Data("{\"version\": 1, \"heads\": [{\"id\": 42".utf8)
+        try garbage.write(to: support.appending(path: HeadStore.rosterFile))
+
+        let roster = HeadStore.loadedRoster(in: support, legacyName: "Me")
+        #expect(roster.heads.map(\.folder) == [HeadStore.folder(for: id)], "the made head came back off the disk")
+        #expect(roster.heads.first?.id == id, "its folder name is its id")
+        #expect(roster.activeID == id)
+        let names = try FileManager.default.contentsOfDirectory(atPath: support.path)
+        let aside = try #require(names.first { $0.hasPrefix("heads.unreadable-") })
+        #expect(try Data(contentsOf: support.appending(path: aside)) == garbage, "the unreadable file is kept as it was")
+        #expect(HeadStore.readRoster(in: support) != nil, "a readable list replaces it")
+    }
+
+    @Test("a list missing keys another build did not write still lists its heads")
+    @MainActor
+    func aListMissingKeysStillReads() throws {
+        let support = try support()
+        let id = UUID()
+        HeadStore.writeVersion2Fixture(to: support.appending(path: HeadStore.folder(for: id), directoryHint: .isDirectory))
+        let json = "{\"heads\": [{\"id\": \"\(id.uuidString)\", \"folder\": \"Heads/\(id.uuidString)\"}]}"
+        try Data(json.utf8).write(to: support.appending(path: HeadStore.rosterFile))
+        let roster = HeadStore.loadedRoster(in: support, legacyName: "Me")
+        #expect(roster.heads.map(\.id) == [id])
     }
 
     @Test("adopting writes nothing into the old head's folder, and an old build still loads it")
