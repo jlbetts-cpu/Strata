@@ -851,6 +851,26 @@ final class ImageManager: @unchecked Sendable {
 
     // MARK: - ImageIO Downsample
 
+    /// **A picked photograph, decoded no bigger than it will be kept**, and
+    /// off the main actor. `UIImage(data:)` on a 48 MP photo or a panorama
+    /// holds about 190 MB once it is drawn, and it was drawn on the main
+    /// actor the moment the sheet showed it; everything downstream keeps 2560
+    /// (`storedMaxDimension`) anyway. Never upscales.
+    nonisolated static func downsampled(_ data: Data, maxPixel: CGFloat) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+            guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+            ]
+            guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+            return UIImage(cgImage: ImageDerivatives.prepared(cg))
+        }.value
+    }
+
     nonisolated private static func downsample(url: URL, maxPixelWidth: CGFloat) -> UIImage? {
         let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions as CFDictionary) else {

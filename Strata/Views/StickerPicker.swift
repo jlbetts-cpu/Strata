@@ -159,7 +159,7 @@ struct StickerMaking: ViewModifier {
 
     private func make(from picked: PhotosPickerItem) async {
         guard let data = try? await picked.loadTransferable(type: Data.self),
-              let full = UIImage(data: data) else {
+              let full = await ImageManager.downsampled(data, maxPixel: ImageManager.storedMaxDimension) else {
             HapticsEngine.warning()
             failed = true
             return

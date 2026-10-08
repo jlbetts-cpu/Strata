@@ -16,7 +16,9 @@ final class TowerManager {
     // Moves `updatedAt` on any orphaned habit it re-parents, and on that tower (StoreStamp).
     func ensureDefaultTower(context: ModelContext) {
         let descriptor = FetchDescriptor<Tower>(sortBy: [SortDescriptor(\.order)])
-        let towers = (try? context.fetch(descriptor)) ?? []
+        // A fetch that FAILED is not "no towers": reading it as one inserted
+        // a second "My Tower" and re-parented every win onto it.
+        guard let towers = try? context.fetch(descriptor) else { return }
 
         if towers.isEmpty {
             let defaultTower = Tower(name: "My Tower", emoji: "🏗️", order: 0)

@@ -362,7 +362,7 @@ struct MemoriesView: View {
                     // against its own disc, which is an empty white circle on
                     // a map that is mostly white.
                     .overlay(alignment: .topLeading) {
-                        MapBackButton(night: mapStyle == .night) { path.removeLast() }
+                        MapBackButton(night: mapStyle == .night) { if !path.isEmpty { path.removeLast() } }
                     }
                 case .day(let key):
                     // **The standard push and back**, not a zoom out of the

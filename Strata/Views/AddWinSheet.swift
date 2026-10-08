@@ -430,7 +430,7 @@ struct AddWinSheet: View {
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
+                   let image = await ImageManager.downsampled(data, maxPixel: ImageManager.storedMaxDimension) {
                     photo = image
                     photoChanged = true
                 }
@@ -1342,7 +1342,9 @@ struct AddWinSheet: View {
                 }
             }
         }
-        .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
+        // What a tap does: shows the photo, opens the doodle, or asks for a
+        // photo. Replacing and removing are the long press's, as actions.
+        .accessibilityLabel(photo != nil ? "View the photo" : doodle != nil ? "Edit the doodle" : "Add a photo")
     }
 
     /// Whether to ring the swatch the win is on.

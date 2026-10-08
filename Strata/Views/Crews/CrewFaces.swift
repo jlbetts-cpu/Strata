@@ -71,7 +71,7 @@ struct CrewFace: View {
                 HeadStill(rig: rig, side: side * 0.9)
                     .frame(width: side, height: side)
                     .offset(y: side * 0.04)
-            } else if let photo = member.photo, let image = UIImage(contentsOfFile: photo.path) {
+            } else if let photo = member.photo, let image = CrewPictures.image(at: photo) {
                 // A photograph fills the circle a head sits in, so the two
                 // read as one set (Messages' own answer for Memoji beside
                 // photos; the owner chose it 2026-10-02).
@@ -111,7 +111,7 @@ struct CrewFaces: View {
 
     var body: some View {
         ZStack {
-            if let photo = crew.photo, let image = UIImage(contentsOfFile: photo.path) {
+            if let photo = crew.photo, let image = CrewPictures.image(at: photo) {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Circle().fill(AppColors.quietFill)
@@ -143,3 +143,20 @@ struct CrewFaces: View {
     }
 }
 
+/// A face or a crew's picture, read from disk once rather than on every pass:
+/// the crews list and the chat redraw every few seconds while open. Keyed by
+/// the file's modification date too, so a picture changed in place is read
+/// again rather than shown stale.
+@MainActor
+enum CrewPictures {
+    private static let cache = NSCache<NSString, UIImage>()
+
+    static func image(at url: URL) -> UIImage? {
+        let changed = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        let key = "\(url.path)@\(changed?.timeIntervalSince1970 ?? 0)" as NSString
+        if let hit = cache.object(forKey: key) { return hit }
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        cache.setObject(image, forKey: key)
+        return image
+    }
+}

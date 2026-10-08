@@ -155,6 +155,13 @@ nonisolated struct ZipArchiveReader: Sendable {
     /// memory.
     private func inflate(_ payload: Data, expecting size: Int, path: String) throws -> Data {
         guard size > 0 else { return Data() }
+        // The size comes from the archive's index and is allocated before a
+        // byte is checked, so a damaged index claiming gigabytes would take
+        // the phone's memory before the checksum could say anything. DEFLATE
+        // cannot expand past about 1032:1, and nothing in a backup is 512 MB.
+        guard size <= min(payload.count &* 1032 &+ 1024, Self.largestEntry) else {
+            throw Failure.corrupt("\(path) claims \(size) bytes, more than its \(payload.count) compressed bytes can hold")
+        }
         var output = Data(count: size)
         let written: Int = output.withUnsafeMutableBytes { destination in
             payload.withUnsafeBytes { source in
@@ -171,6 +178,18 @@ nonisolated struct ZipArchiveReader: Sendable {
 
     // MARK: - The central directory
 
+    private static let largestEntry = 512 << 20
+
+    /// A 64-bit size or offset from a Zip64 record, refused if no file this
+    /// long could hold it. `Int(_:)` on a damaged value of 2^63 or more traps,
+    /// and a large one that converts still overflows the bounds arithmetic.
+    private static func bounded(_ value: UInt64, in bytes: Data) throws -> Int {
+        guard value <= UInt64(bytes.count) &* 1032 else {
+            throw Failure.corrupt("the archive's index holds a size no file this long could have")
+        }
+        return Int(value)
+    }
+
     private static func readCentralDirectory(_ bytes: Data) throws -> [Entry] {
         let reader = Cursor(bytes)
         guard let eocd = reader.findEndOfCentralDirectory() else { throw Failure.notAZip }
@@ -185,13 +204,13 @@ nonisolated struct ZipArchiveReader: Sendable {
             guard eocd >= 20, reader.read32(eocd - 20) == 0x07064b50 else {
                 throw Failure.unsupported("this archive needs a Zip64 index that is missing")
             }
-            let zip64 = Int(reader.read64(eocd - 20 + 8))
+            let zip64 = try bounded(reader.read64(eocd - 20 + 8), in: bytes)
             guard zip64 >= 0, zip64 + 56 <= bytes.count, reader.read32(zip64) == 0x06064b50 else {
                 throw Failure.truncated("the archive's Zip64 index is not where it says it is")
             }
-            entryCount = Int(reader.read64(zip64 + 32))
-            directorySize = Int(reader.read64(zip64 + 40))
-            directoryOffset = Int(reader.read64(zip64 + 48))
+            entryCount = try bounded(reader.read64(zip64 + 32), in: bytes)
+            directorySize = try bounded(reader.read64(zip64 + 40), in: bytes)
+            directoryOffset = try bounded(reader.read64(zip64 + 48), in: bytes)
         }
 
         guard directoryOffset >= 0, directorySize >= 0,
@@ -245,13 +264,13 @@ nonisolated struct ZipArchiveReader: Sendable {
                     if id == 0x0001 {
                         var field = extra + 4
                         if uncompressed == 0xFFFF_FFFF, field + 8 <= extra + 4 + size {
-                            uncompressed = Int(reader.read64(field)); field += 8
+                            uncompressed = try bounded(reader.read64(field), in: bytes); field += 8
                         }
                         if compressed == 0xFFFF_FFFF, field + 8 <= extra + 4 + size {
-                            compressed = Int(reader.read64(field)); field += 8
+                            compressed = try bounded(reader.read64(field), in: bytes); field += 8
                         }
                         if localOffset == 0xFFFF_FFFF, field + 8 <= extra + 4 + size {
-                            localOffset = Int(reader.read64(field))
+                            localOffset = try bounded(reader.read64(field), in: bytes)
                         }
                         found = true
                         break
