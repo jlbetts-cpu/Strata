@@ -218,6 +218,8 @@ struct CrewTowerView: View {
             store.markSeen(crewID)
             openWinFromNotification()
             openChatFromNotification()
+            // The developer's bans, read again as a crew opens (2026-10-08).
+            Task { await store.crewOpened(crewID) }
         }
         .onChange(of: CrewRouter.shared.openWin) { _, _ in openWinFromNotification() }
         .onChange(of: CrewRouter.shared.openChat) { _, _ in openChatFromNotification() }

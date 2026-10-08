@@ -61,6 +61,9 @@ protocol CrewCloud: AnyObject {
     /// Brings ONE crew up to date, cheaply: true when anything in it
     /// changed. The crew on screen asks this every few seconds.
     func syncOnly(_ crew: CrewID) async throws -> Bool
+    /// The developer's bans, read again now if they have not been lately
+    /// (`force`: a crew was opened). True when they changed.
+    func refreshModeration(force: Bool) async -> Bool
 
     // MARK: Pings (`CrewPingRecord`)
 
@@ -81,6 +84,9 @@ extension CrewCloud {
     /// A pretend cloud has nothing to fetch: it says something may have
     /// changed and lets the full refresh find out.
     func syncOnly(_ crew: CrewID) async throws -> Bool { true }
+
+    /// A pretend cloud bans nobody.
+    func refreshModeration(force: Bool) async -> Bool { false }
 
     /// Out of every crew, by default. CloudKit reads its own cache instead,
     /// with no request at all.

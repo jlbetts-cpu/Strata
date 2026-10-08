@@ -57,8 +57,12 @@ final class FakeCrewCloud: CrewCloud {
     /// What this phone last asked to hear about.
     private(set) var listening: CrewPingPlan?
 
+    /// What every ping throws while set. Nil leaves it.
+    var pingError: Error?
+
     func ping(_ fields: [String: String]) async throws -> String {
         try touch()
+        if let pingError { throw pingError }
         let name = "ping-\(UUID().uuidString)"
         world.pings[name] = fields
         return name

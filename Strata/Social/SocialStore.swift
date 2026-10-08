@@ -1372,6 +1372,7 @@ final class SocialStore {
         if sendsPings {
             writeNoteCache()
             await listenForPings()
+            await retryPings()
             await deleteOldPings()
         }
         if announces {
@@ -1406,6 +1407,7 @@ final class SocialStore {
     func refreshLive(_ crewID: CrewID) async -> Bool {
         guard isEnabled(), !isRefreshing, now() >= syncRetryAfter else { return false }
         await flush()
+        await retryPings()
         let changed: Bool
         do {
             changed = try await cloud.syncOnly(crewID)
@@ -1440,6 +1442,15 @@ final class SocialStore {
     /// Whether this store says what is new as notifications. The phone's own
     /// store does; a test's or a debug friend's never does.
     @ObservationIgnored var announces = false
+
+    /// **A crew was opened: the developer's bans are read again** if they
+    /// have not been in the last few minutes (2026-10-08). They are read
+    /// once a day otherwise; a ban that changed anything refreshes, so a
+    /// banned account's wins leave the crew you are looking at.
+    func crewOpened(_ crewID: CrewID) async {
+        guard isEnabled(), crew(crewID) != nil else { return }
+        if await cloud.refreshModeration(force: true) { await refresh() }
+    }
 
     /// **Bumped when you post, say or react** (2026-10-08): the crew screen
     /// goes back to asking every 3 seconds (`CrewLivePace`), since an
@@ -2018,19 +2029,80 @@ final class SocialStore {
         case .crew, .member, .message:
             return
         }
-        var done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
-        guard done[key] == nil else { return }
+        let done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
+        guard done[key] == nil, !pendingPings.contains(where: { $0.key == key }) else { return }
         do {
-            let name = try await cloud.ping(ping)
-            done[key] = now().timeIntervalSince1970
-            defaults.set(done, forKey: Self.pingedKey)
-            var sent = defaults.dictionary(forKey: Self.sentPingsKey) as? [String: Double] ?? [:]
-            sent[name] = now().timeIntervalSince1970
-            defaults.set(sent, forKey: Self.sentPingsKey)
+            try await sendPing(ping, key: key)
         } catch {
             Self.log.notice("ping not sent: \(error)")
+            // No signal or a busy server says nothing about the ping: it is
+            // kept and tried again (`CrewPingRetry`). Anything else is not.
+            guard let server = Self.transientWait(error),
+                  let wait = CrewPingRetry.wait(afterAttempts: 1, serverSays: server) else { return }
+            let at = now().timeIntervalSince1970
+            var pending = pendingPings
+            pending.append(CrewPingRetry(key: key, fields: ping, attempts: 1, notBefore: at + wait, firstTried: at))
+            pendingPings = pending
         }
     }
+
+    /// One ping saved, and remembered as sent: by its key, so it is never
+    /// sent twice, and by its record name, so it is deleted later.
+    private func sendPing(_ ping: [String: String], key: String) async throws {
+        let name = try await cloud.ping(ping)
+        var done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
+        done[key] = now().timeIntervalSince1970
+        defaults.set(done, forKey: Self.pingedKey)
+        var sent = defaults.dictionary(forKey: Self.sentPingsKey) as? [String: Double] ?? [:]
+        sent[name] = now().timeIntervalSince1970
+        defaults.set(sent, forKey: Self.sentPingsKey)
+    }
+
+    private static let pendingPingsKey = "crews.pings.pending"
+
+    /// Pings waiting for another try, kept on disk.
+    private var pendingPings: [CrewPingRetry] {
+        get {
+            defaults.data(forKey: Self.pendingPingsKey)
+                .flatMap { try? JSONDecoder().decode([CrewPingRetry].self, from: $0) } ?? []
+        }
+        set {
+            if newValue.isEmpty {
+                defaults.removeObject(forKey: Self.pendingPingsKey)
+            } else {
+                defaults.set(try? JSONEncoder().encode(newValue), forKey: Self.pendingPingsKey)
+            }
+        }
+    }
+
+    /// The pings due another try, tried. After every flush the live sync
+    /// makes and every refresh; cheap when nothing waits.
+    func retryPings() async {
+        guard sendsPings, !retryingPings, defaults.data(forKey: Self.pendingPingsKey) != nil else { return }
+        retryingPings = true
+        defer { retryingPings = false }
+        let at = now()
+        let waiting = pendingPings
+        var left: [CrewPingRetry] = []
+        for var retry in waiting where !retry.isStale(at: at) {
+            guard retry.isDue(at: at) else { left.append(retry); continue }
+            do {
+                try await sendPing(retry.fields, key: retry.key)
+            } catch {
+                Self.log.notice("ping not sent again: \(error)")
+                retry.attempts += 1
+                guard let server = Self.transientWait(error),
+                      let wait = CrewPingRetry.wait(afterAttempts: retry.attempts, serverSays: server) else { continue }
+                retry.notBefore = now().timeIntervalSince1970 + wait
+                left.append(retry)
+            }
+        }
+        // A ping that failed while these were being tried is kept too.
+        let arrived = pendingPings.filter { new in !waiting.contains { $0.key == new.key } }
+        pendingPings = left + arrived
+    }
+
+    @ObservationIgnored private var retryingPings = false
 
     /// **Which "first time" a reaction record's ping is** (the cohesion
     /// pass, 2026-10-05). A reply is its own news, with its own key: it used

@@ -216,22 +216,67 @@ final class CloudKitCrewCloud: CrewCloud {
 
     /// iCloud accounts the developer has banned: public `Ban` records, which
     /// only the Moderator role may write (the schema says so), naming the
-    /// account by its user record. Asked for at most once an hour.
-    private var banned: Set<String> = []
-    private var bansCheckedAt: Date = .distantPast
+    /// account by its user record.
+    ///
+    /// **Read once a day, and when a crew opens** (the 2026-10-08 audit). It
+    /// was read every hour by every phone, capped at 400 results, so the
+    /// 401st ban never reached anyone. It pages through every result now,
+    /// asks for the `account` field and nothing else, and keeps what it read
+    /// on disk so a relaunch does not read it again.
+    private var banned = Set(UserDefaults.standard.stringArray(forKey: CloudKitCrewCloud.bansKey) ?? [])
+    private var bansCheckedAt = Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: CloudKitCrewCloud.bansCheckedKey))
+    private static let bansKey = "crews.bans"
+    private static let bansCheckedKey = "crews.bansCheckedAt"
+    static let bansInterval: TimeInterval = 86_400
+    /// The least time between two reads asked for by opening a crew, so
+    /// going in and out of one does not read them each time.
+    static let bansOnOpenInterval: TimeInterval = 300
+    /// Pages read at most: far past any ban list this app will have.
+    private static let bansPageLimit = 100
 
-    func refreshBans() async {
-        guard Date().timeIntervalSince(bansCheckedAt) > 3600 else { return }
-        bansCheckedAt = Date()
+    func refreshModeration(force: Bool) async -> Bool {
+        await refreshBans(force: force)
+    }
+
+    /// True when the list changed.
+    @discardableResult
+    func refreshBans(force: Bool = false) async -> Bool {
+        let since = Date().timeIntervalSince(bansCheckedAt)
+        guard since > (force ? Self.bansOnOpenInterval : Self.bansInterval) else { return false }
+        let db = container.publicCloudDatabase
         let query = CKQuery(recordType: "Ban", predicate: NSPredicate(value: true))
+        let keys = ["account"]
+        var found: Set<String> = []
+        func keep(_ results: [(CKRecord.ID, Result<CKRecord, Error>)]) {
+            for (_, result) in results {
+                if let account = (try? result.get())?["account"] as? String { found.insert(account) }
+            }
+        }
         do {
-            let (results, _) = try await container.publicCloudDatabase.records(matching: query, resultsLimit: 400)
-            banned = Set(results.compactMap { try? $0.1.get()["account"] as? String })
+            var page = try await db.records(matching: query, desiredKeys: keys,
+                                            resultsLimit: CKQueryOperation.maximumResults)
+            keep(page.matchResults)
+            var pages = 1
+            while let cursor = page.queryCursor, pages < Self.bansPageLimit {
+                page = try await db.records(continuingMatchFrom: cursor, desiredKeys: keys,
+                                            resultsLimit: CKQueryOperation.maximumResults)
+                keep(page.matchResults)
+                pages += 1
+            }
         } catch {
             // Before the Ban type is deployed, or offline: nobody is banned
-            // that was not already.
+            // that was not already, and it is asked again in an hour.
             Self.log.notice("bans not read: \(error)")
+            bansCheckedAt = Date().addingTimeInterval(3600 - Self.bansInterval)
+            UserDefaults.standard.set(bansCheckedAt.timeIntervalSince1970, forKey: Self.bansCheckedKey)
+            return false
         }
+        bansCheckedAt = Date()
+        UserDefaults.standard.set(bansCheckedAt.timeIntervalSince1970, forKey: Self.bansCheckedKey)
+        guard found != banned else { return false }
+        banned = found
+        UserDefaults.standard.set(found.sorted(), forKey: Self.bansKey)
+        return true
     }
 
     /// The iCloud account behind a member of a crew, as CloudKit recorded
