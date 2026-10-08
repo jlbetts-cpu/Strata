@@ -62,9 +62,11 @@ SECTIONS = [
         "A photo you attach is copied into Some Wins' own storage so the block "
         "still has it if you later remove the original. Deleting a win deletes "
         "its photo with it.",
-        "Photos are kept on this device, not in Some Wins' iCloud sync. They "
-        "are in your iPhone's iCloud Backup if that is on, and in the backup "
-        "file you can make in Settings.",
+        "Photos are kept on this device, and a smaller copy of each is kept in "
+        "your own iCloud when iCloud is on for Some Wins, so a new phone gets "
+        "them back. If your iCloud is full, new photos stay on this device "
+        "until there is room. They are also in your iPhone's iCloud Backup if "
+        "that is on, and in the backup file you can make in Settings.",
     ]),
     ("Places", [
         "Some Wins asks first, and iOS will not give it a position until you say "
