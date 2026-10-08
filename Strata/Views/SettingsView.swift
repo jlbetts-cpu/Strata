@@ -743,7 +743,7 @@ struct SettingsView: View {
                 // **The review page, not `requestReview`** (2026-10-08): that
                 // call is a no-op once iOS has used its quota, so this row
                 // sometimes did nothing. Hidden until `SomeWinsAppStoreID` is
-                // in Info.plist; the automatic ask is `ReviewPrompt`.
+                // in Info.plist; the automatic ask follows the booth (`ReviewAsk`).
                 if let review = Support.reviewURL(appStoreID: Support.appStoreID) {
                     Link(destination: review) {
                         Label {

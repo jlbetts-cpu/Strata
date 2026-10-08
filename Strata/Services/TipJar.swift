@@ -113,6 +113,16 @@ final class TipJar {
 
     @ObservationIgnored private var justDeveloped = false
 
+    /// Read by the review ask (`ReviewAsk`) before `takeAsk` clears it.
+    var developedThisVisit: Bool { justDeveloped }
+    var stripsDeveloped: Int { defaults.integer(forKey: Self.stripsKey) }
+    /// The day the tip was asked, so the review never asks the same day.
+    nonisolated static let askedDayKey = "tips.askedDay"
+    /// The tip or a crew invite was asked for today.
+    func askedSomething(today: String) -> Bool {
+        defaults.string(forKey: Self.askedDayKey) == today || defaults.string(forKey: Self.inviteDayKey) == today
+    }
+
     /// Asked as the booth closes: whether the one ask follows it now.
     func takeAsk(today: String) -> Bool {
         defer { justDeveloped = false }
@@ -142,6 +152,7 @@ final class TipJar {
 
     func markAsked() {
         defaults.set(true, forKey: Self.askedKey)
+        defaults.set(DateUtils.dateString(from: Date()), forKey: Self.askedDayKey)
     }
 
     // MARK: - Words

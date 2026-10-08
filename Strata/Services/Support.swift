@@ -88,21 +88,20 @@ nonisolated enum Support {
 nonisolated enum ReviewAsk {
     static let firstDayKey = "review.firstDay"
     static let askedVersionKey = "review.askedVersion"
-    static let minimumWins = 5
-    static let minimumDays = 3
+    /// **The second developed strip** (2026-10-08, the owner's pick: "After a
+    /// strip develops"). Asked as the booth closes on a strip just developed,
+    /// the app's peak moment, rather than four seconds after any win. The
+    /// first strip is the crew invite's moment and the third the tip's
+    /// (`TipJar`), so the second is the review's.
+    static let minimumStrips = 2
 
     /// The whole rule. Days are `yyyy-MM-dd` keys, so they compare as dates.
-    static func shouldAsk(wins: Int, winDays: Int, firstDay: String?, today: String,
-                          askedVersion: String?, version: String, calm: Bool) -> Bool {
-        guard calm, let firstDay, firstDay < today, askedVersion != version else { return false }
-        return wins >= minimumWins && winDays >= minimumDays
-    }
-
-    /// The gates that need no fetch, checked first so the store is only
-    /// asked when the answer could be yes.
-    static func mayAsk(firstDay: String?, today: String, askedVersion: String?, version: String) -> Bool {
-        guard let firstDay else { return false }
-        return firstDay < today && askedVersion != version
+    /// `busyDay`: the tip or a crew invite was already asked for today; a
+    /// person is asked one thing a day at most.
+    static func shouldAsk(strips: Int, firstDay: String?, today: String,
+                          askedVersion: String?, version: String, busyDay: Bool) -> Bool {
+        guard let firstDay, firstDay < today, askedVersion != version, !busyDay else { return false }
+        return strips >= minimumStrips
     }
 
     /// The first day the app was opened, written once.

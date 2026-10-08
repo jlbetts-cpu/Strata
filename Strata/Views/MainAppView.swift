@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import SwiftData
 import Combine
 import CoreSpotlight
@@ -77,6 +78,7 @@ private struct TabBarCollapseModifier: ViewModifier {
 
 struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
     @Query private var habits: [Habit]
     @Query private var logs: [HabitLog]
 
@@ -612,8 +614,9 @@ struct MainAppView: View {
         .modifier(FirstWinInvitePrompt(blockCount: towerVM.placedBlocks.count,
                                        crewPath: $crewPath,
                                        towerCard: { shareCard() }))
-        // The one automatic review ask (`ReviewPrompt`, 2026-10-08).
-        .modifier(ReviewPrompt(blockCount: towerVM.placedBlocks.count, isCalm: { reviewIsCalm }))
+        // The first day, for the review ask (`ReviewAsk`), which itself is
+        // asked as a developed strip's booth closes.
+        .task { ReviewAsk.noteLaunch(today: DateUtils.dateString(from: Date())) }
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
         // Setting one flag false and another true together asks UIKit to present a sheet
@@ -1231,11 +1234,32 @@ struct MainAppView: View {
             // **The one tip ask** follows a strip just developed, from the
             // third on, once ever (`TipJar.shouldAsk`); a beat after the
             // booth has gone, never over it.
-            guard TipJar.shared.takeAsk(today: DateUtils.dateString(from: Date())),
-                  !TipJar.shared.products.isEmpty else { return }
+            let today = DateUtils.dateString(from: Date())
+            let developed = TipJar.shared.developedThisVisit
+            if TipJar.shared.takeAsk(today: today), !TipJar.shared.products.isEmpty {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    showsTipAsk = true
+                }
+                return
+            }
+            // **The review ask, at the same moment** (2026-10-08, the
+            // owner's pick: "After a strip develops"): the second developed
+            // strip, once a version, never on a day the tip or an invite was
+            // asked for (`ReviewAsk`).
+            let defaults = UserDefaults.standard
+            let version = ReviewAsk.currentVersion
+            guard developed,
+                  ReviewAsk.shouldAsk(strips: TipJar.shared.stripsDeveloped,
+                                      firstDay: defaults.string(forKey: ReviewAsk.firstDayKey), today: today,
+                                      askedVersion: defaults.string(forKey: ReviewAsk.askedVersionKey),
+                                      version: version, busyDay: TipJar.shared.askedSomething(today: today))
+            else { return }
             Task {
-                try? await Task.sleep(for: .milliseconds(600))
-                showsTipAsk = true
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !Self.somethingIsPresented else { return }
+                defaults.set(version, forKey: ReviewAsk.askedVersionKey)
+                requestReview()
             }
         }) { opening in
             if let day = opening.day {
@@ -1746,14 +1770,6 @@ struct MainAppView: View {
     /// Where the Wins tab's stack has gone: Crews, then a crew.
     @State private var crewPath: [CrewRoute] = []
 
-    /// **Calm enough to ask for a review** (`ReviewPrompt`, 2026-10-08): on
-    /// the tower itself, nothing falling, and none of this view's sheets,
-    /// covers or pushes up. Read when the moment comes, so it is current.
-    private var reviewIsCalm: Bool {
-        selectedTab == .tower && crewPath.isEmpty && !animCoord.isCascading
-            && !isPlanning && winDraft == nil && editingHabit == nil && booth == nil
-            && !showsTipAsk && !showsYourDay && profileOrigin == nil
-    }
 
  
 

@@ -10,6 +10,8 @@ import CloudKit
 /// - Let `ReviewAsk.shouldAsk` pass on the first day and `neverOnTheFirstDay`
 ///   fails: the ask would land on onboarding's day.
 /// - Drop the version gate and `oncePerVersion` fails.
+/// - Let a busy day pass and `oncePerVersion` fails: the tip and the review
+///   would land on the same evening.
 /// - Stop looking inside a partial failure and `quotaInsidePartialFailure`
 ///   fails, which is how mirroring actually reports a full iCloud.
 @Suite("Support and review")
@@ -54,32 +56,30 @@ struct SupportTests {
 
     // MARK: - The automatic ask
 
-    private func ask(wins: Int = 5, days: Int = 3, first: String? = "2026-10-01", today: String = "2026-10-08",
-                     asked: String? = nil, version: String = "1.0", calm: Bool = true) -> Bool {
-        ReviewAsk.shouldAsk(wins: wins, winDays: days, firstDay: first, today: today,
-                            askedVersion: asked, version: version, calm: calm)
+    private func ask(strips: Int = 2, first: String? = "2026-10-01", today: String = "2026-10-08",
+                     asked: String? = nil, version: String = "1.0", busy: Bool = false) -> Bool {
+        ReviewAsk.shouldAsk(strips: strips, firstDay: first, today: today,
+                            askedVersion: asked, version: version, busyDay: busy)
     }
 
-    @Test("five wins on three days asks; fewer does not")
+    @Test("the second developed strip asks; the first does not")
     func threshold() {
         #expect(ask())
-        #expect(!ask(wins: 4))
-        #expect(!ask(days: 2))
-        #expect(!ask(wins: 40, days: 2), "many wins on two days is not use over time")
+        #expect(ask(strips: 5))
+        #expect(!ask(strips: 1), "the first strip is the crew invite's moment")
     }
 
     @Test("never on the first day, so never on onboarding's")
     func neverOnTheFirstDay() {
         #expect(!ask(first: "2026-10-08", today: "2026-10-08"))
         #expect(!ask(first: nil))
-        #expect(!ReviewAsk.mayAsk(firstDay: "2026-10-08", today: "2026-10-08", askedVersion: nil, version: "1.0"))
     }
 
-    @Test("once per version, and never while something is up")
+    @Test("once per version, and never on a day the tip or an invite was asked")
     func oncePerVersion() {
         #expect(!ask(asked: "1.0", version: "1.0"))
         #expect(ask(asked: "1.0", version: "1.1"))
-        #expect(!ask(calm: false))
+        #expect(!ask(busy: true))
     }
 
     @Test("the first day is written once")
