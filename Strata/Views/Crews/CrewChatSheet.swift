@@ -73,6 +73,9 @@ struct CrewChatSheet: View {
         NavigationStack {
             thread(messages, reactions: reactions, crew: crew)
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+                // The reaction bar closes on a tap outside it or a scroll,
+                // neither of which VoiceOver can make: escape closes it first.
+                .accessibilityAction(.escape) { if reacting != nil { closeBar() } else { dismiss() } }
                 .navigationTitle(crew?.displayName(excluding: store.me) ?? "Chat")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

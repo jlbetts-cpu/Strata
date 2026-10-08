@@ -390,7 +390,9 @@ struct ReactionBadge: View {
 /// **A crew block, said aloud** (the 2026-10-03 audit). Whose win it is, what,
 /// and how many reacted, as one element; Open and React as actions, because
 /// a hold and a double tap are gestures VoiceOver users cannot make. Your own
-/// tower's blocks are left as they were.
+/// tower's blocks speak too, whenever a tap opens them (2026-10-08): they were
+/// folded into one "Today's tower" element, so no win could be reached or
+/// opened by itself.
 private struct CrewBlockSpeech: ViewModifier {
     let look: PlacedBlock.Look
     let isCrew: Bool
@@ -405,6 +407,12 @@ private struct CrewBlockSpeech: ViewModifier {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { open?() }
                 .accessibilityAction(named: "React") { react?() }
+        } else if let open {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { open() }
         } else {
             content
         }

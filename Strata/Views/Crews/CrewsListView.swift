@@ -185,8 +185,10 @@ struct CrewsListView: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint(newWins && newChat ? "New wins and messages."
-                           : newWins ? "New wins." : newChat ? "New messages." : "")
+        // A value, not a hint: hints can be turned off, and then the only
+        // sign a crew had something new was a dot VoiceOver does not see.
+        .accessibilityValue(newWins && newChat ? "New wins and messages"
+                            : newWins ? "New wins" : newChat ? "New messages" : "")
     }
 
     /// "Sam: Gym", "Sam added a photo", "You: Read", or, before anything,

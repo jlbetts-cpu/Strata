@@ -352,7 +352,7 @@ struct SettingsView: View {
                 // switch off, so the way to iOS Settings could never show.
                 if systemNotificationsDenied {
                     VStack(alignment: .leading, spacing: GridConstants.spacing) {
-                        Text("Notifications are disabled in system settings.")
+                        Text("Notifications are off for Some Wins in Settings.")
                             .formFooter()
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -711,6 +711,9 @@ struct SettingsView: View {
                                 // Dynamic Type the way `iconSize` does.
                                 .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
                                 .foregroundStyle(AppColors.inkQuiet)
+                                // It says "leaves the app"; the row already
+                                // says where to, so VoiceOver skips it.
+                                .accessibilityHidden(true)
                         }
                     } icon: {
                         SettingsIcon(systemName: "envelope")

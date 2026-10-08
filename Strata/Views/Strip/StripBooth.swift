@@ -332,8 +332,15 @@ struct StripBooth: View {
             .simultaneousGesture(pinch)
             .simultaneousGesture(TapGesture(count: 2).onEnded { toggleZoom() })
             .zIndex(1)
-            .accessibilityElement(children: .contain)
-            .accessibilityAction(named: "Develop") { shook() }
+            // **One element with its actions** (2026-10-08). As a container
+            // the action had nothing to sit on, so VoiceOver could not reach
+            // it, and a shake develops a quarter at a time with nothing said
+            // between. Develop develops it in one go and says so.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Your strip")
+            .accessibilityValue(isDeveloped ? "Developed" : "Not developed yet")
+            .accessibilityAction(named: "Develop") { shook(all: true) }
+            .accessibilityAction(named: zoomed ? "Zoom out" : "Zoom in") { toggleZoom() }
             hint
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -492,16 +499,17 @@ struct StripBooth: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(GridConstants.cueIn, value: isDeveloped)
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: isDeveloped)
     }
 
     // MARK: Developing
 
-    private func shook() {
+    private func shook(all: Bool = false) {
         guard canDevelop(), stage == .held, !isDeveloped, !frames.isEmpty else { return }
         HapticsEngine.lightTap()
-        withAnimation(GridConstants.stripDevelop) { developed = min(1, developed + 0.26) }
+        withAnimation(GridConstants.stripDevelop) { developed = all ? 1 : min(1, developed + 0.26) }
         if developed >= 1 {
+            if all { AccessibilityNotification.Announcement("Strip developed").post() }
             StripKeeping.setDeveloped(owner, day: day)
             Task {
                 try? await Task.sleep(for: .milliseconds(450))

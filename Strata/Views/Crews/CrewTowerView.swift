@@ -257,7 +257,9 @@ struct CrewTowerView: View {
         .overlay(alignment: .bottom) { reportAnchor }
         // "Sam added you to a win", once per win, never over another screen.
         .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil || reacting != nil)
-        .accessibilityAction(.escape) { onBack() }
+        // Escape closes the reaction bar first, the way a tap outside it does,
+        // rather than leaving the crew with the bar still open.
+        .accessibilityAction(.escape) { if reacting != nil { closeReactions() } else { onBack() } }
     }
 
     private struct ViewedPhoto: Identifiable { let id: String }

@@ -358,7 +358,7 @@ struct CrewReactionsPanel: View {
                     Group {
                         if reactions.isEmpty {
                             Image(systemName: open ? "xmark" : "face.smiling")
-                                .font(.system(size: GridConstants.iconToolbar, weight: .medium))
+                                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                                 .contentTransition(.symbolEffect(.replace))
                                 .frame(width: 44, height: 44)
                         } else {

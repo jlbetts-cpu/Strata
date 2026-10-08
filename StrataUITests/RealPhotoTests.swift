@@ -34,7 +34,7 @@ final class RealPhotoTests: XCTestCase {
     private func well(_ app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(NSPredicate(
             format: "label == %@ OR label == %@",
-            "Add a photo", "Replace the photo")).firstMatch
+            "Add a photo", "View the photo")).firstMatch
     }
 
     func testAPhotographFromTheLibraryReachesTheWin() {
@@ -79,7 +79,7 @@ final class RealPhotoTests: XCTestCase {
         for dy in [0.42, 0.52, 0.62, 0.34] where !picked {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: dy)).tap()
             Thread.sleep(forTimeInterval: 5)
-            picked = well(app).exists && well(app).label == "Replace the photo"
+            picked = well(app).exists && well(app).label == "View the photo"
         }
         XCTAssertTrue(picked,
                       "the picker did not put a photograph into the draft. "
@@ -103,8 +103,9 @@ final class RealPhotoTests: XCTestCase {
         // "Tower grid, N blocks, N meters, X of Y today", a height the screen
         // no longer shows and a count that one-off wins always complete; this
         // test matched on that wording, not on anything it was checking.
-        let grid = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH %@", "Today's tower")).firstMatch
+        // A container since 2026-10-08 (each win is its own element inside
+        // it), so it is found by its identifier rather than as a button.
+        let grid = app.descendants(matching: .any)["todaysTower"]
         _ = grid.waitForExistence(timeout: 12)
         XCTAssertTrue(grid.label.hasSuffix(", 1 win"),
                       "the win was never added — grid says \(grid.label)")

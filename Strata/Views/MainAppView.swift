@@ -3342,7 +3342,11 @@ struct MainAppView: View {
                 // block will not land. One transaction now covers all three.
             }
         }
-        .accessibilityElement(children: .combine)
+        // A container, not one combined element: each win is reachable and
+        // opens by itself (`CrewBlockSpeech`), and the tower still says what
+        // its header says when VoiceOver enters it.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("todaysTower")
         // What the header says, said to VoiceOver. It read "Tower grid, 6
         // blocks, 18 meters, 6 of 6 today": a height the screen stopped
         // showing long ago, and a count of scheduled habits that one-off wins
