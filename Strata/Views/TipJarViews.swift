@@ -20,6 +20,13 @@ struct TipJarSection: View {
         }
     }
 
+    /// Whether there is anything to show. Asked by Settings BEFORE it puts the
+    /// section in its list (2026-10-08): an empty body still took a section's
+    /// spacing, which measured as a blank band above Support.
+    static var hasSomethingToShow: Bool {
+        !TipJar.shared.products.isEmpty || TipJar.shared.hasTipped
+    }
+
     private var section: some View {
         Section {
             ForEach(jar.products, id: \.id) { product in

@@ -675,7 +675,7 @@ struct SettingsView: View {
                         runReset()
                     }
                 } message: {
-                    Text("This permanently deletes every win and photo, your name and profile photo, and your head. It cannot be undone.")
+                    Text("This permanently deletes every win, photo, drawing and sticker, your name and profile photo, and your head. It cannot be undone.")
                 }
             } header: {
                 FormSectionLabel("Data").id(Self.dataAnchor)
@@ -691,14 +691,16 @@ struct SettingsView: View {
                         Text("iCloud is full, so new wins are saved on this iPhone only.")
                             .formFooter()
                     }
-                    Text("A backup is one zip file with your wins and your photographs in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
+                    Text("A backup is one zip file with your wins, photographs, drawings and stickers in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
                         .formFooter()
                 }
             }
 
             // MARK: - Support Some Wins (the tip jar, 2026-10-08)
 
-            TipJarSection()
+            if TipJarSection.hasSomethingToShow {
+                TipJarSection()
+            }
 
             // MARK: - Section 4: Support
 
