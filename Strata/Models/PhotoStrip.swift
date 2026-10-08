@@ -14,6 +14,11 @@ struct PhotoStrip: Identifiable, Equatable {
         let title: String
         let size: BlockSize
         let picture: UIImage
+        /// **A doodle, drawn whole.** A doodle is drawn on its block's square
+        /// well, and a lone Quick takes a 2:1 row: filled, it lost its top
+        /// and bottom quarters (the 2026-10-08 audit). Fitted, with its own
+        /// colour either side.
+        var isDoodle = false
 
         static func == (a: Frame, b: Frame) -> Bool { a.id == b.id && a.size == b.size }
     }
@@ -203,7 +208,8 @@ extension PhotoStrip {
             guard let picture = await picture(for: log, small: small, files: files) else { continue }
             let title = log.habit?.title ?? ""
             frames.append(Frame(id: log.id, title: title == QuickWinService.untitled ? "" : title,
-                                size: log.habit?.blockSize ?? .small, picture: picture))
+                                size: log.habit?.blockSize ?? .small, picture: picture,
+                                isDoodle: log.imageFileName == nil))
         }
         let name = ProfileStore.shared.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return PhotoStrip(owner: .me, day: day, candidates: frames,

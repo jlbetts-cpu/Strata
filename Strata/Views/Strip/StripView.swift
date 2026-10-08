@@ -78,9 +78,15 @@ struct StripView: View {
     }
 
     private func picture(_ frame: PhotoStrip.Frame, width w: CGFloat, height h: CGFloat) -> some View {
-        Image(uiImage: frame.picture)
-            .resizable()
-            .scaledToFill()
+        ZStack {
+            if frame.isDoodle {
+                // The doodle whole, its block's colour either side of it.
+                Color(uiColor: frame.picture.cornerColour)
+                Image(uiImage: frame.picture).resizable().scaledToFit()
+            } else {
+                Image(uiImage: frame.picture).resizable().scaledToFill()
+            }
+        }
             .frame(width: w, height: h)
             .clipped()
             // Undeveloped: dark and soft, lifting as it develops.
@@ -219,4 +225,22 @@ struct StripStyle: Equatable {
 
     /// His pick, 2026-10-07: "I like the booth version".
     static let current = booth
+}
+
+extension UIImage {
+    /// The colour at the picture's top left: a doodle's block colour, for the
+    /// band either side of it when it is fitted into a wider frame.
+    var cornerColour: UIColor {
+        guard let cg = cgImage else { return .clear }
+        var pixel: [UInt8] = [0, 0, 0, 0]
+        guard let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return .clear }
+        // A few points in from the corner, past any rounding.
+        let inset = CGFloat(max(2, cg.width / 40))
+        context.draw(cg, in: CGRect(x: -inset, y: -(CGFloat(cg.height) - inset - 1),
+                                    width: CGFloat(cg.width), height: CGFloat(cg.height)))
+        return UIColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255,
+                       blue: CGFloat(pixel[2]) / 255, alpha: 1)
+    }
 }

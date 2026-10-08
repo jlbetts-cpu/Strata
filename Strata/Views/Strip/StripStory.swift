@@ -42,7 +42,7 @@ struct StripStory: View {
     let day: String
     let paper: StripPaper
     let decor: InkPicture?
-    let pose: StripStoryPose
+    var pose: StripStoryPose
 
     static let stripWidth: CGFloat = 220
     /// Rendered at this many pixels a point: a 220pt strip is 1100px across,
@@ -73,9 +73,19 @@ struct StripStory: View {
     /// keeps only its view's bounds and a rotation draws outside them.
     @MainActor
     func png() -> Data? {
-        let pad = Self.stripWidth * 1.6
-        let renderer = ImageRenderer(content: self.padding(pad))
-        renderer.scale = Self.exportScale
+        // **Sized from the strip, not a constant** (the 2026-10-08 audit): a
+        // fixed 1.6 widths of room cut the ends off a long strip turned on
+        // its side. The pinch is the view's, not the picture's, so it is left
+        // out; and the long side is held near 4200px, where a long strip at
+        // 5x was about 185 MB rendered on the main thread.
+        var flat = self
+        flat.pose.scale = 1
+        let measured = ImageRenderer(content: paperView.fixedSize()).uiImage?.size
+            ?? CGSize(width: Self.stripWidth, height: Self.stripWidth * 3)
+        let reach = max(measured.width, measured.height)
+        let pad = reach * 0.6
+        let renderer = ImageRenderer(content: flat.padding(pad))
+        renderer.scale = min(Self.exportScale, 4200 / reach)
         renderer.isOpaque = false
         guard let image = renderer.cgImage, let trimmed = Self.trim(image, margin: 2) else { return nil }
         return UIImage(cgImage: trimmed).pngData()
