@@ -108,9 +108,23 @@ enum StripKeeping {
         defaults.set(true, forKey: "strip.developed.\(owner.key).\(day)")
     }
 
-    static var paper: StripPaper {
-        get { StripPaper(rawValue: defaults.string(forKey: "strip.paper") ?? "") ?? .black }
-        set { defaults.set(newValue.rawValue, forKey: "strip.paper") }
+    /// **The paper follows the phone until somebody picks one** (the owner,
+    /// 2026-10-08: "the default photostrip on light should actually be light
+    /// and on dark it would be dark"). White in light, black in dark; a paper
+    /// chosen with the colour button is kept and wins from then on.
+    static func paper(for scheme: ColorScheme) -> StripPaper {
+        chosenPaper ?? (scheme == .dark ? .black : .white)
+    }
+
+    /// **A new key, on purpose.** The old `strip.paper` was written every time
+    /// a strip opened, chosen or not, so on every install it holds whatever
+    /// the default was then and cannot be told from a choice.
+    static var chosenPaper: StripPaper? { StripPaper(rawValue: defaults.string(forKey: "strip.paper.chosen") ?? "") }
+
+    /// Only the colour button calls this: opening a strip never fixes the
+    /// paper it happened to open on.
+    static func choose(_ paper: StripPaper) {
+        defaults.set(paper.rawValue, forKey: "strip.paper.chosen")
     }
 }
 

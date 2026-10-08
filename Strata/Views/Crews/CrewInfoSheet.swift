@@ -14,6 +14,7 @@ struct CrewInfoSheet: View {
     var onLeft: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var name = ""
     @State private var pickerItem: PhotosPickerItem?
     @State private var confirmsLeave = false
@@ -176,7 +177,7 @@ struct CrewInfoSheet: View {
                 HStack(spacing: GridConstants.gapLabel) {
                     if let strip, !frames.isEmpty {
                         StripView(frames: frames, day: strip.day, signature: strip.signature,
-                                  paper: StripKeeping.paper, width: 64,
+                                  paper: StripKeeping.paper(for: colorScheme), width: 64,
                                   developed: StripKeeping.isDeveloped(strip.owner, day: strip.day) ? 1 : 0,
                                   decor: StripDecor.picture(owner: strip.owner, day: strip.day))
                     }

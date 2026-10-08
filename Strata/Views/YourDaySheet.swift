@@ -18,6 +18,7 @@ struct YourDaySheet: View {
     var openStrip: (String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var context
     @State private var counts: [String: Int] = [:]
     /// This week's printed strips, today's first (`PhotoStrip.printed`).
@@ -138,7 +139,7 @@ struct YourDaySheet: View {
                     } label: {
                         VStack(spacing: GridConstants.gapTight) {
                             StripView(frames: past.frames(excluding: StripKeeping.excluded(.me, day: past.day)),
-                                      day: past.day, signature: past.signature, paper: StripKeeping.paper,
+                                      day: past.day, signature: past.signature, paper: StripKeeping.paper(for: colorScheme),
                                       width: 44, developed: 1, decor: StripDecor.picture(owner: .me, day: past.day))
                             Text(Self.dayName(past.day))
                                 .font(Typography.screenSubtitle)

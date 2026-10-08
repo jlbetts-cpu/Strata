@@ -37,7 +37,8 @@ struct StripBooth: View {
 
     @State private var strip: PhotoStrip?
     @State private var excluded: Set<UUID> = []
-    @State private var paper = StripKeeping.paper
+    @State private var paper = StripPaper.white
+    @Environment(\.colorScheme) private var colorScheme
     @State private var decor: InkPicture?
     @State private var stage = Stage.loading
     /// How much of the strip is out of the printer, 0 to 1.
@@ -76,6 +77,16 @@ struct StripBooth: View {
     @State private var heldTop: CGFloat = 0
     @State private var drop: CGFloat = 0
     @State private var dropTilt: Double = 0
+    /// **The hand-over: the held strip is already there, under the printed
+    /// one, and the printed one fades off it.** Fading the held one in on top
+    /// brought its page with it at half strength over the strip (measured:
+    /// the strip's area went from 114 to 153 in luminance for a few frames),
+    /// and a symmetric cross-fade does the same. Identical in place, one
+    /// opaque under one fading, the strip never changes.
+    @State private var handingOver = false
+    @State private var printFade: Double = 1
+    /// The close button coming up as the strip lands, not after.
+    @State private var chromeShown = false
     /// The editor, opened on its pen or its stickers.
     @State private var editing: StripEditor.Opening?
     @State private var saved = false
@@ -109,10 +120,14 @@ struct StripBooth: View {
                 // Laid out from the start, unseen while it prints, so the
                 // printed strip knows where in the hand it will land.
                 held(fitting: geo.size)
-                    .opacity(stage == .held ? 1 : 0)
+                    // Never quite 0 while it prints: a view at 0 is not
+                    // drawn, so its photographs were decoded and faded in the
+                    // moment it was handed the strip (a lighter flash).
+                    .opacity(stage == .held || handingOver ? 1 : 0.001)
                     .allowsHitTesting(stage == .held)
                 if stage == .printing {
                     printing(fitting: geo.size, safeTop: geo.safeAreaInsets.top)
+                        .opacity(printFade)
                 }
                 chrome
             }
@@ -169,6 +184,7 @@ struct StripBooth: View {
             try? await Task.sleep(for: .milliseconds(30))
             withAnimation(GridConstants.islandOpen) { islandOpen = true }
         }
+        paper = StripKeeping.paper(for: colorScheme)
         let loaded = await loading
         strip = loaded
         excluded = StripKeeping.excluded(owner, day: day)
@@ -185,9 +201,11 @@ struct StripBooth: View {
         }
     }
 
-    /// The strip's scale, so a long one fits the room under it.
+    /// The strip's scale, so a long one fits the room under it. **The held
+    /// strip's own room** (230): the printing one used 260, so the strip grew
+    /// about 5% in the frame it was handed over.
     private func fit(_ size: CGSize) -> CGFloat {
-        let room = size.height - 260
+        let room = size.height - 230
         return stripHeight > room && stripHeight > 0 ? room / stripHeight : 1
     }
 
@@ -259,16 +277,19 @@ struct StripBooth: View {
     private func printOut() async {
         try? await Task.sleep(for: .milliseconds(350))
         let steps = max(1, StripLayout.rows(frames.map(\.size)).count) + 1
-        for step in 1...steps {
-            withAnimation(GridConstants.stripStep) { printed = CGFloat(step) / CGFloat(steps) }
-            // The printer works: a breath of height with each frame.
-            withAnimation(GridConstants.islandFeed) { feedPulse = 2 }
+        // **One motion, not six** (2026-10-08): the feed runs the whole way on
+        // one curve, and the printer's work is marked by a tick and a breath
+        // of the island as each frame passes, not by the strip stopping.
+        let each = 0.36
+        withAnimation(GridConstants.stripFeed(duration: each * Double(steps))) { printed = 1 }
+        for _ in 1...steps {
+            withAnimation(GridConstants.islandBreath) { feedPulse = 1.5 }
             HapticsEngine.lightTap()
-            try? await Task.sleep(for: .milliseconds(140))
-            withAnimation(GridConstants.islandFeed) { feedPulse = 0 }
-            try? await Task.sleep(for: .milliseconds(290))
+            try? await Task.sleep(for: .milliseconds(Int(each * 500)))
+            withAnimation(GridConstants.islandBreath) { feedPulse = 0 }
+            try? await Task.sleep(for: .milliseconds(Int(each * 500)))
         }
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: .milliseconds(200))
         // Free of the printer: it drops into the hand, turning as it goes,
         // and the island closes behind it.
         HapticsEngine.snap()
@@ -280,12 +301,25 @@ struct StripBooth: View {
         // once it is the real island's size again the drawn one goes.
         try? await Task.sleep(for: .milliseconds(120))
         withAnimation(GridConstants.islandClose) { islandOpen = false }
-        try? await Task.sleep(for: .milliseconds(580))
+        try? await Task.sleep(for: .milliseconds(480))
         pillShown = false
+        // **Handed over, not swapped** (2026-10-08): the printed strip fades
+        // as the held one comes up in the same place, with the chrome and the
+        // status bar. It was one frame, with everything appearing at once.
         var still = Transaction()
         still.disablesAnimations = true
+        // The held strip goes up under the printed one and is drawn there for
+        // a moment, covered; then the printed one is taken away in one frame.
+        // Every fade tried here showed: the held strip's first frames are not
+        // yet its settled ones (measured lighter, 114 to 141).
+        withTransaction(still) { handingOver = true }
+        withAnimation(GridConstants.stripHandoff) { chromeShown = true }
+        try? await Task.sleep(for: .milliseconds(450))
         withTransaction(still) {
             stage = .held
+            handingOver = false
+            chromeShown = false
+            printFade = 1
             drop = 0
             dropTilt = 0
         }
@@ -587,6 +621,7 @@ struct StripBooth: View {
     private func choosePaper(_ next: StripPaper) {
         HapticsEngine.tick()
         withAnimation(GridConstants.crossFade) { paper = next }
+        StripKeeping.choose(next)
         refreshDecor()
     }
 
@@ -597,7 +632,7 @@ struct StripBooth: View {
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .frame(maxHeight: .infinity, alignment: .top)
-        .opacity(stage == .printing ? 0 : 1)
+        .opacity(stage == .printing && !chromeShown ? 0 : 1)
     }
 
     /// The strip as a picture to keep: its paper and no more, flat, at four
@@ -615,7 +650,6 @@ struct StripBooth: View {
         decor = StripDecor.picture(owner: owner, day: day)
         saved = false
         StripKeeping.setExcluded(excluded, owner, day: day)
-        StripKeeping.paper = paper
     }
 }
 

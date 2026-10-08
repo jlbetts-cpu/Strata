@@ -442,6 +442,19 @@ enum GridConstants {
     static let islandClose = Animation.spring(response: 0.38, dampingFraction: 0.86)
     /// The printer's nudge as each frame feeds out: a breath of height.
     static let islandFeed = Animation.spring(response: 0.2, dampingFraction: 0.5)
+    /// **The strip feeding out in one motion** (2026-10-08, the owner: "the
+    /// dispensing animation needs to be a lot cleaner... a bit jolty").
+    /// Measured on the recording, the stepped feed moved 0.27 s and stopped
+    /// 0.15 to 0.25 s, six times; one eased run reads as a printer working,
+    /// with each frame still marked by a tick and a breath of the island.
+    static func stripFeed(duration: Double) -> Animation {
+        .timingCurve(0.45, 0.05, 0.3, 1, duration: duration)
+    }
+    /// The island's breath as a frame passes: soft, no overshoot.
+    static let islandBreath = Animation.easeInOut(duration: 0.22)
+    /// The printed strip handing over to the held one: a short cross-fade,
+    /// so any difference between the two lays over rather than pops.
+    static let stripHandoff = Animation.easeInOut(duration: 0.26)
     /// A card under a finger: follows it closely, with no lag to fight.
     static let cardFollow = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.86)
     /// A card let go: back to rest with a little give, as a held card wobbles.

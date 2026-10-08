@@ -32,6 +32,10 @@ struct StickerPicker: View {
     var onEmoji: (() -> Void)? = nil
 
     @State private var store = StickerStore.shared
+    /// **Edit, to take stickers away** (the owner, 2026-10-08: "there also
+    /// needs to be a way to remove stickers in general"). The long press had
+    /// it and nobody finds a long press; Edit says it out loud.
+    @State private var editing = false
 
     private static let tile: CGFloat = 60
     private let columns = Array(repeating: GridItem(.fixed(Self.tile), spacing: GridConstants.gapTight), count: 4)
@@ -44,6 +48,17 @@ struct StickerPicker: View {
                     .foregroundStyle(AppColors.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button(editing ? "Done" : "Edit") {
+                        HapticsEngine.lightTap()
+                        withAnimation(GridConstants.crossFade) { editing.toggle() }
+                    }
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .frame(minWidth: 44, minHeight: 32)
+                    .buttonStyle(.pressWord)
+                }
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: GridConstants.gapTight) {
                         ForEach(store.names, id: \.self) { tile($0) }
@@ -77,7 +92,12 @@ struct StickerPicker: View {
         let symbol = StickerStore.symbol(for: name)
         return Button {
             HapticsEngine.lightTap()
-            onPick(symbol)
+            if editing {
+                withAnimation(GridConstants.crossFade) { store.remove(name) }
+                if store.names.isEmpty { editing = false }
+            } else {
+                onPick(symbol)
+            }
         } label: {
             ZStack {
                 if symbol == current {
@@ -88,14 +108,25 @@ struct StickerPicker: View {
                 }
             }
             .frame(width: Self.tile, height: Self.tile)
+            .overlay(alignment: .topLeading) {
+                if editing {
+                    Image(systemName: "minus")
+                        .iconSize(GridConstants.iconMedium, relativeTo: .caption, weight: .bold)
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(AppColors.destructiveInk))
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                        .accessibilityHidden(true)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
         .contextMenu {
             Button("Delete Sticker", systemImage: "trash", role: .destructive) { store.remove(name) }
         }
-        .accessibilityLabel(symbol == current ? "Sticker, chosen" : "Sticker")
-        .accessibilityHint(purpose == .drawing ? "Puts it on the drawing"
+        .accessibilityLabel(editing ? "Remove sticker" : symbol == current ? "Sticker, chosen" : "Sticker")
+        .accessibilityHint(editing ? "Deletes it from your stickers" : purpose == .drawing ? "Puts it on the drawing"
                            : symbol == current ? "Takes it off the day" : "Puts it on the day")
     }
 }
