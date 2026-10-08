@@ -490,3 +490,45 @@ extension CrewStoreTests {
         #expect(pad.blocked.contains(sam))
     }
 }
+
+extension CrewStoreTests {
+    /// 2026-10-08: a friend's head was drawn unchecked on a phone that checks
+    /// friends' photos. It is held to the same rule now.
+    ///
+    /// Self-test: drop the member loop from `checkArrivedPhotos` and
+    /// `aFriendsHeadShowsOnlyOnceEveryFaceHasPassed` fails on its last line.
+    @Test func aFriendsHeadShowsOnlyOnceEveryFaceHasPassed() async throws {
+        let (a, b, crew) = try await pair()
+        a.incomingPolicy = { .check }
+        var verdict: Bool? = nil
+        a.incomingCheck = { _ in verdict }
+        b.announces = true
+        let pack = try PropertyListEncoder().encode(
+            CrewHeadPack(files: ["neutral.png": Data([9, 9]), "blink.png": Data([8, 8]), "head.json": Data()]))
+        b.myHeadPack = { pack }
+        await b.refresh()
+        await a.refresh()
+        let head = try #require(a.crew(crew.id)?.member(sam)?.head)
+        #expect(!a.photoIsShown(head), "unchecked: the initial, not the head")
+        await a.checkArrivedPhotos()
+        #expect(!a.photoIsShown(head), "a check that could not run is not a pass")
+        verdict = true
+        await a.checkArrivedPhotos()
+        #expect(a.photoIsShown(head), "every face passed: shown")
+    }
+
+    @Test func oneFlaggedFaceHidesTheWholeHead() async throws {
+        let (a, b, crew) = try await pair()
+        a.incomingPolicy = { .check }
+        a.incomingCheck = { $0 == Data([8, 8]) ? false : true }
+        b.announces = true
+        let pack = try PropertyListEncoder().encode(
+            CrewHeadPack(files: ["neutral.png": Data([9, 9]), "blink.png": Data([8, 8])]))
+        b.myHeadPack = { pack }
+        await b.refresh()
+        await a.refresh()
+        let head = try #require(a.crew(crew.id)?.member(sam)?.head)
+        await a.checkArrivedPhotos()
+        #expect(!a.photoIsShown(head))
+    }
+}

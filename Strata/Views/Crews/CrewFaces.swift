@@ -21,6 +21,9 @@ final class CrewHeads {
     /// Starts the load the first time it is asked for.
     func rig(for member: CrewMember, in crew: CrewID, me: UUID) -> HeadRig? {
         if member.profileID == me { return HeadStore.shared.headForCrews }
+        // Held to the photo rule on this phone (`SocialStore.photoIsShown`,
+        // 2026-10-08): a head not yet checked, or flagged, is the initial.
+        if let pack = member.head, !SocialStore.shared.photoIsShown(pack) { return nil }
         // Keyed by the pack's file as well: a friend who makes a new head
         // sends a new file, and the old rig is not the one to draw.
         let key = key(crew, member.profileID) + "/" + (member.head?.lastPathComponent ?? "")
@@ -71,7 +74,8 @@ struct CrewFace: View {
                 HeadStill(rig: rig, side: side * 0.9)
                     .frame(width: side, height: side)
                     .offset(y: side * 0.04)
-            } else if let photo = member.photo, let image = CrewPictures.image(at: photo) {
+            } else if let photo = member.photo, SocialStore.shared.photoIsShown(photo),
+                      let image = CrewPictures.image(at: photo) {
                 // A photograph fills the circle a head sits in, so the two
                 // read as one set (Messages' own answer for Memoji beside
                 // photos; the owner chose it 2026-10-02).

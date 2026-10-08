@@ -328,6 +328,32 @@ final class SocialStore {
                 changed = true
             }
         }
+        // **A friend's head and profile photo** (2026-10-08). Both are faces
+        // from a friend's camera, drawn in every crew's row of faces, and on
+        // a phone that checks friends' photos they were drawn unchecked: the
+        // one picture of a person a 13 to 15 year old saw without the check
+        // their wins get. A head passes only if every picture in it does; a
+        // check that could not run leaves it for next time, never "flagged".
+        for crew in crews {
+            for member in crew.members where member.profileID != me {
+                if let photo = member.photo, photoVerdicts[photo.lastPathComponent] == nil,
+                   let data = try? Data(contentsOf: photo), let verdict = await incomingCheck(data) {
+                    photoVerdicts[photo.lastPathComponent] = verdict
+                    changed = true
+                }
+                if let head = member.head, photoVerdicts[head.lastPathComponent] == nil,
+                   let data = try? Data(contentsOf: head), let faces = CrewHeadPack.images(in: data) {
+                    var verdict: Bool? = !faces.isEmpty
+                    for face in faces where verdict == true {
+                        verdict = await incomingCheck(face)
+                    }
+                    if let verdict {
+                        photoVerdicts[head.lastPathComponent] = verdict
+                        changed = true
+                    }
+                }
+            }
+        }
         guard changed else { return }
         defaults.set(photoVerdicts, forKey: Self.verdictsKey)
         verdictRevision += 1
