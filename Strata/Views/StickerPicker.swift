@@ -126,7 +126,7 @@ struct StickerPicker: View {
             Button("Delete Sticker", systemImage: "trash", role: .destructive) { store.remove(name) }
         }
         .accessibilityLabel(editing ? "Remove sticker" : symbol == current ? "Sticker, chosen" : "Sticker")
-        .accessibilityHint(editing ? "Deletes it from your stickers" : purpose == .drawing ? "Puts it on the drawing"
+        .accessibilityHint(editing ? "Takes it off this list. Anywhere you placed it keeps it" : purpose == .drawing ? "Puts it on the drawing"
                            : symbol == current ? "Takes it off the day" : "Puts it on the day")
     }
 }

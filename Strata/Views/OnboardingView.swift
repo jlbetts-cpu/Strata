@@ -41,13 +41,12 @@ import SwiftUI
 /// - **One thumb move.** One full-width pill on the bottom margin, and the pill
 ///   never moves between pages; the copy grows upward off it.
 ///
-/// **No progress indicator at all.** It was six cells in the corner, then one
-/// measured rule across the top where the wordmark used to be, and the owner's
-/// verdict on the rule is the end of the line: "the progress bar is lowkey
-/// clutter ngl." Six screens is not far enough to need a gauge, and the page
-/// already has a back button saying which way is behind you. The reading
-/// survives as the top band's accessibility label, for the one audience that
-/// cannot see how much copy is left.
+/// **A hairline progress capsule, by request** (2026-10-08, the owner: "there
+/// should be a progress bar up top in the onboarding but make sure it looks
+/// premium"). This REVERSES 2026-09-30's "the progress bar is lowkey clutter
+/// ngl", which was said of a full-width rule across the top; what came back is
+/// a 112x3 capsule centred in the back row (`progress`). Do not remove it on
+/// the strength of the older quote.
 ///
 /// **Kept from his earlier calls**, so a later session does not undo them: the
 /// pages are full-bleed; the camera page is his photograph with nothing added;
@@ -277,8 +276,10 @@ struct OnboardingView: View {
     /// row is empty air, which is what an app with nowhere to go back to looks
     /// like.
     ///
-    /// **NO PROGRESS RULE.** The owner, 2026-09-30: "the progress bar is lowkey
-    /// clutter ngl."
+    /// **The full-width rule stays gone** (the owner, 2026-09-30: "the
+    /// progress bar is lowkey clutter ngl"). On 2026-10-08 he asked for a
+    /// progress bar back, premium: that is `progress`, a hairline capsule in
+    /// the back row, not the rule described below.
     ///
     /// It was softened one commit ago — `inkPrimary` to `inkSecondary`, 38 on a
     /// 247 page to 97 — and softening was answering the wrong question. The

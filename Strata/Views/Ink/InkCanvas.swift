@@ -654,6 +654,10 @@ private struct InkSurface: UIViewRepresentable {
                     canvas.drawingGestureRecognizer.isEnabled = false
                     canvas.drawingGestureRecognizer.isEnabled = true
                     controller.dropStray(within: 0.6)
+                    // And a dot PencilKit commits a beat AFTER the cancel is
+                    // dropped too, as the two-finger tap's is (the strip
+                    // audit, 2026-10-08: a dot left beside a pinched sticker).
+                    strayUntil = Date().addingTimeInterval(0.4)
                 }
                 if let pinch = recognizer as? UIPinchGestureRecognizer { pinchScale = pinch.scale }
                 if let turn = recognizer as? UIRotationGestureRecognizer { turnAngle = turn.rotation }

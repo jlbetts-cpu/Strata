@@ -188,14 +188,14 @@ final class TowerGestureTests: XCTestCase {
 
     /// The tower header's count, whatever it happens to be.
     ///
-    /// The header combines its children for VoiceOver, so the numeral is not
-    /// reliably a `staticText` of its own — this looks for any label that is
-    /// purely a number, which on that screen is only ever the tally.
+    /// **Read off the goal crest** (`GoalRing`, "N wins today"). The header
+    /// used to print a bare numeral and this looked for any label that was
+    /// purely a number; the crest replaced it (2026-10-06), its fraction is a
+    /// button inside it, and no bare number is left on the screen.
     private static func towerTally(_ app: XCUIApplication) -> Int? {
-        for i in 0..<min(app.staticTexts.count, 12) {
-            if let n = Int(app.staticTexts.element(boundBy: i).label) { return n }
-        }
-        return nil
+        let crest = app.buttons.matching(NSPredicate(format: "label ENDSWITH %@", "today")).firstMatch
+        guard crest.exists else { return nil }
+        return crest.label.split(separator: " ").first.flatMap { Int($0) }
     }
 
     /// Drawing out of the FIRST slot of the day logs a block.
@@ -225,7 +225,8 @@ final class TowerGestureTests: XCTestCase {
         let slot = app.buttons["Log a win"].firstMatch
         XCTAssertTrue(slot.waitForExistence(timeout: 40), "no first slot on an empty tower")
         Thread.sleep(forTimeInterval: 10)
-        XCTAssertTrue(app.staticTexts["Nothing yet today"].waitForExistence(timeout: 10),
+        // The empty tower's one line (it was "Nothing yet today").
+        XCTAssertTrue(app.staticTexts["Tap the slot to log your first win."].waitForExistence(timeout: 10),
                       "the tower is not empty, so this is not the first slot of the day")
 
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
@@ -364,6 +365,11 @@ final class TowerGestureTests: XCTestCase {
     /// what to wait on now.
     @MainActor
     func testAnAlbumOpensAndComesBack() throws {
+        // **Skipped, not deleted** (2026-10-08). The album shelf
+        // (`MemoriesShelf`) is no longer built by any screen: Memories is the
+        // month calendar now. Measured: the drawer's tree holds no "PHOTOS"
+        // card and no "ALBUMS" heading. If the shelf comes back, delete this.
+        throw XCTSkip("The album shelf is not on Memories any more (MemoriesShelf is unused)")
         let app = launchMemories()
 
         // `waitForExistence` on the element itself, not `waitFor…` on a
@@ -398,20 +404,25 @@ final class TowerGestureTests: XCTestCase {
                       "could not get back to the shelf")
     }
 
-    /// A day in the month tower opens that day.
+    /// A day in the month calendar opens that day.
     ///
-    /// This is the one that matters for the month picker: first-fit packing is
-    /// not monotonic, so the blocks are not in reading order and every one of
-    /// them has to be its own destination.
+    /// **Rewritten for the calendar** (2026-10-08). It looked for "Day N"
+    /// blocks in the month tower; Memories draws a calendar now
+    /// (`MonthCalendarView`, cells read "N, M wins") and `MonthTowerView` is no
+    /// longer built anywhere. The claim is the same: a day is its own way in.
     @MainActor
     func testAMonthBlockOpensItsDay() throws {
         let app = launchMemories()
-        let block = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Day '")).firstMatch
-        XCTAssertTrue(block.waitForExistence(timeout: 40), "no day blocks in the month tower")
+        let day = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+, [0-9]+ wins?.*")).firstMatch
+        XCTAssertTrue(day.waitForExistence(timeout: 40), "no days with wins in the month calendar")
         Thread.sleep(forTimeInterval: 3)
-        block.tap()
-        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 15),
-                      "tapping a month block opened nothing")
+        let label = day.label
+        day.tap()
+        // Pushed: the cell is gone from the screen.
+        let cell = app.buttons[label]
+        expectation(for: NSPredicate(format: "exists == false OR hittable == false"),
+                    evaluatedWith: cell, handler: nil)
+        waitForExpectations(timeout: 15)
     }
 
     /// The picker steps back, and refuses to step past the current month.
@@ -498,6 +509,10 @@ final class TowerGestureTests: XCTestCase {
     /// restructuring the top of this screen — worth doing deliberately, not at
     /// the end of a long session.
     func testTheMonthPickerStaysUsableWhileScrolled() throws {
+        // **Skipped, not deleted** (2026-10-08). "MonthPicker" belongs to
+        // `MonthTowerView`, which no screen builds now; the calendar replaced
+        // it. If the picker returns, delete this.
+        throw XCTSkip("The month tower's picker is not on Memories any more (MonthTowerView is unused)")
         let app = launchMemories()
         let back = app.descendants(matching: .any)["MonthPicker"]
         XCTAssertTrue(back.waitForExistence(timeout: 40), "no month picker")
@@ -725,7 +740,12 @@ final class TowerGestureTests: XCTestCase {
     @MainActor
     func testGridToggleTurnsOffAndBackOn() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-strataStartTab", "camera"]
+        // **A lens, or there is nothing to toggle.** A simulator that has
+        // refused the camera shows the refused screen, which rules the whole
+        // row out on purpose (`CameraView`, "The refused screen kept this whole
+        // row"): measured 2026-10-08, every glyph inert there and every glyph
+        // toggling with the fake lens.
+        app.launchArguments = ["-strataStartTab", "camera", "-strataFakeLens", "1"]
         app.launch()
 
         let grid = app.buttons["gridToggle"]
