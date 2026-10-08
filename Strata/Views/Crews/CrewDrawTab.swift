@@ -191,7 +191,7 @@ struct CrewDrawTab: View {
                 dismiss()
             case .refusedSketch:
                 refused = true
-            case .refusedWords, .notAllowed:
+            case .refusedWords, .notAllowed, .throttled, .dailyLimit:
                 break
             }
         }

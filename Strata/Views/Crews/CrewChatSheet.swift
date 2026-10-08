@@ -35,6 +35,7 @@ struct CrewChatSheet: View {
     /// on every keystroke (`draftField`), so the words outlive the sheet.
     @State private var draft: String
     @State private var refused = false
+    @State private var atDailyLimit = false
     @State private var reporting: CrewMessage?
     @State private var reported: CrewMessage?
     @State private var blocking: CrewMessage?
@@ -92,6 +93,13 @@ struct CrewChatSheet: View {
         .onChange(of: messages.map(\.messageID)) { _, _ in store.markChatSeen(crewID) }
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
+        }
+        // **200 lines in a crew day** (`CrewSendThrottle`, 2026-10-08): said
+        // once, calmly, and the words wait in the field.
+        .alert("That's plenty for today", isPresented: $atDailyLimit) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The chat takes more from you when the crew's day starts again.")
         }
         .alert("That sticker stays with you", isPresented: $stickerRefused) {
             Button("OK", role: .cancel) {}
@@ -430,9 +438,17 @@ struct CrewChatSheet: View {
         guard !isEmpty else { return }
         draft = ""
         Task {
-            if await store.send(text, in: crewID) == .sent {
+            switch await store.send(text, in: crewID) {
+            case .sent:
                 CrewDrafts.clearChat(crewID, ifStill: text)
-            } else {
+            case .throttled:
+                // A second send inside a second (2026-10-08): the words come
+                // back to the field, and nothing is said.
+                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
+            case .dailyLimit:
+                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
+                atDailyLimit = true
+            case .refusedWords, .refusedSketch, .notAllowed:
                 // Refused words come back to the field, to be changed.
                 if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
                 refused = true

@@ -37,6 +37,7 @@ final class SocialStore {
         // screen however long the app has been closed, not only when iOS
         // happens to wake it.
         store.sendsPings = true
+        store.throttles = true
         NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
             Task { @MainActor in await SocialStore.shared.accountChanged() }
         }
@@ -1007,8 +1008,34 @@ final class SocialStore {
     /// privacy policy treats them as 13 to 15, so the app does too.
     @ObservationIgnored var canReply: () -> Bool = { CrewAge.current.writesInCrews }
 
-    /// `refusedSketch`: the photo check held a doodle back.
-    enum ReplyOutcome { case sent, refusedWords, refusedSketch, notAllowed }
+    /// `refusedSketch`: the photo check held a doodle back. `throttled`: a
+    /// second write inside the gap (`CrewSendThrottle`), dropped quietly.
+    /// `dailyLimit`: 200 lines in this crew today.
+    enum ReplyOutcome { case sent, refusedWords, refusedSketch, notAllowed, throttled, dailyLimit }
+
+    /// **Whether writes to a crew are paced** (`CrewSendThrottle`,
+    /// 2026-10-08). The phone's own store is; a test's is not, unless it is
+    /// about the pace.
+    @ObservationIgnored var throttles = false
+    private static let throttleKey = "crews.sendThrottle"
+    @ObservationIgnored private lazy var throttle: CrewSendThrottle =
+        defaults.data(forKey: Self.throttleKey).flatMap { try? JSONDecoder().decode(CrewSendThrottle.self, from: $0) }
+        ?? CrewSendThrottle()
+
+    /// Nil when a write of `kind` to `crew` may go now, and counts it;
+    /// otherwise what to answer instead.
+    private func paced(_ kind: CrewSendThrottle.Kind, in crew: Crew) -> ReplyOutcome? {
+        guard throttles else { return nil }
+        let day = CrewDay.string(for: now(), in: crew.timeZone)
+        switch throttle.verdict(kind, crew: crew.id.rawValue, day: day, at: now()) {
+        case .tooFast: return .throttled
+        case .dailyLimit: return .dailyLimit
+        case .allowed:
+            throttle.record(kind, crew: crew.id.rawValue, day: day, at: now())
+            defaults.set(try? JSONEncoder().encode(throttle), forKey: Self.throttleKey)
+            return nil
+        }
+    }
 
     // MARK: The day chat
 
@@ -1045,6 +1072,7 @@ final class SocialStore {
         guard canReply(), isEnabled(), let crew = crew(crewID), !words.isEmpty else { return .notAllowed }
         if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
         guard CrewWords.isAcceptable(words) else { return .refusedWords }
+        if let held = paced(.message, in: crew) { return held }
         Analytics.shared.signal(.crewMessageSent)
         let message = CrewMessage(messageID: UUID(), crewID: crewID, senderProfileID: me,
                                   crewDay: CrewDay.string(for: now(), in: crew.timeZone), text: words,
@@ -1060,14 +1088,18 @@ final class SocialStore {
     /// sent, and the receiving phone checks it again (`checkArrivedPhotos`).
     @discardableResult
     func sendDoodle(_ png: Data, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
-        await sendSketch(png, text: "", in: crewID, quoting: winID)
+        await sendSketch(png, text: "", in: crewID, quoting: winID, paced: true)
     }
 
     /// A doodle with `text` beside it: none for the chat's, the marker for a
     /// toss. The gate, the photo check and the file are the same for both.
-    private func sendSketch(_ png: Data, text: String, in crewID: CrewID, quoting winID: UUID?) async -> ReplyOutcome {
+    /// `paced`: counted against `CrewSendThrottle`. A toss is not: it is
+    /// one a day already.
+    private func sendSketch(_ png: Data, text: String, in crewID: CrewID, quoting winID: UUID?,
+                            paced isPaced: Bool) async -> ReplyOutcome {
         guard canReply(), isEnabled(), let crew = crew(crewID), !png.isEmpty else { return .notAllowed }
         if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
+        if isPaced, let held = paced(.message, in: crew) { return held }
         guard await photoCheck(png) else { return .refusedSketch }
         let id = UUID()
         let url = directory.appending(path: "Photos/\(crewID.rawValue)/message-\(id.uuidString).png")
@@ -1119,7 +1151,7 @@ final class SocialStore {
     @discardableResult
     func toss(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
         guard myToss(in: crewID) == nil else { return .notAllowed }
-        return await sendSketch(png, text: CrewMessage.tossMarker, in: crewID, quoting: nil)
+        return await sendSketch(png, text: CrewMessage.tossMarker, in: crewID, quoting: nil, paced: false)
     }
 
     private func keep(_ message: CrewMessage) {
@@ -1225,9 +1257,11 @@ final class SocialStore {
     /// A line from an earlier day is already gone from every screen
     /// (`replies`, `prune`), so it does not hold the record.
     func react(_ emoji: String, to winID: UUID, in crewID: CrewID) async {
-        guard isEnabled(), crew(crewID) != nil,
+        guard isEnabled(), let crew = crew(crewID),
               let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
               win.senderProfileID != me else { return }
+        // Too fast is dropped quietly: the reaction already showing stays.
+        guard paced(.reaction, in: crew) == nil else { return }
         Analytics.shared.signal(.crewReaction)
         let name = Reaction.name(winID: winID, profileID: me)
         var list = reactionsByCrew[crewID] ?? []
@@ -1293,12 +1327,13 @@ final class SocialStore {
     /// as a win's reactions are.
     @discardableResult
     func react(_ pick: Reaction.Pick, toMessage messageID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard isEnabled(), crew(crewID) != nil,
+        guard isEnabled(), let crew = crew(crewID),
               let line = messages(in: crewID).first(where: { $0.messageID == messageID }),
               line.senderProfileID != me else { return .notAllowed }
         let name = Reaction.name(winID: messageID, profileID: me)
         let mark = pick.mark
         guard !mark.isEmpty else { return .notAllowed }
+        if let held = paced(.reaction, in: crew) { return held }
         var sketch: URL?
         if reactionsByCrew[crewID]?.first(where: { $0.id == name })?.emoji != mark,
            case .sticker(_, let png) = pick {
