@@ -775,7 +775,7 @@ struct ProfileView: View {
     /// the thing exists, under a single `Make Your Head` row.
     private var headFooter: String? {
         if heads.entries.isEmpty {
-            return "About fifteen seconds in front of the camera. It stays on this phone, and it only appears where you switch it on."
+            return "About fifteen seconds in front of the camera. It appears where you switch it on, and your crews see it while it does."
         }
         if heads.entries.count > 1 {
             // Says which head the switches under it are about. Without this,

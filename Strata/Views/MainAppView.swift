@@ -2094,6 +2094,10 @@ struct MainAppView: View {
             scheduleRefresh()
             return
         }
+        // **No "Welcome" block** (2026-10-08). Onboarding no longer ends on a
+        // first win, and a win nobody did is not a head start, it is the app
+        // speaking for them: the first block is theirs, from the slot.
+        return
         // Belt and braces: never two of them. The flag alone is enough in
         // practice, but a welcome block is the one thing that must not be
         // able to arrive twice — it would be the app's first act, doubled.

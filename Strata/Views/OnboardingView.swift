@@ -70,14 +70,14 @@ struct OnboardingView: View {
     var endsOnFirstWin = true
     var onFinish: () -> Void
 
-    @State private var step = 0
+    @State private var step = OnboardingView.firstShown
     @State private var landed = 0
     /// What the tutorial has actually watched the finger do.
     @State private var hasDrawn = false
     /// The tutorial's own tower, and the grid it is packed into — the same
     /// two things `TowerViewModel` keeps.
     @State private var built: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = []
-    @State private var grid: [[Bool]] = []
+    @State private var grid: [[Bool]] = OnboardingView.seededGrid
     /// The size the finger is drawing right now. The slot grows with it,
     /// exactly as the tower's does.
     @State private var drawingSize: BlockSize = .small
@@ -119,7 +119,24 @@ struct OnboardingView: View {
     /// The three being chosen, kept only once the button is pressed: Skip
     /// leaves nothing behind.
     @State private var threePicked: [YourThree.Item] = []
-    private var lastStep: Int { endsOnFirstWin ? Self.firstWinStep : Self.thanksStep }
+    /// **Ends on the goal** (the owner, 2026-10-08, of Your three and the first
+    /// win: "that should be explained in the app they just kinda look lame").
+    /// Your three is chosen from Your day; the first win is the tower's own
+    /// slot, which the app opens on. Both pages stay in the code, unreached.
+    private var lastStep: Int { endsOnFirstWin ? Self.goalStep : Self.thanksStep }
+
+    /// **Seven pages, not nine** (2026-10-08, `docs/superpowers/specs/
+    /// 2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
+    /// opening tower picture, the camera slide and the map slide are what the
+    /// film shows, and the map asks for places itself when it is opened. Their
+    /// pages stay in the code, skipped: one line from back.
+    private static let skipped: Set<Int> = [0, 2, 3]
+    private static let firstShown = 1
+    private var shownSteps: [Int] { (0...lastStep).filter { !Self.skipped.contains($0) } }
+    private func next(after s: Int) -> Int { shownSteps.first { $0 > s } ?? lastStep }
+    private func previous(before s: Int) -> Int { shownSteps.last { $0 < s } ?? Self.firstShown }
+    /// The film, before the first page. Skipped when a debug step is asked for.
+    @State private var showsFilm = true
 
     // The first-win page's own state.
     /// The title the win will carry: typed, or filled in by a chip.
@@ -149,6 +166,21 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        if showsFilm {
+            OnboardingFilm {
+                withAnimation(GridConstants.crossFade) { showsFilm = false }
+            }
+            .task {
+                #if DEBUG
+                if Self.debugStep != nil { showsFilm = false }
+                #endif
+            }
+        } else {
+            pages
+        }
+    }
+
+    private var pages: some View {
         ZStack {
             stage
             // **Four bands, the same four on every page** (the owner, via the
@@ -214,12 +246,15 @@ struct OnboardingView: View {
         // BEFORE the cover modifier, or the maker's own head would sleep too,
         // and ANDed with what this view inherits, because onboarding is itself
         // presented as a cover from Settings. Same shape as `ProfileView`.
+        .onChange(of: step, initial: true) { _, s in
+            Analytics.shared.signal(.onboardingStep, [.step(s), .action(.shown)])
+        }
         .environment(\.headsAwake, coveringHeadsAwake && !showsHeadMaker)
         // A made head moves you on. Closing the maker without one leaves you
         // here, where "Not now" is one press away.
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
             guard heads.head != nil, step == Self.headStep else { return }
-            withAnimation(GridConstants.motionSnappy) { step += 1 }
+            withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
         }) {
             HeadMakerView()
         }
@@ -258,12 +293,12 @@ struct OnboardingView: View {
     /// cannot see how much copy is left.
     private var topBand: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-            back
+            back.overlay { progress }
             mark
         }
         .padding(.top, GridConstants.gapItem)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Step \(step + 1) of \(lastStep + 1)")
+        .accessibilityLabel("Step \((shownSteps.firstIndex(of: step) ?? 0) + 1) of \(shownSteps.count)")
     }
 
     /// **The illustration's room, held open before there is an illustration.**
@@ -338,6 +373,30 @@ struct OnboardingView: View {
     /// six of them are a set of marks rather than six illustrations.
     private static let markSide: CGFloat = 56
 
+    /// **Where you are, said without numbers** (the owner, 2026-10-08:
+    /// "there should be a progress bar up top in the onboarding but make sure
+    /// it looks premium"). One hairline capsule, centred in the nav row, that
+    /// fills in ink page by page on the app's own spring; the track is the
+    /// warm grey the idle tabs use. No segments, no count, no percentage: the
+    /// row already tells VoiceOver "Step 2 of 4".
+    private var progress: some View {
+        let index = shownSteps.firstIndex(of: step) ?? 0
+        let fraction = CGFloat(index + 1) / CGFloat(max(shownSteps.count, 1))
+        return Capsule(style: .continuous)
+            .fill(AppColors.inkQuiet.opacity(0.4))
+            .frame(width: Self.progressWidth, height: Self.progressHeight)
+            .overlay(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(AppColors.inkPrimary)
+                    .frame(width: Self.progressWidth * fraction, height: Self.progressHeight)
+            }
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: step)
+            .accessibilityHidden(true)
+    }
+
+    private static let progressWidth: CGFloat = 112
+    private static let progressHeight: CGFloat = 3
+
     /// **Its room is held on page 0, where there is nothing to go back to**, so
     /// the rule below it never moves between pages. Held with `.opacity`, not by
     /// leaving the button out: the glass then cross-fades in on the 0 to 1 press,
@@ -374,14 +433,14 @@ struct OnboardingView: View {
                 // its grid are state that is simply still there; the lattice's
                 // ripple rests at a phase that draws no cells. There is nothing
                 // here that re-arms.
-                withAnimation(GridConstants.motionSnappy) { step -= 1 }
+                withAnimation(GridConstants.motionSnappy) { step = previous(before: step) }
             }
             Spacer(minLength: 0)
         }
         .frame(height: Self.backSlot)
-        .opacity(step > 0 ? 1 : 0)
-        .allowsHitTesting(step > 0)
-        .accessibilityHidden(step == 0)
+        .opacity(step > Self.firstShown ? 1 : 0)
+        .allowsHitTesting(step > Self.firstShown)
+        .accessibilityHidden(step <= Self.firstShown)
     }
 
     private static let backSlot: CGFloat = GlassIconButton.defaultSide
@@ -801,6 +860,12 @@ struct OnboardingView: View {
         let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
 
         return ZStack(alignment: .bottomLeading) {
+            ForEach(Array(Self.seeded.enumerated()), id: \.offset) { _, item in
+                block(item.category, columns: item.w, rows: item.h, cell: cell, photo: item.photo)
+                    .offset(x: CGFloat(item.c) * (cell + gutter),
+                            y: -CGFloat(item.r) * (cell + gutter))
+                    .accessibilityHidden(true)
+            }
             ForEach(Array(built.enumerated()), id: \.offset) { _, item in
                 block(item.category, columns: item.w, rows: item.h, cell: cell)
                     .offset(x: CGFloat(item.c) * (cell + gutter),
@@ -885,6 +950,20 @@ struct OnboardingView: View {
     /// sits under a field of blurred photographs; this is a flat page with
     /// none, so it carries the whole difference itself.
     private static let boardSeat: Double = 0.07
+
+    /// **A tower already standing** (2026-10-08, the owner: the screens "fall
+    /// flat", "take inspo from the trailer and app"). The board opened grey
+    /// and empty; in the film and in the app a tower is photographs. A row of
+    /// them stands at the foot, still (nothing animates because a page
+    /// appeared), and the block you draw lands on them.
+    private static let seeded: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory, photo: String)] = [
+        (0, 0, 2, 1, .health, "DemoPhoto5"), (2, 0, 1, 1, .work, "DemoPhoto2"), (3, 0, 1, 1, .creativity, "DemoPhoto10"),
+    ]
+    private static let seededGrid: [[Bool]] = {
+        var grid: [[Bool]] = [Array(repeating: false, count: GridConstants.columnCount)]
+        for s in seeded { for c in s.c..<(s.c + s.w) { grid[s.r][c] = true } }
+        return grid
+    }()
 
     private static let tutorialColours: [HabitCategory] = [
         .mindfulness, .health, .creativity, .work, .social
@@ -1135,7 +1214,7 @@ struct OnboardingView: View {
     /// roughly equal breaks of 99.7, 93.7 and 83.0 — "spacious and flat", which
     /// is `docs/space.md` §8's own words for this page.
     private var words: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+        VStack(alignment: .center, spacing: GridConstants.gapTight) {
             Text(title)
                 // **SF Pro, and that is the owner's final call on the face.**
                 //
@@ -1179,8 +1258,10 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .multilineTextAlignment(.leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // **Centred** (2026-10-08): over the composition, as the film and the
+        // App Store pages set a line, still at the top (2026-09-23).
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, alignment: .center)
         // 24 under the nav row above it, 64 down to the composition.
         .padding(.top, GridConstants.gapWide)
         .padding(.bottom, Self.airArt)
@@ -1220,7 +1301,8 @@ struct OnboardingView: View {
     private var title: String {
         switch step {
         case 0: return "Everything you did, stacked up"
-        case 1: return "Quick, regular or deep"
+        // The first page now, after the film: the film's own line.
+        case 1: return "Every win is a block."
         case 2: return "A win can be a photograph"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
@@ -1280,7 +1362,9 @@ struct OnboardingView: View {
         case 3: return "Your wins land on the map where you took them."
         case Self.headStep: return heads.head == nil
             ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."
-            : "Find it in Profile, and on your photos. It stays on this phone."
+            // Not "it stays on this phone" (the owner, 2026-10-08): your crews
+            // see it whenever it shows anywhere (`HeadStore.headForCrews`).
+            : "Find it in Profile and on your photos. Your crews see it too."
         // What counts, said once; the chips say the rest by example.
         case Self.goalStep: return "Reach it and your tower dances and prints the day's strip."
         case Self.threeStep: return YourThree.Copy.onboardingLine
@@ -1360,7 +1444,8 @@ struct OnboardingView: View {
     private func decline(_ word: String) -> some View {
         Button {
             HapticsEngine.lightTap()
-            withAnimation(GridConstants.motionSnappy) { step += 1 }
+            Analytics.shared.signal(.onboardingStep, [.step(step), .action(.skipped)])
+            withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
         } label: {
             Text(word)
                 .font(Typography.headerSmall)
@@ -1455,7 +1540,10 @@ struct OnboardingView: View {
         case 2: return "Go on"
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
         case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
+        // The last page now (2026-10-08): it sets the goal and opens the app.
         case Self.goalStep: return "Set my goal"
+        // Not the last page any more when the goal follows it.
+        case Self.thanksStep where step < lastStep: return "One more thing"
         case Self.threeStep: return YourThree.Copy.onboardingKeep
         case Self.firstWinStep: return "Go to my tower"
         default: return "Start"
@@ -1477,8 +1565,9 @@ struct OnboardingView: View {
             return
         }
         if step == Self.threeStep { threeRaw = YourThree.encode(threePicked) }
+        Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
         guard step < lastStep else { finish(); return }
-        withAnimation(GridConstants.motionSnappy) { step += 1 }
+        withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
     }
 
     /// The end of the walkthrough. On the first-win page the win is queued
@@ -1509,9 +1598,10 @@ struct OnboardingView: View {
         let blockW = cell * CGFloat(shown.columnSpan) + gutter * CGFloat(shown.columnSpan - 1)
         let blockH = cell * CGFloat(shown.rowSpan) + gutter * CGFloat(shown.rowSpan - 1)
 
-        return VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+        return VStack(alignment: .center, spacing: GridConstants.gapItem) {
             TextField("What did you do?", text: $firstTitle,
                       prompt: Text("What did you do?").foregroundStyle(AppColors.inkTertiary))
+                .multilineTextAlignment(.center)
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
                 .focused($firstTyping)
@@ -1689,7 +1779,8 @@ struct OnboardingView: View {
 }
 
 /// The first-win chips, wrapped to the page's width: as many to a line as
-/// fit, `spacing` between them and between lines, leading-aligned.
+/// fit, `spacing` between them and between lines, each line centred under the
+/// centred title (2026-10-08).
 private struct ChipFlow: Layout {
     var spacing: CGFloat
 
@@ -1703,7 +1794,7 @@ private struct ChipFlow: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var y = bounds.minY
         for row in arrange(width: bounds.width, subviews: subviews) {
-            var x = bounds.minX
+            var x = bounds.minX + max(0, (bounds.width - row.width) / 2)
             for index in row.items {
                 let size = subviews[index].sizeThatFits(.unspecified)
                 subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2),

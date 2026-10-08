@@ -85,7 +85,7 @@ struct PrivacyPolicyView: View {
          "If you make a head, Some Wins takes a few photos with the front camera and turns "
          + "them into your head, right on your device. It keeps only those small "
          + "pictures, never video. Your head only shows up where you turn it on, and "
-         + "Delete Head removes it. If your head is on your tower and you join a "
+         + "Delete Head removes it. While it shows anywhere and you are in a "
          + "crew, a smaller copy goes to the crew so its people can see it; "
          + "otherwise it never leaves your device."),
         ("Places",
@@ -121,7 +121,7 @@ struct PrivacyPolicyView: View {
         ("What a crew sees",
          "Of a win you send: its title, colour, size and icon, its photo, and when "
          + "you logged it. The photo is a smaller copy with no place and no camera "
-         + "details in it. With it, your first name, your head if it is on your tower, "
+         + "details in it. With it, your first name, your head while it shows anywhere, "
          + "and your profile photo, which is never sent if you are under 16. "
          + "Never your notes, captions, places or mood. Tag someone and they are "
          + "asked whether to keep a copy; only your crew sees who a win was with. "

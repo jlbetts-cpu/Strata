@@ -164,7 +164,9 @@ struct CopyCutsTests {
         //  - page 2's SUBTITLE still swaps, because the gesture is the one
         //    thing on these six pages a picture cannot teach;
         //  - page 4 still carries the sentence that earns the location prompt.
-        #expect(onboarding.contains("Quick, regular or deep"))
+        // Retitled 2026-10-08: the page opens the walkthrough after the film
+        // and says the film's own line.
+        #expect(onboarding.contains("Every win is a block."))
         #expect(onboarding.contains("Hold the slot and pull."))
         #expect(onboarding.contains("Pull nothing and it's a quick one."))
         #expect(onboarding.contains("Your wins land on the map where you took them."))
