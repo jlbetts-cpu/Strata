@@ -16,14 +16,15 @@ nonisolated enum CrewAge: String, Sendable {
     case under13
     case teen
     case adult
-    /// Asked, and chose not to say (or the phone could not answer). Sends no
-    /// photographs, as before; but sees friends' ones, because it is not a
-    /// known child. It used to be stored as `teen`, and since build 51 that
-    /// hid every friend's photo from an adult who had simply said no to the
-    /// prompt (the owner, 2026-10-03: "when i updated it all the photos
-    /// from the crew disappeared"). A real child's phone has Communication
-    /// Safety on by default, which checks every photo instead
-    /// (`CrewSafety.incoming`).
+    /// Asked, and chose not to say (or the phone could not answer).
+    ///
+    /// **Treated exactly as 13 to 15** (the 2026-10-08 audit), because that is
+    /// what the privacy policy promises: "If you would rather not say, Some
+    /// Wins treats you as 13 to 15". It had drifted: declined saw friends'
+    /// photographs unchecked and could not write in the chat, neither of
+    /// which a 13 to 15 does. Kept as its own case, not stored as `teen`, so
+    /// it is asked again after ninety days (`needsAsking`) and the answer can
+    /// change. Every rule reads `rule`, never the raw case.
     case declined
 
     static let key = "crews.age"
@@ -58,12 +59,20 @@ nonisolated enum CrewAge: String, Sendable {
         return now.timeIntervalSince(asked) > 90 * 86_400
     }
 
-    var opensCrews: Bool { self != .under13 }
-    /// Unknown sends no photos until an answer comes back.
-    var sendsPhotos: Bool { self == .adult }
+    /// The age the rules treat this answer as: declined is 13 to 15.
+    var rule: CrewAge { self == .declined ? .teen : self }
+
+    var opensCrews: Bool { rule != .under13 }
+    /// Photographs, and the head cut from one: 16 and over only. Unknown
+    /// sends none until an answer comes back.
+    var sendsPhotos: Bool { rule == .adult }
     /// Whether friends' photographs show without a check, when the phone's
-    /// own analysis is off: everyone but a known child.
-    var seesPhotosUnchecked: Bool { self != .under13 && self != .teen }
+    /// own analysis is off: everyone but a known child, or someone treated
+    /// as one (13 to 15, and declined).
+    var seesPhotosUnchecked: Bool { rule != .under13 && rule != .teen }
+    /// Words in a crew's chat, replies and doodles: 13 and over, declined
+    /// included, as 13 to 15 may. Not while the age is unknown.
+    var writesInCrews: Bool { rule == .adult || rule == .teen }
 
     /// From the lower bound of a declared range.
     static func from(lowerBound: Int?) -> CrewAge {

@@ -49,6 +49,24 @@ nonisolated struct CrewHeadPack: Codable, Sendable {
         return HeadStore.load(at: directory)?.rig
     }
 
+    /// Every picture in a pack, in name order, or nil when the data is not a
+    /// pack.
+    static func images(in data: Data) -> [Data]? {
+        guard let pack = try? PropertyListDecoder().decode(CrewHeadPack.self, from: data) else { return nil }
+        return pack.files.filter { isSafe($0.key) && $0.key.hasSuffix(".png") }
+            .sorted { $0.key < $1.key }.map(\.value)
+    }
+
+    /// **Whether a head may go to a crew** (the 2026-10-08 audit): every
+    /// face in it passes `check`, the photo check a win's photograph passes.
+    /// A head is cut out of a photograph and went unchecked. A pack that
+    /// cannot be read, or holds no picture, does not pass.
+    static func passes(_ data: Data, check: @Sendable (Data) async -> Bool) async -> Bool {
+        guard let images = images(in: data), !images.isEmpty else { return false }
+        for image in images where !(await check(image)) { return false }
+        return true
+    }
+
     /// A plain file name with one of a head's two extensions. A pack is
     /// another person's data, so nothing in it may name a path.
     static func isSafe(_ name: String) -> Bool {

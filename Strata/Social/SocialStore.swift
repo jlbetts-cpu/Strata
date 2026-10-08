@@ -50,6 +50,8 @@ final class SocialStore {
             guard let folder = HeadStore.shared.crewHeadDirectory else { return nil }
             return await Task.detached(priority: .utility) { CrewHeadPack.make(from: folder) }.value
         }
+        // Every face in the head through the photo check (2026-10-08).
+        store.headCheck = { await CrewHeadPack.passes($0, check: CrewSafety.photoIsFine) }
         store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
         // Keep, on "Sam added you to a win": a copy into your own record,
         // through the app's own logging path. SwiftData lives in the app
@@ -122,6 +124,10 @@ final class SocialStore {
     @ObservationIgnored var myFirstName: () -> String = { "" }
     /// Your head, packed to send, or nil for no head.
     @ObservationIgnored var myHeadPack: () async -> Data? = { nil }
+    /// **The photo check, for a head** (2026-10-08): every face in the pack
+    /// passes `CrewSafety.photoIsFine` or the head is not sent. A head is cut
+    /// out of a photograph, and it went to crews unchecked.
+    @ObservationIgnored var headCheck: (Data) async -> Bool = { _ in true }
     /// Your profile photograph as JPEG, or nil.
     @ObservationIgnored var myPhoto: () -> Data? = { nil }
     /// A crew must start with a photo (the owner, 2026-10-02). Off in tests
@@ -688,9 +694,39 @@ final class SocialStore {
             // photograph (the 2026-10-03 audit: it went unchecked).
             photo = await photoCheck(small) ? small : nil
         }
-        let pack = await myHeadPack()
-        await setMyHead(pack, photo: photo)
+        let pack = await headToSend()
+        var sent = pack
+        // **The head is a photograph too** (the 2026-10-08 audit): checked
+        // as one, every face of it, once per head. One the check holds back
+        // is not sent, and is remembered so it is not checked again every
+        // launch.
+        if let pack, case let digest = Self.digest(pack), digest != defaults.string(forKey: Self.passedHeadKey) {
+            if await headCheck(pack) {
+                defaults.set(digest, forKey: Self.passedHeadKey)
+            } else {
+                sent = nil
+                defaults.set(digest, forKey: Self.heldHeadKey)
+            }
+        }
+        await setMyHead(sent, photo: photo)
         defaults.set(selfDigest(pack: pack, photo: source), forKey: Self.sentSelfKey)
+    }
+
+    /// **Your head leaves the phone on the photo rule** (the 2026-10-08
+    /// audit): 16 and over, never 13 to 15 or declined (`photosAllowed`). It
+    /// went to every crew regardless of age, and a head is cut out of a
+    /// photograph of you. Under the rule no head is sent, and one sent
+    /// before is taken back.
+    private func headToSend() async -> Data? {
+        guard photosAllowed() else { return nil }
+        return await myHeadPack()
+    }
+
+    static let heldHeadKey = "crews.heldHead"
+    static let passedHeadKey = "crews.passedHead"
+
+    private static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// **You, sent again when you changed while this phone was not
@@ -702,9 +738,11 @@ final class SocialStore {
         guard isEnabled(), !checkedSelf, !crews.isEmpty else { return }
         checkedSelf = true
         let source = photosAllowed() ? myPhoto() : nil
-        let pack = await myHeadPack()
+        let pack = await headToSend()
         let digest = selfDigest(pack: pack, photo: source)
-        let mineMissingHead = pack != nil && crews.contains { $0.member(me).map { $0.head == nil } ?? false }
+        // A head the check held back is missing on purpose.
+        let heldBack = pack.map { Self.digest($0) == defaults.string(forKey: Self.heldHeadKey) } ?? false
+        let mineMissingHead = pack != nil && !heldBack && crews.contains { $0.member(me).map { $0.head == nil } ?? false }
         guard digest != defaults.string(forKey: Self.sentSelfKey) || mineMissingHead else { return }
         await shareMyself()
     }
@@ -963,13 +1001,10 @@ final class SocialStore {
     }
 
     /// Whether this phone may write in a crew: replies, doodles and the
-    /// chat. Not for someone whose age is unknown or who chose not to say
-    /// (the research: free text off for a declined age, reactions on). They
-    /// can still read the chat.
-    @ObservationIgnored var canReply: () -> Bool = {
-        let age = CrewAge.current
-        return age == .adult || age == .teen
-    }
+    /// chat. Not while the age is unknown; they can still read the chat.
+    /// **Declined may, as 13 to 15 may** (2026-10-08, `CrewAge.rule`): the
+    /// privacy policy treats them as 13 to 15, so the app does too.
+    @ObservationIgnored var canReply: () -> Bool = { CrewAge.current.writesInCrews }
 
     /// `refusedSketch`: the photo check held a doodle back.
     enum ReplyOutcome { case sent, refusedWords, refusedSketch, notAllowed }

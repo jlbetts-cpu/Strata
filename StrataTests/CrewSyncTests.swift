@@ -83,9 +83,11 @@ struct CrewSyncTests {
         #expect(!CrewAge.under13.opensCrews)
         #expect(!CrewAge.teen.sendsPhotos && CrewAge.adult.sendsPhotos)
         #expect(!CrewAge.unknown.sendsPhotos)
-        // Declining is not being a child: no photos sent, friends' shown.
+        // **Declining is treated as 13 to 15** (the 2026-10-08 audit; the
+        // privacy policy says so): no photos sent, and friends' checked or
+        // hidden as they are for 13 to 15. It used to see them unchecked.
         #expect(!CrewAge.declined.sendsPhotos && CrewAge.declined.opensCrews)
-        #expect(CrewAge.declined.seesPhotosUnchecked && CrewAge.adult.seesPhotosUnchecked)
+        #expect(!CrewAge.declined.seesPhotosUnchecked && CrewAge.adult.seesPhotosUnchecked)
         #expect(!CrewAge.teen.seesPhotosUnchecked && !CrewAge.under13.seesPhotosUnchecked)
     }
 
