@@ -1199,6 +1199,15 @@ struct MainAppView: View {
         // not between its two buttons, so it holds the same place with crews
         // on or off.
         GoalCrest(wins: blocksToday, goal: todaysGoal, openDay: { showsYourDay = true })
+            // **The burst comes out of the crest**, as in the launch film
+            // (2026-10-08, the owner: "make the confetti like the trailer
+            // where it shoots out"). Over the page, never clipped to the row.
+            .overlay {
+                if showTowerConfetti {
+                    AllClearCelebration(isActive: $showTowerConfetti)
+                }
+            }
+            .zIndex(1)
         }
         // **The goal opens the booth and prints the strip** (`StripBooth`;
         // the owner's pick: "Dance, then open the booth"), once a day, when
@@ -3240,25 +3249,6 @@ struct MainAppView: View {
                                  touches: touchRipples,
                                  ripple: latticeRipple)
                         .frame(width: gridW)
-                }
-                // **From the crown, not inside the grid** (2026-10-08). Hung
-                // on the grid's top edge and never clipped, so the blocks fly
-                // up out of the tower and fall back past it over the page.
-                .overlay(alignment: .top) {
-                    if showTowerConfetti {
-                        // **Today's own colours** (2026-10-08). It read the
-                        // scheduled habits completed today, a list one-off
-                        // wins never fill, so a goal's burst could have no
-                        // specks in it at all. One colour per kind of win on
-                        // the tower as it is drawn (`displayCategory`; the
-                        // stored category of an untitled win is grey).
-                        let kinds = Array(Set(towerVM.placedBlocks.map(\.look.displayCategory)))
-                        AllClearCelebration(
-                            isActive: $showTowerConfetti,
-                            completedCategories: kinds.isEmpty ? HabitCategory.selectable : kinds
-                        )
-                            .allowsHitTesting(false)
-                    }
                 }
                 .padding(.horizontal, hPad)
                 // The tab bar's inset is already applied to this scroll view

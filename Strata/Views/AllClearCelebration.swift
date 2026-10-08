@@ -23,6 +23,13 @@ import SwiftUI
 ///    ran `0..<4`, so every particle was a rectangle and the "40% / 30% / 30%"
 ///    in the comment described code that was unreachable.
 ///
+/// **The trailer's burst, from the crest** (2026-10-08, the owner: "the color of
+/// the blocks should be every category color all the time also make the
+/// confetti like the trailer where it shoots out"). Shot 5 of the launch film:
+/// when the goal crest fills, fourteen blocks of every category colour shoot
+/// out of it in a ring, tumble towards you, drift down and are gone in 1.6s.
+/// The numbers below are that shot's, moved from its 420px phone to points.
+///
 /// **Blocks, not specks, and out of the tower** (2026-10-08, the owner: "i hit
 /// the goal and the tower didnt dance or the block confetti come out"). The
 /// burst was twelve 4 to 8pt specks drawn inside the grid's own frame, which
@@ -54,56 +61,25 @@ import SwiftUI
 /// the call site is in `MainAppView`.
 struct AllClearCelebration: View {
     @Binding var isActive: Bool
-    var completedCategories: [HabitCategory] = HabitCategory.selectable
     /// What VoiceOver hears, since nothing here can be read.
     var announcement = "Today's goal, reached."
 
-    /// Seeded once, on appear.
-    @State private var particles: [Particle] = []
-
-    fileprivate struct Particle: Identifiable {
-        let id: Int
-        let color: Color
-        /// Where it lands sideways by the end, in points.
-        let drift: CGFloat
-        /// How high it rises above the crown, in points.
-        let rise: CGFloat
-        /// The short side, in points.
-        let side: CGFloat
-        /// 1 for a quick block's square, 2 for a regular's bar.
-        let span: CGFloat
-        /// Turns over the whole flight, in radians.
-        let turn: Double
-    }
-
-    /// About forty blocks whatever the day: a one-colour day throws as many as
-    /// a six-colour one, split between its colours.
-    private static let total = 42
-
-    private func seed() -> [Particle] {
-        let colours = completedCategories.map(\.style.baseColor)
-        guard !colours.isEmpty else { return [] }
-        return (0..<Self.total).map { i in
-            Particle(id: i,
-                     color: colours[i % colours.count],
-                     drift: .random(in: -190...190),
-                     rise: .random(in: 140...360),
-                     side: .random(in: 7...11),
-                     span: Bool.random() ? 1 : 2,
-                     turn: .random(in: -9...9))
-        }
-    }
+    /// The film's fourteen.
+    private static let count = 14
+    /// Every category's colour, always (his call): the burst is the app's
+    /// whole palette, not the day's.
+    private static let colours = HabitCategory.selectable.map(\.style.baseColor)
 
     var body: some View {
         ZStack {
-            ForEach(particles) { particle in
-                ConfettiBlock(particle: particle)
+            ForEach(0..<Self.count, id: \.self) { i in
+                BurstBlock(index: i, count: Self.count,
+                           colour: Self.colours[i % max(Self.colours.count, 1)])
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onAppear {
-            particles = seed()
             if UIAccessibility.isVoiceOverRunning {
                 UIAccessibility.post(notification: .announcement, argument: announcement)
             }
@@ -115,53 +91,48 @@ struct AllClearCelebration: View {
     }
 }
 
-/// One block of the burst: up out of the crown, over, and down past it.
-private struct ConfettiBlock: View {
-    let particle: AllClearCelebration.Particle
-    /// Flips once the block is on screen: a keyframe animation runs when its
-    /// trigger CHANGES, so a block born already launched would never move.
+/// One block of the burst, flown on the film's own curve: out on a cubic ease
+/// over 0.9s, falling as it goes, tumbling towards the viewer, fading from 1.1s.
+private struct BurstBlock: View {
+    let index: Int
+    let count: Int
+    let colour: Color
+    /// Flips once on screen: a keyframe animation runs when its trigger
+    /// CHANGES, so a block born already launched would never move.
     @State private var launched = false
 
-    private struct Pose {
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var angle: Double = 0
-        var opacity: Double = 1
-    }
+    /// The film's phone was 420px wide; this phone is about 402pt.
+    private static let width: CGFloat = 402
+    private static let flight: Double = 1.6
+
+    private static func out3(_ x: Double) -> Double { 1 - pow(1 - min(max(x, 0), 1), 3) }
 
     var body: some View {
-        let w = particle.side * particle.span, h = particle.side
-        let total = GridConstants.confettiDuration
-        // A thrown thing spends about a third of its flight going up.
-        let up = total * 0.32
-        RoundedRectangle(cornerRadius: h * 0.147, style: .continuous)
-            .fill(particle.color)
-            .frame(width: w, height: h)
-            .keyframeAnimator(initialValue: Pose(), trigger: launched) { content, pose in
+        let i = Double(index)
+        let angle = i / Double(count) * 2 * .pi + 0.3
+        let speed = 0.55 + Double((index * 37) % 10) / 22
+        let side = Self.width * (0.05 + CGFloat((index * 13) % 5) / 140)
+        let spinSign: Double = index.isMultiple(of: 2) ? -1 : 1
+        RoundedRectangle(cornerRadius: side * 0.24, style: .continuous)
+            .fill(colour)
+            .frame(width: side, height: side)
+            .keyframeAnimator(initialValue: 0.0, trigger: launched) { content, u in
+                let reach = Self.out3(u / 0.9)
+                let x = cos(angle) * speed * Self.width * 0.55 * reach
+                let y = sin(angle) * speed * Self.width * 0.42 * reach + 250 * u * u
+                // Coming towards you, as the film's translateZ did.
+                let near = 1 + 0.55 * Self.out3(u / 0.7) * speed
+                let fadeIn = min(u / 0.08, 1)
+                let fadeOut = 1 - min(max((u - 1.1) / 0.5, 0), 1)
                 content
-                    .rotationEffect(.radians(pose.angle))
-                    .offset(x: pose.x, y: pose.y)
-                    .opacity(pose.opacity)
+                    .rotation3DEffect(.degrees(u * 300 + i * 40), axis: (x: 1, y: 0, z: 0))
+                    .rotationEffect(.degrees(u * 200 * spinSign))
+                    .scaleEffect(near)
+                    .offset(x: x, y: y)
+                    .opacity(launched ? fadeIn * fadeOut : 0)
             } keyframes: { _ in
-                KeyframeTrack(\.x) {
-                    CubicKeyframe(particle.drift * 0.55, duration: up)
-                    CubicKeyframe(particle.drift, duration: total - up)
-                }
-                // Decelerating to the top and accelerating down, which is
-                // what gravity does; the fall ends well below the crown.
-                KeyframeTrack(\.y) {
-                    SpringKeyframe(-particle.rise, duration: up, spring: .smooth(duration: up * 1.6))
-                    CubicKeyframe(particle.rise * 1.1, duration: total - up)
-                }
-                KeyframeTrack(\.angle) {
-                    LinearKeyframe(particle.turn, duration: total)
-                }
-                KeyframeTrack(\.opacity) {
-                    LinearKeyframe(1, duration: total * 0.65)
-                    LinearKeyframe(0, duration: total * 0.35)
-                }
+                LinearKeyframe(Self.flight, duration: Self.flight)
             }
-            .opacity(launched ? 1 : 0)
             .onAppear { launched = true }
     }
 }
