@@ -26,7 +26,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Strata Block</string>
+			<string>Some Wins Block</string>
 			<key>UTTypeIdentifier</key>
 			<string>co.strataapp.blockmove</string>
 		</dict>

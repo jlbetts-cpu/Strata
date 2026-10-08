@@ -15,7 +15,7 @@ import SwiftData
 /// the colour the tower has least of, and with no category nobody chose.
 struct LogWinIntent: AppIntent {
     static var title: LocalizedStringResource = "Log a Win"
-    static var description = IntentDescription("Add a win to today's tower.")
+    static var description = IntentDescription("Adds a win to today's tower.")
     static var openAppWhenRun = false
 
     /// Optional, because a win does not need a name. A nameless block shows no
