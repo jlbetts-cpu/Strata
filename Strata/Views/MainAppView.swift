@@ -222,6 +222,7 @@ struct MainAppView: View {
     @State private var winCue: String?
     @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
+    @AppStorage(DayOneHint.shownKey) private var drawOutHintShown = false
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     /// **The goal everything on Wins asks**: the crest, the cue, the dance
     /// and the booth. It was your three on a Hard day; Hard day is gone
@@ -1041,6 +1042,21 @@ struct MainAppView: View {
                 // A win landed or the tab changed: a cue on screen has had
                 // its answer, or is somewhere it no longer belongs.
                 if winCue != nil { withAnimation(GridConstants.cueOut) { winCue = nil } }
+                // **The day-one hint comes first** (`DayOneHint`): once, after a
+                // first win, before the daily cue would ever be due.
+                if selectedTab == .tower, scenePhase == .active, winDraft == nil,
+                   let hint = DayOneHint.line(winsEver: logs.count,
+                                              drewBigger: logs.contains { ($0.habit?.blockSize ?? .small) != .small },
+                                              shown: drawOutHintShown) {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    await Self.waitForLaunchToFinish()
+                    guard !Task.isCancelled, winDraft == nil else { return }
+                    drawOutHintShown = true
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = hint }
+                    try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
                 // Not before a first win ever: the tower's own line asks then
                 // ("Tap the slot to log your first win.").
                 guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
@@ -1048,6 +1064,7 @@ struct MainAppView: View {
                                              shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: todaysGoal)
                 else { return }
                 try? await Task.sleep(for: .seconds(1.6))
+                await Self.waitForLaunchToFinish()
                 guard !Task.isCancelled, winDraft == nil else { return }
                 winCueDay = DateUtils.dateString(from: Date())
                 // Seen here, so the evening does not ask it again.
@@ -2085,6 +2102,19 @@ struct MainAppView: View {
         }
         try? await Task.sleep(for: .milliseconds(200))
         animCoord.confettiBursts += 1
+    }
+
+    /// **A cue waits for the launch to finish** (found 2026-10-08). A cue
+    /// asked for on the first frame played its nine seconds under the drawn
+    /// logo and was gone before the tower showed: the day-one hint was spent
+    /// on a screen nobody could see. Half a minute at most.
+    static func waitForLaunchToFinish() async {
+        var waited = 0
+        while !LaunchMoment.shared.finished, waited < 150 {
+            try? await Task.sleep(for: .milliseconds(200))
+            waited += 1
+        }
+        try? await Task.sleep(for: .milliseconds(LaunchMoment.shared.finished ? 600 : 0))
     }
 
     /// **The booth opens when the screen is free** (found 2026-10-07). It

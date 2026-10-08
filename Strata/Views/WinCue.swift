@@ -47,6 +47,22 @@ nonisolated enum WinCue {
     }
 }
 
+/// **One hint for a first day** (2026-10-08, the owner's pick: "Day-one
+/// hints"; onboarding no longer teaches the slot's drag, so the app does, at
+/// the moment it is useful). After the first win lands, in the cue's own
+/// bubble: the slot can be drawn out for a bigger block. Once ever, never to
+/// someone who has already drawn one, and not past the first few wins.
+nonisolated enum DayOneHint {
+    static let drawOut = "Draw the slot out for a bigger win."
+    static let shownKey = "hint.drawOut.shown"
+    static let lastChance = 5
+
+    static func line(winsEver: Int, drewBigger: Bool, shown: Bool) -> String? {
+        guard !shown, !drewBigger, (1...lastChance).contains(winsEver) else { return nil }
+        return drawOut
+    }
+}
+
 /// The bubble: the crew chat's own line, ink with the page's colour as its
 /// type (`CrewChatSheet.bubbleFace`), so the app speaks the way you do there.
 struct WinCueBubble: View {

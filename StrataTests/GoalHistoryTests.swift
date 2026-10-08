@@ -30,3 +30,16 @@ struct GoalHistoryTests {
         #expect(!GoalHistory(days: [0, 0, 1] + Array(repeating: 0, count: 11)).isReadable)
     }
 }
+
+/// The day-one hint (2026-10-08): after a first win, once, never to someone
+/// who already drew a bigger block, and not past the fifth win.
+@Suite("Day-one hint")
+struct DayOneHintTests {
+    @Test func afterTheFirstWinOnce() {
+        #expect(DayOneHint.line(winsEver: 1, drewBigger: false, shown: false) == DayOneHint.drawOut)
+        #expect(DayOneHint.line(winsEver: 0, drewBigger: false, shown: false) == nil, "the empty tower has its own line")
+        #expect(DayOneHint.line(winsEver: 2, drewBigger: false, shown: true) == nil)
+        #expect(DayOneHint.line(winsEver: 2, drewBigger: true, shown: false) == nil)
+        #expect(DayOneHint.line(winsEver: 6, drewBigger: false, shown: false) == nil)
+    }
+}
