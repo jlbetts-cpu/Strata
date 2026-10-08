@@ -73,7 +73,8 @@ struct WhyItWorksView: View {
          "A day with nothing on it stays empty, and that is all it does. There "
          + "is no penalty and nothing to make up. Research on streaks (Silverman "
          + "and Barasch, 2023) found that once a streak breaks, people tend to do "
-         + "less of the thing afterwards, not more. So nothing here counts "
+         + "less of the thing afterwards, not more. So the streak here is a "
+         + "forgiving one: a day off a week never breaks it, and nothing counts "
          + "against you."),
         ("Photos help you remember",
          "A picture is a cue: it brings back the rest of the moment better than "
