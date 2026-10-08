@@ -154,17 +154,26 @@ final class CloudKitCrewCloud: CrewCloud {
         let share = CKShare(recordZoneID: zoneID)
         share.publicPermission = .none
         share[CKShare.SystemFieldKey.title] = crew.name.isEmpty ? "Crew" : crew.name
-        let saved = try await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
-        // iCloud's own error, not a generic one: on a tester's phone it is the
-        // only way to know what went wrong (2026-10-02, the first real test).
-        switch saved.saveResults[share.recordID] {
-        case .failure(let error)?: throw error
-        case .success(let record)?:
-            if let url = (record as? CKShare)?.url { return url }
-        case nil: break
+        // A share that will not save takes its zone with it (2026-10-08: a
+        // full iCloud refused the share and left an empty zone behind, which
+        // every refresh after would have synced for nothing).
+        do {
+            let saved = try await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
+            // iCloud's own error, not a generic one: on a tester's phone it is
+            // the only way to know what went wrong (2026-10-02, the first real
+            // test).
+            switch saved.saveResults[share.recordID] {
+            case .failure(let error)?: throw error
+            case .success(let record)?:
+                if let url = (record as? CKShare)?.url { return url }
+            case nil: break
+            }
+            // Saved without its link yet: read it back.
+            return try await shareURL(for: crew.id)
+        } catch {
+            try? await endCrew(crew.id)
+            throw error
         }
-        // Saved without its link yet: read it back.
-        return try await shareURL(for: crew.id)
     }
 
     /// The zone-wide share of a crew, for the system's sharing sheet.

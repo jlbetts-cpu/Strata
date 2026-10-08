@@ -368,6 +368,8 @@ struct NewCrewSheet: View {
                 await CrewSharing.invite(crew.id)
             } catch let error as CrewError where error != .unknownCrew {
                 problem = StrataSceneDelegate.words(for: error)
+            } catch where SocialStore.isQuotaExceeded(error) {
+                problem = SocialStore.fullToStartWords
             } catch {
                 // Say what iCloud said: on a tester's phone this line is the
                 // only way to know why.

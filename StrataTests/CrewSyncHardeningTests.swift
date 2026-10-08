@@ -67,6 +67,23 @@ struct CrewSyncHardeningTests {
         #expect(!SocialStore.fullWords.contains("\u{2014}"))
     }
 
+    /// A full iCloud refuses a new crew (the owner's phone, build 109): no
+    /// crew is listed, no empty zone is left behind for every refresh to
+    /// sync, and the words name the person's own storage, plainly.
+    @Test func aCrewThatCannotBeSavedLeavesNothingBehind() async throws {
+        let (a, cloud) = store(jayden)
+        cloud.saveError = CKError(.quotaExceeded)
+        await #expect(throws: CKError.self) { _ = try await a.createCrew(name: "One") }
+        #expect(a.crews.isEmpty)
+        #expect(world.zones.isEmpty)
+        cloud.saveError = nil
+        let (crew, _) = try await a.createCrew(name: "One")
+        #expect(a.crews.map(\.id) == [crew.id])
+        #expect(world.zones.count == 1)
+        #expect(SocialStore.fullToStartWords.contains("iCloud storage is full"))
+        #expect(!SocialStore.fullToStartWords.contains("\u{2014}"))
+    }
+
     @Test func cloudKitsWaitIsReadFromTheError() {
         let limited = CKError(.requestRateLimited, userInfo: [CKErrorRetryAfterKey: 30.0])
         #expect(SocialStore.serverBackoff(limited) == 30)

@@ -622,9 +622,17 @@ final class SocialStore {
             crew.photo = file
         }
         let url = try await cloud.createZone(crew)
-        try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crew.id)
-        try await cloud.save(CrewRecords.fields(crew.members[0]), type: .member,
-                             name: CrewRecords.name(of: crew.members[0]), in: crew.id)
+        // A crew is all or nothing: a zone without its crew record is never
+        // listed, so one left by a failed save would only cost a sync on
+        // every refresh (2026-10-08, a full iCloud).
+        do {
+            try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crew.id)
+            try await cloud.save(CrewRecords.fields(crew.members[0]), type: .member,
+                                 name: CrewRecords.name(of: crew.members[0]), in: crew.id)
+        } catch {
+            try? await cloud.endCrew(crew.id)
+            throw error
+        }
         crews.append(crew)
         winsByCrew[crew.id] = []
         // A refresh already in flight fetched before this zone existed.
@@ -1761,6 +1769,10 @@ final class SocialStore {
     nonisolated static func isQuotaExceeded(_ error: Error) -> Bool {
         ckErrors(error).contains { $0.code == .quotaExceeded }
     }
+
+    /// Starting a crew on a full iCloud: the crew lives in the starter's own
+    /// storage, so it is their space that has run out, never the app's.
+    static let fullToStartWords = "Your iCloud storage is full, so a new crew can't be made. Free up some space in Settings, under your name, then iCloud, and try again."
 
     /// How long a full crew's saves wait: what CloudKit says, at least half
     /// a minute, since room comes back only when someone deletes something.
