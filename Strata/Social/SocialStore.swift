@@ -29,6 +29,7 @@ final class SocialStore {
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.incomingPolicy = { CrewSafety.incoming }
         store.incomingCheck = { await CrewSafety.verdict($0) }
+        store.joinGate = { CrewGate.current }
         store.announces = true
         // On since 2026-10-05: the notification extension ships with the app
         // now that its app ID is linked to the iCloud container and the app
@@ -106,8 +107,15 @@ final class SocialStore {
     @ObservationIgnored private var outbox: CrewOutbox
 
     /// Whether crews are on. Injected so a test can prove "off" touches
-    /// nothing.
-    @ObservationIgnored var isEnabled: () -> Bool = { CrewsFlag.isOn }
+    /// nothing. **Off below iOS 26** (2026-10-08, `CrewsFlag.isUsable`):
+    /// crews do not open there, so nothing of them syncs or sends either.
+    @ObservationIgnored var isEnabled: () -> Bool = { CrewsFlag.isUsable }
+    /// **What stands between this phone and a crew** (`CrewGate`,
+    /// 2026-10-08). Joining and starting refuse anything but `.open`, so an
+    /// invitation can no longer join a crew before the rules and the age
+    /// were asked. Open in tests that are about something else; the phone's
+    /// store reads `CrewGate.current`.
+    @ObservationIgnored var joinGate: () -> CrewGate = { .open }
     /// Whether this person may send photographs (13 to 15 may not; spec 9.1).
     @ObservationIgnored var photosAllowed: () -> Bool = { true }
     /// What you called yourself, for your Member record.
@@ -553,6 +561,7 @@ final class SocialStore {
 
     func createCrew(name: String, photoJPEG: Data? = nil) async throws -> (crew: Crew, invite: URL) {
         try requireOn()
+        guard joinGate() == .open else { throw CrewError.notReady }
         await cloud.prepare()
         guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
         // The photo first, so a refused one stops the crew before its zone
@@ -602,8 +611,16 @@ final class SocialStore {
     }
 
     /// Joins the crew an invitation is for, if there is room on both sides.
+    ///
+    /// **Only once the gate is open** (the 2026-10-08 audit): iOS 26, the
+    /// rules agreed, an age answered and not under 13. It used to join the
+    /// share and write a Member record first, and the rules and the age were
+    /// asked only if the person later opened the Crews list. Nothing here
+    /// touches the cloud before the check: `CrewRouter` holds the invitation
+    /// while the rules and the age are asked, and lets it go on a no.
     func accept(_ invite: CrewInvite) async throws -> Crew {
         try requireOn()
+        guard joinGate() == .open else { throw CrewError.notReady }
         if crews.isEmpty { await refresh() }
         guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
         let id = try await cloud.accept(invite)

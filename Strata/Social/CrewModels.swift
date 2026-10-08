@@ -50,6 +50,10 @@ nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
     case photoNotAllowed
     /// A crew starts with a photo (the owner, 2026-10-02), except for 13 to 15.
     case photoNeeded
+    /// **Not yet, on this phone** (2026-10-08): the rules, the age, or iOS
+    /// 26 still stand in the way (`CrewGate`). Joining or starting a crew
+    /// waits for them; nothing is written to any crew first.
+    case notReady
 
     var errorDescription: String? {
         switch self {
@@ -61,6 +65,7 @@ nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
         case .unknownCrew: "This phone can't find that crew right now. Try again in a moment."
         case .photoNotAllowed: "That photo stays with you."
         case .photoNeeded: "Choose a photo for the crew first."
+        case .notReady: "Crews open once the crew rules and your age are set."
         }
     }
 }

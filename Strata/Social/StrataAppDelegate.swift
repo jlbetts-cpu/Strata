@@ -25,6 +25,68 @@ final class CrewRouter {
     /// The Crews list should open on New Crew: the first-win invitation was
     /// answered with no crew to invite into. Cleared by the list.
     var startsCrew = false
+    /// The Crews list should open, with no crew in it: an invitation that is
+    /// waiting for the rules and the age, or one this phone cannot join (too
+    /// young, or below iOS 26), whose list says why. Cleared by the list.
+    var opensList = false
+    /// **An invitation held while the rules and the age are asked**
+    /// (2026-10-08). Joined the moment `CrewGate` opens; let go on Not Now,
+    /// under 13, or below iOS 26. Never joined first and checked after.
+    private(set) var pendingInvite: CrewInvite?
+
+    /// What the Wins tab watches to come to the front: a crew, or the list.
+    var wantsWinsTab: Bool { open != nil || opensList }
+
+    /// An invitation, from a link or the system's share sheet. Joined now if
+    /// the gate is open; otherwise the list opens and asks what it needs.
+    func join(_ invite: CrewInvite) {
+        switch CrewGate.current {
+        case .open:
+            pendingInvite = nil
+            Task { await accept(invite) }
+        case .needsRules, .needsAge:
+            pendingInvite = invite
+            opensList = true
+        case .tooYoung:
+            pendingInvite = nil
+            opensList = true
+        case .needsNewerOS:
+            pendingInvite = nil
+            joinProblem = CrewGate.newerOSWords
+        }
+    }
+
+    /// Called whenever the rules are agreed or an age comes back: the held
+    /// invitation is joined once nothing stands in the way, and let go if
+    /// something always will.
+    func joinPendingIfReady() {
+        guard let invite = pendingInvite else { return }
+        let gate = CrewGate.current
+        if gate == .open {
+            pendingInvite = nil
+            Task { await accept(invite) }
+        } else if gate.isFinal {
+            pendingInvite = nil
+        }
+    }
+
+    /// Not Now on the rules: the invitation is not joined.
+    func dropPendingInvite() { pendingInvite = nil }
+
+    private static let log = Logger(subsystem: "Strata", category: "crews.invite")
+
+    private func accept(_ invite: CrewInvite) async {
+        do {
+            let crew = try await SocialStore.shared.accept(invite)
+            open = crew.id
+        } catch let error as CrewError {
+            Self.log.error("joining failed: \(String(describing: error), privacy: .public)")
+            joinProblem = StrataSceneDelegate.words(for: error)
+        } catch {
+            Self.log.error("joining failed: \(error)")
+            joinProblem = "That crew could not be opened. Try the link again in a moment."
+        }
+    }
 }
 
 /// The UIKit hooks a SwiftUI app has no modifier for: an accepted CloudKit
@@ -39,7 +101,8 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         UNUserNotificationCenter.current().delegate = self
         // The reminder's Quick, Regular and Deep (`DailyReminder`).
         UNUserNotificationCenter.current().setNotificationCategories([DailyReminder.notificationCategory])
-        guard CrewsFlag.isOn else { return true }
+        // Below iOS 26 crews do not open, so nothing of them registers.
+        guard CrewsFlag.isUsable else { return true }
         // The silent push that says a crew changed. Without the Push
         // capability this simply fails, and crews refresh on foreground.
         application.registerForRemoteNotifications()
@@ -103,15 +166,13 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     /// read. A crew changed; fetch.
     nonisolated func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        guard CrewsFlag.isOn else { return .noData }
+        guard CrewsFlag.isUsable else { return .noData }
         await SocialStore.shared.refresh()
         return .newData
     }
 }
 
 final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
-    private static let log = Logger(subsystem: "Strata", category: "crews.invite")
-
     /// Opened from an invitation while the app was not running.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         if let metadata = options.cloudKitShareMetadata { join(metadata) }
@@ -122,21 +183,13 @@ final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
         join(metadata)
     }
 
+    /// Through `CrewRouter.join`, which holds the invitation until the
+    /// rules and the age are settled (2026-10-08): accepting the share is
+    /// what makes you a participant, so it waits too.
     private func join(_ metadata: CKShare.Metadata) {
         guard CrewsFlag.isOn, let url = metadata.share.url else { return }
         let invite = CrewInvite(url: url, metadata: metadata)
-        Task { @MainActor in
-            do {
-                let crew = try await SocialStore.shared.accept(invite)
-                CrewRouter.shared.open = crew.id
-            } catch let error as CrewError {
-                Self.log.error("joining failed: \(String(describing: error), privacy: .public)")
-                CrewRouter.shared.joinProblem = Self.words(for: error)
-            } catch {
-                Self.log.error("joining failed: \(error)")
-                CrewRouter.shared.joinProblem = "That crew could not be opened. Try the link again in a moment."
-            }
-        }
+        Task { @MainActor in CrewRouter.shared.join(invite) }
     }
 
     static func words(for error: CrewError) -> String {
@@ -147,6 +200,7 @@ final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
         case .flagOff, .notOwner, .unknownCrew: "That crew could not be opened. Try the link again in a moment."
         case .photoNotAllowed: "That photo stays with you."
         case .photoNeeded: "Choose a photo for the crew first."
+        case .notReady: "Crews open once the crew rules and your age are set."
         }
     }
 }

@@ -81,8 +81,10 @@ struct FirstWinInvitePrompt: ViewModifier {
         guard showing == nil else { return }
         let winsEver = moment == .firstWin
             ? ((try? modelContext.fetchCount(FetchDescriptor<HabitLog>())) ?? 0) : 0
+        // **Never below iOS 26** (2026-10-08): it would invite people into
+        // crews this phone cannot open.
         guard FirstWinInvite.shouldShow(moment, winsEver: winsEver,
-                                        crewsOn: CrewsFlag.isOn, age: CrewAge.current) else { return }
+                                        crewsOn: CrewsFlag.isUsable, age: CrewAge.current) else { return }
         Task {
             // After the block has landed, not over its fall.
             try? await Task.sleep(for: .milliseconds(1400))

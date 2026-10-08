@@ -27,7 +27,11 @@ struct CrewsListView: View {
 
     var body: some View {
         Group {
-            if !age.opensCrews {
+            // **Below iOS 26, one sentence and nothing else** (2026-10-08):
+            // crews need the Declared Age Range, which only iOS 26 has.
+            if !CrewsFlag.osSupportsCrews {
+                needsNewerOS
+            } else if !age.opensCrews {
                 tooYoung
             } else if store.crews.isEmpty {
                 empty
@@ -77,7 +81,7 @@ struct CrewsListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            if age.opensCrews { ToolbarItem(placement: .topBarTrailing) {
+            if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
                 Button { startsCrew = true } label: {
                     Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
                 }
@@ -86,6 +90,9 @@ struct CrewsListView: View {
             } }
         }
         .task { await store.refresh() }
+        // An invitation held for the rules and the age: joined here if both
+        // were already settled by the time the list came up.
+        .task { CrewRouter.shared.joinPendingIfReady() }
         // Opened from the first-win invitation with no crew to invite into:
         // straight to New Crew, whose Invite People carries the tower's
         // picture (`CrewSharing.nextCard`). After the rules and the age,
@@ -211,6 +218,20 @@ struct CrewsListView: View {
         if calendar.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .shortened) }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
         return date.formatted(.dateTime.weekday(.wide))
+    }
+
+    private var needsNewerOS: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            Spacer()
+            Text(CrewGate.newerOSWords)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .multilineTextAlignment(.center)
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, GridConstants.gapSection)
+        .frame(maxWidth: .infinity)
     }
 
     private var tooYoung: some View {
@@ -429,9 +450,18 @@ struct CrewDestinations: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted }, set: { _ in })) {
-                CrewRulesSheet(onAgree: { rulesAccepted = true },
-                               onNotNow: { path = [] })
+            // Not below iOS 26 or for a known child: the rules are for
+            // something they can join (2026-10-08).
+            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted && !CrewGate.current.isFinal },
+                                        set: { _ in })) {
+                CrewRulesSheet(onAgree: {
+                    rulesAccepted = true
+                    router.joinPendingIfReady()
+                }, onNotNow: {
+                    // Not Now is a no to the invitation too: it is not joined.
+                    router.dropPendingInvite()
+                    path = []
+                })
             }
             .navigationDestination(for: CrewRoute.self) { route in
                 switch route {
@@ -445,13 +475,18 @@ struct CrewDestinations: ViewModifier {
             }
             .onChange(of: router.open) { _, crew in
                 guard let crew else { return }
-                path = [.list, .crew(crew)]
-                router.open = nil
+                route(to: crew)
+            }
+            .onChange(of: router.opensList) { _, opens in
+                guard opens else { return }
+                router.opensList = false
+                path = [.list]
             }
             .onAppear {
-                if let crew = router.open {
-                    path = [.list, .crew(crew)]
-                    router.open = nil
+                if let crew = router.open { route(to: crew) }
+                if router.opensList {
+                    router.opensList = false
+                    path = [.list]
                 }
                 #if DEBUG
                 if DebugHarness.opensCrewList, path.isEmpty { path = [.list] }
@@ -471,12 +506,29 @@ struct CrewDestinations: ViewModifier {
                 Text(router.joinProblem ?? "")
             }
     }
+
+    /// **A crew asked for from outside, through the gate** (2026-10-08). A
+    /// tapped notification on a phone below iOS 26, or a known child's,
+    /// opens the list, which says why; it never pushes the crew itself.
+    private func route(to crew: CrewID) {
+        router.open = nil
+        if CrewGate.current.isFinal {
+            router.openWin = nil
+            router.openChat = false
+            path = [.list]
+        } else {
+            path = [.list, .crew(crew)]
+        }
+    }
 }
 
 /// Asks Apple's Declared Age Range once, the first time Crews opens, and
 /// keeps the answer (spec 9.1). Declining, or a phone that cannot answer, is
-/// kept as `declined`: crews work, your photographs stay on the phone, and
-/// friends' ones show.
+/// kept as `declined`, which is treated exactly as 13 to 15 (`CrewAge.rule`).
+///
+/// **Nothing below iOS 26** (2026-10-08). It used to store `declined` there
+/// without asking and open crews; crews need iOS 26 now, and the list says so
+/// instead (`CrewGate.needsNewerOS`).
 private struct AskAgeOnce: ViewModifier {
     @Binding var age: CrewAge
 
@@ -484,7 +536,7 @@ private struct AskAgeOnce: ViewModifier {
         if #available(iOS 26.0, *) {
             content.modifier(Ask(age: $age))
         } else {
-            content.onAppear { if age == .unknown { age = .declined; CrewAge.save(.declined) } }
+            content
         }
     }
 
@@ -512,6 +564,9 @@ private struct AskAgeOnce: ViewModifier {
                 }
                 CrewAge.save(answer)
                 age = answer
+                // An invitation waiting on this answer joins now, or is let
+                // go for an under-13.
+                CrewRouter.shared.joinPendingIfReady()
             }
         }
     }

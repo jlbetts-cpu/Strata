@@ -846,11 +846,13 @@ struct MainAppView: View {
         }
         // A crew asked for from outside (a notification, an invitation) is on
         // the Wins tab: go there, wherever the app was.
-        .onChange(of: CrewRouter.shared.open) { _, crew in if crew != nil { selectedTab = .tower } }
+        // An invitation waiting on the rules and the age opens the list
+        // there too (`CrewRouter.opensList`, 2026-10-08).
+        .onChange(of: CrewRouter.shared.wantsWinsTab) { _, wants in if wants { selectedTab = .tower } }
         // A cold launch from a crew's notification: the crew was asked for
         // before this view existed, so there was no change to hear and the
         // app opened on the camera (found 2026-10-06).
-        .onAppear { if CrewRouter.shared.open != nil { selectedTab = .tower } }
+        .onAppear { if CrewRouter.shared.wantsWinsTab { selectedTab = .tower } }
         // The app's own notifications, tapped: the tab their subject is on.
         .modifier(NotificationLanding(selectedTab: $selectedTab))
         // The window's appearance, changed without an animation.

@@ -24,6 +24,20 @@ nonisolated enum CrewsFlag {
         #endif
     }()
 
+    /// **Crews need iOS 26** (the owner, 2026-10-08). The Declared Age Range
+    /// API the age rule rests on exists only there, and below it the age was
+    /// quietly stored as "declined" and crews opened anyway. The deployment
+    /// target stays iOS 18 for everything else in the app.
+    static var osSupportsCrews: Bool {
+        if #available(iOS 26.0, *) { return true }
+        return false
+    }
+
+    /// On, and on a phone that can run them: what may touch the network
+    /// (`SocialStore.isEnabled` reads this). The Crews button still reads
+    /// `isOn`, so a phone below iOS 26 is told why rather than shown nothing.
+    static var isUsable: Bool { isOn && osSupportsCrews }
+
     static func isOn(in defaults: UserDefaults, arguments: [String]) -> Bool {
         if let i = arguments.firstIndex(of: "-strataCrews"), i + 1 < arguments.count {
             return arguments[i + 1] == "1"
