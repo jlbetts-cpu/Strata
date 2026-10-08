@@ -204,6 +204,10 @@ struct CrestCaption: View {
                 .foregroundStyle(AppColors.inkPrimary)
                 .lineLimit(1)
                 .contentTransition(.numericText())
+                // Grown no further than XXXL (2026-10-08): at the largest
+                // accessibility size the fraction was twice the width of the
+                // ring it captions and ran into the tower's first row.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             if chevron {
                 Image(systemName: "chevron.right")
                     .font(Typography.headerSmall)

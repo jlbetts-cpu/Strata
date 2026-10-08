@@ -172,6 +172,14 @@ struct BlockContentOverlay: View {
                     // everywhere, and the ones that run long say so.
                     .lineLimit(rowSpan > 1 ? 2 : 1)
                     .truncationMode(.tail)
+                    // **Capped at XXL, as the replay's frames are** (2026-10-08,
+                    // looked at the largest accessibility size). The footnote
+                    // style grows to about 44pt there, inside a block with
+                    // 66pt of room, and every quick block's title came out as
+                    // one letter and an ellipsis: "S...", "D...". A block is a
+                    // picture of a fixed size; its label stops at 17pt, and
+                    // VoiceOver reads the whole title whatever is drawn.
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                     // **On every block, not only on a photograph.**
                     //
                     // Over a picture it is what makes the veil a veil rather
