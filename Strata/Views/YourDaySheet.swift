@@ -33,6 +33,7 @@ struct YourDaySheet: View {
     private var three: [YourThree.Item] { YourThree.decode(threeRaw) }
     /// Today's goal: the one you set (Hard day, which lowered it, is gone).
     private var todaysGoal: Int { goal }
+    private var history: GoalHistory { GoalHistory.make(counts: counts) }
 
     var body: some View {
         NavigationStack {
@@ -61,11 +62,21 @@ struct YourDaySheet: View {
                         .disabled(goal >= DailyGoal.range.upperBound)
                     }
                     .accessibilityElement(children: .contain)
+                    // **Your last two weeks beside the number** (`GoalHistory`,
+                    // 2026-10-08): only once there are a few days to read.
+                    if history.isReadable {
+                        GoalHistoryChart(history: history, goal: goal)
+                            .padding(.vertical, GridConstants.gapTight)
+                    }
                 } header: {
                     FormSectionLabel("Daily Goal")
                 } footer: {
-                    Text("Reach it and your tower dances and prints the day's strip.")
+                    Text(history.isReadable
+                         ? "\(history.sentence(goal: goal)) Reach it and your tower dances and prints the day's strip."
+                         : "Reach it and your tower dances and prints the day's strip.")
                         .formFooter()
+                        .contentTransition(.numericText())
+                        .animation(GridConstants.crossFade, value: goal)
                 }
                 .listRowSeparator(.hidden)
                 yourThree
