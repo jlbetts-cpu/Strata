@@ -11,6 +11,16 @@ struct TipJarSection: View {
     @State private var thanked = false
 
     var body: some View {
+        // **Only with something to offer.** Before prices load (no agreement
+        // signed yet, or offline) a heading and a sentence with nothing to
+        // press is a sign on an empty shelf. `TipJar.start` loads them at
+        // launch, so by the time Settings is open they are usually here.
+        if !jar.products.isEmpty || thanked || jar.hasTipped {
+            section
+        }
+    }
+
+    private var section: some View {
         Section {
             ForEach(jar.products, id: \.id) { product in
                 Button {
