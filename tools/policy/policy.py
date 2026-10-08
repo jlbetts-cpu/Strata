@@ -52,7 +52,8 @@ SECTIONS = [
         "the language and region setting, a random number for the session and a "
         "random number made for this install in place of anything about you. It "
         "never includes what you write, what you photograph, who you are or "
-        "where you are. The counts go to TelemetryDeck, in Germany, and are not "
+        "where you are. The counts go to TelemetryDeck, a German company that "
+        "keeps them in the EU, and are not "
         "linked to you or used to track you.",
         "Turn them off in Settings, Share Anonymous Usage. Turning them off also "
         "deletes the random number, so turning them back on starts as a stranger.",

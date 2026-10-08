@@ -17,7 +17,7 @@ nonisolated enum PrivacyPolicyText {
         ]),
         ("Anonymous usage", [
             "Some Wins counts which parts of the app are used, so the parts that do not work can be fixed: things like a win being logged and its size, a strip being printed, which tab is opened, how far someone gets through the first screens, a crew being started, a tip and its size, and the kind of crash or freeze if the app has one.",
-            "Each count carries the app version, the iPhone model, the iOS version, the language and region setting, a random number for the session and a random number made for this install in place of anything about you. It never includes what you write, what you photograph, who you are or where you are. The counts go to TelemetryDeck, in Germany, and are not linked to you or used to track you.",
+            "Each count carries the app version, the iPhone model, the iOS version, the language and region setting, a random number for the session and a random number made for this install in place of anything about you. It never includes what you write, what you photograph, who you are or where you are. The counts go to TelemetryDeck, a German company that keeps them in the EU, and are not linked to you or used to track you.",
             "Turn them off in Settings, Share Anonymous Usage. Turning them off also deletes the random number, so turning them back on starts as a stranger.",
         ]),
         ("Photos", [
