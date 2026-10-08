@@ -39,8 +39,9 @@ enum CrewSafety {
     }
 
     /// A report goes to Some Wins, never to the crew: a `Report` record in the
-    /// app's PUBLIC database, readable only by its writer and the Moderator
-    /// role (the developer). It names the crew, what is reported, the reason,
+    /// app's PUBLIC database, readable only by the Moderator role (the
+    /// developer). Its writer may create it and nothing more (the schema,
+    /// 2026-10-08), so this never reads one back. It names the crew, what is reported, the reason,
     /// the iCloud ACCOUNT behind it (as CloudKit recorded it, not as the app
     /// says), and carries the photograph if there is one, so it can be judged
     /// and the account banned. Which kind of thing it is rides in the title

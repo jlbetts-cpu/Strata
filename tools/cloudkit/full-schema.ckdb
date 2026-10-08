@@ -2,6 +2,9 @@ DEFINE SCHEMA
 
     CREATE ROLE Moderator;
 
+    // A Ban is read by every phone. Its `reason` is never written since
+    // 2026-10-08 (a field cannot be removed from a production schema); why
+    // someone was banned lives in BanNote, which only the Moderator reads.
     RECORD TYPE Ban (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,
@@ -13,6 +16,20 @@ DEFINE SCHEMA
         reason          STRING,
         GRANT CREATE, WRITE TO Moderator,
         GRANT READ TO "_world"
+    );
+
+    // Why an account was banned (2026-10-08). Moderator only, never "_world":
+    // the reason used to sit on the Ban record itself, which every phone reads.
+    RECORD TYPE BanNote (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        account         STRING,
+        reason          STRING,
+        GRANT CREATE, READ, WRITE TO Moderator
     );
 
     RECORD TYPE Crew (
@@ -95,6 +112,9 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    // Create only, for anyone signed in; read only by the Moderator role
+    // (2026-10-08). The writer could read and rewrite their own report,
+    // which a report never needs once filed.
     RECORD TYPE Report (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,
@@ -111,7 +131,6 @@ DEFINE SCHEMA
         title           STRING,
         winID           STRING,
         GRANT READ TO Moderator,
-        GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud"
     );
 

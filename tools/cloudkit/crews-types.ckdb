@@ -109,9 +109,9 @@
         GRANT READ TO "_world"
     );
 
-    // Reports go to the PUBLIC database. Anyone signed in may file one; only
-    // its writer may read it back, and the developer reads them in the
-    // CloudKit Console. Never readable by "_world".
+    // Reports go to the PUBLIC database. Anyone signed in may file one, and
+    // only the Moderator role (the developer) may read them: not "_world",
+    // and since 2026-10-08 not their writer either.
     RECORD TYPE Report (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,
@@ -125,7 +125,7 @@
         sender   STRING,
         title    STRING,
         winID    STRING,
-        GRANT READ, WRITE TO "_creator",
+        GRANT READ TO Moderator,
         GRANT CREATE TO "_icloud"
     );
 
