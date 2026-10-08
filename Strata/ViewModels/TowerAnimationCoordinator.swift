@@ -50,6 +50,13 @@ final class TowerAnimationCoordinator {
     private(set) var activelyAnimatingIDs: Set<UUID> = []
     var isCascading = false
     var isJubilating = false
+    /// Counts the day's confetti bursts. **Asked for HERE, not set on the
+    /// view** (2026-10-08): the goal is noticed inside `onAllDropsComplete`,
+    /// a closure stored once at launch that holds a copy of `MainAppView`, and
+    /// a `@State` written through that copy never reached the screen. The
+    /// burst logged as fired and nothing drew, which is also why the old
+    /// perfect-day confetti was "never working". The view watches this.
+    var confettiBursts = 0
     var landedMassTier: Int = 1
 
     private var pendingDropAnimations: [Set<UUID>] = []
@@ -270,12 +277,20 @@ final class TowerAnimationCoordinator {
     ///
     /// Rows tilt in alternating directions so the tower sways through the wave
     /// rather than leaning as one slab.
-    func triggerJubilation(placedBlocks: [PlacedBlock]) {
-        guard !isJubilating, !reduceMotion, !placedBlocks.isEmpty else { return }
+    /// Whether the tower is still: nothing falling, settling or dancing.
+    var isStill: Bool { !isCascading && activelyAnimatingIDs.isEmpty && !isJubilating }
+
+    /// Starts the dance, and says whether it did. **The answer matters**
+    /// (2026-10-08, the owner: "i hit the goal and the tower didnt dance"):
+    /// the goal marked its day as danced BEFORE calling this, so a refusal
+    /// here cost the whole day's dance with nothing on screen.
+    @discardableResult
+    func triggerJubilation(placedBlocks: [PlacedBlock]) -> Bool {
+        guard !isJubilating, !reduceMotion, !placedBlocks.isEmpty else { return false }
         // Never on top of a drop. The dance and the drop write the same block
         // state, and a block that is still falling has not got a resting place
         // to dance around yet.
-        guard !isCascading, activelyAnimatingIDs.isEmpty else { return }
+        guard !isCascading, activelyAnimatingIDs.isEmpty else { return false }
         isJubilating = true
 
         let maxRow = placedBlocks.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
@@ -330,6 +345,7 @@ final class TowerAnimationCoordinator {
             resetJubilationState(placedBlocks: placedBlocks)
             isJubilating = false
         }
+        return true
     }
 
     /// #404: Reset all jubilation state safely on cancellation

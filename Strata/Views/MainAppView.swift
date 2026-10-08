@@ -941,10 +941,17 @@ struct MainAppView: View {
             Analytics.shared.signal(.screen, [.screen(newTab == .tower ? .wins : newTab == .camera ? .camera : .memories)])
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
+            } else if newTab == .tower {
+                // A goal crossed on another tab with nothing left to drop
+                // (the win landed while the tower was hidden) dances now.
+                Task { await celebrateGoalIfDue() }
             }
             if newTab != .tower {
                 timelineSelectedDate = Date()
             }
+        }
+        .onChange(of: animCoord.confettiBursts) {
+            showTowerConfetti = true
         }
         .onChange(of: pendingDrops.count) { _, newCount in
             if newCount > 0 && selectedTab == .tower {
@@ -2001,6 +2008,49 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
+    /// **The goal's moment, in order: the dance, then the confetti, then the
+    /// booth** (2026-10-08, the owner: "i hit the goal and the tower didnt
+    /// dance or the block confetti come out"). Two faults made that:
+    ///
+    /// - The day was marked as danced BEFORE the dance was asked for, and the
+    ///   dance refuses while anything is still settling. A refusal spent the
+    ///   day's dance with nothing on screen. Now it waits for the tower to be
+    ///   still and marks the day only once the dance has started.
+    /// - Confetti was wired only to the old "perfect day" of scheduled habits,
+    ///   which one-off wins never make, so a goal never threw any.
+    ///
+    /// And the booth, which used to open 1.8s after the crossing whatever was
+    /// happening, now waits for both to finish (`openBoothWhenFree`).
+    private func celebrateGoalIfDue() async {
+        let today = DateUtils.dateString(from: Date())
+        guard goalDanceSeeded, selectedTab == .tower, goalDanceDay != today,
+              towerVM.placedBlocks.count >= todaysGoal else { return }
+        if reduceMotion {
+            // No dance and no burst under Reduce Motion: the haptic is the
+            // moment, and the booth may come up.
+            goalDanceDay = today
+            HapticsEngine.reward()
+            return
+        }
+        // Up to four seconds for the landing to settle.
+        var waited = 0
+        while !animCoord.isStill, waited < 40 {
+            try? await Task.sleep(for: .milliseconds(100))
+            waited += 1
+        }
+        try? await Task.sleep(for: .milliseconds(180))
+        let started = goalDanceDay != today && selectedTab == .tower
+            && animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
+        guard started else { return }
+        goalDanceDay = today
+        HapticsEngine.reward()
+        while animCoord.isJubilating {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        try? await Task.sleep(for: .milliseconds(200))
+        animCoord.confettiBursts += 1
+    }
+
     /// **The booth opens when the screen is free** (found 2026-10-07). It
     /// was set 1.8s after the goal was crossed whatever was on screen; a
     /// crossing during the launch (the day's wins arriving, from a sync or
@@ -2013,7 +2063,13 @@ struct MainAppView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.8))
             for _ in 0..<60 {
-                if booth == nil, LaunchMoment.shared.finished, scenePhase == .active, !Self.somethingIsPresented {
+                // After the goal's dance and confetti, never over them; on
+                // another tab the dance waits for the tower, so the booth
+                // does not wait for it.
+                let today = DateUtils.dateString(from: Date())
+                let celebrated = goalDanceDay == today || selectedTab != .tower || reduceMotion
+                if booth == nil, LaunchMoment.shared.finished, scenePhase == .active, !Self.somethingIsPresented,
+                   celebrated, !animCoord.isJubilating, !showTowerConfetti {
                     booth = BoothOpening(prints: prints)
                     return
                 }
@@ -2520,14 +2576,7 @@ struct MainAppView: View {
                 // (`GoalRing`), so the day's peak is the one they set. Once a
                 // day, when the goal is crossed, never on a rebuild or a tab
                 // switch. A crew's tower keeps its tenth (`CrewTowerModel`).
-                let wins = towerVM.placedBlocks.count
-                let today = DateUtils.dateString(from: Date())
-                if wins >= todaysGoal, goalDanceDay != today {
-                    goalDanceDay = today
-                    try? await Task.sleep(for: .milliseconds(180))
-                    HapticsEngine.reward()
-                    animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
-                }
+                await celebrateGoalIfDue()
 
                 // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
                 let todayStr = TimelineViewModel.dateString(from: Date())
@@ -2542,7 +2591,7 @@ struct MainAppView: View {
                             try? await Task.sleep(for: .milliseconds(100))
                         }
                         try? await Task.sleep(for: .milliseconds(200))
-                        showTowerConfetti = true
+                        animCoord.confettiBursts += 1
                     }
                 }
             }
@@ -3182,15 +3231,21 @@ struct MainAppView: View {
                                  ripple: latticeRipple)
                         .frame(width: gridW)
                 }
-                .overlay {
+                // **From the crown, not inside the grid** (2026-10-08). Hung
+                // on the grid's top edge and never clipped, so the blocks fly
+                // up out of the tower and fall back past it over the page.
+                .overlay(alignment: .top) {
                     if showTowerConfetti {
+                        // **Today's own colours** (2026-10-08). It read the
+                        // scheduled habits completed today, a list one-off
+                        // wins never fill, so a goal's burst could have no
+                        // specks in it at all. One colour per kind of win on
+                        // the tower as it is drawn (`displayCategory`; the
+                        // stored category of an untitled win is grey).
+                        let kinds = Array(Set(towerVM.placedBlocks.map(\.look.displayCategory)))
                         AllClearCelebration(
                             isActive: $showTowerConfetti,
-                            completedCategories: Array(Set(
-                                cachedAllHabitsForSelectedDate
-                                    .filter { cachedCompletedHabitIDsForSelectedDate.contains($0.id) }
-                                    .map(\.category)
-                            ))
+                            completedCategories: kinds.isEmpty ? HabitCategory.selectable : kinds
                         )
                             .allowsHitTesting(false)
                     }

@@ -23,6 +23,20 @@ import SwiftUI
 ///    ran `0..<4`, so every particle was a rectangle and the "40% / 30% / 30%"
 ///    in the comment described code that was unreachable.
 ///
+/// **Blocks, not specks, and out of the tower** (2026-10-08, the owner: "i hit
+/// the goal and the tower didnt dance or the block confetti come out"). The
+/// burst was twelve 4 to 8pt specks drawn inside the grid's own frame, which
+/// on a phone is nothing anyone sees. It is now small blocks, the block's own
+/// shape and corner, in the day's colours, thrown up from the crown of the
+/// tower and falling past it.
+///
+/// **Views on keyframes, not a Canvas on a TimelineView.** Measured on the
+/// simulator the same day: the Canvas version appeared (its `onAppear` ran,
+/// 42 particles seeded) and drew nothing, run after run, until an unrelated
+/// overlay was put on it. Each block is now a shape with its own keyframed
+/// path, which SwiftUI animates on the render server whatever else is on
+/// screen. The rest of this note is the history of the Canvas's bugs.
+///
 /// **One shape now, deliberately**, which is rule 1 in
 /// `docs/design-system-future.md` section 10: one size rather than three near
 /// sizes. At 4 to 8pt a rectangle, a circle and a strip are the same speck, so
@@ -41,91 +55,113 @@ import SwiftUI
 struct AllClearCelebration: View {
     @Binding var isActive: Bool
     var completedCategories: [HabitCategory] = HabitCategory.selectable
+    /// What VoiceOver hears, since nothing here can be read.
+    var announcement = "Today's goal, reached."
 
-    /// Seeded once, on appear. Its being computed is what made the confetti
-    /// noise: see bug 1 above.
+    /// Seeded once, on appear.
     @State private var particles: [Particle] = []
-    @State private var startTime: Date?
 
-    private struct Particle {
+    fileprivate struct Particle: Identifiable {
+        let id: Int
         let color: Color
-        /// Radians. Where it leaves the centre.
-        let angle: Double
-        /// Points per second.
-        let velocity: Double
-        let size: CGFloat
-        /// Tumble, radians per second.
-        let spin: Double
+        /// Where it lands sideways by the end, in points.
+        let drift: CGFloat
+        /// How high it rises above the crown, in points.
+        let rise: CGFloat
+        /// The short side, in points.
+        let side: CGFloat
+        /// 1 for a quick block's square, 2 for a regular's bar.
+        let span: CGFloat
+        /// Turns over the whole flight, in radians.
+        let turn: Double
     }
 
-    /// Four specks per colour, so the burst is the size of the day: one kind of
-    /// win throws less than six kinds did.
-    private static let perColor = 4
+    /// About forty blocks whatever the day: a one-colour day throws as many as
+    /// a six-colour one, split between its colours.
+    private static let total = 42
 
     private func seed() -> [Particle] {
-        completedCategories.map(\.style.baseColor).flatMap { color in
-            (0..<Self.perColor).map { _ in
-                Particle(color: color,
-                         angle: .random(in: 0...(2 * .pi)),
-                         velocity: .random(in: 60...150),
-                         size: .random(in: 4...8),
-                         spin: .random(in: -6...6))
-            }
+        let colours = completedCategories.map(\.style.baseColor)
+        guard !colours.isEmpty else { return [] }
+        return (0..<Self.total).map { i in
+            Particle(id: i,
+                     color: colours[i % colours.count],
+                     drift: .random(in: -190...190),
+                     rise: .random(in: 140...360),
+                     side: .random(in: 7...11),
+                     span: Bool.random() ? 1 : 2,
+                     turn: .random(in: -9...9))
         }
     }
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let elapsed = startTime.map { timeline.date.timeIntervalSince($0) } ?? 0
-
-            Canvas { context, size in
-                let progress = min(elapsed / GridConstants.confettiDuration, 1.0)
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                // Constant acceleration, for the reason a block's fall is one
-                // (CLAUDE.md, *The drop, and the dance*): things fall because
-                // they fall. Sideways speed decays because a speck that light
-                // is mostly air resistance.
-                let gravity: Double = 60
-                let sidewaysDecay = pow(0.95, elapsed * 10)
-                let opacity = max(0, 1.0 - progress)
-
-                for particle in particles {
-                    let distance = particle.velocity * elapsed
-                    let x = center.x + cos(particle.angle) * distance * sidewaysDecay
-                    let y = center.y + sin(particle.angle) * distance
-                        + 0.5 * gravity * elapsed * elapsed
-
-                    // Its own layer, so the tumble turns the speck and not the
-                    // canvas. See bug 2 above.
-                    context.drawLayer { speck in
-                        speck.opacity = opacity
-                        speck.translateBy(x: x, y: y)
-                        speck.rotate(by: .radians(particle.spin * elapsed))
-                        let rect = CGRect(x: -particle.size / 2,
-                                          y: -particle.size * 0.3,
-                                          width: particle.size,
-                                          height: particle.size * 0.6)
-                        speck.fill(RoundedRectangle(cornerRadius: 1).path(in: rect),
-                                   with: .color(particle.color))
-                    }
-                }
+        ZStack {
+            ForEach(particles) { particle in
+                ConfettiBlock(particle: particle)
             }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
         }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
         .onAppear {
             particles = seed()
-            startTime = Date()
-            // There is nothing here for VoiceOver to read, so the moment is
-            // said rather than drawn.
             if UIAccessibility.isVoiceOverRunning {
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "Every win logged today.")
+                UIAccessibility.post(notification: .announcement, argument: announcement)
             }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(Int(GridConstants.confettiDuration * 1000)))
                 isActive = false
             }
         }
+    }
+}
+
+/// One block of the burst: up out of the crown, over, and down past it.
+private struct ConfettiBlock: View {
+    let particle: AllClearCelebration.Particle
+    /// Flips once the block is on screen: a keyframe animation runs when its
+    /// trigger CHANGES, so a block born already launched would never move.
+    @State private var launched = false
+
+    private struct Pose {
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var angle: Double = 0
+        var opacity: Double = 1
+    }
+
+    var body: some View {
+        let w = particle.side * particle.span, h = particle.side
+        let total = GridConstants.confettiDuration
+        // A thrown thing spends about a third of its flight going up.
+        let up = total * 0.32
+        RoundedRectangle(cornerRadius: h * 0.147, style: .continuous)
+            .fill(particle.color)
+            .frame(width: w, height: h)
+            .keyframeAnimator(initialValue: Pose(), trigger: launched) { content, pose in
+                content
+                    .rotationEffect(.radians(pose.angle))
+                    .offset(x: pose.x, y: pose.y)
+                    .opacity(pose.opacity)
+            } keyframes: { _ in
+                KeyframeTrack(\.x) {
+                    CubicKeyframe(particle.drift * 0.55, duration: up)
+                    CubicKeyframe(particle.drift, duration: total - up)
+                }
+                // Decelerating to the top and accelerating down, which is
+                // what gravity does; the fall ends well below the crown.
+                KeyframeTrack(\.y) {
+                    SpringKeyframe(-particle.rise, duration: up, spring: .smooth(duration: up * 1.6))
+                    CubicKeyframe(particle.rise * 1.1, duration: total - up)
+                }
+                KeyframeTrack(\.angle) {
+                    LinearKeyframe(particle.turn, duration: total)
+                }
+                KeyframeTrack(\.opacity) {
+                    LinearKeyframe(1, duration: total * 0.65)
+                    LinearKeyframe(0, duration: total * 0.35)
+                }
+            }
+            .opacity(launched ? 1 : 0)
+            .onAppear { launched = true }
     }
 }
