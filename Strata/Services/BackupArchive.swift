@@ -37,6 +37,11 @@ nonisolated enum BackupArchive {
     /// it. A folder of their own, never `photos/`: the restore reports a file
     /// in `photos/` that no win names as a photograph it cannot attach.
     static let sketchesFolderName = "sketches"
+    /// Your stickers (2026-10-08): the PNGs from `StickerStore`'s folder. A
+    /// day marked with one, and every drawing that wears one, needs its file.
+    static let stickersFolderName = "stickers"
+    /// Your strips' doodles and stickers (`StripDecor`'s `strip-me-*` files).
+    static let stripsFolderName = "strips"
 
     // MARK: - The JSON
 
@@ -55,8 +60,23 @@ nonisolated enum BackupArchive {
         /// version 1, so no bump: a backup made before the journal decodes with
         /// this nil, and a reader from before the journal skips the key.
         var notes: [ExportNote]? = nil
+        /// Your strips' state, by day (2026-10-08): developed or not, which
+        /// wins were left off. Optional, so no bump.
+        var strips: [ExportStrip]? = nil
+        /// Your stickers in the picker's order, newest first.
+        var stickers: [String]? = nil
+        /// The strip paper you chose, if you chose one.
+        var stripPaper: String? = nil
 
         var version: Int { formatVersion ?? 1 }
+    }
+
+    /// One day's strip of yours: whether it was developed (Your day shows only
+    /// developed strips) and the wins taken off it.
+    struct ExportStrip: Codable, Sendable, Equatable {
+        let day: String
+        var developed: Bool
+        var excluded: [UUID]
     }
 
     /// One day's journal entry (`MoodLog`, through `DayNotes`). The words,
@@ -187,6 +207,8 @@ nonisolated enum BackupArchive {
     ///   never moved**: these are the person's only copy.
     static func writeZip(document: Document, photographs: [URL],
                          sketches: [URL] = [],
+                         stickers: [URL] = [],
+                         strips: [URL] = [],
                          named name: String,
                          in temporaryDirectory: URL = FileManager.default.temporaryDirectory) throws -> URL {
         let data: Data
@@ -217,6 +239,13 @@ nonisolated enum BackupArchive {
                 // As a photograph: one that will not copy does not fail the
                 // backup, and its note still travels with its words.
                 try? fm.copyItem(at: file, to: sketchFolder.appendingPathComponent(file.lastPathComponent))
+            }
+        }
+        for (files, folderName) in [(stickers, stickersFolderName), (strips, stripsFolderName)] where !files.isEmpty {
+            let target = folder.appendingPathComponent(folderName, isDirectory: true)
+            try? fm.createDirectory(at: target, withIntermediateDirectories: true)
+            for file in files {
+                try? fm.copyItem(at: file, to: target.appendingPathComponent(file.lastPathComponent))
             }
         }
 
@@ -319,14 +348,29 @@ nonisolated enum BackupArchive {
         let photoEntries: [String: ZipArchiveReader.Entry]
         /// The journal's sketches and their strokes, by file name.
         let sketchEntries: [String: ZipArchiveReader.Entry]
+        /// Stickers and strip decor, by file name (2026-10-08).
+        let stickerEntries: [String: ZipArchiveReader.Entry]
+        let stripEntries: [String: ZipArchiveReader.Entry]
         private let reader: ZipArchiveReader
 
         init(document: Document, photoEntries: [String: ZipArchiveReader.Entry],
-             sketchEntries: [String: ZipArchiveReader.Entry] = [:], reader: ZipArchiveReader) {
+             sketchEntries: [String: ZipArchiveReader.Entry] = [:],
+             stickerEntries: [String: ZipArchiveReader.Entry] = [:],
+             stripEntries: [String: ZipArchiveReader.Entry] = [:], reader: ZipArchiveReader) {
             self.document = document
             self.photoEntries = photoEntries
             self.sketchEntries = sketchEntries
+            self.stickerEntries = stickerEntries
+            self.stripEntries = stripEntries
             self.reader = reader
+        }
+
+        /// One sticker's or strip file's bytes, CRC-checked by the reader.
+        func keepsake(named name: String, in entries: [String: ZipArchiveReader.Entry]) throws -> Data {
+            guard let entry = entries[name] else {
+                throw ZipArchiveReader.Failure.corrupt("\(name) is not in this backup")
+            }
+            return try reader.data(for: entry)
         }
 
         var version: Int { document.version }
@@ -396,7 +440,9 @@ nonisolated enum BackupArchive {
             return found
         }
         return Contents(document: document, photoEntries: files(in: photosFolderName),
-                        sketchEntries: files(in: sketchesFolderName), reader: reader)
+                        sketchEntries: files(in: sketchesFolderName),
+                        stickerEntries: files(in: stickersFolderName),
+                        stripEntries: files(in: stripsFolderName), reader: reader)
     }
 
     /// A decoding error as a sentence naming the field, because "the data

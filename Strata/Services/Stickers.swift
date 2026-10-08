@@ -94,6 +94,16 @@ final class StickerStore {
         return image
     }
 
+    /// Stickers restored from a backup, whose files are now in the folder:
+    /// added after the ones already here, never past the limit, never twice.
+    func adopt(_ restored: [String]) {
+        for name in restored where !names.contains(name) && names.count < Self.limit
+            && FileManager.default.fileExists(atPath: directory.appending(path: name).path) {
+            names.append(name)
+        }
+        writeIndex()
+    }
+
     private func writeIndex() {
         guard let data = try? JSONEncoder().encode(names) else { return }
         try? data.write(to: directory.appending(path: "index.json"), options: .atomic)

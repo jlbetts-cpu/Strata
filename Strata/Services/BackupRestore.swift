@@ -315,8 +315,13 @@ enum BackupRestore {
     static func apply(_ plan: Plan, contents: BackupArchive.Contents,
                       context: ModelContext,
                       photographs: PhotoOutcome? = nil,
-                      ink: InkFiles = .shared) -> Report {
+                      ink: InkFiles = .shared,
+                      stickers: StickerStore = .shared,
+                      keepsakeDefaults: UserDefaults = .standard) -> Report {
         var report = Report()
+        // Stickers and strips first, and whether or not there are wins to add:
+        // a phone that already has every win can still be missing them.
+        BackupKeepsakes.restore(contents, stickers: stickers, ink: ink, defaults: keepsakeDefaults)
         guard !plan.isEmptyOfWork else { return report }
 
         let localHabits: [Habit]

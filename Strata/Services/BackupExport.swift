@@ -120,12 +120,20 @@ enum BackupExport {
                         now: Date = Date(),
                         photographs: [URL]? = nil,
                         ink: InkFiles = .shared,
+                        stickers: StickerStore = .shared,
+                        keepsakeDefaults: UserDefaults = .standard,
                         temporaryDirectory: URL = FileManager.default.temporaryDirectory) throws -> URL {
-        try BackupArchive.writeZip(
-            document: document(habits: habits, logs: logs, notes: notes,
-                               appVersion: appVersion, exportDate: now),
+        var doc = document(habits: habits, logs: logs, notes: notes, appVersion: appVersion, exportDate: now)
+        // Stickers and strips travel too (`BackupKeepsakes`, 2026-10-08).
+        doc.strips = BackupKeepsakes.strips(in: keepsakeDefaults)
+        doc.stickers = stickers.names
+        doc.stripPaper = keepsakeDefaults.string(forKey: "strip.paper.chosen")
+        return try BackupArchive.writeZip(
+            document: doc,
             photographs: photographs ?? Self.photographs(),
             sketches: JournalSketches.files(for: notes.filter(\.hasContent), in: ink),
+            stickers: BackupKeepsakes.stickerFiles(in: stickers),
+            strips: BackupKeepsakes.stripFiles(in: ink),
             named: name(on: now),
             in: temporaryDirectory)
     }
