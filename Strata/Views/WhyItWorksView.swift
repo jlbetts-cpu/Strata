@@ -23,12 +23,19 @@ struct WhyItWorksView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: GridConstants.gapWide) {
-                ForEach(Self.sections, id: \.title) { section in
-                    VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                        FormSectionLabel(section.title)
-                        Text(section.body)
-                            .font(Typography.bodyLarge)
-                            .foregroundStyle(AppColors.inkSecondary)
+                // Each reason with his drawn mark in a column beside it, the
+                // way a feature list is set (2026-10-08, `MarkLine`).
+                ForEach(Array(Self.sections.enumerated()), id: \.element.title) { index, section in
+                    MarkLine(mark: Self.marks[index % Self.marks.count]) {
+                        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                            Text(section.title)
+                                .font(Typography.headerMedium)
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Text(section.body)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
 
@@ -53,6 +60,10 @@ struct WhyItWorksView: View {
     }
 
     static let title = "Why It Works This Way"
+    /// One of his marks per section, in order: a list of what you did, right
+    /// where it happens, it shows straight away, quiet days are fine, photos
+    /// help you remember, friends without a feed.
+    static let marks = ["MarkChecklist", "MarkPin", "TipSparkle", "MarkHeart", "MarkPhoto", "MarkPeople"]
 
     static let sections: [(title: String, body: String)] = [
         ("A list of what you did",

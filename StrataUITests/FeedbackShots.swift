@@ -71,6 +71,20 @@ final class FeedbackShots: XCTestCase {
         wait(7); snap("tower-invite")
     }
 
+    func testMarks() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenCrews", "1",
+                          "-crews.rulesAccepted.v1", "NO"])
+        wait(6); snap("marks-rules"); app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenCrews", "1",
+                      "-crews.rulesAccepted.v1", "YES"])
+        wait(6); snap("marks-crews"); app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedWins", "0", "-strataSeedHabits", "0",
+                      "-strataOpenMap", "1"])
+        wait(7); snap("marks-map"); app.terminate()
+        app = launch(["-strataOpenWhy", "1", "-strataOpenSheet", "settings", "-strataStartTab", "tower", "-strataSeedWins", "3"])
+        wait(6); snap("marks-why"); app.terminate()
+    }
+
     func testPrimaryPages() {
         for step in [0, 6] {
             let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "\(step)"])

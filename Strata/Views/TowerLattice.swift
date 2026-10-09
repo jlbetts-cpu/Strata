@@ -135,7 +135,15 @@ struct TowerLattice: View {
     /// these are two measurements and not one value scaled. `TowerLatticeTests`
     /// pins the light one between 0.25 and 0.8 and now pins this one too, so
     /// neither can drift into the other's range.
-    static let strengthDark: Double = 0.04
+    ///
+    /// **Halved to 0.02, 2026-10-08** (the owner: "the lattice feels more
+    /// faint on the light version... too noticable on the dark version").
+    /// The page under it is flat 0.112 now, darker than the 40 this was
+    /// measured on, and on the shipped build it photographed at **1.112:1**
+    /// against light's **1.053:1**, twice the contrast; on a dark ground that
+    /// difference reads far larger than the ratio says. 0.02 puts a pane about
+    /// four levels over its gutter, which matches light's 1.05.
+    static let strengthDark: Double = 0.02
 
     /// The pane itself. White at `strength` on a light page, white at
     /// `strengthDark` on a dark one, so the two appearances match in RATIO

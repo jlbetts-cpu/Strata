@@ -65,6 +65,21 @@ ICONS = {
     'TipSparkle':       (2, 3, False, (17.3, 17.3), 26),
     'TipPencil':        (4, 0, False, (16.6, 16.6), 26),
     'TipPersonPlus':    (10, 1, False, (18.6, 17.0), 26),
+    # Marks beside explanations, never controls (the owner, 2026-10-08: "is
+    # there any other places where we can use these icons... dont replace the
+    # main icons... kinda how the tips are"): the Crews empty state's lines,
+    # Why It Works' sections, the map's empty state and the crew rules.
+    'MarkPeople':       (2, 1, False, (18.6, 16.0), 26),
+    'MarkChecklist':    (2, 0, False, (17.3, 15.0), 26),
+    'MarkPhoto':        (2, 5, False, (18.6, 15.0), 26),
+    'MarkPin':          (9, 2, False, (14.6, 18.0), 26),
+    'MarkMap':          (9, 1, False, (18.0, 16.6), 26),
+    'MarkLayers':       (9, 5, False, (18.0, 16.6), 26),
+    'MarkAlert':        (10, 3, False, (17.3, 17.3), 26),
+    'MarkSlash':        (10, 4, False, (17.3, 17.3), 26),
+    'MarkHeart':        (12, 0, False, (17.3, 15.6), 26),
+    'MarkLock':         (13, 2, False, (15.6, 17.3), 26),
+    'MarkCheck':        (0, 2, False, (17.3, 17.3), 26),
 }
 # Optical corrections by eye, after looking at the built rows: his eraser
 # stands on a line, which makes its box taller than the eraser itself reads;

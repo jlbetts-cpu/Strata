@@ -235,3 +235,42 @@ nonisolated enum TipCopy {
         [monthDrawing, DayOneHint.drawOut, WinCue.tapToAdd, FirstWinInvite.ask]
     }
 }
+
+/// **His drawn mark beside a line of explanation** (2026-10-08, "kinda how
+/// the tips are"): the Crews empty state, Why It Works, the map's empty state
+/// and the crew rules. Never a control; controls keep their SF Symbols. The
+/// mark is cut on the 26pt canvas and shown at its own size in the secondary
+/// ink, its centre on the first line of the words beside it.
+struct MarkLine<Words: View>: View {
+    let mark: String
+    @ViewBuilder var words: () -> Words
+
+    static var column: CGFloat { 26 }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapItem) {
+            Image(mark)
+                .renderingMode(.template)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(width: Self.column, height: Self.column)
+                // Centre on the first line: a 17pt line's x-height middle
+                // sits about 6pt over its baseline.
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
+                .accessibilityHidden(true)
+            words()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension MarkLine where Words == Text {
+    init(mark: String, _ text: String) {
+        self.mark = mark
+        self.words = {
+            Text(text)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkPrimary)
+        }
+    }
+}

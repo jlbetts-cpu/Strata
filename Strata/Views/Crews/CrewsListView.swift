@@ -251,22 +251,6 @@ struct CrewsListView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// One line of what a crew is, its glyph in the quiet ink.
-    private func explainer(_ symbol: String, _ line: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapItem) {
-            Image(systemName: symbol)
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(width: 24)
-            Text(line)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
     private var empty: some View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer()
@@ -297,11 +281,12 @@ struct CrewsListView: View {
                                  motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
                 }
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
-                    explainer("person.2", "Up to 8 friends in a crew, you included.")
-                    explainer("square.stack.3d.up", "Send a win and it lands on the crew's tower for the day.")
-                    explainer("lock", "Private. Only people you invite can see it.")
+                    MarkLine(mark: "MarkPeople", "Up to 8 friends in a crew, you included.")
+                    MarkLine(mark: "MarkLayers", "Send a win and it lands on the crew's tower for the day.")
+                    MarkLine(mark: "MarkLock", "Private. Only people you invite can see it.")
                 }
-                .padding(.horizontal, GridConstants.gapSection)
+                // On the page margin, the New Crew button's own edge.
+                .padding(.horizontal, GridConstants.horizontalPadding)
             }
             Spacer()
             if !signedOut {

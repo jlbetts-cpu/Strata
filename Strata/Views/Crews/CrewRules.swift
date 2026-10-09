@@ -29,10 +29,10 @@ struct CrewRulesSheet: View {
                 .padding(.top, GridConstants.gapSection)
 
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                rule("person.crop.circle", "Post your own wins and your own photos.")
-                rule("hand.raised", "Nothing hateful, sexual, violent or cruel. None of it is allowed, ever.")
-                rule("exclamationmark.bubble", "Report anything that breaks these. Every report is looked at within a day, and whatever or whoever broke them is removed.")
-                rule("nosign", "Block anyone, any time. They are not told.")
+                rule("MarkCheck", "Post your own wins and your own photos.")
+                rule("MarkSlash", "Nothing hateful, sexual, violent or cruel. None of it is allowed, ever.")
+                rule("MarkAlert", "Report anything that breaks these. Every report is looked at within a day, and whatever or whoever broke them is removed.")
+                rule("MarkLock", "Block anyone, any time. They are not told.")
             }
 
             Spacer(minLength: 0)
@@ -57,17 +57,14 @@ struct CrewRulesSheet: View {
         .interactiveDismissDisabled()
     }
 
-    private func rule(_ symbol: String, _ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Image(systemName: symbol)
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(width: 24)
+    /// His drawn marks beside the rules (2026-10-08), as on every
+    /// explanation now (`MarkLine`).
+    private func rule(_ mark: String, _ text: String) -> some View {
+        MarkLine(mark: mark) {
             Text(text)
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityElement(children: .combine)
     }
 }

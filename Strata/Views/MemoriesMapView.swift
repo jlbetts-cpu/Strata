@@ -729,6 +729,12 @@ struct MemoriesMapView: View {
     private var emptyState: some View {
         let denied = location.isDenied
         VStack(spacing: GridConstants.gapTight) {
+            // His drawn pin over the words (2026-10-08, `MarkLine`'s marks).
+            Image("MarkPin")
+                .renderingMode(.template)
+                .foregroundStyle(AppColors.inkSecondary)
+                .padding(.bottom, 4)
+                .accessibilityHidden(true)
             Text(denied ? "Places are off" : "Your map starts here")
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
