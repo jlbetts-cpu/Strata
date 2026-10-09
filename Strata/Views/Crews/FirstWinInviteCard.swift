@@ -121,7 +121,7 @@ struct FirstWinInviteCard: View {
     var body: some View {
         TipCard(title: String(FirstWinInvite.lead.dropLast()),
                 message: FirstWinInvite.ask,
-                mark: "DoodleSocial",
+                mark: "TipPersonPlus",
                 actionTitle: hasCrew ? "Invite" : "Start a Crew",
                 action: invite,
                 close: close)

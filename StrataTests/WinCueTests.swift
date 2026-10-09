@@ -56,4 +56,13 @@ struct WinCueTests {
         // The line wraps; it is never held to one line that runs off screen.
         #expect(tip.contains(".fixedSize(horizontal: false, vertical: true)"))
     }
+
+    /// Every tip is the same height: one title line, one message line.
+    @Test("a tip's message fits one line")
+    func messagesFitOneLine() {
+        for line in TipCopy.messages {
+            #expect(line.count <= TipCopy.longestMessage, "\(line)")
+            #expect(!line.contains("\u{2014}"))
+        }
+    }
 }

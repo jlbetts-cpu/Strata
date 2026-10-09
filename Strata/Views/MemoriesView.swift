@@ -588,8 +588,8 @@ struct MemoriesView: View {
     private var monthTipLayer: some View {
         if showsMonthTip {
             TipCard(title: "Make it yours",
-                    message: "Hold the drawing to draw your own.",
-                    mark: "DoodleCreativity",
+                    message: TipCopy.monthDrawing,
+                    mark: "TipPencil",
                     close: {
                         withAnimation(GridConstants.cueOut) { showsMonthTip = false }
                         MonthDrawingTip().invalidate(reason: .tipClosed)

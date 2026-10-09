@@ -57,7 +57,7 @@ nonisolated enum WinCue {
 nonisolated enum DayOneHint {
     /// Set as a tip: the title says what, the message says how.
     static let title = "Bigger wins, bigger blocks"
-    static let drawOut = "Hold the + and pull it out to size it up."
+    static let drawOut = "Hold the + and pull it out."
     static let shownKey = "hint.drawOut.shown"
     static let lastChance = 5
 

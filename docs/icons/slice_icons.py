@@ -57,6 +57,14 @@ ICONS = {
     'DoodleFocus':      (15, 3, True, (17.3, 11.3), 20),
     'DoodleSocial':     (15, 4, True, (17.3, 12.0), 20),
     'DoodleMindfulness': (15, 5, True, (14.0, 12.0), 20),
+    # The tips' marks (2026-10-08, the owner: "i made like 100 icons... make
+    # sure the grid is good on the tips"). All outline, one stroke, shown in
+    # the tip's round well on the tools' 26pt canvas: his plus in a circle
+    # (the slot), his sparkle star, his pencil, his person with a plus.
+    'TipPlus':          (0, 4, False, (17.3, 17.3), 26),
+    'TipSparkle':       (2, 3, False, (17.3, 17.3), 26),
+    'TipPencil':        (4, 0, False, (16.6, 16.6), 26),
+    'TipPersonPlus':    (10, 1, False, (18.6, 17.0), 26),
 }
 # Optical corrections by eye, after looking at the built rows: his eraser
 # stands on a line, which makes its box taller than the eraser itself reads;
@@ -359,5 +367,9 @@ if __name__ == '__main__':
     if '--preview' in sys.argv:
         preview(made, sys.argv[sys.argv.index('--preview') + 1])
     else:
+        # `--only A,B` writes just those, so adding an icon never rewrites
+        # the ones already shipping.
+        only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for name, alphas in made.items():
-            save(name, alphas)
+            if only is None or name in only:
+                save(name, alphas)

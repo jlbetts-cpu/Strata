@@ -1020,7 +1020,7 @@ struct MainAppView: View {
         } else if let line = winCue {
             TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title : line,
                     message: line == DayOneHint.drawOut ? DayOneHint.drawOut : WinCue.tapToAdd,
-                    mark: line == DayOneHint.drawOut ? "TabWins" : "DoodleSticker",
+                    mark: line == DayOneHint.drawOut ? "TipPlus" : "DoodleSticker",
                     onTap: line == DayOneHint.drawOut ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
                         winDraft = WinDraft()

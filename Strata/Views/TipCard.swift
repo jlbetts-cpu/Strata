@@ -19,9 +19,9 @@ import SwiftUI
 struct TipCard: View {
     let title: String
     var message: String? = nil
-    /// The owner's drawn mark when it is in the catalogue ("TipBulb"), and
-    /// the system's bulb until then.
-    var mark: String = "TipBulb"
+    /// The owner's drawn mark (`docs/icons/source.png`, cut to `Tip*`):
+    /// his sparkle star unless a tip names its own.
+    var mark: String = "TipSparkle"
     /// The action, as a small primary under the words ("Start a Crew").
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
@@ -34,19 +34,33 @@ struct TipCard: View {
     private static let pillHeight: CGFloat = 34
     private static let well: CGFloat = 40
 
+    /// **The grid** (the owner, 2026-10-08: "make sure the grid is good on
+    /// the tips they still look a bit inconsistent"). Every measure is a
+    /// token and every edge lines up with another:
+    ///
+    ///     16 | well 40 | 12 | words ............ | x (glyph 16 from edge)
+    ///                       | pill, at the words' own left edge
+    ///     16
+    ///
+    /// The words centre on the well, the close glyph shares their centre
+    /// line, and the pill starts where the words start (16 + 40 + 12 = 68
+    /// from the card's edge), so a tip with an action and one without are the
+    /// same object with one more row.
     var body: some View {
-        HStack(alignment: .top, spacing: GridConstants.gapItem) {
-            markWell
-            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            HStack(alignment: .center, spacing: GridConstants.gapItem) {
+                markWell
                 words
-                if let actionTitle, let action {
-                    pill(actionTitle, action)
-                        .padding(.top, 4)
-                }
+                closeButton
+                    // The 44pt target reaches into the card's own margin, so
+                    // the glyph, not the target, sits 16 from the edge.
+                    .padding(.trailing, -Self.closeInset)
+                    .padding(.vertical, -2)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Room for the close glyph, which sits in the corner over it.
-            .padding(.trailing, GridConstants.gapWide)
+            if let actionTitle, let action {
+                pill(actionTitle, action)
+                    .padding(.leading, Self.well + GridConstants.gapItem)
+            }
         }
         .padding(GridConstants.gapLabel)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,20 +72,24 @@ struct TipCard: View {
             RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                 .strokeBorder(Self.hairline, lineWidth: GridConstants.strokeThin)
         }
-        .overlay(alignment: .topTrailing) { closeButton }
         .accessibilityElement(children: .contain)
     }
 
+    /// How far the close target reaches past the words into the margin:
+    /// the target is 44 and the glyph about 12, so 16 of air each side.
+    private static let closeInset: CGFloat = 16
+
     private var markWell: some View {
         Group {
-            if let drawn = UIImage(named: mark) {
-                Image(uiImage: drawn)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
+            // His drawn marks are cut on the tools' 26pt canvas
+            // (`docs/icons/slice_icons.py`), so they are shown at their own
+            // size, never scaled: every mark in every tip is one size.
+            if UIImage(named: mark) != nil {
+                Image(mark).renderingMode(.template)
+            } else if UIImage(named: "TipSparkle") != nil {
+                Image("TipSparkle").renderingMode(.template)
             } else {
-                Image(systemName: "lightbulb.fill")
+                Image(systemName: "lightbulb")
                     .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
             }
         }
@@ -95,7 +113,7 @@ struct TipCard: View {
         }
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, minHeight: Self.well, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         if let onTap {
             Button(action: onTap) { stack.contentShape(Rectangle()) }
                 .buttonStyle(.pressWord)
@@ -138,7 +156,6 @@ struct TipCard: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)
-        .padding(4)
         .accessibilityLabel("Close")
     }
 
@@ -205,4 +222,16 @@ struct InviteTip {
     let hasCrew: Bool
     let invite: () -> Void
     let close: () -> Void
+}
+
+/// **Every tip's words in one place**, so the one-line rule can be held:
+/// a tip's message is one line at the column it gets (about 237pt on a
+/// 393pt phone, 15pt type), which is 32 characters. A message that wrapped
+/// made that tip a line taller than its neighbours (photographed 2026-10-08).
+nonisolated enum TipCopy {
+    static let monthDrawing = "Hold the drawing to redraw it."
+    static let longestMessage = 32
+    static var messages: [String] {
+        [monthDrawing, DayOneHint.drawOut, WinCue.tapToAdd, FirstWinInvite.ask]
+    }
 }
