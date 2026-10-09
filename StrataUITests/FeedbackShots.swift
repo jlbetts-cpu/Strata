@@ -114,6 +114,16 @@ final class FeedbackShots: XCTestCase {
         app.buttons["Memories"].tap(); wait(3); snap("tabs-memories")
     }
 
+    func testCrewsFilm() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenCrews", "1",
+                          "-crews.filmSeen", "NO", "-crews.rulesAccepted.v1", "NO"])
+        wait(2.5); snap("crewsfilm-1")
+        wait(2.5); snap("crewsfilm-2")
+        wait(4); snap("crewsfilm-after")
+        for word in ["I Agree"] where app.buttons[word].exists { app.buttons[word].tap() }
+        wait(3); snap("crewsfilm-intro")
+    }
+
     func testTowerSome() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "7"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

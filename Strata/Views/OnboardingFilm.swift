@@ -14,6 +14,12 @@ import AVKit
 /// - **Reduce Motion: the still and Play**, never autoplay.
 /// - It ends into the first page on its own.
 struct OnboardingFilm: View {
+    /// Which film: the onboarding's, or Crews' first-visit film
+    /// (`CrewsFilm`, 2026-10-08), played by this same player.
+    var resource = "OnboardingFilm"
+    var poster = "OnboardingFilmPoster.jpg"
+    /// The onboarding film reports to `Analytics` as the trailer; others do not.
+    var reports = true
     var onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,7 +31,7 @@ struct OnboardingFilm: View {
     @State private var dims = false
     @Environment(\.colorScheme) private var colorScheme
 
-    static let film = Bundle.main.url(forResource: "OnboardingFilm", withExtension: "mp4")
+    private var film: URL? { Bundle.main.url(forResource: resource, withExtension: "mp4") }
     /// How long the dark page takes to rise over the film's last frame.
     static let darkHandoff: Double = 0.9
 
@@ -36,7 +42,7 @@ struct OnboardingFilm: View {
                 FilmLayer(player: player)
                     .ignoresSafeArea()
                     .transition(.opacity)
-            } else if let still = UIImage(named: "OnboardingFilmPoster.jpg") {
+            } else if let still = UIImage(named: poster) {
                 Image(uiImage: still)
                     .resizable()
                     .scaledToFill()
@@ -95,8 +101,8 @@ struct OnboardingFilm: View {
     }
 
     private func start() {
-        guard player == nil, let url = Self.film else {
-            if Self.film == nil { finish(skipped: false) }
+        guard player == nil, let url = film else {
+            if film == nil { finish(skipped: false) }
             return
         }
         try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
@@ -110,7 +116,7 @@ struct OnboardingFilm: View {
         player = p
         withAnimation(GridConstants.crossFade) { playing = true }
         p.play()
-        Analytics.shared.signal(.trailer, [.action(.played)])
+        if reports { Analytics.shared.signal(.trailer, [.action(.played)]) }
     }
 
     private func stop() {
@@ -122,7 +128,7 @@ struct OnboardingFilm: View {
     private func finish(skipped: Bool) {
         guard !done else { return }
         done = true
-        Analytics.shared.signal(.trailer, [.action(skipped ? .skipped : .finished)])
+        if reports { Analytics.shared.signal(.trailer, [.action(skipped ? .skipped : .finished)]) }
         guard colorScheme == .dark, !reduceMotion else {
             stop()
             onDone()

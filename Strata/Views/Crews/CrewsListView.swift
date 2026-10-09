@@ -117,6 +117,19 @@ struct CrewsListView: View {
         .onAppear { if DebugHarness.argument("-strataCrewSheet") == "new" { startsCrew = true } }
         #endif
         .modifier(AskAgeOnce(age: $age))
+        // **Crews' own film, once** (the owner, 2026-10-08: "the trailer at
+        // the begining of the onboarding is so tasteful... we should have a
+        // crews trailer when you click into it for the first time... or if
+        // you dont have a crew yet"). The trailer's "Better with friends" and
+        // its crew chat, 6 seconds, in the onboarding film's own player, Skip
+        // from the first frame. Never for someone arriving by an invitation:
+        // they came to join, and the join is waiting.
+        .fullScreenCover(isPresented: Binding(get: { CrewsFilm.isDue(crews: store.crews.count) },
+                                              set: { if !$0 { CrewsFilm.markSeen() } })) {
+            OnboardingFilm(resource: "CrewsFilm", poster: "CrewsFilmPoster.jpg", reports: false) {
+                CrewsFilm.markSeen()
+            }
+        }
         .sheet(isPresented: $startsCrew) {
             NewCrewSheet { crew in open(crew) }
         }
@@ -484,7 +497,8 @@ struct CrewDestinations: ViewModifier {
         content
             // Not below iOS 26 or for a known child: the rules are for
             // something they can join (2026-10-08).
-            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted && !CrewGate.current.isFinal },
+            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted && !CrewGate.current.isFinal
+                                                && !CrewsFilm.holdsRules },
                                         set: { _ in })) {
                 CrewRulesSheet(onAgree: {
                     rulesAccepted = true
@@ -601,5 +615,27 @@ private struct AskAgeOnce: ViewModifier {
                 CrewRouter.shared.joinPendingIfReady()
             }
         }
+    }
+}
+
+/// When Crews plays its film: once ever, with no crew yet, on iOS 26, for
+/// someone old enough, and not while an invitation is waiting to be joined.
+@MainActor @Observable
+final class CrewsFilm {
+    static let seenKey = "crews.filmSeen"
+    private static let shared = CrewsFilm()
+    private var seen = UserDefaults.standard.bool(forKey: seenKey)
+
+    static func isDue(crews: Int) -> Bool {
+        !shared.seen && crews == 0 && CrewsFlag.osSupportsCrews && CrewAge.current.opensCrews
+            && CrewRouter.shared.pendingInvite == nil
+    }
+
+    /// The film is up or due: the crew rules wait for it to finish.
+    static var holdsRules: Bool { isDue(crews: SocialStore.shared.crews.count) }
+
+    static func markSeen() {
+        shared.seen = true
+        UserDefaults.standard.set(true, forKey: seenKey)
     }
 }
