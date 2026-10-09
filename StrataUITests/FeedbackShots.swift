@@ -39,7 +39,7 @@ final class FeedbackShots: XCTestCase {
     }
 
     func testOnboardingPages() {
-        for step in 0...8 {
+        for step in [1, 4, 5, 6] {
             let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "\(step)"])
             wait(step == 1 ? 7 : 4)
             snap("onb-\(step)")
@@ -86,7 +86,7 @@ final class FeedbackShots: XCTestCase {
     }
 
     func testPrimaryPages() {
-        for step in [0, 6] {
+        for step in [1, 6] {
             let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "\(step)"])
             wait(4); snap("primary-\(step)")
             app.terminate()
@@ -94,7 +94,7 @@ final class FeedbackShots: XCTestCase {
     }
 
     func testTowerPages() {
-        for step in [1, 8] {
+        for step in [1] {
             let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "\(step)"])
             wait(step == 1 ? 6 : 4); snap("towerpage-\(step)")
             app.terminate()
@@ -102,12 +102,16 @@ final class FeedbackShots: XCTestCase {
     }
 
     func testOnboardingBlocks() {
-        var app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "0"])
-        wait(6); snap("onbblocks-0"); app.terminate()
-        app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "1"])
+        let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "1"])
         wait(5); snap("onbblocks-1"); app.terminate()
-        app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "8", "-strataOnboardingFirstWin", "tap"])
-        wait(7); snap("onbblocks-8"); app.terminate()
+    }
+
+    func testTabSwitch() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        wait(5); snap("tabs-wins")
+        app.buttons["Camera"].tap(); wait(3); snap("tabs-camera")
+        app.buttons["Memories"].tap(); wait(3); snap("tabs-memories")
     }
 
     func testTowerSome() {

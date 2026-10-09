@@ -867,7 +867,7 @@ struct SettingsView: View {
         .task { await measureStorage() }
         .fullScreenCover(isPresented: $replayOnboarding) {
             // The tour again, without its last page: a replay must not log a win.
-            OnboardingView(endsOnFirstWin: false) { replayOnboarding = false }
+            OnboardingView(endsOnGoal: false) { replayOnboarding = false }
         }
         .fullScreenCover(item: $previewing) { replay in
             ReplayView(replay: replay, isSample: true) { previewing = nil }

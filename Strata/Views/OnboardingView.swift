@@ -60,17 +60,15 @@ import SwiftUI
 /// location, on the page that has just explained it.
 struct OnboardingView: View {
 
-    /// **The walkthrough ends on your first win** (owner-approved,
-    /// 2026-10-05): after the thank you, the last page is the tower's real
-    /// slot. One tap and your first block lands, with five examples of what
-    /// counts, and that win is logged through the normal path
-    /// (`OnboardingFirstWin`) as the app opens on Wins. False when Settings
-    /// replays the tour, which must not log a win.
-    var endsOnFirstWin = true
+    /// **The walkthrough ends on the goal** (2026-10-08; the owner, of the
+    /// opening tower page and the first-win page: "please just take those
+    /// screens out"). Both pages are gone from the code; the tower's own slot
+    /// is the first win, on Wins. False when Settings replays the tour, which
+    /// ends at the thank you.
+    var endsOnGoal = true
     var onFinish: () -> Void
 
     @State private var step = OnboardingView.firstShown
-    @State private var landed = 0
     /// What the tutorial has actually watched the finger do.
     @State private var hasDrawn = false
     /// The tutorial's own tower, and the grid it is packed into — the same
@@ -112,7 +110,6 @@ struct OnboardingView: View {
     /// which is a good one: the one time a person is asked to plan for a bad
     /// day while having a good one.
     private static let threeStep = 7
-    private static let firstWinStep = 8
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
     /// The three being chosen, kept only once the button is pressed: Skip
@@ -122,7 +119,7 @@ struct OnboardingView: View {
     /// win: "that should be explained in the app they just kinda look lame").
     /// Your three is chosen from Your day; the first win is the tower's own
     /// slot, which the app opens on. Both pages stay in the code, unreached.
-    private var lastStep: Int { endsOnFirstWin ? Self.goalStep : Self.thanksStep }
+    private var lastStep: Int { endsOnGoal ? Self.goalStep : Self.thanksStep }
 
     /// **Seven pages, not nine** (2026-10-08, `docs/superpowers/specs/
     /// 2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
@@ -137,20 +134,6 @@ struct OnboardingView: View {
     /// The film, before the first page. Skipped when a debug step is asked for.
     @State private var showsFilm = true
 
-    // The first-win page's own state.
-    /// The title the win will carry: typed, or filled in by a chip.
-    @State private var firstTitle = ""
-    /// The size the finger is drawing on the first-win slot.
-    @State private var firstSize: BlockSize = .small
-    /// The block that landed, once it has: its size.
-    @State private var firstLanded: BlockSize?
-    /// Its fall, 0 above the page and 1 in the slot.
-    @State private var firstFell = false
-    @FocusState private var firstTyping: Bool
-    /// The colour the first block wears: the slot shows it before the tap.
-    private static let firstColour: HabitCategory = .mindfulness
-    /// Two rows: room for a Deep, and the board stays a strip under the copy.
-    private static let firstRows = 2
     /// The cell size that takes the tower margin to margin.
     ///
     /// The owner, 2026-09-23: "why is the tower in the onboarding not margin to
@@ -235,7 +218,6 @@ struct OnboardingView: View {
             #if DEBUG
             if let start = Self.debugStep { step = start }
             #endif
-            await runFall()
         }
         // **No `shown` per page** (2026-10-08). Every page is left by `done`
         // or `skipped`, so those two already draw the funnel: the last page
@@ -554,7 +536,6 @@ struct OnboardingView: View {
             let box = geo.size
             ZStack {
                 switch step {
-                case 0: tower(in: box)
                 // At the foot, as the tower stands on the tab bar.
                 case 1: workshop(in: box).frame(maxHeight: .infinity, alignment: .bottom)
                 // **The tab bar in this picture is today's** (2026-10-02). The
@@ -572,7 +553,6 @@ struct OnboardingView: View {
                 case Self.thanksStep: thanks
                 case Self.goalStep: goalPage
                 case Self.threeStep: threePage
-                case Self.firstWinStep: firstWinPage(in: box)
                 default: EmptyView()
                 }
             }
@@ -727,118 +707,12 @@ struct OnboardingView: View {
 
     // MARK: - The tower
 
-    /// Which of the opening blocks carry a photograph.
-    ///
-    /// **Not all of them.** The owner asked for "some photos in some of the
-    /// blocks on the first page, just to put in that human element" — some,
-    /// and he is right that it is some. A tower of nothing but pictures is a
-    /// photo grid; the point of this screen is that a block is a block whether
-    /// or not it has a picture on it, and the mix says that in one look.
-    /// The opening tower's names, one per block, in `demo`'s order.
-    private static let openingTitles = ["Hike", "Inbox zero", "Sunset walk", "Called Mum", "Practice", "Read", "Gym"]
 
-    private static let openingPhotos: [Int: String] = [
-        0: "DemoPhoto5", 2: "DemoPhoto9", 4: "DemoPhoto2", 6: "DemoPhoto11"
-    ]
 
-    /// **Seven blocks, and it was eight.** The eighth started a fourth row on
-    /// its own, and a fourth row is what stopped this page going margin to
-    /// margin: at four rows the tower is taller than the slot on a small phone,
-    /// so the cell would have had to come off the height instead of the width
-    /// and the air down the sides would have come back. Seven fills three rows
-    /// exactly, with no gap anywhere in the grid, which is also the better
-    /// picture of what the app does.
-    private static let demo: [(size: BlockSize, category: HabitCategory)] = [
-        (.medium, .health), (.small, .work), (.hard, .mindfulness),
-        (.small, .social), (.medium, .creativity), (.small, .focus),
-        (.small, .health)
-    ]
 
-    private static let packed: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = {
-        var grid: [[Bool]] = []
-        var out: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = []
-        for item in demo {
-            let w = item.size.columnSpan
-            let h = item.size.rowSpan
-            guard let spot = GridPacker.firstFit(columnSpan: w, rowSpan: h,
-                                            columns: GridConstants.columnCount, grid: &grid) else { continue }
-            out.append((spot.column, spot.row, w, h, item.category))
-        }
-        return out
-    }()
 
-    /// Real sizes, real colours, placed by the real packer — the same
-    /// first-fit scan the tower runs, so this is the app's arrangement rather
-    /// than one that resembles it.
-    private func tower(in box: CGSize) -> some View {
-        let gutter = GridConstants.spacing
-        let cell = Self.cell(forWidth: box.width)
-        let rows = Self.packed.map { $0.r + $0.h }.max() ?? 1
-        let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
-        let width = GridConstants.gridWidth(cellSize: cell)
 
-        return ZStack(alignment: .bottomLeading) {
-            ForEach(Array(Self.packed.enumerated()), id: \.offset) { index, item in
-                block(item.category, columns: item.w, rows: item.h, cell: cell,
-                      photo: Self.openingPhotos[index], title: Self.openingTitles[index])
-                    .offset(x: CGFloat(item.c) * (cell + gutter),
-                            y: -CGFloat(item.r) * (cell + gutter)
-                                + (landed > index ? 0 : -640))
-                    .opacity(landed > index ? 1 : 0)
-            }
-        }
-        .frame(width: width, height: height, alignment: .bottomLeading)
-        // **The tower stands on the same surface it will stand on tomorrow.**
-        //
-        // `TowerLattice` is what the Wins tab draws behind the real tower, and
-        // without it the first screen of the app showed a tower on nothing and
-        // then handed you a tower on a grid. It is also the page that has to
-        // teach what a block IS: you can see the cells, so you can see that a
-        // Quick takes one of them and a Deep takes four, and that a photograph
-        // is a cell with a picture in it.
-        //
-        // **Applied after the frame, not before it.** The blocks are placed
-        // with `.offset`, which moves the drawing and not the layout, so the
-        // ZStack's own size is one block: the grid's bounds only exist once
-        // `.frame` has set them, and a background asked for before that would
-        // be one cell wide. Same family of trap as CLAUDE.md's note that a
-        // block's hit area is bigger than what it draws.
-        // **Clipped to the tower's own rows.** `TowerLattice` carries three
-        // rows of overhang above whatever it is given, which on the Wins tab is
-        // right: the tower is still growing and the surface fades out above it.
-        // Here it would put a fading checkerboard into band 1, which is the one
-        // band that has to stay empty. Cut to the grid, the surface is a board
-        // with a top edge, and this demo fills every cell of it, so at rest it
-        // is invisible and during the fall you can see the slots the blocks are
-        // dropping into.
-        .background(alignment: .bottomLeading) {
-            TowerLattice(cellSize: cell, contentHeight: height)
-                .frame(width: width, height: height, alignment: .bottom)
-                .clipped()
-        }
-    }
 
-    private func runFall() async {
-        guard step == 0, landed == 0 else { return }
-        try? await Task.sleep(for: .milliseconds(300))
-        for index in Self.packed.indices {
-            let fall = GridConstants.dropFallCurve.speed(1 / fallSeconds)
-            withAnimation(reduceMotion ? GridConstants.motionSnappy : fall) {
-                landed = index + 1
-            }
-            HapticsEngine.tick()
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 90 : 160))
-        }
-    }
-
-    /// `t = sqrt(2d/g)`, clamped the way the tower clamps it. Constant
-    /// acceleration, no ease out — a falling object does not decelerate into
-    /// the ground.
-    private var fallSeconds: Double {
-        let t = (2 * 640 / GridConstants.dropGravity).squareRoot()
-        return min(max(Double(t), GridConstants.dropDurationRange.lowerBound),
-                   GridConstants.dropDurationRange.upperBound)
-    }
 
     // MARK: - The camera
 
@@ -1278,7 +1152,6 @@ struct OnboardingView: View {
     ///    other five pages do.
     private var title: String {
         switch step {
-        case 0: return "Everything you did, stacked up"
         // The first page now, after the film: the film's own line.
         case 1: return "Every win is a block."
         case 2: return "A win can be a photograph"
@@ -1286,7 +1159,6 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         case Self.goalStep: return "A goal for each day"
         case Self.threeStep: return YourThree.Copy.onboardingTitle
-        case Self.firstWinStep: return "Your first win"
         default: return "Thank you, genuinely"
         }
     }
@@ -1328,7 +1200,6 @@ struct OnboardingView: View {
         // before the page whose whole job is to teach the three sizes, and it
         // was the longest line in the walkthrough. The first screen has one
         // thing to say and somebody has to believe it.
-        case 0: return "Finish something and it becomes a block."
         // The gesture is the one thing on these six pages a picture cannot
         // teach, so this line stays and it is an instruction, not a caption. It
         // swaps to the confirmation once the finger has done it; the TITLE does
@@ -1346,7 +1217,6 @@ struct OnboardingView: View {
         // What counts, said once; the chips say the rest by example.
         case Self.goalStep: return "Reach it and your tower dances and prints the day's strip."
         case Self.threeStep: return YourThree.Copy.onboardingLine
-        case Self.firstWinStep: return "Anything you already did today counts."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
@@ -1482,9 +1352,7 @@ struct OnboardingView: View {
             PrimaryCapsule(title: actionTitle) { advance() }
         } else {
             PrimaryCapsule(waiting: actionTitle,
-                           because: step == Self.firstWinStep
-                               ? "Not yet. Tap the slot to drop your first win in."
-                               : step == Self.threeStep
+                           because: step == Self.threeStep
                                    ? YourThree.Copy.onboardingWaiting
                                    : "Not yet. Draw a block to go on.")
         }
@@ -1503,7 +1371,6 @@ struct OnboardingView: View {
 
     private var canAdvance: Bool {
         if step == 1 { return hasDrawn }
-        if step == Self.firstWinStep { return firstLanded != nil }
         if step == Self.threeStep { return !threePicked.isEmpty }
         return true
     }
@@ -1513,7 +1380,6 @@ struct OnboardingView: View {
 
     private var actionTitle: String {
         switch step {
-        case 0: return "Let me try"
         case 1: return "What else"
         case 2: return "Go on"
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
@@ -1523,7 +1389,6 @@ struct OnboardingView: View {
         // Not the last page any more when the goal follows it.
         case Self.thanksStep where step < lastStep: return "One more thing"
         case Self.threeStep: return YourThree.Copy.onboardingKeep
-        case Self.firstWinStep: return "Go to my tower"
         default: return "Start"
         }
     }
@@ -1553,144 +1418,7 @@ struct OnboardingView: View {
     private func finish() {
         guard !finished else { return }
         finished = true
-        if step == Self.firstWinStep, let size = firstLanded {
-            OnboardingFirstWin.queue(title: firstTitle, size: size, colour: Self.firstColour)
-        }
         onFinish()
-    }
-
-    // MARK: - The first win
-
-    /// **The last page is the tower's own slot** (2026-10-05). The title
-    /// field, five chips that say by example what counts, and under them a
-    /// strip of the tower's board with the real slot in it: tap once and the
-    /// block falls into it, draw it out for a bigger one, exactly as on Wins.
-    /// A chip fills the title in; nothing has to be typed.
-    private func firstWinPage(in box: CGSize) -> some View {
-        let gutter = GridConstants.spacing
-        let cell = Self.cell(forWidth: box.width)
-        let width = GridConstants.gridWidth(cellSize: cell)
-        let rows = Self.firstRows
-        let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
-        let shown = firstLanded ?? firstSize
-        let blockW = cell * CGFloat(shown.columnSpan) + gutter * CGFloat(shown.columnSpan - 1)
-        let blockH = cell * CGFloat(shown.rowSpan) + gutter * CGFloat(shown.rowSpan - 1)
-
-        return VStack(alignment: .center, spacing: GridConstants.gapItem) {
-            TextField("What did you do?", text: $firstTitle,
-                      prompt: Text("What did you do?").foregroundStyle(AppColors.inkTertiary))
-                .multilineTextAlignment(.center)
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .focused($firstTyping)
-                .submitLabel(.done)
-                .disabled(firstLanded != nil)
-                .frame(minHeight: Self.tapFloor)
-
-            ChipFlow(spacing: GridConstants.gapItem) {
-                ForEach(OnboardingFirstWin.examples, id: \.self) { example in
-                    firstChip(example)
-                }
-            }
-
-            Spacer(minLength: GridConstants.gapItem)
-
-            ZStack(alignment: .bottomLeading) {
-                if let landed = firstLanded {
-                    // Its name in the tower's own label, as it will stand on
-                    // the Wins tab a moment later.
-                    block(Self.firstColour, columns: landed.columnSpan, rows: landed.rowSpan, cell: cell,
-                          title: firstTitle.trimmingCharacters(in: .whitespaces))
-                        .offset(y: firstFell ? 0 : -640)
-                        .opacity(firstFell ? 1 : 0)
-                } else {
-                    NextSlotButton(
-                        reduceMotion: reduceMotion,
-                        cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-                        previewCategory: Self.firstColour,
-                        onSizeChanged: { firstSize = $0 },
-                        action: { size in placeFirst(size) },
-                        // A tap is a Quick win here. On the tower a tap opens
-                        // the add sheet; this page has no sheet, so a tap only
-                        // buzzed, and a new user tapping the "+" got nothing
-                        // (found 2026-10-07 by the first-run UI test, which
-                        // had been failing on it since the page was added).
-                        onOpenMenu: { placeFirst(.small) }
-                    )
-                    .frame(width: blockW, height: blockH)
-                }
-            }
-            .frame(width: width, height: height, alignment: .bottomLeading)
-            // The tutorial's board, its seat and all, for the reason written
-            // on `workshop`: on a flat page the cells need a ground to read.
-            .background(alignment: .bottom) {
-                TowerLattice(cellSize: cell, contentHeight: height, rowsOver: 1, ripple: ripple)
-                    .frame(width: width)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .frame(width: box.width, height: box.height, alignment: .top)
-        #if DEBUG
-        // `-strataOnboardingFirstWin chip|tap`: picks the first chip, and with
-        // `tap` drops the block too, a beat after the page opens. A simulator
-        // here cannot tap.
-        .task {
-            guard let auto = DebugHarness.argument("-strataOnboardingFirstWin") else { return }
-            try? await Task.sleep(for: .seconds(1.5))
-            firstTitle = OnboardingFirstWin.examples[0]
-            if auto == "tap" {
-                try? await Task.sleep(for: .seconds(1))
-                placeFirst(.small, finishes: DebugHarness.argument("-strataOnboardingFinish") == "1")
-            }
-        }
-        #endif
-    }
-
-    /// One example. Pressed, its words become the title; pressed again, the
-    /// title clears. The chosen one is drawn in ink, the rest in the quieter
-    /// ink.
-    ///
-    /// **Words, not glass capsules.** Five glass chips on one page is five
-    /// glass controls where `GlassIconButton.swift` allows three, and the
-    /// slot under them is glass already. The examples are told apart by air,
-    /// and each word still has its full 44pt target.
-    private func firstChip(_ example: String) -> some View {
-        let on = firstTitle == example
-        return Button {
-            HapticsEngine.lightTap()
-            firstTyping = false
-            firstTitle = on ? "" : example
-        } label: {
-            Text(example)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
-                .lineLimit(1)
-                .frame(minHeight: Self.tapFloor)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressWord)
-        .disabled(firstLanded != nil)
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-    }
-
-    /// The tap: the block falls into the slot, the board answers, and a
-    /// beat later the walkthrough hands you to the tower with it standing.
-    private func placeFirst(_ size: BlockSize, finishes: Bool = true) {
-        guard firstLanded == nil else { return }
-        firstTyping = false
-        firstLanded = size
-        firstFell = false
-        let fall = GridConstants.dropFallCurve.speed(1 / fallSeconds)
-        withAnimation(reduceMotion ? GridConstants.motionSnappy : fall) { firstFell = true }
-        ripple = LatticeRipple(column: 0, row: 0, columnSpan: size.columnSpan, rowSpan: size.rowSpan)
-        HapticsEngine.success()
-        guard finishes else { return }
-        // The first-win page ends here, not in `advance`: its `done`.
-        Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
-        Task {
-            try? await Task.sleep(for: .milliseconds(1600))
-            finish()
-        }
     }
 
     // MARK: - Drawing

@@ -96,7 +96,9 @@ struct YourThreeTests {
         let view = SourceSweep.code(try SourceSweep.read("Strata/Views/OnboardingView.swift"))
         #expect(view.contains("private static let goalStep = 6"))
         #expect(view.contains("private static let threeStep = 7"))
-        #expect(view.contains("private static let firstWinStep = 8"))
+        // The first-win page after it is gone from the code (the owner,
+        // 2026-10-08: "please just take those screens out").
+        #expect(!view.contains("firstWinStep"))
         #expect(view.contains("@State private var threePicked: [YourThree.Item] = []"), "nothing pre-ticked")
         #expect(view.contains("if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }"))
     }
