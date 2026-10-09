@@ -376,7 +376,6 @@ struct DayAlbumDetailView: View {
         // two blocks were room doing no work; one row says the tower stands on
         // a surface and stops.
         .environment(\.towerFilterMode, .day)
-        .environment(\.perfectDayDates, [])
     }
 
 }

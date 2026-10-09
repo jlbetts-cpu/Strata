@@ -202,7 +202,6 @@ struct MainAppView: View {
     @State private var expandedBlockID: UUID? = nil
 
     @State private var showTowerConfetti = false
-    @AppStorage("lastCelebrationDate") private var lastCelebrationDate: String = ""
 
 
     // New habit menu
@@ -284,7 +283,6 @@ struct MainAppView: View {
 
     // Cached computed properties
     @State private var cachedFilteredLogs: [HabitLog] = []
-    @State private var perfectDayDates: Set<String> = []
 
     // Deep link from Spotlight
     @State private var deepLinkHabitID: UUID? = nil
@@ -1746,7 +1744,6 @@ struct MainAppView: View {
                      safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
                      viewportHeight: screenHeight)
             .environment(\.towerFilterMode, towerFilterMode)
-            .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.
             //
             // This overlay held three frosted capsules — "One more for a
@@ -2611,22 +2608,14 @@ struct MainAppView: View {
                 // switch. A crew's tower keeps its tenth (`CrewTowerModel`).
                 await celebrateGoalIfDue()
 
-                // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
-                let todayStr = TimelineViewModel.dateString(from: Date())
-                if towerFilterMode == .day && perfectDayDates.contains(todayStr) && lastCelebrationDate != todayStr {
-                    lastCelebrationDate = todayStr  // Once per calendar day — prevents repeat on tab switch
-                    try? await Task.sleep(for: .milliseconds(200))
-                    HapticsEngine.reward()
-                    animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
-                    // Confetti after jubilation wave actually finishes
-                    Task { @MainActor in
-                        while animCoord.isJubilating {
-                            try? await Task.sleep(for: .milliseconds(100))
-                        }
-                        try? await Task.sleep(for: .milliseconds(200))
-                        animCoord.confettiBursts += 1
-                    }
-                }
+                // **The goal is the only celebration** (2026-10-09). A
+                // "perfect day" dance and confetti lived here from the old
+                // scheduled-habits model: a day was perfect when its completed
+                // wins matched the wins scheduled for it, and every win logged
+                // now is its own one-off scheduled for today, so ANY day with
+                // one win was perfect. The owner's first win fired the
+                // confetti with a goal of 3. Removed with everything that fed
+                // it; `celebrateGoalIfDue` above reads the goal he set.
             }
         }
         armSkeleton()
@@ -2638,32 +2627,6 @@ struct MainAppView: View {
             }
             await settleSkeleton()
         }
-    }
-
-    private func recomputePerfectDayDates() {
-        let calendar = Calendar.current
-        let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
-
-        var completedByDate: [String: Int] = [:]
-        for log in cachedFilteredLogs where log.completed {
-            completedByDate[log.dateString, default: 0] += 1
-        }
-
-        var result: Set<String> = []
-        for (dateStr, completedCount) in completedByDate {
-            if let date = Self.dateStringFormatter.date(from: dateStr) {
-                let weekday = calendar.component(.weekday, from: date)
-                let dayCode = DayCode.from(weekday: weekday)
-                let scheduledCount = towerHabits.filter { habit in
-                    if habit.isTodo { return habit.scheduledDate == dateStr }
-                    return habit.frequency.contains(dayCode)
-                }.count
-                if scheduledCount > 0 && completedCount >= scheduledCount {
-                    result.insert(dateStr)
-                }
-            }
-        }
-        perfectDayDates = result
     }
 
     private func scheduleRefresh() {
@@ -2694,7 +2657,6 @@ struct MainAppView: View {
         }
 
         recomputeFilteredLogs(logsByDate: logsByDate)
-        recomputePerfectDayDates()
         let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
         timelineVM.loadToday(habits: towerHabits, logs: logs)
         recomputeTimelineHabits(logsByDate: logsByDate)

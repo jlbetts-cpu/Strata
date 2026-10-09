@@ -120,8 +120,7 @@ enum TowerShare {
             // The card renders outside the tower's view tree, so the
             // environment the blocks read has to be handed to them.
             .environment(\.towerFilterMode, .day)
-            .environment(\.perfectDayDates, [])
-        )
+            )
         // 3x gives 1080x1920 — the size stories are actually stored at, so the
         // platform never has to resample it.
         renderer.scale = 3

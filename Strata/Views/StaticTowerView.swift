@@ -11,7 +11,7 @@ import SwiftData
 /// how you end up shipping a picture of the app that does not look like the
 /// app.
 ///
-/// The caller must supply `\.towerFilterMode` and `\.perfectDayDates`: the
+/// The caller must supply `\.towerFilterMode`: the
 /// block views read both, and outside the tower's own hierarchy there is
 /// nothing to inherit them from.
 struct StaticTowerView: View {

@@ -910,9 +910,6 @@ enum GridConstants {
     // drawing of a different thing."
 
     // MARK: - Block Patina (Perfect-Day Gold Tint)
-    static let patinaMaxOpacity: Double = 0.15
-    static let patinaGrowthRate: Double = 0.02
-    static let patinaGold = Color(red: 0.95, green: 0.80, blue: 0.40)
 
     // MARK: - Celebration (Phase 2)
     static let confettiDuration: TimeInterval = 2.0

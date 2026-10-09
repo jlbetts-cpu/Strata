@@ -57,7 +57,6 @@ struct FlippableBlockView: View {
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.towerFilterMode) private var towerFilterMode
-    @Environment(\.perfectDayDates) private var perfectDayDates
     /// **The tower honours Reduce Motion** (2026-10-01).
     ///
     /// `docs/motion-audit.md` named this file as the worst of the twelve that
@@ -78,16 +77,6 @@ struct FlippableBlockView: View {
     private var massTier: CGFloat { CGFloat(block.look.blockSize.massTier) }
     private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }
     private var tapSquashY: CGFloat { 0.97 + (massTier - 1) * 0.006 }
-
-    private var patinaOpacity: Double {
-        guard towerFilterMode != .day else { return 0 }
-        guard perfectDayDates.contains(block.look.dateString) else { return 0 }
-        guard let blockDate = BlockTimeFormatter.dateFormatter.date(from: block.look.dateString) else {
-            return GridConstants.patinaMaxOpacity
-        }
-        let daysAgo = max(0, Calendar.current.dateComponents([.day], from: blockDate, to: Date()).day ?? 0)
-        return min(GridConstants.patinaMaxOpacity, 0.05 + Double(daysAgo) * GridConstants.patinaGrowthRate)
-    }
 
     var body: some View {
         // A member hides instantly. No crossfade.
@@ -316,14 +305,6 @@ struct FlippableBlockView: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .allowsHitTesting(false)
-            }
-        }
-        // Perfect-day patina — golden surface wash
-        .overlay {
-            if patinaOpacity > 0 {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(GridConstants.patinaGold.opacity(patinaOpacity * 0.5))
-                    .blendMode(.overlay)
             }
         }
         // Tap bounce: fast squash → bouncy pop-back. With Reduce Motion the
