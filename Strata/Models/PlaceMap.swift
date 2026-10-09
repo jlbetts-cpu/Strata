@@ -283,16 +283,25 @@ enum PlaceMap {
     /// place within `samePlaceMetres`, oldest first, and places that end up
     /// within that distance of each other are joined, until nothing moves.
     static func spots(_ pins: [Pin]) -> [Spot] {
+        // **A spot cannot wander** (2026-10-09). A photo joins the spot whose
+        // middle is within `samePlaceMetres`, and the merge pass joins spots
+        // whose middles meet, as before; but neither may take a spot past
+        // twice that from where it BEGAN. Unbounded, a walk of photos chained
+        // through the moving middle into one spot that drifted along the
+        // route, so a block cycled photographs from blocks away.
+        let reach = samePlaceMetres * 2
         var spots: [Spot] = []
+        var seeds: [(latitude: Double, longitude: Double)] = []
         for pin in pins.sorted(by: { ($0.completedAt, $0.photoFileName) < ($1.completedAt, $1.photoFileName) }) {
-            let here = (pin.place.latitude, pin.place.longitude)
+            let here = (latitude: pin.place.latitude, longitude: pin.place.longitude)
             if let nearest = spots.indices
                 .map({ ($0, metres(between: spots[$0].centre, and: here)) })
-                .filter({ $0.1 <= samePlaceMetres })
+                .filter({ $0.1 <= samePlaceMetres && metres(between: seeds[$0.0], and: here) <= reach })
                 .min(by: { $0.1 < $1.1 })?.0 {
                 spots[nearest].pins.append(pin)
             } else {
                 spots.append(Spot(pins: [pin]))
+                seeds.append(here)
             }
         }
         var changed = true
@@ -300,9 +309,11 @@ enum PlaceMap {
             changed = false
             search: for i in spots.indices {
                 for j in spots.indices where j > i
-                    && metres(between: spots[i].centre, and: spots[j].centre) <= samePlaceMetres {
+                    && metres(between: spots[i].centre, and: spots[j].centre) <= samePlaceMetres
+                    && metres(between: seeds[i], and: seeds[j]) <= reach {
                     spots[i].pins += spots[j].pins
                     spots.remove(at: j)
+                    seeds.remove(at: j)
                     changed = true
                     break search
                 }
@@ -351,11 +362,19 @@ enum PlaceMap {
     ///   block's own width on screen is not drawn. A reduced-accuracy fix is
     ///   good to kilometres, and a confident block in the wrong neighbourhood
     ///   is worse than no block.
+    /// The vaguest fix a block is always drawn for, at any zoom (`cluster`).
+    static let trustedMetres: Double = 200
+
     static func cluster(_ pins: [Pin], step: Int) -> [Cluster] {
         let scale = pointsPerUnit(step: step)
         let metresPerPoint = 360 * 111_000 / scale
         let blockMetres = blockPoints(for: .small).width * metresPerPoint
-        let visible = pins.filter { ($0.place.accuracy ?? 0) <= max(blockMetres, samePlaceMetres) }
+        // **A floor of 200m under the block's width** (2026-10-09, "the map
+        // behaves unexpectedly"). The floor was 60m, so at street zoom an
+        // ordinary 65m Wi-Fi fix dropped off its block as you zoomed in and
+        // came back as you zoomed out. A fix good only to kilometres still
+        // waits for a zoom where a block covers that much.
+        let visible = pins.filter { ($0.place.accuracy ?? 0) <= max(blockMetres, trustedMetres) }
 
         struct Group {
             var lead: Spot

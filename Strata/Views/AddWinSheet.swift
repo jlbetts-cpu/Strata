@@ -851,7 +851,12 @@ struct AddWinSheet: View {
                 photo = image
                 photoChanged = true
                 crop = .zero
-                if let taken = TodaysPhotos.place(of: asset) { place = taken }
+                // The new photo's place, or none: a screenshot or a photo
+                // with its location stripped must not keep the place of the
+                // photo it replaced (2026-10-09, "the map behaves
+                // unexpectedly": a replaced photo stood where the old one
+                // was taken).
+                place = TodaysPhotos.place(of: asset)
             }
         }
     }
@@ -1793,11 +1798,12 @@ struct AddWinSheet: View {
         // name, because a coordinate on a log with no photograph is a pin with
         // nothing to show. The two facts arrive together and are stored
         // together.
-        if let place {
-            log.latitude = place.latitude
-            log.longitude = place.longitude
-            log.locationAccuracy = place.accuracy
-        }
+        // Always written, so a photo with no place clears the old one rather
+        // than inheriting it. `place` starts as the log's own (`initialPlace`),
+        // so re-saving an unchanged photo writes the same coordinates back.
+        log.latitude = place?.latitude
+        log.longitude = place?.longitude
+        log.locationAccuracy = place?.accuracy
         // Where the block's window sits on the picture. Zero is the middle,
         // which is every win nobody dragged.
         log.cropPositionX = crop.x == 0 ? nil : crop.x

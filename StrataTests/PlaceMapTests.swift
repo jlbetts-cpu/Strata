@@ -390,4 +390,30 @@ struct PlaceMapTests {
             #expect(abs(back.longitude - lon) < 1e-9)
         }
     }
+
+    // MARK: - 2026-10-09, "the map behaves unexpectedly"
+
+    /// An ordinary Wi-Fi fix (about 65m) dropped off its block at street
+    /// zoom, where a block is narrower than that, and came back zoomed out.
+    @Test("a 65m fix stays on its block at street zoom")
+    func wifiFixesStayDrawn() {
+        let wifi = pin(lat: 51.5074, lon: -0.1278, accuracy: 65)
+        for zoom in [5, 10, 14, 16, 18] {
+            #expect(!PlaceMap.cluster([wifi], zoom: zoom).isEmpty, "zoom \(zoom)")
+        }
+    }
+
+    /// A walk photographed every 40m chained, through each spot's moving
+    /// middle, into one spot drifting along the route.
+    @Test("a walk does not become one wandering spot")
+    func walksDoNotChain() {
+        let walk = (0..<25).map { pin(lat: 51.5000 + Double($0) * 0.00036, lon: -0.1278, day: $0 + 1) }
+        let spots = PlaceMap.spots(walk)
+        #expect(spots.count > 3, "a kilometre of walking made \(spots.count) spots")
+        for spot in spots {
+            let lats = spot.pins.map(\.place.latitude)
+            let span = ((lats.max() ?? 0) - (lats.min() ?? 0)) * 111_000
+            #expect(span <= PlaceMap.samePlaceMetres * 2 + 1, "one spot spans \(Int(span))m")
+        }
+    }
 }

@@ -95,7 +95,18 @@ final class LocationService: NSObject {
         guard !isDenied else { return }
         let wasRunning = isRunning
         holders.insert(holder)
+        tuneAccuracy()
         if !wasRunning { manager.startUpdatingLocation() }
+    }
+
+    /// **Ten metres while the camera holds it, a hundred otherwise**
+    /// (2026-10-09). A photo's pin came from a fix asked for at a hundred
+    /// metres and up to two minutes old, so it could stand a block away or
+    /// where you were before you walked. The camera is open for seconds at
+    /// a time, so the finer fix costs little; the map keeps the coarse one.
+    private func tuneAccuracy() {
+        manager.desiredAccuracy = holders.contains("camera")
+            ? kCLLocationAccuracyNearestTenMeters : kCLLocationAccuracyHundredMeters
     }
 
     func stop(for holder: String = "camera") {
@@ -105,7 +116,7 @@ final class LocationService: NSObject {
         // particular; the first holder to leave releases it, as a stop always
         // did.
         holders.remove(Self.grantedHolder)
-        if !isRunning { manager.stopUpdatingLocation() }
+        if !isRunning { manager.stopUpdatingLocation() } else { tuneAccuracy() }
     }
 
     private static let grantedHolder = "granted"
@@ -134,7 +145,9 @@ final class LocationService: NSObject {
 
     /// The same fix as a `WinPlace`, which is what everything downstream
     /// speaks. Nil for exactly the reasons `fix` returns nil.
-    func place(maxAge: TimeInterval = 120,
+    /// A fix no older than half a minute: one from before you walked
+    /// somewhere is not where the photo was taken.
+    func place(maxAge: TimeInterval = 30,
                maxAccuracy: CLLocationDistance = 200) -> WinPlace? {
         // The single gate. Every path that writes a coordinate onto a win goes
         // through here, so the preference is honoured once rather than at each

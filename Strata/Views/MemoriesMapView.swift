@@ -279,8 +279,25 @@ struct MemoriesMapView: View {
 
     private static let locationHolder = "map"
 
+    /// **What the pins ARE, not how many** (2026-10-09, "the map behaves
+    /// unexpectedly"). Keyed on the count, an edited photo or place, or one
+    /// win deleted and another added, kept the old picture in the old spot
+    /// until the zoom crossed a step.
+    private var pinsKey: Int {
+        var hasher = Hasher()
+        for pin in pins {
+            hasher.combine(pin.photoFileName)
+            hasher.combine(pin.place.latitude)
+            hasher.combine(pin.place.longitude)
+            hasher.combine(pin.completedAt)
+        }
+        return hasher.finalize()
+    }
+
     private var map: some View {
-        Map(position: $camera, interactionModes: isInteractive ? .all : []) {
+        // Pan and zoom only: a pitched map's span reaches the horizon, which
+        // read as zoomed far out and merged blocks across town (2026-10-09).
+        Map(position: $camera, interactionModes: isInteractive ? [.pan, .zoom] : []) {
             // **Where you are.** The map had no indicator for the one place
             // every map has one for, which made "back to where I am" a button
             // that took you somewhere unmarked. It is Apple's own dot, not a
@@ -435,7 +452,7 @@ struct MemoriesMapView: View {
         // blocks at every zoom while the map on screen was full of them. An
         // instrument aimed at the wrong thing looks exactly like a null
         // result. Keyed on the count, it re-runs with a fresh `self`.
-        .task(id: pins.count) {
+        .task(id: pinsKey) {
             guard DebugHarness.sweepsMap, !pins.isEmpty else { return }
             // `-strataMapSweepAfter s`: start the sweep once launch has
             // settled, with every picture dropped from memory, so the
@@ -470,6 +487,11 @@ struct MemoriesMapView: View {
         // frame both costs CPU and looks wrong — blocks twitch between two
         // cells while you pan, because the cell under a pin changes several
         // times a second.
+        // The map's real width, for the scale every block is placed at; it
+        // was assumed to be 393 on every phone (2026-10-09).
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if width > 0 { viewportWidth = width }
+        }
         .onMapCameraChange(frequency: .onEnd) { context in
             lastCameraMove = Date()
             let span = context.region.span.longitudeDelta
@@ -483,7 +505,7 @@ struct MemoriesMapView: View {
         }
         // The map's one clock. Stops itself when there is nothing to cycle and
         // never runs under Reduce Motion.
-        .task(id: pins.count) {
+        .task(id: pinsKey) {
             guard !reduceMotion, pins.count > 1 else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.cycleSeconds))
@@ -496,7 +518,7 @@ struct MemoriesMapView: View {
                 tick &+= 1
             }
         }
-        .task(id: pins.count) {
+        .task(id: pinsKey) {
             displayed = PlaceMap.cluster(pins, step: step).map { Placed.atRest($0) }
             // **Only a fill with something in it settles the map.** The map is
             // drawn before the store is read, so the first pass has no pins;
