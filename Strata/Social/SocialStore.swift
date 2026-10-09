@@ -663,8 +663,16 @@ final class SocialStore {
         try requireOn()
         guard joinGate() == .open else { throw CrewError.notReady }
         if crews.isEmpty { await refresh() }
-        guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
+        // At the cap, a link to a crew you are ALREADY in still opens it
+        // (the audit, 2026-10-08: it said "five crews already"). Which crew a
+        // link is for is only known once it is accepted, and accepting one
+        // you are in changes nothing; a new one is left again at once.
+        let atCap = crews.count >= CrewCaps.crews
         let id = try await cloud.accept(invite)
+        if atCap, !crews.contains(where: { $0.id == id }) {
+            try? await cloud.leave(id)
+            throw CrewError.tooManyCrews
+        }
         let fetched = try await cloud.fetchCrews()
         guard let crew = fetched.first(where: { $0.id == id }) else { throw CrewError.unknownCrew }
         // Accepting is where the second check happens: eight people were
@@ -1671,6 +1679,7 @@ final class SocialStore {
             for gone in Set(crews.map(\.id)).subtracting(known) { forget(gone) }
             let merged = fetched.map(withEdits)
             if crews != merged { crews = merged }
+            await repairMissingMembership(in: fetched)
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
             if messagesByCrew != messages { messagesByCrew = messages }
@@ -1681,6 +1690,29 @@ final class SocialStore {
         } catch {
             Self.log.error("fetching crews failed: \(error)")
             noteBackoff(error)
+        }
+    }
+
+    /// Crews this session has tried to write your Member record into.
+    @ObservationIgnored private var memberRepairs: Set<CrewID> = []
+
+    /// **A crew you are in with no Member record of yours** (the crews audit,
+    /// 2026-10-08). Joining accepts the share first and writes the Member
+    /// record second; when the second step failed (the starter's iCloud full,
+    /// the connection gone) you were in the crew with no record, and since
+    /// only members' wins are kept, everything you sent vanished for everyone.
+    /// Written here, once a crew a session, so it can never loop.
+    private func repairMissingMembership(in fetched: [Crew]) async {
+        for crew in fetched where !crew.isOwner(me) && crew.member(me) == nil && !memberRepairs.contains(crew.id) {
+            memberRepairs.insert(crew.id)
+            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
+            do {
+                try await cloud.save(CrewRecords.fields(member), type: .member,
+                                     name: CrewRecords.name(of: member), in: crew.id)
+                refreshAgain = true
+            } catch {
+                Self.log.error("membership repair failed: \(error)")
+            }
         }
     }
 
@@ -1772,7 +1804,7 @@ final class SocialStore {
 
     /// Starting a crew on a full iCloud: the crew lives in the starter's own
     /// storage, so it is their space that has run out, never the app's.
-    static let fullToStartWords = "Your iCloud storage is full, so a new crew can't be made. Free up some space in Settings, under your name, then iCloud, and try again."
+    static let fullToStartWords = CrewErrorWords.yourICloudFull
 
     /// How long a full crew's saves wait: what CloudKit says, at least half
     /// a minute, since room comes back only when someone deletes something.

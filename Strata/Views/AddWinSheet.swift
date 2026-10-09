@@ -575,9 +575,12 @@ struct AddWinSheet: View {
             .frame(maxWidth: .infinity)
             .overlay(alignment: .topLeading) {
                 if let failure {
+                    // Red, as every error the app sets on the page is
+                    // (the owner, 2026-10-08: "make them like red so they
+                    // read as an error").
                     Text(failure.message)
                         .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkPrimary)
+                        .foregroundStyle(AppColors.destructiveInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, GridConstants.gapItem)
                         .transition(.opacity)

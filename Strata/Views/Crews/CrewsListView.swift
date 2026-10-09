@@ -337,10 +337,14 @@ struct NewCrewSheet: View {
                 Text("Up to 8 people, you included. Everyone sees the wins sent to the crew that day, with their photos.")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
+                // Red, as every error the app sets on the page is (the owner,
+                // 2026-10-08), in the words `CrewErrorWords` chose.
                 if let problem {
                     Text(problem)
                         .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkPrimary)
+                        .foregroundStyle(AppColors.destructiveInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
                 }
                 Spacer(minLength: 0)
                 if working {
@@ -382,14 +386,10 @@ struct NewCrewSheet: View {
                 started(crew.id)
                 try? await Task.sleep(for: .milliseconds(450))
                 await CrewSharing.invite(crew.id)
-            } catch let error as CrewError where error != .unknownCrew {
-                problem = StrataSceneDelegate.words(for: error)
-            } catch where SocialStore.isQuotaExceeded(error) {
-                problem = SocialStore.fullToStartWords
             } catch {
-                // Say what iCloud said: on a tester's phone this line is the
-                // only way to know why.
-                problem = "The crew could not be started: \(error.localizedDescription)"
+                // Plain words for what went wrong and what to do; CloudKit's
+                // own text goes to the log (`CrewErrorWords`).
+                problem = CrewErrorWords.say(error, while: .starting)
             }
             working = false
         }

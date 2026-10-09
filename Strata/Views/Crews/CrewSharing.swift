@@ -61,9 +61,7 @@ enum CrewSharing {
                 present(UIActivityViewController(activityItems: items, applicationActivities: nil))
             }
         } catch {
-            CrewRouter.shared.joinProblem = (error as? CrewError) == .crewFull
-                ? "This crew already has eight people."
-                : "The invitation could not be made: \(error.localizedDescription)"
+            CrewRouter.shared.joinProblem = CrewErrorWords.say(error, while: .inviting)
         }
     }
 

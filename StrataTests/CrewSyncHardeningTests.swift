@@ -84,6 +84,66 @@ struct CrewSyncHardeningTests {
         #expect(!SocialStore.fullToStartWords.contains("\u{2014}"))
     }
 
+    /// The crews audit (2026-10-08): a join that accepted the share but could
+    /// not write its Member record left the friend in a crew where nothing
+    /// they sent was kept. The next refresh writes it.
+    @Test func aHalfFinishedJoinIsMendedByTheNextRefresh() async throws {
+        let (a, _) = store(jayden)
+        let (b, bCloud) = store(sam)
+        let (crew, link) = try await a.createCrew(name: "One")
+        bCloud.saveError = CKError(.quotaExceeded)
+        await #expect(throws: (any Error).self) { _ = try await b.accept(CrewInvite(url: link)) }
+        #expect(world.records(of: .member, in: crew.id)[sam.uuidString] == nil)
+        bCloud.saveError = nil
+        await b.refresh()
+        #expect(world.records(of: .member, in: crew.id)[sam.uuidString] != nil)
+    }
+
+    /// At the cap, a link to a crew you are already in still opens it.
+    @Test func aLinkToACrewYouAreInOpensItAtTheCap() async throws {
+        let (a, _) = store(jayden)
+        let (b, _) = store(sam)
+        var first: (crew: Crew, invite: URL)?
+        for n in 0..<CrewCaps.crews {
+            let made = try await a.createCrew(name: "Crew \(n)")
+            if first == nil { first = made }
+            _ = try await b.accept(CrewInvite(url: made.invite))
+        }
+        #expect(b.crews.count == CrewCaps.crews)
+        let again = try await b.accept(CrewInvite(url: try #require(first).invite))
+        #expect(again.id == first?.crew.id)
+        // A new one is still refused, and left again.
+        let (c, _) = store(UUID())
+        let extra = try await c.createCrew(name: "Extra")
+        await #expect(throws: CrewError.tooManyCrews) { _ = try await b.accept(CrewInvite(url: extra.invite)) }
+        #expect(world.zones[extra.crew.id]?.participants.contains(sam) == false)
+    }
+
+    /// Every crew error reads as a sentence that says what to do, never as
+    /// CloudKit's own text (the owner, 2026-10-08).
+    @Test func crewErrorsArePlainWords() {
+        #expect(CrewErrorWords.say(CKError(.quotaExceeded), while: .starting) == CrewErrorWords.yourICloudFull)
+        #expect(CrewErrorWords.say(CKError(.quotaExceeded), while: .joining) == CrewErrorWords.starterICloudFull)
+        #expect(CrewErrorWords.say(CKError(.networkUnavailable), while: .starting) == CrewErrorWords.offline)
+        #expect(CrewErrorWords.say(URLError(.notConnectedToInternet), while: .inviting) == CrewErrorWords.offline)
+        #expect(CrewErrorWords.say(CKError(.zoneNotFound), while: .joining) == CrewErrorWords.ended)
+        #expect(CrewErrorWords.say(CrewError.tooManyCrews, while: .starting).contains("start another"))
+        let partial = CKError(.partialFailure, userInfo: [CKPartialErrorsByItemIDKey:
+            [CKRecord.ID(recordName: "x"): CKError(.quotaExceeded)]])
+        #expect(CrewErrorWords.say(partial, while: .starting) == CrewErrorWords.yourICloudFull)
+        let odd = NSError(domain: "CKErrorDomain", code: 999, userInfo: [NSLocalizedDescriptionKey: "Error saving record <CKRecordID: 0x1>"])
+        for doing in [CrewErrorWords.Doing.starting, .joining, .inviting] {
+            let line = CrewErrorWords.say(odd, while: doing)
+            #expect(!line.contains("CKRecord") && !line.contains("Error") && !line.contains("\u{2014}"), "\(line)")
+        }
+        // No screen prints CloudKit's own text after a colon any more.
+        for file in ["Strata/Views/Crews/CrewsListView.swift", "Strata/Views/Crews/CrewSharing.swift",
+                     "Strata/Social/StrataAppDelegate.swift"] {
+            let code = (try? SourceSweep.code(SourceSweep.read(file))) ?? ""
+            #expect(!code.contains("error.localizedDescription"), "\(file)")
+        }
+    }
+
     @Test func cloudKitsWaitIsReadFromTheError() {
         let limited = CKError(.requestRateLimited, userInfo: [CKErrorRetryAfterKey: 30.0])
         #expect(SocialStore.serverBackoff(limited) == 30)

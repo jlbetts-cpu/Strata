@@ -216,6 +216,21 @@ final class CloudKitCrewCloud: CrewCloud {
                 // Ended by its owner, or you were removed: it is gone.
                 forget(crewID)
                 continue
+            } catch let error as CKError where error.code == .changeTokenExpired {
+                // **A token CloudKit no longer honours** (the crews audit,
+                // 2026-10-08): it was saved to disk and asked with every time,
+                // so the crew failed every refresh until a reinstall. Start
+                // that zone over, once.
+                tokens[crewID] = nil
+                do { try await sync(crewID) } catch {
+                    Self.log.error("crew \(crewID.rawValue, privacy: .public) resync failed: \(error)")
+                }
+            } catch {
+                // **One crew's trouble is that crew's** (same audit): any
+                // other error from one zone used to throw out of the whole
+                // fetch, so a single bad zone froze every crew on the list.
+                // It keeps what was cached and is asked again next time.
+                Self.log.error("crew \(crewID.rawValue, privacy: .public) sync failed: \(error)")
             }
             // A crew synced before names were kept has its share already
             // behind its change token: asked for once.

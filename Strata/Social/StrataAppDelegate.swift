@@ -79,12 +79,8 @@ final class CrewRouter {
         do {
             let crew = try await SocialStore.shared.accept(invite)
             open = crew.id
-        } catch let error as CrewError {
-            Self.log.error("joining failed: \(String(describing: error), privacy: .public)")
-            joinProblem = StrataSceneDelegate.words(for: error)
         } catch {
-            Self.log.error("joining failed: \(error)")
-            joinProblem = "That crew could not be opened. Try the link again in a moment."
+            joinProblem = CrewErrorWords.say(error, while: .joining)
         }
     }
 }

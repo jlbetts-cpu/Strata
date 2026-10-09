@@ -262,9 +262,10 @@ struct RestoreBackupView: View {
     @ViewBuilder
     private func outcome(_ report: BackupRestore.Report) -> some View {
         if let failure = report.failure {
+            // Red, as every error the app sets on the page is (2026-10-08).
             Text("Nothing was restored")
                 .font(Typography.screenTitle)
-                .foregroundStyle(AppColors.inkPrimary)
+                .foregroundStyle(AppColors.destructiveInk)
             Text(failure)
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
