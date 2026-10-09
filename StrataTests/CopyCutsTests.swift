@@ -89,12 +89,16 @@ struct CopyCutsTests {
     @Test("the real tab bar draws each tab from the one shared picture")
     func theRealTabBarSharesThePicture() throws {
         let main = try SourceSweep.code(SourceSweep.read("Strata/Views/MainAppView.swift"))
+        // **The bar's own label since 2026-10-08** ("make sure it works
+        // natively again"): his drawing and the tab's name, handed to the
+        // system as a `Label`, from the same asset the onboarding's picture
+        // of the bar draws (`assetName`).
         for tab in ["tower", "camera", "memories"] {
-            #expect(main.contains("StrataTab.\(tab).label(selected: selectedTab == .\(tab), scheme: barScheme)"))
+            #expect(main.contains("StrataTab.\(tab).label"))
         }
+        #expect(!main.contains("preferredColorScheme(windowScheme)"), "a tab is forcing the window's appearance again")
         let bar = try SourceSweep.code(SourceSweep.read("Strata/Views/TabBarView.swift"))
-        #expect(bar.contains("Image(uiImage: picture(selected: selected, scheme: scheme))"))
-        #expect(bar.contains(".accessibilityLabel(rawValue)"), "VoiceOver lost the tab's name")
+        #expect(bar.contains("Label(rawValue, image: assetName)"), "VoiceOver and the bar lost the tab's name")
     }
 
     // MARK: - Cut 18: the Spotlight subtitle

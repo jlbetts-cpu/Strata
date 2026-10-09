@@ -66,9 +66,25 @@ enum StrataTab: String, CaseIterable {
     /// together and handed over as the icon: the tab you are on as a
     /// template, so the bar's tint draws it; an idle one already grey. The
     /// name still reaches VoiceOver.
-    func label(selected: Bool, scheme: ColorScheme) -> some View {
-        Image(uiImage: picture(selected: selected, scheme: scheme))
-            .accessibilityLabel(rawValue)
+    /// **The bar's own label again** (the owner, 2026-10-08: "make sure it
+    /// works natively again"; the tabs "flicker back to light or dark"). His
+    /// drawing as the tab's image and the tab's name as its title, handed to
+    /// the system, which draws the selection pill, the tint, the press and
+    /// the scheme. The flattened picture (`picture(selected:scheme:)`) kept
+    /// idle words grey, which iOS 26's bar will not do on its own, at the
+    /// price of being redrawn for every scheme change and of the bar's own
+    /// selection never animating; the native bar is the better trade. The
+    /// picture is kept for the onboarding's drawing of the bar.
+    var label: some View {
+        Label(rawValue, image: assetName)
+    }
+
+    var assetName: String {
+        switch self {
+        case .tower: "TabWins"
+        case .camera: "TabCamera"
+        case .memories: "TabMemories"
+        }
     }
 
     /// The word's size and weight: the bar's own, measured off its titles.

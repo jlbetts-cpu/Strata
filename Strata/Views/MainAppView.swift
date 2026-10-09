@@ -374,29 +374,9 @@ struct MainAppView: View {
     /// started opening on the camera, the tab never changed, so the change
     /// never fired and the window stayed light behind a black viewfinder. The
     /// tab bar's icons came up black on black.
-    @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.initialTab())
-    /// The scheme the tab bar's pictures are drawn for (`StrataTab.label`):
-    /// the window's, when it forces one, or the system's.
-    @Environment(\.colorScheme) private var systemScheme
-    private var barScheme: ColorScheme { windowScheme ?? systemScheme }
 
     /// The one place that decides. Both the initial value and every later
     /// change go through it, so they cannot disagree.
-    /// What the window's appearance should be on a given tab.
-    ///
-    /// **`nil` means "follow the system"**, which is what every tab but the
-    /// camera now does. It used to force `.light` everywhere — the light-only
-    /// conversion — and the owner's call is that "we should make the design
-    /// work in both dark and light mode while still keeping the etheral vibe".
-    /// An app that refuses the system appearance is not ethereal, it is just
-    /// loud in one direction.
-    ///
-    /// The camera stays pinned to `.dark` and that is not an exception to the
-    /// rule, it is the rule: a viewfinder is a dark room whatever the phone is
-    /// set to, and its chrome is white type over a live image in both.
-    private static func scheme(for tab: StrataTab) -> ColorScheme? {
-        tab == .camera ? .dark : nil
-    }
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
     // **NOTHING BELOW CAN RUN ANY MORE.** (2026-09-28)
@@ -816,7 +796,7 @@ struct MainAppView: View {
                 // "Win deleted · Undo" and "Win added · Undo" (`UndoLine`).
                 towerTabRoot.undoLine()
             } label: {
-                StrataTab.tower.label(selected: selectedTab == .tower, scheme: barScheme)
+                StrataTab.tower.label
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -839,12 +819,12 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                StrataTab.camera.label(selected: selectedTab == .camera, scheme: barScheme)
+                StrataTab.camera.label
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot.undoLine()
             } label: {
-                StrataTab.memories.label(selected: selectedTab == .memories, scheme: barScheme)
+                StrataTab.memories.label
             }
         }
         // A crew asked for from outside (a notification, an invitation) is on
@@ -883,68 +863,20 @@ struct MainAppView: View {
         // navigation, because the TabView writes its own selection back
         // through that binding on appear and overwrote anything set during
         // setup.
-        .preferredColorScheme(windowScheme)
-        // **Going DARK waits for the camera's dissolve; coming back does not.**
-        //
-        // The camera fades its page in over 0.36s rather than cutting (see
-        // `CameraView`), and the status bar is above every view in the app —
-        // so flipping the window to dark on the instant the tab changes puts
-        // white system text on a page that is still white for a third of a
-        // second. Unreadable, and the one piece of chrome nothing can draw
-        // over.
-        //
-        // 0.2s is a little past the middle of that fade, where the page has
-        // gone far enough that white reads. The other direction has nothing to
-        // wait for — leaving the camera arrives on a page that is already
-        // drawn — so it stays instant, which is also what keeps a quick
-        // there-and-back from queueing two flips.
-        //
-        // Cancelled by `id:`, so flicking through tabs cannot land a stale one.
-        .task(id: selectedTab) {
-            let scheme = Self.scheme(for: selectedTab)
-            if scheme == .dark {
-                try? await Task.sleep(for: .seconds(0.2))
-                guard !Task.isCancelled else { return }
-            }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                windowScheme = scheme
-            }
-        }
-        // The tab bar is NOT rebuilt when leaving the camera.
-        //
-        // It is Liquid Glass: it samples what is behind it and caches that, so
-        // after a full-screen viewfinder it stays dark — measured at 0.341
-        // against 0.956 for a tower that had never shown the camera. Four ways
-        // to make it re-sample were tried: `UITabBarAppearance`,
-        // `toolbarColorScheme(_:for: .tabBar)`,
-        // `toolbarBackgroundVisibility(.hidden)`, and changing the TabView's
-        // `.id`. Only the last worked — and it BREAKS `selection`: a TabView
-        // with an `.id` ignores its selection binding and sits on its first
-        // tab, so `-strataStartTab insights` landed on Wins and so would any
-        // deep link. Re-asserting the selection afterwards does not help,
-        // because the binding is ignored from the first render.
-        //
-        // Navigation that works beats chrome that is the right shade. The bar
-        // staying dark after the camera is a known cost, written down here so
-        // the next person does not spend the afternoon on it again.
-        // Black on light, white on dark.
-        //
-        // A single fixed colour was tried and it is worse: the best any one
-        // colour can manage against BOTH the app's off-white and the
-        // viewfinder's near-black is 4.33:1, and a hue that compromises for
-        // two grounds looks chosen for neither. `.primary` is simply the ink
-        // of whichever ground it is on — maximum contrast on both, and the
-        // same colour as the icons beside it, which is what "the highlight is
-        // the icon colour" meant.
+        // **No tab forces an appearance** (2026-10-08): the window follows
+        // the phone on every tab, so switching never flips the bar, the
+        // status bar or a sheet. The camera is dark inside its own view
+        // (`StableCameraTab`) and the status bar steps aside over it.
+        .statusBarHidden(selectedTab == .camera)
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { oldTab, newTab in
             // Off the camera: the front flash's brightness goes back now, not
             // when the camera's view finally disappears under the new tab.
             if oldTab == .camera { RingBrightness.restore() }
-            HapticsEngine.tick()
+            // No haptic of our own: the system bar answers its own taps, and
+            // a second tick on top was the one thing about it that was not
+            // native (2026-10-08, "make sure it works natively again").
             Analytics.shared.signal(.screen, [.screen(newTab == .tower ? .wins : newTab == .camera ? .camera : .memories)])
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
@@ -3888,7 +3820,11 @@ private struct StableCameraTab: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 
     var body: some View {
+        // Dark in its own view, not the window's (2026-10-08): a viewfinder
+        // is a dark room whatever the phone is set to, and the rest of the
+        // app, its tab bar included, stays in the phone's own appearance.
         CameraView(onCaptured: onCaptured, fillsScreen: true)
+            .environment(\.colorScheme, .dark)
     }
 }
 
