@@ -734,6 +734,9 @@ struct OnboardingView: View {
     /// and he is right that it is some. A tower of nothing but pictures is a
     /// photo grid; the point of this screen is that a block is a block whether
     /// or not it has a picture on it, and the mix says that in one look.
+    /// The opening tower's names, one per block, in `demo`'s order.
+    private static let openingTitles = ["Hike", "Inbox zero", "Sunset walk", "Called Mum", "Practice", "Read", "Gym"]
+
     private static let openingPhotos: [Int: String] = [
         0: "DemoPhoto5", 2: "DemoPhoto9", 4: "DemoPhoto2", 6: "DemoPhoto11"
     ]
@@ -777,7 +780,7 @@ struct OnboardingView: View {
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(Self.packed.enumerated()), id: \.offset) { index, item in
                 block(item.category, columns: item.w, rows: item.h, cell: cell,
-                      photo: Self.openingPhotos[index])
+                      photo: Self.openingPhotos[index], title: Self.openingTitles[index])
                     .offset(x: CGFloat(item.c) * (cell + gutter),
                             y: -CGFloat(item.r) * (cell + gutter)
                                 + (landed > index ? 0 : -640))
@@ -869,13 +872,14 @@ struct OnboardingView: View {
 
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(Self.seeded.enumerated()), id: \.offset) { _, item in
-                block(item.category, columns: item.w, rows: item.h, cell: cell, photo: item.photo)
+                block(item.category, columns: item.w, rows: item.h, cell: cell, photo: item.photo, title: item.title)
                     .offset(x: CGFloat(item.c) * (cell + gutter),
                             y: -CGFloat(item.r) * (cell + gutter))
                     .accessibilityHidden(true)
             }
             ForEach(Array(built.enumerated()), id: \.offset) { _, item in
-                block(item.category, columns: item.w, rows: item.h, cell: cell)
+                block(item.category, columns: item.w, rows: item.h, cell: cell,
+                      title: Self.tutorialTitle(item.category))
                     .offset(x: CGFloat(item.c) * (cell + gutter),
                             y: -CGFloat(item.r) * (cell + gutter))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
@@ -929,8 +933,9 @@ struct OnboardingView: View {
     /// and empty; in the film and in the app a tower is photographs. A row of
     /// them stands at the foot, still (nothing animates because a page
     /// appeared), and the block you draw lands on them.
-    private static let seeded: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory, photo: String)] = [
-        (0, 0, 2, 1, .health, "DemoPhoto5"), (2, 0, 1, 1, .work, "DemoPhoto2"), (3, 0, 1, 1, .creativity, "DemoPhoto10"),
+    private static let seeded: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory, photo: String, title: String)] = [
+        (0, 0, 2, 1, .health, "DemoPhoto5", "Hike"), (2, 0, 1, 1, .work, "DemoPhoto2", "Practice"),
+        (3, 0, 1, 1, .creativity, "DemoPhoto10", "Trail run"),
     ]
     private static let seededGrid: [[Bool]] = {
         var grid: [[Bool]] = [Array(repeating: false, count: GridConstants.columnCount)]
@@ -1592,18 +1597,10 @@ struct OnboardingView: View {
 
             ZStack(alignment: .bottomLeading) {
                 if let landed = firstLanded {
-                    block(Self.firstColour, columns: landed.columnSpan, rows: landed.rowSpan, cell: cell)
-                        .overlay(alignment: .bottomLeading) {
-                            // A named block says its name, in the white every
-                            // block label is set in; an unnamed one shows none.
-                            if !firstTitle.trimmingCharacters(in: .whitespaces).isEmpty {
-                                Text(firstTitle)
-                                    .font(Typography.screenSubtitle)
-                                    .foregroundStyle(.white)
-                                    .lineLimit(2)
-                                    .padding(cell * 0.12)
-                            }
-                        }
+                    // Its name in the tower's own label, as it will stand on
+                    // the Wins tab a moment later.
+                    block(Self.firstColour, columns: landed.columnSpan, rows: landed.rowSpan, cell: cell,
+                          title: firstTitle.trimmingCharacters(in: .whitespaces))
                         .offset(y: firstFell ? 0 : -640)
                         .opacity(firstFell ? 1 : 0)
                 } else {
@@ -1698,50 +1695,42 @@ struct OnboardingView: View {
 
     // MARK: - Drawing
 
+    /// **A block as the tower draws one** (the owner, 2026-10-08: "make sure
+    /// the tower is accurate like add the text for the onboarding blocks").
+    /// `BlockFace`, the Wins tab's own block: its fill, its wash, its rim, the
+    /// band under the name and the name in it. The onboarding drew a bare
+    /// `BlockSurface` with no name, so its tower was a picture of a tower.
     private func block(_ category: HabitCategory, columns: Int, rows: Int,
-                       cell: CGFloat, photo: String? = nil) -> some View {
+                       cell: CGFloat, photo: String? = nil, title: String = "") -> some View {
         let gutter = GridConstants.spacing
         let width = cell * CGFloat(columns) + gutter * CGFloat(columns - 1)
         let height = cell * CGFloat(rows) + gutter * CGFloat(rows - 1)
-        return BlockSurface(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-            scale: cell / GridConstants.blockReferenceCell,
-            // The photo blocks' own wash. A white veil at the block's usual
-            // strength floors a photograph's luminance; the tower drops to
-            // 0.06 for exactly this and so does the map.
-            washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06
-        ) {
-            ZStack {
-                // **`EtherealFill.fill`, not the flat `baseColor`** (2026-10-01,
-                // `docs/consistency-audit.md` §1.16). Eight of the ten
-                // `BlockSurface` call sites in the app hand it
-                // `EtherealFill.fill(...)`; two handed it a flat colour, and this
-                // one is the FIRST block anybody ever sees.
-                //
-                // The owner asked for the inside light by name: "I want the blocks
-                // to have this kinda glass transparency as well in them, for the
-                // inner colour instead of just flat." `EtherealFill` is `coreBoost`
-                // 0.035 over `rimSaturation` 0.94 with `rimLift` 0.03, so on a
-                // 34pt swatch the difference is small and on this page's cell,
-                // which is the biggest block drawn anywhere outside the tower, it
-                // is not.
-                //
-                // **Only under a colour, never under a photograph.** The branch
-                // below draws a picture over this fill at `scaledToFill`, so on a
-                // photo block the fill is not seen at all and the lift would be
-                // paid for nothing; on a colour block it is the whole of what you
-                // see. `BlockFace` makes the same split for the same reason.
-                EtherealFill.fill(category.style.baseColor)
-                if let photo {
-                    Image(photo)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: width, height: height)
-                        .clipped()
-                }
+        return BlockFace(title: title, category: category, rowSpan: rows,
+                         width: width, height: height,
+                         cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+                         hasPhoto: photo != nil) {
+            if let photo {
+                Image(photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: width, height: height)
+                    .clipped()
             }
         }
         .frame(width: width, height: height)
+    }
+
+    /// What each colour's block is called when you place one here: the
+    /// names a first week's tower is full of.
+    private static func tutorialTitle(_ category: HabitCategory) -> String {
+        switch category {
+        case .mindfulness: "Meditated"
+        case .health: "Walk"
+        case .creativity: "Sketch"
+        case .work: "Deep work"
+        case .social: "Called Mum"
+        default: "Read"
+        }
     }
 }
 

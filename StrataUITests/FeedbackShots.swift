@@ -101,6 +101,15 @@ final class FeedbackShots: XCTestCase {
         }
     }
 
+    func testOnboardingBlocks() {
+        var app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "0"])
+        wait(6); snap("onbblocks-0"); app.terminate()
+        app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "1"])
+        wait(5); snap("onbblocks-1"); app.terminate()
+        app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "8", "-strataOnboardingFirstWin", "tap"])
+        wait(7); snap("onbblocks-8"); app.terminate()
+    }
+
     func testTowerSome() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "7"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
