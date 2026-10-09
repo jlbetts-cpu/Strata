@@ -224,6 +224,25 @@ and the confetti to exactly one trigger, the goal. 1,305 tests pass.
 
 ---
 
+## 4b. The goal strip, into your crew and out to Instagram
+
+**Out** already worked: the strip's Share opens the system share sheet,
+which is where Instagram, Messages and the rest live.
+
+**Into a crew**, without a new button: each crew you are in now appears
+in that same share sheet, next to the apps, with the crew's photo. Tap
+"Roommates" and the strip lands in that crew's chat as the picture itself
+(no speech bubble), under your name. Like every chat line it is gone at the
+crew's midnight, and it passes the same photo check a doodle does.
+
+- Only your own strip offers your crews; a crew's strip is already theirs.
+- No CloudKit schema change: it rides the chat's existing record with an
+  invisible marker, as tosses do, so nothing extra to deploy.
+- **REVIEW**: a direct "Instagram Stories" button would need a Meta app ID
+  you do not have; the share sheet's Instagram entry covers it.
+
+---
+
 ## 6. Bugs and code health (first round)
 
 ### The onboarding face screen crash

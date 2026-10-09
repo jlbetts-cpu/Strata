@@ -194,6 +194,25 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// Your strip into a crew: the share sheet with the crew in it, then the
+    /// strip in that crew's chat (`CrewStripActivity`).
+    func testStripToCrew() {
+        let crew = ["-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "1",
+                    "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"]
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "1",
+                          "-strataOpenSheet", "booth", "-strataStory", "1"] + crew)
+        wait(9); snap("strip-story")
+        app.buttons["Share strip"].firstMatch.tap()
+        wait(3); snap("strip-sheet")
+        let target = app.descendants(matching: .any)["Roommates"].firstMatch
+        if target.waitForExistence(timeout: 4) { target.tap() }
+        wait(3); snap("strip-sent")
+        app.terminate()
+        _ = launch(["-strataStartTab", "tower", "-strataOpenCrew", "0", "-strataCrewSheet", "chat",
+                    "-strataSeedCrewStrip", "1"] + crew)
+        wait(9); snap("strip-chat")
+    }
+
     func testCrewCap() {
         let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
                           "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])

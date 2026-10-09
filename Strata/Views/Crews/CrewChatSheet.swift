@@ -314,7 +314,16 @@ struct CrewChatSheet: View {
                                block: { closeBar(); blocking = message })
     }
 
+    @ViewBuilder
     private func bubbleFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {
+        if message.isStrip, let strip = message.sketch {
+            CrewStripPicture(url: strip)
+        } else {
+            lineFace(message, mine: mine, quote: quote)
+        }
+    }
+
+    private func lineFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {
         // Yours in ink, with the page's own colour as its type, as the
         // filled `PrimaryCapsule` is; a friend's on a quiet fill in ink.
         let ink = mine ? WarmBackground.top : AppColors.inkPrimary
@@ -371,6 +380,10 @@ struct CrewChatSheet: View {
     private func spoken(_ message: CrewMessage, quote: String?) -> String {
         var parts = [name(of: message.senderProfileID)]
         if let quote { parts.append("replying to \(quote)") }
+        if message.isStrip {
+            parts.append("a photo strip")
+            return parts.joined(separator: ", ")
+        }
         if message.sketch != nil { parts.append("a doodle") }
         if !message.text.isEmpty { parts.append(message.text) }
         return parts.joined(separator: ", ")

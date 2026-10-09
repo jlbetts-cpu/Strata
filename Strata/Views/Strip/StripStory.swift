@@ -68,6 +68,17 @@ struct StripStory: View {
         .scaleEffect(pose.scale)
     }
 
+    /// The strip flat, as a crew's chat shows it (`CrewStripPicture`, 120pt
+    /// wide): three times that, so a phone's screen has every pixel it
+    /// draws, and small enough to send in a moment.
+    @MainActor
+    func flatPNG() -> Data? {
+        let renderer = ImageRenderer(content: paperView.fixedSize())
+        renderer.scale = 3 * CrewStripPicture.width / Self.stripWidth
+        renderer.isOpaque = false
+        return renderer.uiImage?.pngData()
+    }
+
     /// The pose as a transparent PNG, trimmed to what was drawn. Laid out on
     /// a canvas wide enough for any turn and twist first, because a renderer
     /// keeps only its view's bounds and a rotation draws outside them.
@@ -180,14 +191,12 @@ struct StripStoryComposer: View {
     private var tools: some View {
         HStack(spacing: GridConstants.gapWide) {
             if let file {
-                ShareLink(item: file, preview: SharePreview("Some Wins", image: Image(uiImage: UIImage(contentsOfFile: file.path) ?? UIImage()))) {
-                    GlassIconLabel(systemName: "square.and.arrow.up", onPage: true)
+                // **The system's sheet, with your crews in it** (2026-10-09):
+                // Instagram and Messages where they always are, and each crew
+                // you are in beside them (`CrewStripActivity`). One button.
+                GlassIconButton(systemName: "square.and.arrow.up", onPage: true, accessibilityLabel: "Share strip") {
+                    share(file)
                 }
-                .accessibilityLabel("Share strip")
-                // Opening the sheet, which is all a ShareLink reports.
-                .simultaneousGesture(TapGesture().onEnded {
-                    Analytics.shared.signal(.stripShared, [.destination(.other)])
-                })
                 GlassIconButton(systemName: saved ? "checkmark" : "square.and.arrow.down", onPage: true,
                                 accessibilityLabel: saved ? "Saved" : "Save strip") {
                     Task {
@@ -242,6 +251,16 @@ struct StripStoryComposer: View {
                 pose = next.clamped()
             }
             .onEnded { _ in end() }
+    }
+
+    private func share(_ file: URL) {
+        Analytics.shared.signal(.stripShared, [.destination(.other)])
+        // Only your own strip: a crew's strip is already that crew's.
+        let crews = strip.owner == .me ? SocialStore.shared.crews : []
+        let flat = crews.isEmpty ? nil
+            : StripStory(strip: strip, frames: frames, day: day, paper: paper, decor: decor, pose: StripStoryPose()).flatPNG()
+        let activities = flat.map { png in crews.map { CrewStripActivity(crew: $0, png: png, sent: { _ in }) } } ?? []
+        CrewSharing.present(UIActivityViewController(activityItems: [file], applicationActivities: activities))
     }
 
     private func begin() {

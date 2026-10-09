@@ -1120,7 +1120,7 @@ final class SocialStore {
                 !message.isToss
                     && message.crewDay == today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
-                    && (message.text.isEmpty || CrewWords.isAcceptable(message.text))
+                    && (message.text.isEmpty || message.isStrip || CrewWords.isAcceptable(message.text))
                     && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? true)
             }
             .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
@@ -1152,6 +1152,14 @@ final class SocialStore {
     @discardableResult
     func sendDoodle(_ png: Data, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
         await sendSketch(png, text: "", in: crewID, quoting: winID, paced: true)
+    }
+
+    /// **Your photo strip in the crew's chat** (`CrewStripShare`): a
+    /// picture, marked, checked and paced as a doodle is, gone at the crew's
+    /// midnight like every line.
+    @discardableResult
+    func sendStrip(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
+        await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil, paced: true)
     }
 
     /// A doodle with `text` beside it: none for the chat's, the marker for a

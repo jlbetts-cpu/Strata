@@ -45,7 +45,9 @@ enum CrewSharing {
         }
     }
 
-    private static func present(_ controller: UIViewController) {
+    /// Over whatever is on top, from anywhere: the invite here, and the
+    /// strip's share sheet (`StripStoryComposer`).
+    static func present(_ controller: UIViewController) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first
         guard var top = window?.rootViewController else { return }

@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import PencilKit
+import SwiftUI
 import UIKit
 
 /// A pretend crew, so every crew screen can be built, captured and filmed in
@@ -313,6 +314,23 @@ extension DebugHarness {
         }
         await second.refresh()
         await second.send("6 works", in: crew.id)
+        // `-strataSeedCrewStrip`: a friend's photo strip in the chat
+        // (`CrewStripShare`), drawn the way their phone would send it.
+        if argument("-strataSeedCrewStrip") != nil {
+            let frames = ["DemoPhoto3", "DemoPhoto7", "DemoPhoto5"].enumerated().compactMap { i, name in
+                UIImage(named: name).map { PhotoStrip.Frame(id: UUID(), title: ["Run", "Read", "Cooked"][i],
+                                                            size: .medium, picture: $0) }
+            }
+            let renderer = ImageRenderer(content: StripView(frames: frames, day: DateUtils.dateString(from: Date()),
+                                                            signature: "Sam", paper: .white,
+                                                            width: StripStory.stripWidth).fixedSize())
+            renderer.scale = 3 * CrewStripPicture.width / StripStory.stripWidth
+            renderer.isOpaque = false
+            if let png = renderer.uiImage?.pngData() {
+                await first.refresh()
+                await first.sendStrip(png, in: crew.id)
+            }
+        }
         if argument("-strataChatReact") != nil {
             await seedChatReactions(first: first, second: second, me: me, crew: crew.id)
         }

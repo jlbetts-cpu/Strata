@@ -398,7 +398,7 @@ enum AnalyticsEvent: String, Sendable, CaseIterable {
 enum AnalyticsField: Sendable, Equatable {
     enum Size: String, Sendable { case quick, regular, deep }
     enum Source: String, Sendable { case slot, camera, widget, siri, lockScreen = "lock_screen", crew, onboarding }
-    enum Destination: String, Sendable { case instagram, messages, saved, other }
+    enum Destination: String, Sendable { case instagram, messages, saved, crew, other }
     enum Action: String, Sendable { case shown, done, skipped, played, finished, soundOn = "sound_on", tipped, dismissed }
     enum Tier: String, Sendable { case small, medium, large }
     enum Screen: String, Sendable { case wins, camera, memories, settings, crews, chat, profile, journal }
