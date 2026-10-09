@@ -280,11 +280,11 @@ struct CrewsListView: View {
                     Illustration(art: art, line: "Winning is better together", height: 190,
                                  motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
                 }
-                VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
-                    MarkLine(mark: "MarkPeople", "Up to 8 friends in a crew, you included.")
-                    MarkLine(mark: "MarkLayers", "Send a win and it lands on the crew's tower for the day.")
-                    MarkLine(mark: "MarkLock", "Private. Only people you invite can see it.")
-                }
+                FeatureList(rows: [
+                    ("MarkPeople", "Up to 8 friends", "You included."),
+                    ("MarkLayers", "One tower for the day", "Send a win and it lands there."),
+                    ("MarkLock", "Private", "Only people you invite can see it."),
+                ])
                 // On the page margin, the New Crew button's own edge.
                 .padding(.horizontal, GridConstants.horizontalPadding)
             }

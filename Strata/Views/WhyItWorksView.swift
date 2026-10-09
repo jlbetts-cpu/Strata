@@ -23,21 +23,10 @@ struct WhyItWorksView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: GridConstants.gapWide) {
-                // Each reason with his drawn mark in a column beside it, the
-                // way a feature list is set (2026-10-08, `MarkLine`).
-                ForEach(Array(Self.sections.enumerated()), id: \.element.title) { index, section in
-                    MarkLine(mark: Self.marks[index % Self.marks.count]) {
-                        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                            Text(section.title)
-                                .font(Typography.headerMedium)
-                                .foregroundStyle(AppColors.inkPrimary)
-                            Text(section.body)
-                                .font(Typography.bodyLarge)
-                                .foregroundStyle(AppColors.inkSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
+                // `FeatureList`, as every explanation is (2026-10-08).
+                FeatureList(rows: Self.sections.enumerated().map { index, section in
+                    (Self.marks[index % Self.marks.count], section.title, section.body)
+                })
 
                 Text(Self.notMedical)
                     .font(Typography.bodyLarge)

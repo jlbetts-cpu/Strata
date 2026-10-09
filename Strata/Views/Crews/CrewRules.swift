@@ -28,12 +28,16 @@ struct CrewRulesSheet: View {
                 .foregroundStyle(AppColors.inkPrimary)
                 .padding(.top, GridConstants.gapSection)
 
-            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                rule("MarkCheck", "Post your own wins and your own photos.")
-                rule("MarkSlash", "Nothing hateful, sexual, violent or cruel. None of it is allowed, ever.")
-                rule("MarkAlert", "Report anything that breaks these. Every report is looked at within a day, and whatever or whoever broke them is removed.")
-                rule("MarkLock", "Block anyone, any time. They are not told.")
-            }
+            // `FeatureList`, as every explanation is (2026-10-08). The words
+            // are the same promises App Review reads (guideline 1.2: no
+            // objectionable content, a way to report with a response within
+            // a day, a way to block), split into a title and its detail.
+            FeatureList(rows: [
+                ("MarkCheck", "Your own wins", "Post your own wins and your own photos."),
+                ("MarkSlash", "Nothing hurtful", "Nothing hateful, sexual, violent or cruel. Ever."),
+                ("MarkAlert", "Report it", "Every report is looked at within a day, and whatever or whoever broke these rules is removed."),
+                ("MarkLock", "Block anyone", "Any time. They are not told."),
+            ])
 
             Spacer(minLength: 0)
 
@@ -55,16 +59,5 @@ struct CrewRulesSheet: View {
         .background(WarmBackground().ignoresSafeArea())
         .presentationDetents([.large])
         .interactiveDismissDisabled()
-    }
-
-    /// His drawn marks beside the rules (2026-10-08), as on every
-    /// explanation now (`MarkLine`).
-    private func rule(_ mark: String, _ text: String) -> some View {
-        MarkLine(mark: mark) {
-            Text(text)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 }

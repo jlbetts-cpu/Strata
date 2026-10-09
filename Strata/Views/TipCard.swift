@@ -80,23 +80,7 @@ struct TipCard: View {
     private static let closeInset: CGFloat = 16
 
     private var markWell: some View {
-        Group {
-            // His drawn marks are cut on the tools' 26pt canvas
-            // (`docs/icons/slice_icons.py`), so they are shown at their own
-            // size, never scaled: every mark in every tip is one size.
-            if UIImage(named: mark) != nil {
-                Image(mark).renderingMode(.template)
-            } else if UIImage(named: "TipSparkle") != nil {
-                Image("TipSparkle").renderingMode(.template)
-            } else {
-                Image(systemName: "lightbulb")
-                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
-            }
-        }
-        .foregroundStyle(AppColors.inkPrimary)
-        .frame(width: Self.well, height: Self.well)
-        .background(Circle().fill(AppColors.quietFill))
-        .accessibilityHidden(true)
+        MarkWell(mark: mark)
     }
 
     @ViewBuilder
@@ -236,41 +220,70 @@ nonisolated enum TipCopy {
     }
 }
 
-/// **His drawn mark beside a line of explanation** (2026-10-08, "kinda how
-/// the tips are"): the Crews empty state, Why It Works, the map's empty state
-/// and the crew rules. Never a control; controls keep their SF Symbols. The
-/// mark is cut on the 26pt canvas and shown at its own size in the secondary
-/// ink, its centre on the first line of the words beside it.
-struct MarkLine<Words: View>: View {
+/// **His drawn mark in its round well**: the one way a mark is shown, in a
+/// tip and in every list that explains something (`FeatureRow`). Cut on the
+/// 26pt canvas (`docs/icons/slice_icons.py`) and shown at that size, never
+/// scaled, so every mark in the app is one size in one well.
+struct MarkWell: View {
     let mark: String
-    @ViewBuilder var words: () -> Words
-
-    static var column: CGFloat { 26 }
+    static let side: CGFloat = 40
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapItem) {
-            Image(mark)
-                .renderingMode(.template)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(width: Self.column, height: Self.column)
-                // Centre on the first line: a 17pt line's x-height middle
-                // sits about 6pt over its baseline.
-                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
-                .accessibilityHidden(true)
-            words()
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if UIImage(named: mark) != nil {
+                Image(mark).renderingMode(.template)
+            } else {
+                Image("TipSparkle").renderingMode(.template)
+            }
+        }
+        .foregroundStyle(AppColors.inkPrimary)
+        .frame(width: Self.side, height: Self.side)
+        .background(Circle().fill(AppColors.quietFill))
+        .accessibilityHidden(true)
+    }
+}
+
+/// **One layout for everything that explains** (the owner, 2026-10-08, of
+/// the Crews intro, the crew rules and Why It Works: "why are they all so
+/// differnt in terms of layout... premium apps know how to use there space").
+/// They were three: a mark and a sentence, a mark and a wrapping rule, a
+/// small mark and a heading over a paragraph. Now each is a list of these,
+/// the tip's own anatomy without its card: the mark in its well, a short
+/// title centred on the well, the words under it in the secondary ink.
+/// Rows stand `gapWide` apart on the page margin, the edge the page's button
+/// keeps, so the list and the action line up.
+struct FeatureRow: View {
+    let mark: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: GridConstants.gapLabel) {
+            MarkWell(mark: mark)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
+                Text(detail)
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkSecondary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The title's line centred on the well: a 22pt line in 40.
+            .padding(.top, (MarkWell.side - 22) / 2)
         }
         .accessibilityElement(children: .combine)
     }
 }
 
-extension MarkLine where Words == Text {
-    init(mark: String, _ text: String) {
-        self.mark = mark
-        self.words = {
-            Text(text)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkPrimary)
+/// A list of `FeatureRow`s at the one spacing.
+struct FeatureList: View {
+    let rows: [(mark: String, title: String, detail: String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapWide) {
+            ForEach(rows, id: \.title) { FeatureRow(mark: $0.mark, title: $0.title, detail: $0.detail) }
         }
     }
 }
