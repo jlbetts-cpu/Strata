@@ -69,6 +69,11 @@ struct OnboardingView: View {
     var onFinish: () -> Void
 
     @State private var step = OnboardingView.firstShown
+    /// **The page you were on, kept** (2026-10-09). Turning the camera on in
+    /// Settings, from the head page's "Open Settings", makes iOS end the app;
+    /// it came back at the film, which a tester read as a crash on the face
+    /// screen. The walkthrough now resumes where it was. Cleared on finish.
+    @AppStorage("onboarding.resumeStep") private var resumeStep = 0
     /// What the tutorial has actually watched the finger do.
     @State private var hasDrawn = false
     /// The tutorial's own tower, and the grid it is packed into — the same
@@ -156,6 +161,11 @@ struct OnboardingView: View {
                 #if DEBUG
                 if Self.debugStep != nil { showsFilm = false }
                 #endif
+                // Back after iOS ended the app part way: the film was seen.
+                if endsOnGoal, resumeStep > Self.firstShown, shownSteps.contains(resumeStep) {
+                    step = resumeStep
+                    showsFilm = false
+                }
             }
         } else {
             pages
@@ -219,6 +229,7 @@ struct OnboardingView: View {
             if let start = Self.debugStep { step = start }
             #endif
         }
+        .onChange(of: step) { _, now in if endsOnGoal { resumeStep = now } }
         // **No `shown` per page** (2026-10-08). Every page is left by `done`
         // or `skipped`, so those two already draw the funnel: the last page
         // with one is where a person stopped. A third event per page was a
@@ -1418,6 +1429,7 @@ struct OnboardingView: View {
     private func finish() {
         guard !finished else { return }
         finished = true
+        resumeStep = 0
         onFinish()
     }
 

@@ -480,7 +480,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
             kCIInputBackgroundImageKey: CIImage(color: .clear).cropped(to: bounds),
             kCIInputMaskImageKey: mask
         ])
-        guard let result = CIContext().createCGImage(blended, from: bounds) else { return nil }
+        guard let result = HeadCaptureEngine.context.createCGImage(blended, from: bounds) else { return nil }
         return UIImage(cgImage: result, scale: 1, orientation: .up)
     }
 
@@ -488,6 +488,13 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
     ///
     /// `VNGenerateForegroundInstanceMaskRequest` finds every foreground
     /// object, so only the instance under the face is kept.
+    /// **One image context for every cut-out** (2026-10-09). Each cut-out
+    /// and mask made a fresh `CIContext`, a Metal device's worth of setup,
+    /// up to a dozen times for one head on full 1080x1920 frames while the
+    /// camera still ran: the kind of spike iOS ends an app for, which a
+    /// tester sees as a crash on the face screen.
+    static let context = CIContext(options: [.cacheIntermediates: false])
+
     static func lift(_ take: Take) -> CGImage? {
         let request = VNGenerateForegroundInstanceMaskRequest()
         let handler = VNImageRequestHandler(cgImage: take.image, orientation: .up)
@@ -497,7 +504,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         guard let masked = try? observation.generateMaskedImage(ofInstances: instances, from: handler,
                                                                 croppedToInstancesExtent: false) else { return nil }
         let lifted = CIImage(cvPixelBuffer: masked)
-        return CIContext().createCGImage(lifted, from: lifted.extent)
+        return HeadCaptureEngine.context.createCGImage(lifted, from: lifted.extent)
     }
 
     /// How far the lifted-out head reaches past the eyes, away from the chin,

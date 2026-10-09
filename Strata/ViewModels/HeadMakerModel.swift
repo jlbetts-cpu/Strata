@@ -93,17 +93,24 @@ final class HeadMakerModel {
     static let leastBlink: Duration = .milliseconds(1400)
 
     func start() async {
-        await camera.start()
-        guard camera.isConfigured else {
+        // **Configured, then running, never both at once** (2026-10-09, the
+        // face screen's crash on a tester's phone): the front camera and the
+        // frame output are set up before the first frame, and the camera
+        // starts last (`CameraService.run`).
+        guard await camera.prepare() else {
             isDenied = camera.isDenied
             step = .unavailable
             return
         }
         camera.useFrontCamera()
-        camera.attachFrames(engine.output)
+        // Set once and never cleared: it holds the model weakly, and the
+        // capture queue reads it with every frame, so writing it again from
+        // here while frames arrive was a data race (`stop`).
         engine.onUpdate = { [weak self] update in
-            Task { @MainActor in self?.receive(update) }
+            Task { @MainActor [weak self] in self?.receive(update) }
         }
+        camera.attachFrames(engine.output)
+        await camera.run()
         step = .lining
         engine.begin(.lining)
     }
@@ -113,7 +120,6 @@ final class HeadMakerModel {
         faceSeenSince = nil
         flow?.cancel()
         engine.begin(.idle)
-        engine.onUpdate = nil
         camera.detachFrames()
         camera.stop()
     }
@@ -361,21 +367,21 @@ final class HeadMakerModel {
             let surprisedCrop = surprised.map(aligned)
             let winkCrop = wink.map(aligned)
 
-            guard let neutral = HeadCaptureEngine.cutOut(open, lifted: lifted, crop: base, side: side,
-                                                         chin: chin, paintsEyes: true) else {
+            guard let neutral = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(open, lifted: lifted, crop: base, side: side,
+                                                         chin: chin, paintsEyes: true) }) else {
                 return nil
             }
             var faces: [HeadRig.Expression: HeadStore.Face] = [.neutral: HeadStore.Face(png: neutral.png, eyes: neutral.eyes)]
             if let smile, let smileCrop,
-               let made = HeadCaptureEngine.cutOut(smile, crop: smileCrop, side: side, chin: chin, paintsEyes: false) {
+               let made = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(smile, crop: smileCrop, side: side, chin: chin, paintsEyes: false) }) {
                 faces[.smile] = HeadStore.Face(png: made.png, eyes: [])
             }
             if let brows, let browsCrop,
-               let made = HeadCaptureEngine.cutOut(brows, crop: browsCrop, side: side, chin: chin, paintsEyes: true) {
+               let made = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(brows, crop: browsCrop, side: side, chin: chin, paintsEyes: true) }) {
                 faces[.browsUp] = HeadStore.Face(png: made.png, eyes: made.eyes)
             }
             if let surprised, let surprisedCrop,
-               let made = HeadCaptureEngine.cutOut(surprised, crop: surprisedCrop, side: side, chin: chin, paintsEyes: true) {
+               let made = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(surprised, crop: surprisedCrop, side: side, chin: chin, paintsEyes: true) }) {
                 faces[.surprised] = HeadStore.Face(png: made.png, eyes: made.eyes)
             }
             // Keeps its own eyes. Painting takes both of them or neither, and
@@ -383,12 +389,12 @@ final class HeadMakerModel {
             // the rule exists to prevent — the same reason a grin keeps its
             // own narrowed eyes.
             if let wink, let winkCrop,
-               let made = HeadCaptureEngine.cutOut(wink, crop: winkCrop, side: side, chin: chin, paintsEyes: false) {
+               let made = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(wink, crop: winkCrop, side: side, chin: chin, paintsEyes: false) }) {
                 faces[.wink] = HeadStore.Face(png: made.png, eyes: [])
             }
             var shutPNG: Data?
             if let shut, let shutCrop {
-                shutPNG = HeadCaptureEngine.cutOut(shut, crop: shutCrop, side: side, chin: chin, paintsEyes: false)?.png
+                shutPNG = autoreleasepool(invoking: { HeadCaptureEngine.cutOut(shut, crop: shutCrop, side: side, chin: chin, paintsEyes: false) })?.png
             }
             // The creator's kind of face from these captures: shut eyes on
             // every face that can blink, brows that change only the brows.

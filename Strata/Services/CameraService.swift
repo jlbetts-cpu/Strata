@@ -101,17 +101,48 @@ final class CameraService: NSObject {
     }
 
     func start() async {
+        guard await prepare() else { return }
+        await run()
+    }
+
+    /// Access asked and the session configured, NOT running: what a caller
+    /// that reconfigures before the first frame (the head maker's front
+    /// camera and frames) calls, so nothing is configured while it starts.
+    @discardableResult
+    func prepare() async -> Bool {
         await requestAccess()
-        guard isAuthorized else { return }
+        guard isAuthorized else { return false }
         if !isConfigured { configure() }
-        guard isConfigured else { return }
+        return isConfigured
+    }
+
+    /// **Running, and only returns once it is** (2026-10-09, the onboarding
+    /// face screen's crash). `startRunning` happens on `queue`; it used to be
+    /// dispatched and forgotten, and the head maker then flipped to the front
+    /// camera and added its frame output on the main thread at once. A
+    /// `startRunning` that landed between that `beginConfiguration` and its
+    /// commit is an NSGenericException: on a real phone, every so often,
+    /// the app died on "Make my head". The simulator has no camera and never
+    /// got there.
+    func run() async {
         let session = session
-        queue.async { if !session.isRunning { session.startRunning() } }
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            queue.async {
+                if !session.isRunning { session.startRunning() }
+                done.resume()
+            }
+        }
     }
 
     func stop() {
         let session = session
         queue.async { if session.isRunning { session.stopRunning() } }
+    }
+
+    /// Waits for a start or stop still on `queue` to finish: called before
+    /// every configuration on the main thread, so the two never interleave.
+    private func settleQueue() {
+        queue.sync {}
     }
 
     private func configure() {
@@ -191,6 +222,7 @@ final class CameraService: NSObject {
         let next: Facing = facing == .back ? .front : .back
         guard let device = camera(for: next),
               let newInput = try? AVCaptureDeviceInput(device: device) else { return }
+        settleQueue()
         session.beginConfiguration()
         session.removeInput(current)
         if session.canAddInput(newInput) {
@@ -309,6 +341,7 @@ final class CameraService: NSObject {
         guard isConfigured, frameOutput == nil else { return }
         zoomBeforeFrames = zoom
         setZoom(1)
+        settleQueue()
         session.beginConfiguration()
         // The head maker has the frames to itself: the live touch steps out
         // (one video output at a time), and the maker sees the plain face it
@@ -357,6 +390,7 @@ final class CameraService: NSObject {
 
     func detachFrames() {
         guard let output = frameOutput else { return }
+        settleQueue()
         session.beginConfiguration()
         session.removeOutput(output)
         if let previous = presetBeforeFrames, session.canSetSessionPreset(previous) {
