@@ -35,6 +35,8 @@ struct MemoriesView: View {
     @Environment(\.headsAwake) private var coveringHeadsAwake
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
     @State private var monthStep = 0
+    /// TipKit says the drawing's tip is due (`monthTipLayer`).
+    @State private var showsMonthTip = false
     @State private var vm = MemoriesViewModel()
     /// Today's past win (`PastWin`), the line under the calendar.
     @State private var path: [MemoriesRoute] = []
@@ -135,6 +137,17 @@ struct MemoriesView: View {
             // is the feature"). This is him changing it, not me forgetting it.
             VStack(spacing: 0) {
             pageHeader
+                .task {
+                    for await status in MonthDrawingTip().statusUpdates {
+                        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) {
+                            showsMonthTip = status == .available
+                        }
+                    }
+                }
+            // The month drawing's tip, as every tip is now (`TipCard`): under
+            // the header, in the page, so the drawing makes room for it
+            // rather than standing under it.
+            monthTipLayer
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 // **`pinnedViews` here, and the Section at the TOP level.**
@@ -567,6 +580,24 @@ struct MemoriesView: View {
     /// actually dictate the page like things that show should only be from
     /// that month"): its calendar, then its photographs, and nothing from
     /// any other month. It does not scroll.
+    /// **The drawing's tip in the tip container** (2026-10-08). It was a
+    /// system popover hung off the drawing, which stood over the calendar's
+    /// weekdays and once over an open sheet. TipKit still decides WHEN
+    /// (`MonthDrawingTip`'s rules); this decides where and what it looks like.
+    @ViewBuilder
+    private var monthTipLayer: some View {
+        if showsMonthTip {
+            TipCard(text: "Hold the drawing to make it yours.",
+                    close: {
+                        withAnimation(GridConstants.cueOut) { showsMonthTip = false }
+                        MonthDrawingTip().invalidate(reason: .tipClosed)
+                    })
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.bottom, GridConstants.gapItem)
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+        }
+    }
+
     private var pageHeader: some View {
         ZStack {
             // **One glass container for the header's discs** (2026-10-07,
@@ -990,7 +1021,6 @@ struct MonthArtHold: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) { }
             }
-            .popoverTip(MonthDrawingTip(), arrowEdge: .bottom)
     }
 }
 

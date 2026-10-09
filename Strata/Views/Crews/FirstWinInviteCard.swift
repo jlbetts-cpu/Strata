@@ -39,21 +39,18 @@ struct FirstWinInvitePrompt: ViewModifier {
             // always empty, and the line hangs there, on the header's own
             // line arithmetic (`towerHeader`): its top padding, a 44pt
             // control, `gapWide`.
-            .overlay(alignment: .top) {
-                if showing != nil, crewPath.isEmpty {
-                    FirstWinInviteCard(hasCrew: CrewsFlag.isOn && !SocialStore.shared.crews.isEmpty,
-                                       invite: invite, close: close)
-                        // Recorded when it is SEEN, not when it is decided:
-                        // the first launch after onboarding rebuilds the tab
-                        // under a pending card, and a card marked shown at
-                        // the decision was lost with that state and never
-                        // came back (photographed, 2026-10-05).
-                        .onAppear { if let showing { FirstWinInvite.markShown(showing) } }
-                        .padding(.leading, GridConstants.horizontalPadding)
-                        .padding(.trailing, GridConstants.spacing)
-                        .padding(.top, GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral)
-                                     + GlassIconButton.defaultSide + GridConstants.gapWide)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            // Drawn by the Wins header, under the crest, where every Wins tip
+            // stands (`TipStage.invite`, 2026-10-08); this decides when.
+            .onChange(of: showing == nil || !crewPath.isEmpty, initial: true) { _, hidden in
+                if hidden {
+                    TipStage.shared.invite = nil
+                    TipStage.shared.release("invite")
+                } else if let showing {
+                    FirstWinInvite.markShown(showing)
+                    _ = TipStage.shared.take("invite")
+                    TipStage.shared.invite = InviteTip(
+                        hasCrew: CrewsFlag.isOn && !SocialStore.shared.crews.isEmpty,
+                        invite: invite, close: close)
                 }
             }
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: showing)
@@ -113,43 +110,19 @@ struct FirstWinInvitePrompt: ViewModifier {
     }
 }
 
-/// **One quiet line and one word to press, on the page itself.** No panel
-/// and no glass: glass is for controls, and the Wins header already carries
-/// the three glass controls a screen is allowed (`GlassIconButton.swift`'s
-/// budget). The sentence in the secondary ink, Invite as a sheet's confirm
-/// word, and a hollow close glyph. Air around it, no line under it.
+/// **The invitation, as every tip is now** (`TipCard`, 2026-10-08): the line,
+/// Invite or Start a Crew as its word, and the close glyph, in the one tip
+/// container, under the header where it always stood.
 struct FirstWinInviteCard: View {
     let hasCrew: Bool
     var invite: () -> Void
     var close: () -> Void
 
-    private static let tapTarget: CGFloat = 44
-
     var body: some View {
-        HStack(spacing: GridConstants.gapTight) {
-            Text(FirstWinInvite.line)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityAddTraits(.isHeader)
-
-            Button(action: invite) {
-                Text(hasCrew ? "Invite" : "Start a Crew").sheetAction()
-            }
-            .buttonStyle(.pressWord)
+        TipCard(text: FirstWinInvite.line,
+                actionTitle: hasCrew ? "Invite" : "Start a Crew",
+                action: invite,
+                close: close)
             .accessibilityHint(hasCrew ? "Invites people to your crew" : "Starts a crew")
-
-            Button(action: close) {
-                Image(systemName: "xmark")
-                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                    .foregroundStyle(AppColors.inkTertiary)
-                    .frame(width: Self.tapTarget, height: Self.tapTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.press)
-            .accessibilityLabel("Close")
-        }
-        .accessibilityElement(children: .contain)
     }
 }

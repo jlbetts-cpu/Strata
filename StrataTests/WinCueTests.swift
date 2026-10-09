@@ -38,13 +38,22 @@ struct WinCueTests {
         }
     }
 
-    @Test("the bubble is the chat's own: ink, with the page's colour as its type")
-    func looksLikeChat() throws {
-        let cue = SourceSweep.code(try SourceSweep.read("Strata/Views/WinCue.swift"))
-        #expect(cue.contains(".fill(AppColors.inkPrimary)"))
-        #expect(cue.contains(".foregroundStyle(WarmBackground.top)"))
+    /// It was the chat's dark bubble aimed at the slot; the owner, 2026-10-08:
+    /// "the tips should just be clean and consistent inside a container" and
+    /// "half the tips dont even appear in the right spot". Now it is the one
+    /// tip container, laid out in the Wins header's own inset, never at a
+    /// position read off the slot, and separated by a hairline, not a shadow.
+    @Test("the cue is a tip: the one container, under the header, by layout")
+    func isATip() throws {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
-        #expect(main.contains(".overlay { winCueLayer }"))
+        #expect(main.contains("TipCard(text: line"))
+        #expect(main.contains("VStack(spacing: GridConstants.gapTight) {\n                    towerHeader\n                    winsTip"))
+        #expect(!main.contains("slotFrame"))
         #expect(main.contains("!logs.isEmpty"))
+        let tip = SourceSweep.code(try SourceSweep.read("Strata/Views/TipCard.swift"))
+        #expect(tip.contains("strokeBorder(Self.hairline"))
+        #expect(!tip.contains(".shadow("))
+        // The line wraps; it is never held to one line that runs off screen.
+        #expect(tip.contains(".fixedSize(horizontal: false, vertical: true)"))
     }
 }

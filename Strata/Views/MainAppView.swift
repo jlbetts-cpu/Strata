@@ -220,7 +220,6 @@ struct MainAppView: View {
     /// **The day's cue over the slot** (`WinCue`), while it is up, and where
     /// the slot is on screen for it to rise from.
     @State private var winCue: String?
-    @State private var slotFrame: CGRect = .zero
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DayOneHint.shownKey) private var drawOutHintShown = false
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
@@ -1003,40 +1002,39 @@ struct MainAppView: View {
 
     // MARK: - Main Content
 
-    /// The cue, risen just over the slot, on whichever side keeps it on
-    /// screen: a line arriving above the place a win is logged.
+    /// **The cue and the day-one hint, as a tip** (`TipCard`, 2026-10-08:
+    /// "half the tips dont even appear in the right spot"). They were a
+    /// bubble aimed at the slot from a frame captured a moment before, so it
+    /// stood wherever the slot had been, and set on one unbroken line, so a
+    /// slot in the middle column pushed it off the screen's edge. Now it is
+    /// the one tip container in the one place a tip stands on Wins, the air
+    /// under the header, which a tower growing from the bottom always leaves
+    /// empty (`FirstWinInviteCard`'s own reasoning). The cue opens Add a Win
+    /// from anywhere on it; the close glyph only closes.
     @ViewBuilder
-    private var winCueLayer: some View {
-        if let line = winCue, slotFrame != .zero {
-            GeometryReader { geo in
-                let origin = geo.frame(in: .global).origin
-                let slot = slotFrame.offsetBy(dx: -origin.x, dy: -origin.y)
-                let left = slot.midX < geo.size.width / 2
-                let margin = GridConstants.horizontalPadding
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    HStack(spacing: 0) {
-                        if !left { Spacer(minLength: margin) }
-                        WinCueBubble(text: line) {
-                            withAnimation(GridConstants.cueOut) { winCue = nil }
-                            winDraft = WinDraft()
-                        }
-                        if left { Spacer(minLength: margin) }
-                    }
-                    .padding(.leading, left ? max(margin, slot.minX) : 0)
-                    .padding(.trailing, left ? 0 : max(margin, geo.size.width - slot.maxX))
-                }
-                .frame(width: geo.size.width, height: max(0, slot.minY - GridConstants.gapTight))
-                .transition(reduceMotion ? .opacity
-                            : .scale(scale: 0.86, anchor: left ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
-            }
+    private var winsTip: some View {
+        if let invite = TipStage.shared.invite {
+            FirstWinInviteCard(hasCrew: invite.hasCrew, invite: invite.invite, close: invite.close)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+        } else if let line = winCue {
+            TipCard(text: line,
+                    onTap: line == DayOneHint.drawOut ? nil : {
+                        withAnimation(GridConstants.cueOut) { winCue = nil }
+                        winDraft = WinDraft()
+                    },
+                    close: { withAnimation(GridConstants.cueOut) { winCue = nil } })
+                .accessibilityHint(line == DayOneHint.drawOut ? "" : "Adds a win")
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                .onAppear { _ = TipStage.shared.take("cue") }
+                .onDisappear { TipStage.shared.release("cue") }
         }
     }
 
     private var towerTab: some View {
         towerTabContent()
             .background { geometryTracker }
-            .overlay { winCueLayer }
             // Asked a beat after the tower settles, once a day (`WinCue`).
             .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(blocksToday)") {
                 // A win landed or the tab changed: a cue on screen has had
@@ -1050,7 +1048,10 @@ struct MainAppView: View {
                                               shown: drawOutHintShown) {
                     try? await Task.sleep(for: .seconds(1.6))
                     await Self.waitForLaunchToFinish()
-                    guard !Task.isCancelled, winDraft == nil else { return }
+                    // The first-win invitation answers the same win: after it.
+                    try? await Task.sleep(for: .seconds(0.4))
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil else { return }
                     drawOutHintShown = true
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = hint }
                     try? await Task.sleep(for: .seconds(9))
@@ -1065,7 +1066,8 @@ struct MainAppView: View {
                 else { return }
                 try? await Task.sleep(for: .seconds(1.6))
                 await Self.waitForLaunchToFinish()
-                guard !Task.isCancelled, winDraft == nil else { return }
+                await TipStage.shared.waitUntilFree()
+                guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil else { return }
                 winCueDay = DateUtils.dateString(from: Date())
                 // Seen here, so the evening does not ask it again.
                 Task { await EveningCheckIn.update(context: modelContext) }
@@ -1080,7 +1082,20 @@ struct MainAppView: View {
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
             // at all.
-            .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                // **A Wins tip stands directly under the crest** (2026-10-08,
+                // "the placement of the tips still dont look the best"): in
+                // the header's own inset, so it is placed by layout rather
+                // than by a measured or guessed offset, and the tower, which
+                // stands on the tab bar, does not move for it.
+                VStack(spacing: GridConstants.gapTight) {
+                    towerHeader
+                    winsTip
+                }
+                .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
+                .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
+                           value: TipStage.shared.invite == nil)
+            }
             // **The head that lives on the tower, OVER the header** (moved
             // 2026-10-02). It was an overlay on the scroll view, under this
             // pinned header, so carried over the bubble beside the Plan button
@@ -3468,8 +3483,6 @@ struct MainAppView: View {
                     onOpenMenu: { winDraft = WinDraft() }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
-                // Measured inside the offset, so it is where the slot is SEEN.
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { slotFrame = $0 }
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
                 .companionObstacle("slot")
                 // No animation modifier here.

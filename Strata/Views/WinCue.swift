@@ -53,41 +53,12 @@ nonisolated enum WinCue {
 /// bubble: the slot can be drawn out for a bigger block. Once ever, never to
 /// someone who has already drawn one, and not past the first few wins.
 nonisolated enum DayOneHint {
-    static let drawOut = "Draw the slot out for a bigger win."
+    static let drawOut = "Hold the + and pull it out for a bigger win."
     static let shownKey = "hint.drawOut.shown"
     static let lastChance = 5
 
     static func line(winsEver: Int, drewBigger: Bool, shown: Bool) -> String? {
         guard !shown, !drewBigger, (1...lastChance).contains(winsEver) else { return nil }
         return drawOut
-    }
-}
-
-/// The bubble: the crew chat's own line, ink with the page's colour as its
-/// type (`CrewChatSheet.bubbleFace`), so the app speaks the way you do there.
-struct WinCueBubble: View {
-    let text: String
-    var onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(text)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(WarmBackground.top)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, GridConstants.gapLabel)
-                .padding(.vertical, GridConstants.gapItem)
-                .background {
-                    RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                        .fill(AppColors.inkPrimary)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
-        }
-        .buttonStyle(.press)
-        // Its own width, so its edge is the slot's edge: a wider frame left
-        // the pill centred inside it, short of the slot (measured, 25pt).
-        .fixedSize()
-        .accessibilityHint("Adds a win")
     }
 }
