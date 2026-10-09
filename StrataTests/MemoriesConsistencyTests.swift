@@ -171,18 +171,27 @@ struct MemoriesConsistencyTests {
     /// which is the state `SettingsView` shipped in.
     @Test("the switch track clears 3:1 against the white thumb and both grounds")
     func switchTrackIsASurface() {
-        let track = Contrast.luminance(Contrast.resolved(AppColors.switchTrack, .light))
-        let inDark = Contrast.luminance(Contrast.resolved(AppColors.switchTrack, .dark))
-        #expect(abs(track - inDark) < 0.0001,
-                "the track is two colours (\(track) light, \(inDark) dark), and a thing measured against a fixed white thumb cannot be adaptive")
-
+        // **Per scheme since 2026-10-08**: one fixed grey cannot separate ON
+        // from OFF in both schemes (the test below proves it), and on device
+        // the fixed taupe read as disabled in light and as OFF in dark. Each
+        // scheme's track is held to its own grounds.
         let thumb = Contrast.luminance((1, 1, 1))
+        let light = Contrast.luminance(Contrast.resolved(AppColors.switchTrack, .light))
         let lightPage = Contrast.luminance((247 / 255, 247 / 255, 247 / 255))
-        let darkPage = Contrast.luminance((29 / 255, 29 / 255, 29 / 255))
-        for (name, other) in [("the white thumb", thumb), ("the light page", lightPage), ("the night ground", darkPage)] {
-            let r = Contrast.ratio(track, other)
-            #expect(r >= 3.0, "the track measures \(r):1 against \(name), under the 3:1 a control is held to")
+        let offLight = Contrast.luminance((197 / 255, 197 / 255, 199 / 255))
+        for (name, other) in [("the white thumb", thumb), ("the light page", lightPage), ("the light OFF track", offLight)] {
+            let r = Contrast.ratio(light, other)
+            #expect(r >= 3.0, "light: the track measures \(r):1 against \(name), under the 3:1 a control is held to")
         }
+        let dark = Contrast.luminance(Contrast.resolved(AppColors.switchTrack, .dark))
+        let darkPage = Contrast.luminance((29 / 255, 29 / 255, 29 / 255))
+        let offDark = Contrast.luminance((101 / 255, 101 / 255, 105 / 255))
+        for (name, other) in [("the white thumb", thumb), ("the night ground", darkPage)] {
+            let r = Contrast.ratio(dark, other)
+            #expect(r >= 3.0, "dark: the track measures \(r):1 against \(name), under the 3:1 a control is held to")
+        }
+        #expect(Contrast.ratio(dark, offDark) >= 1.7,
+                "dark: ON is only \(Contrast.ratio(dark, offDark)):1 from OFF, and the two read as one state")
     }
 
     /// **And the thing that CANNOT be fixed, pinned so nobody spends an evening

@@ -131,6 +131,28 @@ final class FeedbackShots: XCTestCase {
         wait(7); snap("house-tip"); app.terminate()
     }
 
+    /// Every main screen once, for a look across the whole app.
+    func testTour() {
+        let screens: [(String, [String], Double)] = [
+            ("tour-wins", ["-strataStartTab", "tower", "-strataSeedWins", "14", "-strataSeedRealPhotos", "1"], 9),
+            ("tour-day", ["-strataStartTab", "memories", "-strataSeedWins", "14", "-strataOpenDay", "1"], 8),
+            ("tour-block", ["-strataStartTab", "tower", "-strataSeedWins", "6", "-strataOpenSheet", "block"], 8),
+            ("tour-plan", ["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataSeedPlan", "5", "-strataOpenSheet", "plan"], 7),
+            ("tour-profile", ["-strataStartTab", "tower", "-strataSeedWins", "20", "-strataOpenSheet", "profile"], 7),
+            ("tour-settings", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "settings"], 6),
+            ("tour-crews", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedCrews", "3", "-strataOpenCrews", "1",
+                            "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 8),
+            ("tour-crew", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
+                           "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 9),
+            ("tour-replay", ["-strataStartTab", "memories", "-strataSeedWins", "14", "-strataOpenReplay", "sampleWeek"], 6),
+        ]
+        for (name, args, seconds) in screens {
+            let app = launch(args)
+            wait(seconds); snap(name)
+            app.terminate()
+        }
+    }
+
     func testTowerSome() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "7"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

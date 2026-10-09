@@ -120,8 +120,17 @@ extension AppColors {
     /// light against this 2.60). Only a saturated colour recovers it, and that
     /// is the thing he removed.
     ///
-    static let switchTrack = Color(uiColor: UIColor(red: 124 / 255,
-                                                   green: 118 / 255,
-                                                   blue: 111 / 255,
-                                                   alpha: 1))
+    ///
+    /// **Two colours since 2026-10-08** (the night polish pass: on device the
+    /// fixed taupe read as a disabled switch in light and sat 1.3:1 from the
+    /// OFF track in dark, so ON and OFF looked alike). `MemoriesConsistencyTests`
+    /// proves no ONE grey can clear the knob and both OFF tracks; per scheme,
+    /// it can. Light: the app's ink, near black, the black-and-white switch
+    /// the owner asked for (14:1 on the knob, 9:1 on OFF). Dark: the brightest
+    /// warm grey that still holds 3:1 against the white knob, 1.8:1 above OFF.
+    static let switchTrack = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 149 / 255, green: 143 / 255, blue: 136 / 255, alpha: 1)
+            : UIColor(red: 42 / 255, green: 39 / 255, blue: 36 / 255, alpha: 1)
+    })
 }
