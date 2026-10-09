@@ -140,7 +140,7 @@ final class FeedbackShots: XCTestCase {
             ("tour-plan", ["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataSeedPlan", "5", "-strataOpenSheet", "plan"], 7),
             ("tour-profile", ["-strataStartTab", "tower", "-strataSeedWins", "20", "-strataOpenSheet", "profile"], 7),
             ("tour-settings", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "settings"], 6),
-            ("tour-crews", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedCrews", "3", "-strataOpenCrews", "1",
+            ("tour-crews", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrews", "3", "-strataOpenCrews", "1",
                             "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 8),
             ("tour-crew", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
                            "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 9),
@@ -151,6 +151,31 @@ final class FeedbackShots: XCTestCase {
             wait(seconds); snap(name)
             app.terminate()
         }
+    }
+
+    func testTour2() {
+        let crew = ["-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"]
+        let screens: [(String, [String], Double)] = [
+            ("tour2-today", ["-strataStartTab", "memories", "-strataSeedWins", "8", "-strataSeedRealPhotos", "1", "-strataOpenDay", "0"], 8),
+            ("tour2-map", ["-strataStartTab", "memories", "-strataSeedWins", "12", "-strataSeedPlaces", "1", "-strataSeedRealPhotos", "1", "-strataOpenMap", "1"], 9),
+            ("tour2-chat", ["-strataStartTab", "tower", "-strataSeedCrews", "1", "-strataSeedCrewWins", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat"] + crew, 9),
+            ("tour2-add", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"], 6),
+            ("tour2-month", ["-strataStartTab", "memories", "-strataSeedHistory", "60", "-strataSeedRealPhotos", "1"], 8),
+        ]
+        for (name, args, seconds) in screens {
+            let app = launch(args)
+            wait(seconds); snap(name)
+            app.terminate()
+        }
+    }
+
+    func testCrewCap() {
+        let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
+                          "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(8); snap("crew-list")
+        let pencil = app.buttons["square.and.pencil"].firstMatch
+        if pencil.exists { pencil.tap() }
+        wait(2); snap("crew-cap")
     }
 
     func testTowerSome() {

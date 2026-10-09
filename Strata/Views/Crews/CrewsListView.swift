@@ -18,6 +18,7 @@ struct CrewsListView: View {
     var open: (CrewID) -> Void
 
     @State private var startsCrew = false
+    @State private var atCap = false
     @State private var leaving: Crew?
     @State private var problem: String?
     private var store: SocialStore { SocialStore.shared }
@@ -33,6 +34,8 @@ struct CrewsListView: View {
                 needsNewerOS
             } else if !age.opensCrews {
                 tooYoung
+            } else if store.crews.isEmpty, CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil {
+                joiningState
             } else if store.crews.isEmpty {
                 empty
             } else {
@@ -82,10 +85,13 @@ struct CrewsListView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
-                Button { startsCrew = true } label: {
+                // At the cap it still answers, with why (the crews audit,
+                // 2026-10-08: it went grey and said nothing).
+                Button {
+                    if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
+                } label: {
                     Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
                 }
-                .disabled(store.crews.count >= CrewCaps.crews)
                 .accessibilityLabel("New Crew")
             } }
         }
@@ -117,6 +123,11 @@ struct CrewsListView: View {
         .onAppear { if DebugHarness.argument("-strataCrewSheet") == "new" { startsCrew = true } }
         #endif
         .modifier(AskAgeOnce(age: $age))
+        .alert("You're in \(CrewCaps.crews) crews", isPresented: $atCap) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("That's the most you can be in. Leave one to start another.")
+        }
         // **Crews' own film, once** (the owner, 2026-10-08: "the trailer at
         // the begining of the onboarding is so tasteful... we should have a
         // crews trailer when you click into it for the first time... or if
@@ -265,6 +276,24 @@ struct CrewsListView: View {
         }
         .padding(.horizontal, GridConstants.gapSection)
         .frame(maxWidth: .infinity)
+    }
+
+    /// Arrived by an invitation: the crew is being opened.
+    private var joiningState: some View {
+        VStack(spacing: GridConstants.gapItem) {
+            Spacer()
+            ProgressView()
+            Text("Joining your crew")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+            Text("This takes a moment the first time.")
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkSecondary)
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private var empty: some View {
@@ -628,7 +657,7 @@ final class CrewsFilm {
 
     static func isDue(crews: Int) -> Bool {
         !shared.seen && crews == 0 && CrewsFlag.osSupportsCrews && CrewAge.current.opensCrews
-            && CrewRouter.shared.pendingInvite == nil
+            && CrewRouter.shared.pendingInvite == nil && !CrewRouter.shared.joining
     }
 
     /// The film is up or due: the crew rules wait for it to finish.

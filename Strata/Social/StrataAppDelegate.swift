@@ -33,6 +33,10 @@ final class CrewRouter {
     /// (2026-10-08). Joined the moment `CrewGate` opens; let go on Not Now,
     /// under 13, or below iOS 26. Never joined first and checked after.
     private(set) var pendingInvite: CrewInvite?
+    /// **A join on its way** (the crews audit, 2026-10-08): the list says
+    /// "Joining" rather than inviting a person who came by a link to start a
+    /// crew of their own while theirs is being opened.
+    private(set) var joining = false
 
     /// What the Wins tab watches to come to the front: a crew, or the list.
     var wantsWinsTab: Bool { open != nil || opensList }
@@ -76,6 +80,8 @@ final class CrewRouter {
     private static let log = Logger(subsystem: "Strata", category: "crews.invite")
 
     private func accept(_ invite: CrewInvite) async {
+        joining = true
+        defer { joining = false }
         do {
             let crew = try await SocialStore.shared.accept(invite)
             open = crew.id
