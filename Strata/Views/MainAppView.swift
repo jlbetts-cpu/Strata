@@ -1018,7 +1018,9 @@ struct MainAppView: View {
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         } else if let line = winCue {
-            TipCard(text: line,
+            TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title : line,
+                    message: line == DayOneHint.drawOut ? DayOneHint.drawOut : WinCue.tapToAdd,
+                    mark: line == DayOneHint.drawOut ? "TabWins" : "DoodleSticker",
                     onTap: line == DayOneHint.drawOut ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
                         winDraft = WinDraft()

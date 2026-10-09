@@ -119,7 +119,9 @@ struct FirstWinInviteCard: View {
     var close: () -> Void
 
     var body: some View {
-        TipCard(text: FirstWinInvite.line,
+        TipCard(title: String(FirstWinInvite.lead.dropLast()),
+                message: FirstWinInvite.ask,
+                mark: "DoodleSocial",
                 actionTitle: hasCrew ? "Invite" : "Start a Crew",
                 action: invite,
                 close: close)

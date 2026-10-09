@@ -46,10 +46,20 @@ struct OctoberDance: View {
 
     var body: some View {
         VStack(spacing: GridConstants.gapItem) {
-            stage
-                .frame(width: height * Rig.size.width / Rig.size.height, height: height)
-                .frame(minHeight: height * 0.5, maxHeight: height)
-                .layoutPriority(1)
+            // **Scaled to the room it is given, never overflowing it**
+            // (2026-10-08). The rig draws at a fixed size, and the frame
+            // around it may give up half of it on a short page; with a tip
+            // standing under the header the skeleton overran its frame and
+            // stood on its own line (photographed). Now the whole figure
+            // scales to the height it is handed.
+            GeometryReader { geo in
+                stage
+                    .frame(width: height * Rig.size.width / Rig.size.height, height: height)
+                    .scaleEffect(min(1, geo.size.height / height))
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .frame(minHeight: height * 0.5, maxHeight: height)
+            .layoutPriority(1)
             if let line { DrawingLine(text: line) }
         }
         .frame(maxWidth: .infinity)

@@ -5,21 +5,24 @@ import SwiftUI
 /// consistent style for those, easy to click away and grasp"; "half the tips
 /// dont even appear in the right spot").
 ///
-/// Before this there were four answers to one question: the daily cue and
-/// the day-one hint were a dark chat bubble aimed at the slot from a frame
-/// captured a moment earlier (so it landed wherever the slot had been), set
-/// `fixedSize` on one line (so a long line ran off the screen's edge); the
-/// month drawing's was a system popover that sat over the calendar and once
-/// over a sheet; the first-win invitation was a bare line under the header.
+/// **Its anatomy is Apple's own tip's** (the second pass, same day: "the hints
+/// feel really cramped and they dont seem to me to fit the system"). One line
+/// of body type squeezed between an edge and a close glyph read as a banner
+/// wedged into the page. A tip now has what TipKit's own view has, in this
+/// app's materials: a drawn mark in a round well, a short title, a message in
+/// the secondary ink under it, its action as a small primary below the words,
+/// and a quiet close in the corner, with 16 of air on every side.
 ///
-/// Now a tip is a container under the page's header, full width between the
-/// page margins: one line, wrapped, an optional word to act on, and a close
-/// glyph with a 44pt target. Its ground is the page's own side of light and
-/// dark, light on light and dark on dark, separated by a hairline and never a
-/// shadow (chrome separates with hairlines and translucency).
+/// It stands under the page's header, full width between the page margins.
+/// Its ground is the page's own side of light and dark, a step toward the
+/// viewer, separated by a hairline and never a shadow.
 struct TipCard: View {
-    let text: String
-    /// A word to act on, set as a sheet's confirm word ("Invite").
+    let title: String
+    var message: String? = nil
+    /// The owner's drawn mark when it is in the catalogue ("TipBulb"), and
+    /// the system's bulb until then.
+    var mark: String = "TipBulb"
+    /// The action, as a small primary under the words ("Start a Crew").
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
     /// The whole card answers a tap when the tip IS the action (the daily
@@ -29,49 +32,24 @@ struct TipCard: View {
 
     private static let tapTarget: CGFloat = 44
     private static let pillHeight: CGFloat = 34
+    private static let well: CGFloat = 40
 
     var body: some View {
-        HStack(spacing: GridConstants.gapTight) {
-            words
-            // **A small primary, not a word** (the owner, 2026-10-08: "the
-            // start a crew should be like a white button... like primary so
-            // dark for light light for dark"). `PrimaryCapsule`'s own fill
-            // and type, at a tip's size, with the 44pt target around it.
-            if let actionTitle, let action {
-                Button {
-                    HapticsEngine.lightTap()
-                    action()
-                } label: {
-                    Text(actionTitle)
-                        .font(Typography.headerSmall)
-                        .foregroundStyle(WarmBackground.top)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, GridConstants.gapItem + 2)
-                        .frame(height: Self.pillHeight)
-                        .background(Capsule(style: .continuous).fill(AppColors.inkPrimary))
-                        .frame(minHeight: Self.tapTarget)
-                        .contentShape(Rectangle())
+        HStack(alignment: .top, spacing: GridConstants.gapItem) {
+            markWell
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                words
+                if let actionTitle, let action {
+                    pill(actionTitle, action)
+                        .padding(.top, 4)
                 }
-                .buttonStyle(.pressWord)
             }
-            Button {
-                HapticsEngine.lightTap()
-                close()
-            } label: {
-                Image(systemName: "xmark")
-                    .iconSize(GridConstants.iconAction, relativeTo: .body, weight: .semibold)
-                    .foregroundStyle(AppColors.inkTertiary)
-                    .frame(width: Self.tapTarget, height: Self.tapTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.press)
-            .accessibilityLabel("Close")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Room for the close glyph, which sits in the corner over it.
+            .padding(.trailing, GridConstants.gapWide)
         }
-        .padding(.leading, GridConstants.gapLabel)
-        .padding(.trailing, GridConstants.spacing)
-        .padding(.vertical, GridConstants.spacing)
-        .frame(maxWidth: .infinity)
+        .padding(GridConstants.gapLabel)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                 .fill(Self.ground)
@@ -80,23 +58,88 @@ struct TipCard: View {
             RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                 .strokeBorder(Self.hairline, lineWidth: GridConstants.strokeThin)
         }
+        .overlay(alignment: .topTrailing) { closeButton }
         .accessibilityElement(children: .contain)
+    }
+
+    private var markWell: some View {
+        Group {
+            if let drawn = UIImage(named: mark) {
+                Image(uiImage: drawn)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+            } else {
+                Image(systemName: "lightbulb.fill")
+                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
+            }
+        }
+        .foregroundStyle(AppColors.inkPrimary)
+        .frame(width: Self.well, height: Self.well)
+        .background(Circle().fill(AppColors.quietFill))
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
     private var words: some View {
-        let line = Text(text)
-            .font(Typography.bodyLarge)
-            .foregroundStyle(AppColors.inkPrimary)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
+        let stack = VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+            if let message {
+                Text(message)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, minHeight: Self.well, alignment: .leading)
         if let onTap {
-            Button(action: onTap) { line.contentShape(Rectangle()) }
+            Button(action: onTap) { stack.contentShape(Rectangle()) }
                 .buttonStyle(.pressWord)
         } else {
-            line
+            stack
         }
+    }
+
+    /// **A small primary** (the owner: "it should be a button like primary
+    /// so dark for light light for dark"): `PrimaryCapsule`'s fill and type at
+    /// a tip's size, with the 44pt target around it.
+    private func pill(_ title: String, _ action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            Text(title)
+                .font(Typography.headerSmall)
+                .foregroundStyle(WarmBackground.top)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, GridConstants.gapLabel)
+                .frame(height: Self.pillHeight)
+                .background(Capsule(style: .continuous).fill(AppColors.inkPrimary))
+                .frame(minHeight: Self.tapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+    }
+
+    private var closeButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            close()
+        } label: {
+            Image(systemName: "xmark")
+                .iconSize(GridConstants.iconMedium, relativeTo: .body, weight: .semibold)
+                .foregroundStyle(AppColors.inkTertiary)
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .padding(4)
+        .accessibilityLabel("Close")
     }
 
     /// White on the light page (0.992), a raised charcoal on the dark one

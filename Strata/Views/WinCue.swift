@@ -30,6 +30,8 @@ nonisolated enum WinCue {
     static let elseFrom = 15
     static let elseUpTo = 2
     static let defaultsKey = "winCueDay"
+    /// The cue's second line, as a tip: what pressing it does.
+    static let tapToAdd = "Tap here to add it."
 
     /// The line for now, or nil: one a day, on a day that has not had one.
     /// "Anything else" asks until the day's goal is met (`DailyGoal`), and
@@ -53,7 +55,9 @@ nonisolated enum WinCue {
 /// bubble: the slot can be drawn out for a bigger block. Once ever, never to
 /// someone who has already drawn one, and not past the first few wins.
 nonisolated enum DayOneHint {
-    static let drawOut = "Hold the + and pull it out for a bigger win."
+    /// Set as a tip: the title says what, the message says how.
+    static let title = "Bigger wins, bigger blocks"
+    static let drawOut = "Hold the + and pull it out to size it up."
     static let shownKey = "hint.drawOut.shown"
     static let lastChance = 5
 

@@ -46,7 +46,7 @@ struct WinCueTests {
     @Test("the cue is a tip: the one container, under the header, by layout")
     func isATip() throws {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
-        #expect(main.contains("TipCard(text: line"))
+        #expect(main.contains("TipCard(title: line == DayOneHint.drawOut"))
         #expect(main.contains("VStack(spacing: GridConstants.gapTight) {\n                    towerHeader\n                    winsTip"))
         #expect(!main.contains("slotFrame"))
         #expect(main.contains("!logs.isEmpty"))

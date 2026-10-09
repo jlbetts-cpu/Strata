@@ -62,7 +62,7 @@ final class FeedbackShots: XCTestCase {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "1", "-hint.drawOut.shown", "NO",
                           "-winCueDay", ""])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
-        wait(9); snap("tower-hint-seeded")
+        wait(6); snap("tower-hint-seeded")
     }
 
     func testInviteTip() {
