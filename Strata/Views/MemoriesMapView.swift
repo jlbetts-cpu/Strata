@@ -1404,8 +1404,22 @@ private struct PlaceBlock: View {
 
 extension PlaceBlock {
     /// The badge's two colours, fixed in both appearances — see `countBadge`.
-    static let badgeDisc = Color(red: 0.975, green: 0.978, blue: 0.984)
-    static let badgeInk = AppColors.warmBlack
+    /// **Dark on the night map** (the owner, 2026-10-08, of dark mode: "map
+    /// and pins" stayed white; "light on light dark on dark is our style").
+    /// The map's own scheme decides (`.environment(\.colorScheme, ...)` on the
+    /// night ground), so the badge is light on the pale map and a raised
+    /// charcoal with light numerals on the night one, the way Photos counts
+    /// over a picture in dark mode.
+    static let badgeDisc = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.16, green: 0.157, blue: 0.153, alpha: 0.94)
+            : UIColor(red: 0.975, green: 0.978, blue: 0.984, alpha: 1)
+    })
+    static let badgeInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.92)
+            : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
+    })
 
     /// How many wins are in this area.
     ///
@@ -1578,12 +1592,10 @@ struct ClusterCountBadge: View {
             // dark object competing with the photograph; a light one reads as
             // a label ON the block, the way every other count in the app is
             // ink on the app's own ground rather than a hole punched in it.
-            // **Fixed, in both appearances.** The badge does not sit on the
-            // page, it sits on a BLOCK — a saturated blue or orange that is
-            // the same colour whatever the phone is set to. So the thing that
-            // decides its contrast never flips, and neither should it. Made
-            // adaptive it went dark-on-dark in dark mode, which is the badge
-            // following a ground it is not actually standing on.
+            // **It follows the map's scheme** (2026-10-08, the owner's "dark on
+            // dark"): it was fixed light in both, on the argument that it
+            // stands on a block, and on the night map it was the one white
+            // object left. See `badgeDisc`.
             .foregroundStyle(PlaceBlock.badgeInk)
             // Tabular already, so no `.monospacedDigit()`: it does nothing
             // to a custom face.

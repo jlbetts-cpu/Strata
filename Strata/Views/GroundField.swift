@@ -89,12 +89,23 @@ struct GroundField: View {
     @State private var loaded: [UIImage] = []
 
     var body: some View {
-        ZStack {
-            scene
-            Color.black.opacity(Self.seat)
-            grain
+        // **Dark is one flat colour** (the owner, 2026-10-08: "the random light
+        // effect... I want it to be cleaner... the dark mode needs to follow
+        // suit not with light but with dark"). The night mesh spans 0.098 to
+        // 0.128, a 30% swing in luminance where the day's 0.970 to 1.000 is 3%,
+        // so the same shape that is invisible on white read as a light source
+        // on charcoal, with a crease where its bottom row bends; the grain
+        // over it read as noise. Dark is `WarmBackground.top` and nothing.
+        if scheme == .dark {
+            Color.clear
+        } else {
+            ZStack {
+                scene
+                Color.black.opacity(Self.seat)
+                grain
+            }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
     }
 
     // **THE PHOTOGRAPH BACKDROP IS GONE FROM HERE**, and the reasoning it

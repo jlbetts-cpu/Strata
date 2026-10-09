@@ -204,6 +204,10 @@ struct PrimaryCapsule: View {
                             .strokeBorder(AppColors.inkTertiary,
                                           lineWidth: GridConstants.strokeThin)
                     } else {
+                        // **White in dark mode, by the owner's call**
+                        // (2026-10-08, after seeing a raised charcoal one:
+                        // "the button primary i do want to be white not grey
+                        // on dark mode"). The one exception to dark on dark.
                         Capsule(style: .continuous).fill(AppColors.inkPrimary)
                         Capsule(style: .continuous)
                             .strokeBorder(BlockRim.gradient(in: colorScheme),

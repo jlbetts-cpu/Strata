@@ -420,6 +420,9 @@ enum GridConstants {
     /// little bounce as a message lands, out on a plain ease.
     static let cueIn = Animation.spring(duration: 0.45, bounce: 0.3)
     static let cueOut = Animation.easeIn(duration: 0.22)
+    /// The dark page rising over the onboarding film's last frame, in dark
+    /// mode (`OnboardingFilm.darkHandoff`): slow, so the light leaves gently.
+    static let filmHandoff = Animation.easeInOut(duration: 0.9)
     static let momentIn = Animation.easeOut(duration: 0.24)
     static let stickerStep = Animation.spring(duration: 0.42, bounce: 0.32)
     /// A frame's worth of strip leaving the printer: quick, then stopped.
