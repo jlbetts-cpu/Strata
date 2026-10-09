@@ -566,6 +566,27 @@ final class SocialStore {
             .joined(separator: "|")
     }
 
+    #if DEBUG
+    /// `-strataSeedSentToCrew`: wins marked as sent to a crew, so the crew
+    /// album on Memories can be photographed without a cloud.
+    func debugMarkSent(_ ids: [UUID], to crew: CrewID) {
+        var ledger = sent
+        for id in ids {
+            var entry = ledger[id] ?? Sent(crews: [], signature: "")
+            entry.crews.insert(crew)
+            ledger[id] = entry
+        }
+        sent = ledger
+    }
+    #endif
+
+    /// Your wins a crew holds, from this phone's own ledger rather than the
+    /// cloud, so it outlives the two weeks a crew keeps a win
+    /// (`Album.monthShelf`'s "With your crew").
+    func winsSent(to crew: CrewID) -> Set<UUID> {
+        Set(sent.compactMap { $0.value.crews.contains(crew) ? $0.key : nil })
+    }
+
     private func record(_ win: OwnWin, in crewIDs: Set<CrewID>) {
         var ledger = sent
         var entry = ledger[win.winID] ?? Sent(crews: [], signature: "")

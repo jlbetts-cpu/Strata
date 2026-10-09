@@ -56,6 +56,9 @@ struct MemoriesShelf: View {
     /// a way albums do not: a week's replay is only interesting for a while.
     let albums: [Album]
     let onOpenAlbum: (AlbumRoute) -> Void
+    /// The air above the row: `gapPage` under a calendar, `gapTight`
+    /// under the month's photo count, which it belongs to.
+    var topGap: CGFloat = GridConstants.gapPage
 
     /// The card's width. Not `ReplayCard.posterWidth` (132), which was the size a
     /// replay poster had to be to show a whole tower: an album card shows one
@@ -101,7 +104,7 @@ struct MemoriesShelf: View {
             }
             // The break the heading used to carry, now on the band itself. See
             // the note on `body`.
-            .padding(.top, GridConstants.gapPage)
+            .padding(.top, topGap)
             // **The word goes to VoiceOver, exactly as the tab bar's three
             // labels did on the same day.** A sighted reader has the cards,
             // which name themselves; somebody navigating by rotor had a heading

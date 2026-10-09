@@ -32,6 +32,11 @@ final class MemoriesViewModel {
     /// Moments and repeated interests, from one trailing-window fetch. Empty
     /// when there is nothing worth showing, and the screen then draws no shelf.
     private(set) var carousel: [Album] = []
+    /// The month on screen's albums (`Album.monthShelf`): moments when it
+    /// is this month, your crews, what you kept doing.
+    private(set) var monthAlbums: [Album] = []
+    /// Every photographed win in the window, kept for the month's albums.
+    @ObservationIgnored private var photoRecords: [WinRecord] = []
 
     /// Every photograph in the window, newest first, grouped by month.
     private(set) var gallery: [GallerySection] = []
@@ -161,6 +166,8 @@ final class MemoriesViewModel {
                 selectedMonth = thisMonth
                 loadMonth(context: context)
             }
+            // A crew joined, left or sent to since: no store change says so.
+            refreshShelf()
             #if DEBUG
             PerfProbe.duration("MemoriesViewModel.reload main (unchanged, skipped)", since: began)
             #endif
@@ -172,6 +179,7 @@ final class MemoriesViewModel {
         earliestWinMonth = firstWinMonth(context: context)
         selectedMonth = startOfMonth(Date())
         let records = carouselRecords(context: context)
+        photoRecords = records
         loadMonth(context: context)
         let calendar = self.calendar
         let now = Date()
@@ -187,6 +195,7 @@ final class MemoriesViewModel {
         }.value
         guard mine == reloadGeneration else { return }
         carousel = built.carousel
+        refreshShelf()
         gallery = built.gallery
         pins = built.pins
         hasLoaded = true
@@ -251,6 +260,7 @@ final class MemoriesViewModel {
     /// would be wrong rather than slow: those are paged eight weeks deep, so
     /// anything older would silently come back as a partial month.
     private func loadMonth(context: ModelContext) {
+        defer { refreshShelf() }
         refreshSymbols(context: context)
         let key = monthKey(selectedMonth)
         if let cached = monthCache[key] { month = cached; return }
@@ -316,6 +326,22 @@ final class MemoriesViewModel {
 
     private func startOfMonth(_ date: Date) -> Date {
         calendar.dateInterval(of: .month, for: date)?.start ?? date
+    }
+
+    /// The month's albums, again. Cheap: one pass over the photographed
+    /// wins per crew. Written only when different, since every view reading
+    /// it redraws on a write.
+    private func refreshShelf() {
+        let moments = calendar.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+            // Not "last month": the picker one step back is that already,
+            // and a second route to it is the duplication the owner cut from
+            // the old shelf ("I dont see what the point of the more is").
+            ? carousel.filter { if case .moment(let id) = $0.kind { return id != AlbumMoment.lastMonth.id } else { return false } }
+            : []
+        let store = SocialStore.shared
+        let crews = store.crews.map { Album.ShelfCrew(id: $0.id.rawValue, name: $0.name, wins: store.winsSent(to: $0.id)) }
+        let fresh = Album.monthShelf(records: photoRecords, month: monthKey(selectedMonth), crews: crews, moments: moments)
+        if fresh != monthAlbums { monthAlbums = fresh }
     }
 
     private func monthKey(_ date: Date) -> String {

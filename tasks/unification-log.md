@@ -147,6 +147,35 @@ crews from builds up to 113 do not carry over; everyone re-creates them.
 
 ---
 
+## 2. Memories as the hub: the month's albums
+
+**Where they live.** Your Memories first screen is exactly as you left it
+(drawing, calendar, the photo count peeking under the tab bar). The albums
+sit one scroll down, between the photo count and the photographs, in one
+row: albums are made of photographs, so they belong to that section. Like
+everything on the page, they are for the month the picker names.
+
+**What the app makes, by itself:**
+
+- **With [crew]**: your own photographed wins you sent to that crew that
+  month (three or more). Your own only: a friend's photo leaves the crew
+  after two weeks and is not kept on your phone either.
+- **What you kept doing**: a title photographed on two or more days that
+  month (three or more photos), e.g. "Gym".
+- **Moments** ("A year ago today", "This week last year"), on the current
+  month only.
+- At most five cards; no row at all when nothing qualifies.
+
+**Left out on purpose.** "Last month" as a moment card: the picker one step
+back is already that, and it is the duplication you cut from the old shelf.
+A "Yesterday" card: the hand-off (section 3) already carries yesterday into
+the calendar. Recaps already have their play button.
+
+**REVIEW**: whether a lone card (one crew album) earns the row, or the row
+should wait for two.
+
+---
+
 ## 3. Wins flows into Memories
 
 **What you see.** The first time you open Wins on a new day, if yesterday

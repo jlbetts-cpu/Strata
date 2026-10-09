@@ -27,6 +27,9 @@ nonisolated struct WinRecord: Equatable, Sendable {
     /// omitted from the synthesized memberwise initializer entirely, so `let`
     /// would compile and then be unsettable from `records(from:)`.
     var place: WinPlace? = nil
+    /// The `HabitLog` it came from, for the crew albums
+    /// (`Album.monthShelf`), which know a win by the id it was sent with.
+    var id: UUID? = nil
 
     var hasPhoto: Bool { photoFileName != nil }
     var hasPlace: Bool { place != nil }
@@ -40,6 +43,8 @@ nonisolated enum AlbumKind: Hashable, Sendable {
     case curated(String)
     /// A moment in time, by rule id — see `Album.Moment`.
     case moment(String)
+    /// Your own wins sent to one crew in one month: `"<crew>@yyyy-MM"`.
+    case crew(String)
 }
 
 /// Which album a screen is showing.
@@ -51,6 +56,7 @@ nonisolated enum AlbumRoute: Hashable, Sendable {
     case day(String)
     case curated(String)
     case moment(String)
+    case crew(String)
 }
 
 /// One card in the carousel.
@@ -76,6 +82,7 @@ nonisolated struct Album: Identifiable, Equatable, Sendable {
         case .day(let key):     return .day(key)
         case .curated(let key): return .curated(key)
         case .moment(let id):   return .moment(id)
+        case .crew(let key):    return .crew(key)
         }
     }
 }
@@ -194,7 +201,7 @@ nonisolated extension Album {
     /// The spelling you actually use: the most common raw form, ties broken by
     /// which was seen first. Correcting "gym session" to "Gym Session" would be
     /// inventing data.
-    private static func displayTitle(for group: [WinRecord]) -> String {
+    static func displayTitle(for group: [WinRecord]) -> String {
         var counts: [String: Int] = [:]
         var firstSeen: [String: Date] = [:]
         for record in group {
@@ -220,7 +227,7 @@ nonisolated extension Album {
     /// Without this a single six-shot session supplies all three, and the fan
     /// says "one day" when the album's entire claim is "many days". The rest
     /// follow newest-first behind them.
-    private static func coverOrder(for group: [WinRecord]) -> [String] {
+    static func coverOrder(for group: [WinRecord]) -> [String] {
         var byDay: [String: [WinRecord]] = [:]
         for record in group { byDay[record.dateString, default: []].append(record) }
 
@@ -450,7 +457,8 @@ extension Album {
                 photoFileName: log.imageFileName,
                 place: WinPlace(latitude: log.latitude,
                                 longitude: log.longitude,
-                                accuracy: log.locationAccuracy)
+                                accuracy: log.locationAccuracy),
+                id: log.id
             )
         }
     }

@@ -237,6 +237,11 @@ struct MemoriesView: View {
                     if !pageIsEmpty, count > 0 {
                         photosCaption(count)
                             .padding(.top, GridConstants.gapSection)
+                        // **The month's albums, made of these photographs**
+                        // (`Album.monthShelf`): under the count, so the fold
+                        // and the first screen are exactly as they were.
+                        MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
+                                      topGap: GridConstants.gapTight)
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
                         PhotoGalleryGrid(sections: shown,
@@ -245,7 +250,7 @@ struct MemoriesView: View {
                                              viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                                          },
                                          screenTitle: shown.first?.title)
-                            .padding(.top, GridConstants.gapTight)
+                            .padding(.top, vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
                     }
                 }
                 // Room under the photos for the tab bar.
@@ -393,6 +398,8 @@ struct MemoriesView: View {
                     PhotoCollectionView(source: .interest(key))
                 case .moment(let id):
                     PhotoCollectionView(source: .moment(id))
+                case .crew(let key):
+                    PhotoCollectionView(source: .crew(key))
                 }
             }
         }
@@ -415,6 +422,15 @@ struct MemoriesView: View {
             Task { await MonthDrawingTip.visited.donate() }
             considerHouseCard()
             #if DEBUG
+            if DebugHarness.argument("-strataSeedSentToCrew") != nil {
+                for _ in 0..<40 where SocialStore.shared.crews.isEmpty { try? await Task.sleep(for: .milliseconds(150)) }
+            }
+            if DebugHarness.argument("-strataSeedSentToCrew") != nil, let crew = SocialStore.shared.crews.first {
+                let logs = (try? modelContext.fetch(FetchDescriptor<HabitLog>(
+                    predicate: #Predicate { $0.imageFileName != nil }))) ?? []
+                SocialStore.shared.debugMarkSent(logs.enumerated().filter { $0.offset % 2 == 0 }.map(\.element.id),
+                                                 to: crew.id)
+            }
             let reloadStart = CACurrentMediaTime()
             #endif
             await vm.reload(context: modelContext)
@@ -559,6 +575,15 @@ struct MemoriesView: View {
                                     title: MemoriesShelf.name(of: live.period, now: replays.now)))
         }
         return rows
+    }
+
+    private func open(album route: AlbumRoute) {
+        switch route {
+        case .day(let key):     path.append(.day(key))
+        case .curated(let key): path.append(.curated(key))
+        case .moment(let id):   path.append(.moment(id))
+        case .crew(let key):    path.append(.crew(key))
+        }
     }
 
     private var photographCount: Int {
@@ -1016,6 +1041,8 @@ enum MemoriesRoute: Hashable {
     case day(String)
     case curated(String)
     case moment(String)
+    /// Your wins sent to one crew in one month (`Album.monthShelf`).
+    case crew(String)
 }
 
 /// The month being drawn, by key ("2026-10").

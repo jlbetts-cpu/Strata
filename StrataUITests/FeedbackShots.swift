@@ -182,6 +182,18 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("arrive-after")
     }
 
+    /// The month's albums under the photo count (`Album.monthShelf`).
+    func testMonthShelf() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedRealPhotos", "1",
+                          "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "1", "-strataSeedSentToCrew", "1",
+                          "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(7)
+        app.swipeUp(velocity: .slow)
+        wait(2); snap("shelf-1")
+        app.swipeUp(velocity: .slow)
+        wait(2); snap("shelf-2")
+    }
+
     func testCrewCap() {
         let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
                           "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])

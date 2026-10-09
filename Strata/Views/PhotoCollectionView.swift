@@ -19,6 +19,8 @@ struct PhotoCollectionView: View {
         case moment(String)
         /// One block on the map — see `PlaceMap.PlaceKey`.
         case place(PlaceMap.PlaceKey)
+        /// Your wins sent to a crew in one month: `"<crew>@yyyy-MM"`.
+        case crew(String)
     }
 
     let source: Source
@@ -253,9 +255,24 @@ struct PhotoCollectionView: View {
         let matching: [WinRecord]
         titleIsCount = false
         switch source {
-        case .interest(let key):
-            matching = records.filter { $0.hasPhoto && Album.titleKey($0.title) == key }
+        case .interest(let shelfKey):
+            // A month's shelf opens that month's photographs only
+            // (`Album.monthShelf`); the all-time key has no month.
+            let (key, month) = Album.splitMonth(shelfKey)
+            matching = records.filter { record in
+                record.hasPhoto && Album.titleKey(record.title) == key
+                    && (month.map { record.dateString.hasPrefix($0 + "-") } ?? true)
+            }
             title = matching.first?.title ?? key
+        case .crew(let shelfKey):
+            let (crewKey, month) = Album.splitMonth(shelfKey)
+            let crew = CrewID(rawValue: crewKey)
+            let wins = SocialStore.shared.winsSent(to: crew)
+            matching = records.filter { record in
+                record.hasPhoto && (record.id.map(wins.contains) ?? false)
+                    && (month.map { record.dateString.hasPrefix($0 + "-") } ?? true)
+            }
+            title = SocialStore.shared.crews.first { $0.id == crew }.map { "With \($0.name)" } ?? Self.countTitle(matching.count)
         case .place(let key):
             // Exactly the photographs the block stood for — see
             // `PlaceMap.members(of:in:)`.
