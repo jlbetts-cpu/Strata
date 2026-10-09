@@ -37,6 +37,9 @@ struct MemoriesView: View {
     @State private var monthStep = 0
     /// TipKit says the drawing's tip is due (`monthTipLayer`).
     @State private var showsMonthTip = false
+    /// Some Wins' own card in the drawing's place this visit (`HouseCard`).
+    @State private var houseCard: HouseCard?
+    @State private var showsTipAsk = false
     @State private var vm = MemoriesViewModel()
     /// Today's past win (`PastWin`), the line under the calendar.
     @State private var path: [MemoriesRoute] = []
@@ -410,6 +413,7 @@ struct MemoriesView: View {
         .task {
             // A visit, for the month drawing's tip: it waits for the third.
             Task { await MonthDrawingTip.visited.donate() }
+            considerHouseCard()
             #if DEBUG
             let reloadStart = CACurrentMediaTime()
             #endif
@@ -586,7 +590,8 @@ struct MemoriesView: View {
     /// (`MonthDrawingTip`'s rules); this decides where and what it looks like.
     @ViewBuilder
     private var monthTipLayer: some View {
-        if showsMonthTip {
+        // One thing asking at a time: the house card stands in for the tip.
+        if showsMonthTip, houseCard == nil {
             TipCard(title: "Make it yours",
                     message: TipCopy.monthDrawing,
                     mark: "TipPencil",
@@ -598,6 +603,50 @@ struct MemoriesView: View {
                 .padding(.bottom, GridConstants.gapItem)
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         }
+    }
+
+    /// Today's house card, if one is due and nothing else is asking.
+    private func considerHouseCard() {
+        let defaults = UserDefaults.standard
+        let today = Date()
+        if defaults.object(forKey: HouseCard.firstSeenKey) == nil {
+            defaults.set(today, forKey: HouseCard.firstSeenKey)
+        }
+        #if DEBUG
+        // `-strataHouseCard crew|tip`: that card now, for a screenshot.
+        if let forced = DebugHarness.argument("-strataHouseCard").flatMap(HouseCard.init(rawValue:)) {
+            houseCard = forced
+            return
+        }
+        #endif
+        guard houseCard == nil, !showsMonthTip else { return }
+        let card = HouseCard.next(today: today,
+                                  firstSeen: defaults.object(forKey: HouseCard.firstSeenKey) as? Date,
+                                  lastShown: defaults.object(forKey: HouseCard.lastShownKey) as? Date,
+                                  hasCrew: !SocialStore.shared.crews.isEmpty,
+                                  crewsUsable: CrewsFlag.isUsable,
+                                  tipsReady: TipJarSection.hasSomethingToShow)
+        guard let card else { return }
+        defaults.set(today, forKey: HouseCard.lastShownKey)
+        houseCard = card
+    }
+
+    private func closeHouseCard() {
+        withAnimation(GridConstants.crossFade) { houseCard = nil }
+    }
+
+    private func actOn(_ card: HouseCard) {
+        switch card {
+        case .crew:
+            // To Wins, its Crews list, and New Crew, the way the first-win
+            // card goes there.
+            // (`opensList` is also what turns Wins to the front.)
+            CrewRouter.shared.startsCrew = true
+            CrewRouter.shared.opensList = true
+        case .tip:
+            showsTipAsk = true
+        }
+        closeHouseCard()
     }
 
     private var pageHeader: some View {
@@ -704,6 +753,12 @@ struct MemoriesView: View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         let key = MonthDrawingStore.key(for: vm.selectedMonth, calendar: MemoriesViewModel.mondayCalendar)
         Group {
+            // **Some Wins' own card, when one is due** (`HouseCard`): in the
+            // drawing's place, and the drawing back the moment it is closed.
+            if let houseCard {
+                HouseCardView(card: houseCard, act: { actOn(houseCard) }, close: closeHouseCard)
+                    .transition(.opacity)
+            } else
             // **Your own drawing first, when the month has one** (spec
             // section 4). The default is never touched, so "Use Original"
             // brings it straight back, with October's dance.
@@ -741,6 +796,7 @@ struct MemoriesView: View {
         }
         .layoutPriority(1)
         .transition(.opacity)
+        .sheet(isPresented: $showsTipAsk) { TipAskSheet() }
         .fullScreenCover(item: $drawingMonth) { which in
             MonthDrawingEditor(month: which.id, monthName: MonthName.of(which.id))
         }

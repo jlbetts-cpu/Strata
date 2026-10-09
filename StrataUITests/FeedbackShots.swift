@@ -124,6 +124,13 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("crewsfilm-intro")
     }
 
+    func testHouseCard() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedWins", "4", "-strataHouseCard", "crew"])
+        wait(7); snap("house-card"); app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedWins", "4", "-strataHouseCard", "tip"])
+        wait(7); snap("house-tip"); app.terminate()
+    }
+
     func testTowerSome() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "7"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
