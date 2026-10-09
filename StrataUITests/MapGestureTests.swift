@@ -260,7 +260,7 @@ final class MapGestureTests: XCTestCase {
         // The empty tower is its own branch (`towerEmptyStateMessage` hung on
         // the slot) and carries no `todaysTower` identifier, so the join is
         // the line that only an empty Wins tab shows, and its slot, pressable.
-        let hint = app.staticTexts["Tap the slot to log your first win."]
+        let hint = app.staticTexts["Tap the slot to log today's first win."]
         let firstSlot = app.buttons["Log a win"]
         if !(hint.waitForExistence(timeout: 30) && firstSlot.waitForExistence(timeout: 10)
              && firstSlot.isHittable) {

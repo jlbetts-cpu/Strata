@@ -226,7 +226,7 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertTrue(slot.waitForExistence(timeout: 40), "no first slot on an empty tower")
         Thread.sleep(forTimeInterval: 10)
         // The empty tower's one line (it was "Nothing yet today").
-        XCTAssertTrue(app.staticTexts["Tap the slot to log your first win."].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Tap the slot to log today's first win."].waitForExistence(timeout: 10),
                       "the tower is not empty, so this is not the first slot of the day")
 
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))

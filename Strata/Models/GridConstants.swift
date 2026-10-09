@@ -431,6 +431,10 @@ enum GridConstants {
     static let stripDrop = Animation.spring(duration: 0.6, bounce: 0.28)
     /// The strip let go after a turn, settling face up or face down.
     static let stripSettle = Animation.spring(duration: 0.55, bounce: 0.22)
+    /// Yesterday's tower leaving Wins for the Memories tab (`DayHandoff`),
+    /// and its day growing back into its calendar cell at the other end.
+    static let dayHandoffTravel = Animation.easeInOut(duration: 0.75)
+    static let dayArrive = Animation.spring(duration: 0.5, bounce: 0.28)
     /// One shake's worth of developing: the dark and the blur lift a step.
     static let stripDevelop = Animation.easeOut(duration: 0.5)
     /// The Dynamic Island stretching into the strip's printer and back.

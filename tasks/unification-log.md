@@ -144,3 +144,98 @@ crews from builds up to 113 do not carry over; everyone re-creates them.
 - Not testable here: real CloudKit traffic (the simulator has no iCloud
   account). Verified by the fake cloud for every `SocialStore` rule, and by
   reading. **REVIEW on device**: start a crew, invite, join, post, end.
+
+---
+
+## 3. Wins flows into Memories
+
+**What you see.** The first time you open Wins on a new day, if yesterday
+had wins, yesterday's tower is standing where you left it when the logo
+lifts. It holds for a breath, then shrinks and glides into the Memories tab
+(a light tap as it lands), and today's empty ground fades in behind it. The
+next time you open Memories, yesterday's day grows into its calendar square,
+once. No words, no badge, no count: the motion is the message.
+
+- Never after a day with no wins. Nothing is said about a quiet day.
+- Not if you already logged today (from the widget, say): it would land on
+  top of today's blocks.
+- Reduce Motion: a plain fade, and the calendar square is simply there.
+- Real blocks, drawn by the same code as Memories, so what leaves is exactly
+  what you built.
+
+**Fixed on the way.**
+
+- **A tower left open across midnight kept showing yesterday as today.**
+  Nothing watched the date. It now refreshes at midnight and on every
+  return to the app, and the hand-off plays then.
+- **"Tap the slot to log your first win."** was said every morning to
+  people with months of wins. Now "Tap the slot to log today's first win."
+  **REVIEW**: one word of copy.
+
+**Looked at, not counted.** Recorded on the simulator frame by frame. The
+first version showed today's empty slot for a second and then dropped
+yesterday's tower on top of it; it is now decided under the launch logo, so
+there is no flash.
+
+---
+
+## 4a. The confetti on the first win
+
+**Root cause, not the symptom.** The goal check itself was right (it waits
+for today's blocks to reach the goal you set). A second celebration sat in
+the same landing code: a leftover "perfect day" dance and confetti from the
+old scheduled-habits model. A day counted as perfect when its completed
+wins matched the wins *scheduled* for it, and under today's model every win
+you log is its own one-off scheduled for today, so any day with one win was
+"perfect". Your first win fired it.
+
+Removed entirely, with the dead "patina" it also fed (it only ever applied to
+week and month tower views that no longer exist). A test now holds the dance
+and the confetti to exactly one trigger, the goal. 1,305 tests pass.
+
+---
+
+## 6. Bugs and code health (first round)
+
+### The onboarding face screen crash
+
+No crash log was available here, so this was found by reading the code
+(**REVIEW**: if you can, pull the tester's crash from Xcode Organizer >
+Crashes to confirm). The likeliest cause, now fixed:
+
+- **The camera raced itself.** Starting the camera ran on its own thread
+  while the head maker, at the same instant, switched to the front lens and
+  added its face-frame output on the main thread. If "start" landed in the
+  middle of that switch, AVFoundation throws and the app dies. Only a real
+  phone gets there (the simulator has no camera), which is why it showed up
+  with a tester. Now: configure first, start last, and every later change
+  waits for the camera to finish starting or stopping.
+- **A data race on the frame callback** when closing the maker while frames
+  still arrived. Set once now, never cleared.
+- **A memory spike** making six faces at full resolution, each with its own
+  image engine, while the camera ran (iOS ends apps for this, and a tester
+  sees it as a crash). One shared engine, memory released per face.
+- **Not a crash, but looks like one:** turning the camera on in Settings
+  makes iOS end the app, and onboarding restarted at the film. It now
+  resumes on the page you were on.
+
+### The map
+
+All fixed at the cause, with tests:
+
+1. Replacing a photo with one that has no location kept the old photo's
+   place, so the new photo stood where the old one was taken.
+2. Camera pins came from a 100m fix up to two minutes old: now 10m while the
+   camera is open, and no older than 30 seconds.
+3. A normal Wi-Fi fix (65m) vanished from its block as you zoomed in.
+4. Editing a win's photo or place did not refresh the map.
+5. The map assumed every phone is 393pt wide and allowed tilting, which
+   skewed the scale and merged blocks across town. Measured now; pan and
+   zoom only.
+6. A walk of photos chained into one spot drifting along the route.
+
+### Removed (dead code)
+
+- The "perfect day" celebration and patina (see 4a).
+- The zone-and-share crew cloud and its push routing (see 1).
+- The two onboarding pages you asked out (yesterday).

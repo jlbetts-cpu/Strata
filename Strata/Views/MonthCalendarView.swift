@@ -59,6 +59,9 @@ struct MonthCalendarView: View {
     var written: Set<String> = []
 
     @Environment(\.colorScheme) private var colorScheme
+    /// The day that just left the Wins tab for here (`DayHandoff`): its cell
+    /// settles in once, the other end of the same motion, then forgets.
+    @AppStorage(DayHandoff.arrivedKey) private var arrivedDay = ""
 
     /// A day of this month as the store spells it, through `DateUtils` so it
     /// is the same string `HabitLog` and `MoodLog` were written with.
@@ -263,6 +266,10 @@ struct MonthCalendarView: View {
                                     hasNote: !written.isEmpty
                                         && written.contains(Self.dateString(day: day, in: month, calendar: calendar))
                                 )
+                                .modifier(DayArrival(arriving: !arrivedDay.isEmpty
+                                                     && arrivedDay == Self.dateString(day: day, in: month, calendar: calendar)) {
+                                    arrivedDay = ""
+                                })
                             } else {
                                 // **THE TAIL OF THE LAST ROW IS LATTICE.**
                                 //
@@ -825,6 +832,35 @@ private struct DayTransitionSource: ViewModifier {
 /// keeps it honest. An empty day is a day you could have filled; this is not a
 /// day at all, and if the two looked alike the calendar would be claiming the
 /// month had 32 of them.
+/// **The landing end of the hand-off** (`DayHandoff`). The day that just
+/// shrank into the Memories tab grows back into its own cell, once: from a
+/// little smaller and a little lower, on the press spring's rhythm. Under
+/// Reduce Motion it is simply there.
+private struct DayArrival: ViewModifier {
+    let arriving: Bool
+    var landed: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var settled = false
+
+    func body(content: Content) -> some View {
+        let waiting = arriving && !settled && !reduceMotion
+        content
+            .scaleEffect(waiting ? 0.55 : 1)
+            .opacity(waiting ? 0 : 1)
+            .task(id: arriving) {
+                guard arriving else { return }
+                guard !reduceMotion else { landed(); return }
+                try? await Task.sleep(for: .seconds(0.35))
+                guard !Task.isCancelled else { return }
+                withAnimation(GridConstants.dayArrive) { settled = true }
+                HapticsEngine.lightTap()
+                try? await Task.sleep(for: .seconds(0.6))
+                landed()
+            }
+    }
+}
+
 private struct MonthCalendarPad: View {
     let side: CGFloat
     let radius: CGFloat

@@ -169,6 +169,19 @@ final class FeedbackShots: XCTestCase {
         }
     }
 
+    /// Yesterday's tower leaving for Memories on a fresh morning
+    /// (`DayHandoff`), caught standing, travelling and gone.
+    func testDayHandoff() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedHistory", "3", "-strataSeedHistoryNotToday", "1",
+                    "-handoff.lastDay", "x"])
+        wait(2.6); snap("handoff-0")
+        for i in 1...8 { wait(0.12); snap("handoff-\(i)") }
+        wait(2); snap("handoff-after")
+        app.tabBars.buttons["Memories"].tap()
+        for i in 0...4 { wait(0.1); snap("arrive-\(i)") }
+        wait(1.5); snap("arrive-after")
+    }
+
     func testCrewCap() {
         let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
                           "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])

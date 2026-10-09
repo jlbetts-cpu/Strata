@@ -232,6 +232,12 @@ struct MainAppView: View {
     /// The one tip ask, after a booth closes (`TipJar.takeAsk`).
     @State private var showsTipAsk = false
     @AppStorage("stripPrintedDay") private var stripPrintedDay = ""
+    /// **Yesterday goes into Memories** (`DayHandoff`): the last day it
+    /// was decided, the tower that is travelling, and the day on screen,
+    /// which moves at midnight so an app left open rolls over too.
+    @AppStorage(DayHandoff.lastDayKey) private var handoffDecidedDay = ""
+    @State private var handoffLogs: [HabitLog]?
+    @State private var dayOnScreen = DateUtils.dateString(from: Date())
     @State private var eveningDecided = ""
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
@@ -868,6 +874,23 @@ struct MainAppView: View {
         .statusBarHidden(selectedTab == .camera)
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
+        .overlay {
+            if let handoffLogs {
+                DayHandoffLayer(logs: handoffLogs, modelContext: modelContext) {
+                    self.handoffLogs = nil
+                }
+            }
+        }
+        // **A new day while the app is open** (found 2026-10-09): nothing
+        // watched the date, so a tower left open across midnight went on
+        // showing yesterday as today until something else refreshed it.
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
+            noteDayChange()
+        }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { noteDayChange() } }
+        .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(dayOnScreen)") {
+            await handOffYesterdayIfDue()
+        }
         .onChange(of: selectedTab) { oldTab, newTab in
             // Off the camera: the front flash's brightness goes back now, not
             // when the camera's view finally disappears under the new tab.
@@ -991,7 +1014,7 @@ struct MainAppView: View {
                     return
                 }
                 // Not before a first win ever: the tower's own line asks then
-                // ("Tap the slot to log your first win.").
+                // ("Tap the slot to log today's first win.").
                 guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
                       let line = WinCue.line(winsToday: blocksToday, now: Date(),
                                              shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: todaysGoal)
@@ -2048,6 +2071,42 @@ struct MainAppView: View {
         }
         try? await Task.sleep(for: .milliseconds(200))
         animCoord.confettiBursts += 1
+    }
+
+    private func noteDayChange() {
+        let today = DateUtils.dateString(from: Date())
+        guard today != dayOnScreen else { return }
+        dayOnScreen = today
+        _ = refreshData()
+    }
+
+    /// Once a day, the first time Wins is on screen: yesterday's tower, if
+    /// it had a win, leaves for Memories (`DayHandoff`). Not over today's
+    /// own blocks (a win logged from the widget before the app opened):
+    /// the day is marked decided and nothing plays.
+    private func handOffYesterdayIfDue() async {
+        guard selectedTab == .tower, scenePhase == .active, handoffLogs == nil else { return }
+        let now = Date()
+        let today = DateUtils.dateString(from: now)
+        guard let before = Calendar.current.date(byAdding: .day, value: -1, to: now) else { return }
+        let yesterday = DateUtils.dateString(from: before)
+        let tower = towerManager.activeTower?.id
+        let kept = logs.filter { $0.dateString == yesterday && $0.completed && (tower == nil || $0.habit?.tower?.id == tower) }
+        guard let day = DayHandoff.due(today: today, lastDecided: handoffDecidedDay.isEmpty ? nil : handoffDecidedDay,
+                                       yesterday: yesterday, yesterdayHadWins: !kept.isEmpty) else {
+            if handoffDecidedDay != today { handoffDecidedDay = today }
+            return
+        }
+        // Decided now, under the launch's drawn logo, so yesterday is
+        // already standing when the logo lifts. Waiting for the launch first
+        // showed today's empty slot for a second and then put yesterday's
+        // tower on top of it (seen frame by frame, 2026-10-09).
+        // `DayHandoffLayer` holds its own departure until the launch is over.
+        guard !Self.somethingIsPresented, winDraft == nil else { return }
+        handoffDecidedDay = today
+        guard blocksToday == 0 else { return }
+        UserDefaults.standard.set(day, forKey: DayHandoff.arrivedKey)
+        handoffLogs = kept
     }
 
     /// **A cue waits for the launch to finish** (found 2026-10-08). A cue
@@ -3179,6 +3238,11 @@ struct MainAppView: View {
                         // with habits still to do is not an empty tower, it is
                         // a tower that has not been built yet.
                         emptyTowerSlot(colW: colW, gridH: gridH, gridW: gridW)
+                            // Today's ground waits until yesterday has left
+                            // for Memories (`DayHandoff`): the slot under a
+                            // standing tower read as two days at once.
+                            .opacity(handoffLogs == nil ? 1 : 0)
+                            .animation(GridConstants.crossFade, value: handoffLogs == nil)
                     } else {
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
@@ -3606,7 +3670,9 @@ struct MainAppView: View {
         //
         // It is inside the grid's padding now (an overlay on the slot), so it
         // starts on the margin without carrying one of its own.
-        Text("Tap the slot to log your first win.")
+        // "today's", not "your" (2026-10-09): every morning starts here, and
+        // "your first win" was said to people with months of them.
+        Text("Tap the slot to log today's first win.")
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
             .fixedSize(horizontal: false, vertical: true)

@@ -1281,6 +1281,9 @@ enum DebugHarness {
                 // a history, and the empty days are half of what the chart
                 // above the albums is for.
                 if back % 7 == 3 || back % 11 == 5 { continue }
+                // `-strataSeedHistoryNotToday`: a fresh morning, yesterday
+                // full and today empty, for the hand-off into Memories.
+                if back == 0, argument("-strataSeedHistoryNotToday") != nil { continue }
                 let count = seedHistoryPerDay ?? (2 + (back * 3) % 6)
                 for i in 0..<count {
                     let n = back * 7 + i
