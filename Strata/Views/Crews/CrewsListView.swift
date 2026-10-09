@@ -192,6 +192,22 @@ struct CrewsListView: View {
                         .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
                         .fitsLargeType(.body)
+                    // **The crew's streak, tiny** (2026-10-09, unification
+                    // §5c): a flame and the number, quiet ink, after the
+                    // name, from three days on. Not the win count at the
+                    // end of the row the owner had removed: a streak is the
+                    // crew's together, and under three it says nothing.
+                    let streak = CrewStats.current(for: crew, store: store)
+                    if streak >= 3 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "flame.fill").imageScale(.small)
+                            Text("\(streak)").monospacedDigit()
+                        }
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(streak) day crew streak")
+                    }
                     // Muted, marked as Messages marks it.
                     if store.isMuted(crew.id) {
                         Image(systemName: "bell.slash.fill")

@@ -243,6 +243,37 @@ crew's midnight, and it passes the same photo check a doodle does.
 
 ---
 
+## 5. Retention, minimal and warm
+
+**(b) The crew streak is forgiving now.** A day counted only when
+*everyone* posted, so one person's quiet day was the whole crew's loss, and
+bigger crews almost never kept a day. Now **half the crew keeps the day**
+(at least two; a crew of two still needs both). The two free days a week
+the crew already had stay, and a break is silent: the Best number is kept.
+The line under the streak says "Today counts. Nice work, crew." when
+enough are in, and still never names who has not posted.
+
+**(c) The flame.** Each crew in the list shows a small flame and its
+streak after the name, quiet ink, only from 3 days on. **REVIEW**: on
+2026-10-02 you had the win count removed from the end of these rows; this
+is different (the crew's streak, tiny, beside the name), but it is a number
+back on the row.
+
+**(a) The crew's evening.** The app's rule is one cue a day, so this is not
+an extra notification: for someone in a crew, the existing evening
+check-in ("Anything else today?", only on days with a win but under your
+goal) now fires at **the same minute on every phone in the crew**, worked
+out from the crew and the day (somewhere between 7:00 and 8:55pm, a
+different moment each evening), with "Roommates is sharing tonight's wins."
+under it. No server: every phone computes the same time. A friend abroad,
+where that lands outside 5 to 10pm, keeps their own 7pm.
+
+**REVIEW**: days with no win at all still get only the morning reminder,
+not a crew nudge, to keep one cue a day. If you would rather the crew
+evening be the cue on empty days too, that is a one-line change.
+
+---
+
 ## 6. Bugs and code health (first round)
 
 ### The onboarding face screen crash

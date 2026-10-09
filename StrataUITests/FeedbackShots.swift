@@ -213,6 +213,15 @@ final class FeedbackShots: XCTestCase {
         wait(9); snap("strip-chat")
     }
 
+    /// The crew streak's flame in the list (unification §5c).
+    func testCrewFlame() {
+        let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "3",
+                          "-strataSeedCrewHistory", "9", "-strataOpenCrews", "1",
+                          "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(8); snap("crew-flame")
+        app.terminate()
+    }
+
     func testCrewCap() {
         let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
                           "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])

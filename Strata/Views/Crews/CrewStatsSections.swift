@@ -44,7 +44,22 @@ struct CrewStats: Equatable {
     static func streakLine(people: Int, waiting: Int) -> String {
         // The rule says rest days are free, so a quiet day reads as allowed
         // rather than as a streak quietly at risk (`Streaks.Rest`).
-        people > 1 && waiting == 0 ? "Everyone's in today." : "A day counts when everyone posts a win. Two days off a week are fine."
+        if people > 1 && waiting == 0 { return "Everyone's in today." }
+        if people > 2 && people - waiting >= CrewHistory.needed(of: people) { return "Today counts. Nice work, crew." }
+        let who = people > 2 ? "half the crew posts" : "everyone posts"
+        return "A day counts when \(who) a win. Two days off a week are fine."
+    }
+
+    /// The crew's current streak alone, for its row in the list (the flame).
+    @MainActor
+    static func current(for crew: Crew, store: SocialStore = .shared) -> Int {
+        let today = CrewDay.string(for: Date(), in: crew.timeZone)
+        var history = store.history[crew.id] ?? CrewHistory()
+        if let cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) {
+            let wins = store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) }
+            history.record(wins, from: cutoff, rewritingFrom: CrewHistory.rewriteFrom(today, in: crew.timeZone), through: today)
+        }
+        return CrewHistory.streak(history.keptDays(members: crew.members, zone: crew.timeZone), today: today, zone: crew.timeZone)
     }
 
     static func make(_ inputs: Inputs) -> CrewStats {
@@ -55,7 +70,7 @@ struct CrewStats: Equatable {
             history.record(inputs.wins, from: cutoff,
                            rewritingFrom: CrewHistory.rewriteFrom(inputs.today, in: inputs.zone), through: inputs.today)
         }
-        let full = history.fullDays(members: inputs.members, zone: inputs.zone)
+        let full = history.keptDays(members: inputs.members, zone: inputs.zone)
         var stats = CrewStats()
         stats.current = CrewHistory.streak(full, today: inputs.today, zone: inputs.zone)
         stats.best = max(CrewHistory.best(full, zone: inputs.zone), stats.current)

@@ -24,6 +24,7 @@ struct CrewHistoryTests {
                   createdAt: date(day), updatedAt: date(day))
     }
 
+    /// A crew of two still needs both (half of two, at least two).
     @Test func aDayCountsOnlyWhenEveryonePosted() {
         var history = CrewHistory()
         let members = [member(jayden, joined: "2026-09-28"), member(sam, joined: "2026-09-28")]
@@ -31,7 +32,7 @@ struct CrewHistoryTests {
                         win(jayden, on: "2026-09-30"), win(sam, on: "2026-09-30"),
                         win(jayden, on: "2026-10-01")],
                        from: "2026-09-29", through: "2026-10-01")
-        let full = history.fullDays(members: members, zone: zone)
+        let full = history.keptDays(members: members, zone: zone)
         #expect(full == ["2026-09-29", "2026-09-30"])
         // Today is still open: the streak runs through yesterday.
         #expect(CrewHistory.streak(full, today: "2026-10-01", zone: zone) == 2)
@@ -39,12 +40,28 @@ struct CrewHistoryTests {
         #expect(history.waiting(today: "2026-10-01", members: members).map(\.profileID) == [sam])
     }
 
+    /// **Half the crew keeps the day** (2026-10-09): in a crew of four, two
+    /// posting is a kept day and one is not; in a crew of five it takes three.
+    @Test func halfTheCrewKeepsTheDay() {
+        let four = (0..<4).map { _ in UUID() }
+        var history = CrewHistory()
+        let members = four.map { member($0, joined: "2026-09-28") }
+        history.record([win(four[0], on: "2026-09-29"), win(four[1], on: "2026-09-29"),
+                        win(four[2], on: "2026-09-30")],
+                       from: "2026-09-29", through: "2026-09-30")
+        #expect(history.keptDays(members: members, zone: zone) == ["2026-09-29"])
+        #expect(CrewHistory.needed(of: 1) == 1)
+        #expect(CrewHistory.needed(of: 2) == 2)
+        #expect(CrewHistory.needed(of: 3) == 2)
+        #expect(CrewHistory.needed(of: 5) == 3)
+    }
+
     @Test func someoneWhoJoinedLaterNeverBrokeAnEarlierDay() {
         var history = CrewHistory()
         let members = [member(jayden, joined: "2026-09-28"), member(sam, joined: "2026-09-30")]
         history.record([win(jayden, on: "2026-09-29"), win(jayden, on: "2026-09-30"), win(sam, on: "2026-09-30")],
                        from: "2026-09-29", through: "2026-09-30")
-        let full = history.fullDays(members: members, zone: zone)
+        let full = history.keptDays(members: members, zone: zone)
         #expect(CrewHistory.streak(full, today: "2026-09-30", zone: zone) == 2)
     }
 
@@ -79,7 +96,7 @@ struct CrewHistoryTests {
         let members = [member(jayden, joined: "2026-09-01")]
         let days = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-07"]
         history.record(days.map { win(jayden, on: $0) }, from: "2026-09-01", through: "2026-09-07")
-        let full = history.fullDays(members: members, zone: zone)
+        let full = history.keptDays(members: members, zone: zone)
         #expect(CrewHistory.streak(full, today: "2026-09-07", zone: zone) == 1)
         #expect(CrewHistory.best(full, zone: zone) == 3)
     }

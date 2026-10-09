@@ -50,22 +50,34 @@ nonisolated struct CrewHistory: Codable, Equatable, Sendable {
         days.mapValues { $0.values.reduce(0, +) }
     }
 
-    /// The days everyone who was in the crew that day posted a win.
+    /// **The days the crew kept**: half the people in it that day posted a
+    /// win, and never fewer than two (the unification pass, 2026-10-09:
+    /// "a shared crew streak with forgiving freezes"). It was everyone, so
+    /// one person's quiet day was the whole crew's loss, and the bigger the
+    /// crew the less often a day ever counted. A crew of two still needs
+    /// both; a crew of one, its one.
     ///
-    /// "Everyone" is the people in the crew now who had joined by the end of
-    /// that day: someone who joined on Thursday never broke Tuesday. Each
-    /// join day is worked out once, not once per day per person.
-    func fullDays(members: [CrewMember], zone: TimeZone) -> Set<String> {
+    /// "In it that day" is the people in the crew now who had joined by the
+    /// end of that day: someone who joined on Thursday never broke Tuesday.
+    /// Each join day is worked out once, not once per day per person.
+    func keptDays(members: [CrewMember], zone: TimeZone) -> Set<String> {
         let joined = members.map { ($0.profileID.uuidString, CrewDay.string(for: $0.joinedAt, in: zone)) }
-        var full: Set<String> = []
+        var kept: Set<String> = []
         for (day, posted) in days {
             let expected = joined.filter { $0.1 <= day }
-            if !expected.isEmpty, expected.allSatisfy({ (posted[$0.0] ?? 0) > 0 }) { full.insert(day) }
+            guard !expected.isEmpty else { continue }
+            let in_ = expected.filter { (posted[$0.0] ?? 0) > 0 }.count
+            if in_ >= Self.needed(of: expected.count) { kept.insert(day) }
         }
-        return full
+        return kept
     }
 
-    /// Days in a row everyone posted, ending today, or yesterday while today
+    /// How many of `people` keep a day: half, rounded up, at least two.
+    static func needed(of people: Int) -> Int {
+        min(people, max(2, (people + 1) / 2))
+    }
+
+    /// Days in a row the crew kept, ending today, or yesterday while today
     /// is still open: a streak is not broken by a morning.
     ///
     /// Two rest days in any seven bridge it (`Streaks.Rest`): a crew needs

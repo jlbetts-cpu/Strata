@@ -167,7 +167,7 @@ nonisolated enum EveningCheckIn {
             predicate: #Predicate { $0.dateString == today && $0.completed }))) ?? []
         let hour = defaults.object(forKey: "reminderHour") as? Int ?? 8
         let minute = defaults.object(forKey: "reminderMinute") as? Int ?? 0
-        guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
+        guard var at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
                             goal: DailyGoal.stored(on: today, defaults: defaults))
@@ -178,6 +178,16 @@ nonisolated enum EveningCheckIn {
         // Today's goal, as you set it.
         let goal = DailyGoal.stored(on: today, defaults: defaults)
         content.title = logs.count == goal - 1 ? WinCue.oneMore : title
+        // **In a crew, it is the crew's evening** (`CrewEvening`): the same
+        // moment on every phone in it, the crew livest lately first.
+        let store = SocialStore.shared
+        let crews = store.crews.filter { $0.members.count > 1 }
+            .sorted { (store.latest(in: $0.id)?.createdAt ?? .distantPast) > (store.latest(in: $1.id)?.createdAt ?? .distantPast) }
+        if let crew = crews.first, let synced = CrewEvening.time(crew: crew.id.rawValue, zone: crew.timeZone, now: now),
+           synced > now {
+            at = synced
+            content.body = CrewEvening.line(crewName: crew.displayName(excluding: store.me))
+        }
         content.sound = .default
         content.threadIdentifier = NotificationRoute.Thread.daily
         content.categoryIdentifier = DailyReminder.category

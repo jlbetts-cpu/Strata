@@ -74,8 +74,11 @@ struct CohesionPassTests {
     @Test("the streak line is the rule, or everyone in, and never a name")
     func streakLineHasNoNames() {
         #expect(CrewStats.streakLine(people: 3, waiting: 0) == "Everyone's in today.")
-        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "A day counts when everyone posts a win. Two days off a week are fine.")
-        #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when everyone posts a win. Two days off a week are fine.")
+        // The rule became half the crew on 2026-10-09 (unification pass §5):
+        // a kept day short of everyone says so, warmly, still naming nobody.
+        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "Today counts. Nice work, crew.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when half the crew posts a win. Two days off a week are fine.")
+        #expect(CrewStats.streakLine(people: 2, waiting: 1) == "A day counts when everyone posts a win. Two days off a week are fine.")
         #expect(CrewStats.streakLine(people: 1, waiting: 0) == "A day counts when everyone posts a win. Two days off a week are fine.")
     }
 
