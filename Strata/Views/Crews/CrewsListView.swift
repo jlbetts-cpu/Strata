@@ -90,6 +90,9 @@ struct CrewsListView: View {
             } }
         }
         .task { await store.refresh() }
+        // Seen once by any way in (an invitation, the first-win card): the
+        // header's guiding dot has done its job (`CrewsButton.openedKey`).
+        .onAppear { UserDefaults.standard.set(true, forKey: CrewsButton.openedKey) }
         // An invitation held for the rules and the age: joined here if both
         // were already settled by the time the list came up.
         .task { CrewRouter.shared.joinPendingIfReady() }
@@ -428,10 +431,19 @@ extension NewCrewSheet {
 struct CrewsButton: View {
     var action: () -> Void
     private var store: SocialStore { SocialStore.shared }
+    /// **Lit until Crews has been opened once** (the owner, 2026-10-08: "for
+    /// the first time clicking the social icon the notification should be on
+    /// just to guide the user"). The same dot a new win lights, so a new
+    /// person's eye is led to the one place the app has not shown them.
+    @AppStorage(Self.openedKey) private var opened = false
+    static let openedKey = "crews.openedOnce"
 
     var body: some View {
         GlassIconButton(systemName: "person.2", onPage: true,
-                        accessibilityLabel: hasNews ? "Crews, something new" : "Crews", action: action)
+                        accessibilityLabel: hasNews ? "Crews, something new" : "Crews") {
+            opened = true
+            action()
+        }
             .overlay(alignment: .topTrailing) {
                 if hasNews {
                     Circle()
@@ -449,7 +461,9 @@ struct CrewsButton: View {
 
     /// A new win, a reaction to yours, or a chat line you have not read, in
     /// any crew (the owner, 2026-10-06: chat lights it too).
-    private var hasNews: Bool { !store.unread.isEmpty || !store.unreadChats.isEmpty }
+    private var hasNews: Bool {
+        !opened || !store.unread.isEmpty || !store.unreadChats.isEmpty
+    }
 }
 
 /// The Wins tab's crew screens, and the router that opens one from outside
