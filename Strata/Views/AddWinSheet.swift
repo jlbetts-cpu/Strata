@@ -1198,7 +1198,9 @@ struct AddWinSheet: View {
                     // A photograph gets the lighter wash, as `BlockFace` gives
                     // it: 0.10 of white over a picture floors the composite and
                     // caps white text below 4.5:1 however dark the picture is.
-                    washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06
+                    washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06,
+                    // No title is drawn on the preview, so no band for one.
+                    band: false
                 ) {
                     if let photo {
                         // **Bounded here, not only by the frame below.**
@@ -2017,7 +2019,7 @@ private struct TodaysPhotoTile: View {
 
     var body: some View {
         Button(action: action) {
-            BlockSurface(cornerRadius: radius, washOpacity: 0.06) {
+            BlockSurface(cornerRadius: radius, washOpacity: 0.06, band: false) {
                 if let image {
                     Image(uiImage: image)
                         .resizable()

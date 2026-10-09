@@ -41,7 +41,9 @@ struct BlockFace<Photo: View>: View {
             // however dark the scrim beneath it is. The source escapes this
             // because its text sits near the TOP of the band on a 565pt block.
             washOpacity: hasPhoto ? 0.06 : GridConstants.blockScrimOpacity,
-            aim: aim
+            aim: aim,
+            // The band is there for the title; an untitled block has none.
+            band: showOverlay && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         ) {
             ZStack {
             // **The colour is under everything, always.**

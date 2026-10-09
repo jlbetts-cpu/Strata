@@ -251,6 +251,22 @@ struct CrewsListView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// One line of what a crew is, its glyph in the quiet ink.
+    private func explainer(_ symbol: String, _ line: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapItem) {
+            Image(systemName: symbol)
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(width: 24)
+            Text(line)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
     private var empty: some View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer()
@@ -268,16 +284,31 @@ struct CrewsListView: View {
                 }
                 .frame(maxWidth: 240)
             } else {
-                Text("Start a crew. Just the people you'd tell anyway.")
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, GridConstants.gapSection)
-                PrimaryCapsule(title: "New Crew") { startsCrew = true }
-                    .frame(maxWidth: 240)
+                // **The drawing, then what a crew is, then the one action**
+                // (the owner, 2026-10-08: "the drawing of the crew should be
+                // in the empty state"; "crews is confusing to understand for
+                // new users"). A first visit had one sentence and a button,
+                // which told nobody what pressing it would make. Now: his
+                // drawing of three friends, three lines that each answer one
+                // question (who, what happens, who sees it), and New Crew where
+                // every page keeps its action, at the foot.
+                if let art = UIImage(named: "CrewsTogether") {
+                    Illustration(art: art, line: "Winning is better together", height: 190,
+                                 motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
+                }
+                VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
+                    explainer("person.2", "Up to 8 friends in a crew, you included.")
+                    explainer("square.stack.3d.up", "Send a win and it lands on the crew's tower for the day.")
+                    explainer("lock", "Private. Only people you invite can see it.")
+                }
+                .padding(.horizontal, GridConstants.gapSection)
             }
             Spacer()
-            Spacer()
+            if !signedOut {
+                PrimaryCapsule(title: "New Crew") { startsCrew = true }
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.bottom, GridConstants.gapWide)
+            }
         }
         .frame(maxWidth: .infinity)
         .task {
@@ -421,7 +452,7 @@ struct CrewsButton: View {
                     Circle()
                         .fill(AppColors.inkPrimary)
                         .frame(width: 10, height: 10)
-                        .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                        .overlay(Circle().strokeBorder(WarmBackground.top, lineWidth: 1.5))
                         .offset(x: 1, y: -1)
                         .transition(.scale.combined(with: .opacity))
                         .accessibilityHidden(true)

@@ -310,6 +310,26 @@ struct MonthPicker: View {
     var onSelect: (Date) -> Void = { _ in }
 
     var body: some View {
+        // **One month, nothing to choose** (the owner, 2026-10-08: "if there
+        // is only one month why is there anything to select"). A first month
+        // is the month's name, set as the page's title, with no chevron and
+        // no menu; the control arrives with the second month.
+        if months.count <= 1 {
+            Text(title.capitalized)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.opacity)
+                .frame(height: 44)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("MonthPicker")
+        } else {
+            menu
+        }
+    }
+
+    private var menu: some View {
         HStack(spacing: 0) {
             Menu {
                 ForEach(months, id: \.self) { month in

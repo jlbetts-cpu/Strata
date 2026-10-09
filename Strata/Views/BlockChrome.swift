@@ -36,6 +36,12 @@ struct BlockSurface<Fill: View>: View {
     var washOpacity: Double = GridConstants.blockScrimOpacity
     /// Which way the light is coming from. See `BlockLight`.
     var aim: BlockAim = .overhead
+    /// **The blurred band is for a title** (the owner, 2026-10-08, of the
+    /// Edit sheet's photo: "remove this random blur the blur only happens
+    /// with the added text on the tower shouldnt be in the preview"). It is
+    /// what lets white type read over a picture; a block that carries no
+    /// type, as the sheets' previews do not, draws without it.
+    var band: Bool = true
 
     @Environment(\.colorScheme) private var colorScheme
     @ViewBuilder var fill: () -> Fill
@@ -87,6 +93,7 @@ struct BlockSurface<Fill: View>: View {
 
     var body: some View {
         ZStack {
+            if band {
             // Clipped back to the block's own corners after blurring. The
             // blur spreads past the silhouette, and the mask's square bounds
             // cut that spread off flat, so the bottom read as a hard edge
@@ -97,6 +104,9 @@ struct BlockSurface<Fill: View>: View {
                 .clipShape(shape)
                 .mask(blurredMask)
             surface.mask(sharpMask)
+            } else {
+                surface
+            }
         }
         .compositingGroup()
         // One shadow, from the one ladder. See `Elevation`.
