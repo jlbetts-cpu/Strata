@@ -504,15 +504,49 @@ final class PublicCrewCloud: CrewCloud {
     /// also the list of every record's name, to notice deletions.
     private func syncAll(_ crews: [CrewID], full: Bool) async throws {
         guard !crews.isEmpty else { return }
-        let start = crews.compactMap { since[$0] }.min() ?? .distantPast
-        let cutoff = full ? Date.distantPast : start.addingTimeInterval(-Self.overlap)
-        let predicate = cutoff == .distantPast
-            ? NSPredicate(format: "crew IN %@", crews.map(\.rawValue))
-            : NSPredicate(format: "crew IN %@ AND modificationDate > %@", crews.map(\.rawValue), cutoff as NSDate)
-        let seen = try await read(predicate)
+        // A crew never synced on this phone is read whole; the rest only for
+        // what changed. Deletions are found by a names-only listing, which
+        // never downloads a box or a photo again.
+        let fresh = crews.filter { since[$0] == nil || since[$0] == .distantPast }
+        let known = crews.filter { !fresh.contains($0) }
+        if !fresh.isEmpty {
+            _ = try await read(NSPredicate(format: "crew IN %@", fresh.map(\.rawValue)))
+        }
+        if let start = known.compactMap({ since[$0] }).min() {
+            let cutoff = start.addingTimeInterval(-Self.overlap)
+            _ = try await read(NSPredicate(format: "crew IN %@ AND modificationDate > %@",
+                                           known.map(\.rawValue), cutoff as NSDate))
+        }
         let now = Date()
         for crew in crews { since[crew] = now }
-        if full { dropMissing(seen, in: crews) }
+        if full, !known.isEmpty {
+            dropMissing(try await listNames(NSPredicate(format: "crew IN %@", known.map(\.rawValue))), in: known)
+        }
+    }
+
+    /// Every record's name a query matches, and nothing else: no box, no
+    /// photo is downloaded.
+    private func listNames(_ predicate: NSPredicate) async throws -> [CrewID: Set<String>] {
+        let query = CKQuery(recordType: Self.recordType, predicate: predicate)
+        let keys = ["crew", "kind"]
+        var seen: [CrewID: Set<String>] = [:]
+        func note(_ results: [(CKRecord.ID, Result<CKRecord, Error>)]) {
+            for (id, result) in results {
+                guard let record = try? result.get(), let crew = record["crew"] as? String,
+                      let kind = record["kind"] as? String else { continue }
+                let prefix = "\(crew)~\(kind)~"
+                guard id.recordName.hasPrefix(prefix) else { continue }
+                seen[CrewID(rawValue: crew), default: []].insert("\(kind)/\(id.recordName.dropFirst(prefix.count))")
+            }
+        }
+        var page = try await database.records(matching: query, desiredKeys: keys, resultsLimit: CKQueryOperation.maximumResults)
+        note(page.matchResults)
+        while let cursor = page.queryCursor {
+            page = try await database.records(continuingMatchFrom: cursor, desiredKeys: keys,
+                                              resultsLimit: CKQueryOperation.maximumResults)
+            note(page.matchResults)
+        }
+        return seen
     }
 
     @discardableResult
