@@ -99,27 +99,33 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     /// reaction's emoji and its reply line. Read only when the record really
     /// is from the sender the ping names, so a ping cannot put words in
     /// someone's mouth.
+    /// **The friend's win, from the public database, opened with the crew's
+    /// key** (2026-10-09: crews moved out of personal iCloud). The key is in
+    /// the app group (`CrewKeyRing`); without it, or if the box will not
+    /// open, the notification keeps its plain fallback words.
     private static func read(kind: CrewPingRecord.Kind, crew: String, sender: String, winID: String,
                              in known: CrewNoteCache.Crew?) async -> Read {
-        guard let known, let from = known.members[sender]?.profileID else { return Read() }
-        let container = CKContainer(identifier: CrewNoteCache.containerID)
-        let db = known.joined ? container.sharedCloudDatabase : container.privateCloudDatabase
-        let zone = CKRecordZone.ID(zoneName: known.zoneName, ownerName: known.zoneOwner)
+        guard let known, let from = known.members[sender]?.profileID,
+              let key = CrewKeyRing().all[known.zoneName] else { return Read() }
+        let db = CKContainer(identifier: CrewNoteCache.containerID).publicCloudDatabase
+        func open(_ kind: String, _ name: String) async -> [String: String]? {
+            let recordName = CrewItemRecord.name(crew: known.zoneName, kind: kind, name: name)
+            let id = CKRecord.ID(recordName: recordName)
+            guard let record = try? await db.records(for: [id], desiredKeys: ["box"])[id]?.get(),
+                  let box = record["box"] as? Data else { return nil }
+            return CrewItemRecord.strings(in: box, key: key, recordName: recordName)
+        }
         switch kind {
         case .win:
-            let id = CKRecord.ID(recordName: winID, zoneID: zone)
-            guard let record = try? await db.records(for: [id], desiredKeys: ["title", "senderProfileID", "withPeople"])[id]?.get(),
-                  record["senderProfileID"] as? String == from else { return Read() }
-            let people = ((record["withPeople"] as? String) ?? "").split(separator: ",").map(String.init)
-            return Read(title: record["title"] as? String, withPeople: people)
+            guard let fields = await open("SharedWin", winID),
+                  fields["senderProfileID"]?.lowercased() == from.lowercased() else { return Read() }
+            let people = (fields["withPeople"] ?? "").split(separator: ",").map(String.init)
+            return Read(title: fields["title"], withPeople: people)
         case .reaction:
-            let id = CKRecord.ID(recordName: "\(winID)-\(from)", zoneID: zone)
-            guard let record = try? await db.records(for: [id], desiredKeys: ["emoji", "profileID", "line"])[id]?.get(),
-                  record["profileID"] as? String == from,
-                  let emoji = (record["emoji"] as? String)?.prefix(1), !emoji.isEmpty else { return Read() }
-            // As long as a reply may be and no longer, as the app reads it.
-            let line = (record["line"] as? String).map { String($0.prefix(80)) }
-            return Read(emoji: String(emoji), line: line)
+            guard let fields = await open("Reaction", "\(winID)-\(from)"),
+                  fields["profileID"]?.lowercased() == from.lowercased(),
+                  let emoji = fields["emoji"]?.prefix(1), !emoji.isEmpty else { return Read() }
+            return Read(emoji: String(emoji), line: fields["line"].map { String($0.prefix(80)) })
         }
     }
 }

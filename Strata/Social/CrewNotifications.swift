@@ -9,8 +9,9 @@ import os
 /// crew on the lock screen, none at all for a crew whose alerts you hid, never
 /// for the crew you are looking at.
 ///
-/// **How it arrives.** iCloud sends a silent push when a crew's zone changes
-/// (`CKDatabaseSubscription`, content-available only). The app wakes, fetches,
+/// **How it arrives.** iCloud sends a silent push when one of your crews
+/// changes (`PublicCrewCloud`'s query subscription on `CrewItem`,
+/// content-available only, since 2026-10-09). The app wakes, fetches,
 /// and says what changed in a local notification it writes itself, with the
 /// real names. No server, and nothing about a win travels in the push.
 ///
@@ -37,23 +38,6 @@ enum CrewNotifications {
         guard settings.authorizationStatus == .notDetermined else { return }
         log.notice("asking for notifications")
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-    }
-
-    /// The silent push from both databases: crews you started live in your
-    /// private one, crews you joined in your shared one.
-    static func subscribe(_ container: CKContainer) async {
-        for (scope, id) in [(container.privateCloudDatabase, CrewPushRoute.privateID),
-                            (container.sharedCloudDatabase, CrewPushRoute.sharedID)] {
-            let subscription = CKDatabaseSubscription(subscriptionID: id)
-            let info = CKSubscription.NotificationInfo()
-            info.shouldSendContentAvailable = true
-            subscription.notificationInfo = info
-            do {
-                _ = try await scope.modifySubscriptions(saving: [subscription], deleting: [])
-            } catch {
-                log.error("subscription \(id, privacy: .public) not saved: \(error)")
-            }
-        }
     }
 
     // MARK: Saying what is new

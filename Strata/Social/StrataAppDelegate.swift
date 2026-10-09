@@ -108,11 +108,8 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         // The silent push that says a crew changed. Without the Push
         // capability this simply fails, and crews refresh on foreground.
         application.registerForRemoteNotifications()
-        Task { @MainActor in
-            if let cloud = SocialStore.shared.cloud as? CloudKitCrewCloud {
-                await CrewNotifications.subscribe(cloud.container)
-            }
-        }
+        // The crews' own silent push is the public database's query
+        // subscription, saved by `PublicCrewCloud` as the crews change.
         return true
     }
 
@@ -172,8 +169,6 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         switch CrewPushRoute.route(userInfo: userInfo) {
         case .notCrews:
             return .noData
-        case .checkPrivate:
-            guard await SocialStore.shared.cloud.privateCrewZonesChanged() else { return .noData }
         case .crews:
             break
         }
@@ -183,23 +178,29 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
 }
 
 final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
-    /// Opened from an invitation while the app was not running.
+    /// Opened from an invitation link while the app was not running.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
-        if let metadata = options.cloudKitShareMetadata { join(metadata) }
+        for context in options.urlContexts { Self.open(context.url) }
+        if let activity = options.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb }),
+           let url = activity.webpageURL { Self.open(url) }
     }
 
-    /// Opened from an invitation while the app was running.
-    func windowScene(_ windowScene: UIWindowScene, userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
-        join(metadata)
+    /// Opened from an invitation link while the app was running.
+    func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
+        for context in contexts { Self.open(context.url) }
     }
 
-    /// Through `CrewRouter.join`, which holds the invitation until the
-    /// rules and the age are settled (2026-10-08): accepting the share is
-    /// what makes you a participant, so it waits too.
-    private func join(_ metadata: CKShare.Metadata) {
-        guard CrewsFlag.isOn, let url = metadata.share.url else { return }
-        let invite = CrewInvite(url: url, metadata: metadata)
-        Task { @MainActor in CrewRouter.shared.join(invite) }
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        if let url = userActivity.webpageURL { Self.open(url) }
+    }
+
+    /// **A crew invitation is a link now** (2026-10-09): the page or the
+    /// app's own `somewins://join#...`, carrying the crew and its key
+    /// (`CrewInviteLink`). Through `CrewRouter.join`, which holds it until
+    /// the rules and the age are settled.
+    static func open(_ url: URL) {
+        guard CrewsFlag.isOn, CrewInviteLink.read(url) != nil else { return }
+        Task { @MainActor in CrewRouter.shared.join(CrewInvite(url: url)) }
     }
 
     static func words(for error: CrewError) -> String {

@@ -342,7 +342,7 @@ struct CrewsListView: View {
         }
         .frame(maxWidth: .infinity)
         .task {
-            guard let cloud = store.cloud as? CloudKitCrewCloud else { return }
+            guard let cloud = store.cloud as? PublicCrewCloud else { return }
             let status = try? await cloud.container.accountStatus()
             signedOut = status != .available
         }

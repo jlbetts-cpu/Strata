@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join a crew on Some Wins</title>
+<meta name="description" content="A friend invited you to their crew on Some Wins.">
+<meta property="og:title" content="Join my crew on Some Wins">
+<meta property="og:description" content="Share the day's wins with a few friends.">
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg: #fdfdfd; --ink: #1d1b19; --ink-2: #5c5853; --fill: #1d1b19; --on-fill: #fdfdfd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1c1b; --ink: #f2f0ee; --ink-2: #b2aea9; --fill: #f2f0ee; --on-fill: #1c1c1b; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+    font: 400 17px/1.5 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased; text-align: center;
+  }
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; margin: 0 0 8px; }
+  p { color: var(--ink-2); margin: 0 0 32px; max-width: 320px; }
+  a.open {
+    display: block; width: 100%; max-width: 360px; height: 50px; line-height: 50px; border-radius: 25px;
+    background: var(--fill); color: var(--on-fill); text-decoration: none; font-weight: 600;
+  }
+  a.get { display: inline-block; margin-top: 20px; min-height: 44px; line-height: 44px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+  <h1>You're invited to a crew</h1>
+  <p>Open Some Wins to join. Crews share the day's wins with a few friends, privately.</p>
+  <a class="open" id="open" href="somewins://join">Open in Some Wins</a>
+  <a class="get" href="https://testflight.apple.com/">Don't have the app yet?</a>
+<script>
+  // The crew and its key travel after the # and never leave this page: a
+  // browser does not send the fragment to any server. It is handed straight
+  // to the app's own link.
+  (function () {
+    var invite = location.hash.replace(/^#/, "");
+    if (!/^crew-[0-9A-Fa-f-]{1,59}\.[A-Za-z0-9_-]{43}$/.test(invite)) return;
+    var app = "somewins://join#" + invite;
+    document.getElementById("open").setAttribute("href", app);
+    setTimeout(function () { location.href = app; }, 250);
+  })();
+</script>
+</body>
+</html>

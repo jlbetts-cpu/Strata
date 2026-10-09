@@ -1,4 +1,3 @@
-import CloudKit
 import LinkPresentation
 import UIKit
 
@@ -24,42 +23,23 @@ enum CrewSharing {
     static var nextCard: UIImage?
 
     /// **`card`: a picture of your tower** (`TowerShare`, the 9:16 card),
-    /// for the first-win invitation (`FirstWinInvite`). Through iCloud it is
-    /// the share sheet's preview, over the collaboration Messages sends;
-    /// through a link it travels with the link as a picture.
+    /// for the first-win invitation (`FirstWinInvite`): the link's preview.
+    ///
+    /// **A link, not an iCloud share** (2026-10-09, crews moved to the public
+    /// database). The system share sheet sends `CrewInviteLink`'s page with
+    /// a rich preview (the crew's name and your tower), so Messages shows a
+    /// card a friend taps to open the app straight into the crew.
     static func invite(_ crewID: CrewID, card: UIImage? = nil) async {
         Analytics.shared.signal(.crewInviteSent)
         let card = card ?? nextCard
         nextCard = nil
         let store = SocialStore.shared
         do {
-            if let cloud = store.cloud as? CloudKitCrewCloud {
-                let share = try await cloud.share(for: crewID)
-                if let crew = store.crew(crewID) {
-                    share[CKShare.SystemFieldKey.title] = crew.displayName(excluding: store.me)
-                }
-                let options = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite,
-                                                      allowedParticipantAccessOptions: .specifiedRecipientsOnly)
-                if #available(iOS 26.0, *) { options.allowsParticipantsToInviteOthers = true }
-                let provider = NSItemProvider()
-                provider.registerCKShare(share, container: cloud.container, allowedSharingOptions: options)
-                let configuration = UIActivityItemsConfiguration(itemProviders: [provider])
-                if let card {
-                    let title = share[CKShare.SystemFieldKey.title] as? String ?? message
-                    configuration.metadataProvider = { key in
-                        guard key == .linkPresentationMetadata else { return nil }
-                        let metadata = LPLinkMetadata()
-                        metadata.title = title
-                        metadata.imageProvider = NSItemProvider(object: card)
-                        return metadata
-                    }
-                }
-                present(UIActivityViewController(activityItemsConfiguration: configuration))
-            } else {
-                let url = try await store.inviteURL(for: crewID)
-                let items: [Any] = [message, url] + (card.map { [$0] } ?? [])
-                present(UIActivityViewController(activityItems: items, applicationActivities: nil))
-            }
+            let url = try await store.inviteURL(for: crewID)
+            let name = store.crew(crewID)?.displayName(excluding: store.me)
+            let title = name.map { "Join \($0) on Some Wins" } ?? message
+            present(UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
+                                             applicationActivities: nil))
         } catch {
             CrewRouter.shared.joinProblem = CrewErrorWords.say(error, while: .inviting)
         }
@@ -75,5 +55,36 @@ enum CrewSharing {
             popover.sourceRect = CGRect(x: window.bounds.midX, y: 80, width: 1, height: 1)
         }
         top.present(controller, animated: true)
+    }
+}
+
+/// The invitation as the share sheet carries it: the link, titled with the
+/// crew, previewed with your tower or, without one, the app's icon.
+private final class InviteItem: NSObject, UIActivityItemSource {
+    let url: URL
+    let title: String
+    let card: UIImage?
+
+    init(url: URL, title: String, card: UIImage?) {
+        self.url = url
+        self.title = title
+        self.card = card
+    }
+
+    func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any { url }
+
+    func activityViewController(_ controller: UIActivityViewController,
+                                itemForActivityType type: UIActivity.ActivityType?) -> Any? { url }
+
+    func activityViewController(_ controller: UIActivityViewController,
+                                subjectForActivityType type: UIActivity.ActivityType?) -> String { title }
+
+    func activityViewControllerLinkMetadata(_ controller: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.originalURL = url
+        metadata.url = url
+        metadata.title = title
+        if let card { metadata.imageProvider = NSItemProvider(object: card) }
+        return metadata
     }
 }

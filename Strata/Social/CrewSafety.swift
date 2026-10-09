@@ -59,7 +59,7 @@ enum CrewSafety {
             "reason": reason.rawValue,
         ]
         var photo: URL?
-        let cloud = store.cloud as? CloudKitCrewCloud
+        let cloud = store.cloud as? PublicCrewCloud
         switch subject {
         case .win(let win):
             fields["winID"] = win.winID.uuidString
@@ -113,7 +113,7 @@ enum CrewSafety {
     }
 
     private static func send(_ fields: [String: String]) async -> Bool {
-        guard let cloud = SocialStore.shared.cloud as? CloudKitCrewCloud else {
+        guard let cloud = SocialStore.shared.cloud as? PublicCrewCloud else {
             log.notice("report (no cloud): \(fields["reason"] ?? "", privacy: .public)")
             return true
         }

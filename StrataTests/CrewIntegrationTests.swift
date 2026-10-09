@@ -33,7 +33,7 @@ struct CrewIntegrationTests {
     }
 
     @Test func theRealCloudIsChosenWhenCrewsAreOn() throws {
-        #expect(try Self.source("Strata/StrataApp.swift").contains("SocialStore.makeCloud = { CloudKitCrewCloud() }"))
+        #expect(try Self.source("Strata/StrataApp.swift").contains("SocialStore.makeCloud = { PublicCrewCloud() }"))
     }
 
     @Test func aRealSaveKeepsEveryCopyInStep() async throws {

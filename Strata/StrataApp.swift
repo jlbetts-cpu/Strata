@@ -63,9 +63,9 @@ struct StrataApp: App {
         // fake too: it is a pretend crew on a pretend iCloud.
         if CrewsFlag.isOn {
             #if DEBUG
-            if DebugHarness.seedsCrew == nil { SocialStore.makeCloud = { CloudKitCrewCloud() } }
+            if DebugHarness.seedsCrew == nil { SocialStore.makeCloud = { PublicCrewCloud() } }
             #else
-            SocialStore.makeCloud = { CloudKitCrewCloud() }
+            SocialStore.makeCloud = { PublicCrewCloud() }
             #endif
         }
         #if DEBUG
