@@ -555,7 +555,8 @@ struct OnboardingView: View {
             ZStack {
                 switch step {
                 case 0: tower(in: box)
-                case 1: workshop(in: box)
+                // At the foot, as the tower stands on the tab bar.
+                case 1: workshop(in: box).frame(maxHeight: .infinity, alignment: .bottom)
                 // **The tab bar in this picture is today's** (2026-10-02). The
                 // capture still carried the Wins / Camera / Memories labels the
                 // app dropped on 2026-10-01. A new device shot was the ask; the
@@ -908,55 +909,20 @@ struct OnboardingView: View {
         // and scaled by its size, so the block you place with your finger gets
         // the same reply here as the ones you place tomorrow. Nothing animates
         // because this page appeared; this moves because a finger let go.
-        // Cut to the three rows the tutorial can use, for the reason the
-        // opening tower's is: the overhang would fill the top of the page with
-        // a fading checkerboard. Cut, it is a board with four columns and three
-        // rows, which is exactly what this page is teaching.
         .background(alignment: .bottomLeading) {
-            // **THE BOARD NEEDS A GROUND, OR THE LESSON IS INVISIBLE.**
-            //
-            // Measured on this page: cells 248, gutters 244, which is 1.03:1.
-            // The lattice draws its cells as WHITE PANES, and a white pane
-            // over a 245 ground has four values of room to be seen in. The
-            // component's own note says exactly this and says what fixed it on
-            // the Wins tab: "a white pane cannot be brighter than a ground
-            // that is already at 240, so the answer was never to outline the
-            // pane, it was to stop the ground being that bright. `DayGround`
-            // sits lower now."
-            //
-            // The Wins tab gets that lower ground from `GroundField`, which is
-            // made of the blurred photographs you have taken. On the walkthrough
-            // there are none, so the ground is flat `WarmBackground.top` and
-            // the panes have nowhere to go. Raising `TowerLattice.strength`
-            // cannot fix it: white on 245 tops out at 255, which is 1.07:1 at
-            // full opacity.
-            //
-            // This page is the one where the board is the LESSON. You are
-            // being taught that a Quick takes one cell and a Deep takes four,
-            // and you cannot be taught it by cells you cannot see. So the
-            // board gets the seat the Wins ground has, at a little over twice
-            // the strength because it has to work on a flat page rather than
-            // on a field: the ground under the board falls to about 232 and
-            // the panes read at about 240 on it, with the board itself a
-            // visible 13 under the page. That is a board on a page, which is
-            // what it is.
-            ZStack(alignment: .bottomLeading) {
-                Rectangle()
-                    .fill(AppColors.slotInk.opacity(Self.boardSeat))
-                    .frame(width: width, height: height)
-                TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
-                    .frame(width: width, height: height, alignment: .bottom)
-                    .clipped()
-            }
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-                                        style: .continuous))
+            // **The tower's own lattice, not a board** (the owner, 2026-10-08:
+            // "I want it to look exactly like the tower"). The seat, the
+            // rounded clip and the cut at three rows are gone: the lattice
+            // overflows upward and fades on its own, exactly as Wins draws it
+            // (`MainAppView`'s `.background(alignment: .bottom)`), on the same
+            // `WarmBackground` ground the Wins tab stands on.
+            // One row over, not the tower's three: three ran up under the
+            // title (photographed). The past day's "tower plus one row".
+            TowerLattice(cellSize: cell, contentHeight: height, rowsOver: 1, ripple: ripple)
+                .frame(width: width)
         }
     }
 
-    /// The ground under the tutorial board. `GroundField.seat` is 0.030 and
-    /// sits under a field of blurred photographs; this is a flat page with
-    /// none, so it carries the whole difference itself.
-    private static let boardSeat: Double = 0.07
 
     /// **A tower already standing** (2026-10-08, the owner: the screens "fall
     /// flat", "take inspo from the trailer and app"). The board opened grey
@@ -1660,17 +1626,9 @@ struct OnboardingView: View {
             .frame(width: width, height: height, alignment: .bottomLeading)
             // The tutorial's board, its seat and all, for the reason written
             // on `workshop`: on a flat page the cells need a ground to read.
-            .background(alignment: .bottomLeading) {
-                ZStack(alignment: .bottomLeading) {
-                    Rectangle()
-                        .fill(AppColors.slotInk.opacity(Self.boardSeat))
-                        .frame(width: width, height: height)
-                    TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
-                        .frame(width: width, height: height, alignment: .bottom)
-                        .clipped()
-                }
-                .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-                                            style: .continuous))
+            .background(alignment: .bottom) {
+                TowerLattice(cellSize: cell, contentHeight: height, rowsOver: 1, ripple: ripple)
+                    .frame(width: width)
             }
             .frame(maxWidth: .infinity)
         }

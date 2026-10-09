@@ -21,8 +21,13 @@ struct OnboardingFilm: View {
     @State private var playing = false
     @State private var ended: NSObjectProtocol?
     @State private var done = false
+    /// The page's own colour rising over the film as it ends, in dark mode.
+    @State private var dims = false
+    @Environment(\.colorScheme) private var colorScheme
 
     static let film = Bundle.main.url(forResource: "OnboardingFilm", withExtension: "mp4")
+    /// How long the dark page takes to rise over the film's last frame.
+    static let darkHandoff: Double = 0.9
 
     var body: some View {
         ZStack {
@@ -34,7 +39,7 @@ struct OnboardingFilm: View {
             } else if let still = UIImage(named: "OnboardingFilmPoster.jpg") {
                 Image(uiImage: still)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
             }
@@ -72,6 +77,17 @@ struct OnboardingFilm: View {
                     .padding(.bottom, GridConstants.gapWide)
             }
         }
+        // **Into the dark page through the dark page** (the owner,
+        // 2026-10-08: "the transition from light to dark mode is a little
+        // harsh"). The film is a picture of the app in light; on a phone in
+        // dark mode its last frame cut straight to a charcoal page. Now the
+        // page's own colour rises over the film first, slowly, and the pages
+        // arrive on a ground that is already dark.
+        .overlay {
+            WarmBackground.top.ignoresSafeArea()
+                .opacity(dims ? 1 : 0)
+                .allowsHitTesting(false)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Some Wins, a short film")
         .onAppear { if !reduceMotion { start() } }
@@ -107,8 +123,17 @@ struct OnboardingFilm: View {
         guard !done else { return }
         done = true
         Analytics.shared.signal(.trailer, [.action(skipped ? .skipped : .finished)])
-        stop()
-        onDone()
+        guard colorScheme == .dark, !reduceMotion else {
+            stop()
+            onDone()
+            return
+        }
+        withAnimation(GridConstants.filmHandoff) { dims = true }
+        Task {
+            try? await Task.sleep(for: .seconds(Self.darkHandoff))
+            stop()
+            onDone()
+        }
     }
 }
 
@@ -124,11 +149,15 @@ private struct FilmLayer: UIViewRepresentable {
     func makeUIView(context: Context) -> Host {
         let view = Host()
         view.playerLayer.player = player
-        // **Whole, never cropped.** The film is 9:16 and a phone is taller;
-        // filling cut its lines at the sides ("Made for ADHD brains" lost
-        // letters). Its ground is the page's own, so the bands above and
-        // below it cannot be seen.
-        view.playerLayer.videoGravity = .resizeAspect
+        // **Filling, because the film is the phone's own shape now**
+        // (2026-10-08). It was 9:16 shown whole on a 9:19.5 screen, and the
+        // phone in its shots ran past the film's bottom edge, so on the
+        // screen it was sliced by a hard line partway down, with a band
+        // below (the owner: "a clear white cutoff on the bottom"). The film
+        // is rendered at 1080 x 2340 now, its 9:16 composition centred and
+        // its full-bleed grid grown to the height, so filling crops nothing
+        // on a modern iPhone and only a sliver of empty page on any other.
+        view.playerLayer.videoGravity = .resizeAspectFill
         view.backgroundColor = UIColor(red: 0.969, green: 0.969, blue: 0.969, alpha: 1)
         view.isAccessibilityElement = false
         return view
