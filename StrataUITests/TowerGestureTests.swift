@@ -274,8 +274,13 @@ final class TowerGestureTests: XCTestCase {
     @MainActor
     func testAPlanLineOpensTheAddSheetPrefilled() throws {
         let app = XCUIApplication()
+        // **On the Plan tab, said outright** (2026-10-10, the third time
+        // this test read the simulator rather than the app). The day sheet
+        // opens on whichever tab was used last, so after any run that left
+        // it on Journal this failed with "the plan did not open", looking
+        // at the journal.
         app.launchArguments = ["-strataStartTab", "tower", "-strataSeedWins", "3",
-                               "-strataSeedPlan", "5"]
+                               "-strataSeedPlan", "5", "-strataDayTab", "plan"]
         app.launch()
 
         // **A line that is there every day** (2026-10-10). This pressed the
