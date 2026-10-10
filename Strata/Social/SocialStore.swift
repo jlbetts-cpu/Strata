@@ -1943,6 +1943,10 @@ final class SocialStore {
             winsByCrew[crew.id]?.removeAll { $0.crewDay < cutoff }
             for win in old {
                 if let photo = win.photo { try? FileManager.default.removeItem(at: photo) }
+                // Each phone deletes its own (only a record's writer may):
+                // a friend's old win queued here was refused by the server
+                // and queued again on every refresh (the 2026-10-10 review).
+                guard win.senderProfileID == me else { continue }
                 enqueue(.init(crew: crew.id, type: .sharedWin, name: win.winID.uuidString, fields: nil))
             }
         }
@@ -2436,6 +2440,7 @@ final class SocialStore {
 
     private func forget(_ crewID: CrewID) {
         crews.removeAll { $0.id == crewID }
+        UserDefaults.standard.removeObject(forKey: EveningCheckIn.crewEveningKey)
         if let wins = winsByCrew.removeValue(forKey: crewID) {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }

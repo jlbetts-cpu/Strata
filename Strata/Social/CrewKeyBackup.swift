@@ -22,9 +22,17 @@ import Security
 ///
 /// Pure: text in, decisions out. `PublicCrewCloud` does the CloudKit.
 nonisolated enum CrewKeyBackup {
-    /// What the record holds: keys by crew, and crews left with when.
+    /// What the record holds: keys by crew with when each was joined, and
+    /// crews left with when.
     struct Remote: Equatable {
         var keys: [String: String] = [:]
+        /// When each key was joined, on whichever phone joined it. **In the
+        /// backup, not only on the phone** (found 2026-10-10 by the second
+        /// review): without it a phone holding an old "left" note could not
+        /// tell a stale key from a fresh rejoin on your other phone, refused
+        /// the key, and wrote the note back over it, each phone undoing the
+        /// other for ever.
+        var keyedAt: [String: Double] = [:]
         var left: [String: Double] = [:]
     }
 
@@ -42,7 +50,7 @@ nonisolated enum CrewKeyBackup {
         var forget: [String] = []
         /// Keys another phone of yours has that this one should take.
         var take: [String: String] = [:]
-        /// What to write back.
+        /// What to write back, and what this phone's own times become.
         var out = Remote()
     }
 
@@ -51,6 +59,8 @@ nonisolated enum CrewKeyBackup {
     /// A left crew's entry: the crew, a dot, `!`, and when. `!` is not a
     /// character a key can hold, so no build reads one as a key.
     private static let leftMark: Character = "!"
+    /// Between a key and when it was joined: `crew.key@time`.
+    private static let timeMark: Character = "@"
 
     static func parse(_ text: String) -> Remote {
         var remote = Remote()
@@ -60,15 +70,18 @@ nonisolated enum CrewKeyBackup {
             let value = item[item.index(after: dot)...]
             if value.first == leftMark {
                 if let when = Double(value.dropFirst()) { remote.left[crew] = when }
-            } else if CrewKey(linkText: String(value)) != nil {
-                remote.keys[crew] = String(value)
+                continue
             }
+            let parts = value.split(separator: timeMark, maxSplits: 1)
+            guard let key = parts.first.map(String.init), CrewKey(linkText: key) != nil else { continue }
+            remote.keys[crew] = key
+            if parts.count == 2, let when = Double(parts[1]) { remote.keyedAt[crew] = when }
         }
         return remote
     }
 
     static func text(_ remote: Remote) -> String {
-        (remote.keys.map { "\($0.key).\($0.value)" }
+        (remote.keys.map { "\($0.key).\($0.value)\(timeMark)\(Int(remote.keyedAt[$0.key] ?? 0))" }
             + remote.left.map { "\($0.key).\(leftMark)\(Int($0.value))" })
             .sorted().joined(separator: ",")
     }
@@ -77,18 +90,25 @@ nonisolated enum CrewKeyBackup {
         var merged = Merged()
         func leftAt(_ crew: String) -> Double { max(local.leftAt[crew] ?? 0, remote.left[crew] ?? 0) }
         for (crew, key) in local.keys {
+            // The same key joined later on another phone counts as joined then.
+            let joined = max(local.keyedAt[crew] ?? 0, remote.keys[crew] == key ? (remote.keyedAt[crew] ?? 0) : 0)
             // Left after this key arrived: the leaving wins. Joined again
             // since (a fresh link): the key wins and the note is dropped.
-            if leftAt(crew) > (local.keyedAt[crew] ?? 0) {
+            if leftAt(crew) > joined {
                 merged.forget.append(crew)
             } else {
                 merged.out.keys[crew] = key
+                merged.out.keyedAt[crew] = joined
             }
         }
         for (crew, key) in remote.keys where local.keys[crew] == nil {
-            guard leftAt(crew) == 0 else { continue }
+            // Another phone's key: taken unless the crew was left since it
+            // was joined there.
+            let joined = remote.keyedAt[crew] ?? 0
+            guard leftAt(crew) == 0 || joined > leftAt(crew) else { continue }
             merged.take[crew] = key
             merged.out.keys[crew] = key
+            merged.out.keyedAt[crew] = joined
         }
         for crew in Set(local.leftAt.keys).union(remote.left.keys) where merged.out.keys[crew] == nil {
             let when = leftAt(crew)
@@ -115,24 +135,32 @@ nonisolated enum CrewKeyWrap {
          kSecAttrAccount as String: account]
     }
 
-    /// The wrapping key, made the first time it is asked for.
-    static func key() -> CrewKey? {
+    /// The wrapping key this phone has, or nil. **Looking never makes one**
+    /// (found 2026-10-10 by the second review): opening a backup another
+    /// phone sealed used to mint a key on a miss, and a key minted before
+    /// the real one arrived could win in the iCloud Keychain and leave the
+    /// backup unopenable by every phone.
+    static func existing() -> CrewKey? {
         var find = query()
         find[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
         find[kSecReturnData as String] = true
         find[kSecMatchLimit as String] = kSecMatchLimitOne
         var found: CFTypeRef?
-        if SecItemCopyMatching(find as CFDictionary, &found) == errSecSuccess,
-           let data = found as? Data, data.count == 32 {
-            return CrewKey(bytes: data)
-        }
+        guard SecItemCopyMatching(find as CFDictionary, &found) == errSecSuccess,
+              let data = found as? Data, data.count == 32 else { return nil }
+        return CrewKey(bytes: data)
+    }
+
+    /// The wrapping key, made if there is none: only for writing a backup
+    /// where none sealed by another phone stands.
+    static func key() -> CrewKey? {
+        if let existing = existing() { return existing }
         let fresh = CrewKey.new()
         var add = query()
         add[kSecAttrSynchronizable as String] = true
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         add[kSecValueData as String] = fresh.bytes
-        let status = SecItemAdd(add as CFDictionary, nil)
-        return status == errSecSuccess ? fresh : nil
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess ? fresh : existing()
     }
 
     /// The backup's text, sealed. Nil when there is no key to seal it with:
@@ -145,7 +173,7 @@ nonisolated enum CrewKeyWrap {
     /// What a stored backup says: a sealed one opened, one from before
     /// sealing read as it is, and one sealed with a key this phone does not
     /// have as nothing.
-    static func open(_ stored: String, with key: CrewKey? = CrewKeyWrap.key()) -> String? {
+    static func open(_ stored: String, with key: CrewKey? = CrewKeyWrap.existing()) -> String? {
         guard stored.hasPrefix(prefix) else { return stored }
         guard let key, let sealed = Data(base64Encoded: String(stored.dropFirst(prefix.count))),
               let plain = try? key.open(sealed, context: context) else { return nil }

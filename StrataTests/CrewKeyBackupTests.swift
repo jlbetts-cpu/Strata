@@ -10,11 +10,36 @@ struct CrewKeyBackupTests {
     let x = "crew-AAAA", y = "crew-BBBB"
     let key1 = CrewKey.new().linkText, key2 = CrewKey.new().linkText
 
-    @Test("text round trips keys and left crews, and junk is ignored")
+    @Test("text round trips keys, when they were joined, and left crews; junk is ignored")
     func roundTrip() {
-        let remote = CrewKeyBackup.Remote(keys: [x: key1], left: [y: 1_800_000_000])
+        let remote = CrewKeyBackup.Remote(keys: [x: key1], keyedAt: [x: 1_700_000_000], left: [y: 1_800_000_000])
         #expect(CrewKeyBackup.parse(CrewKeyBackup.text(remote)) == remote)
         #expect(CrewKeyBackup.parse("nonsense,crew-1.short,\(x).\(key1)").keys == [x: key1])
+    }
+
+    /// The second review's case: A leaves at t1 and B learns of it; A joins
+    /// again by a fresh link at t2. B must take the key back, and must not
+    /// write the old note over it.
+    @Test("a rejoin on one phone reaches the other, and neither undoes it")
+    func rejoinReachesTheOtherPhone() {
+        // B: holds only the note that the crew was left at 2,000.
+        let b = CrewKeyBackup.Local(leftAt: [x: 2_000])
+        let fromA = CrewKeyBackup.Remote(keys: [x: key2], keyedAt: [x: 5_000])
+        let merged = CrewKeyBackup.merge(local: b, remote: fromA, now: 6_000)
+        #expect(merged.take == [x: key2])
+        #expect(merged.out.keys == [x: key2] && merged.out.keyedAt[x] == 5_000)
+        #expect(merged.out.left.isEmpty, "the old note goes; it is not written back over the key")
+        // And what B wrote is stable when A reads it back.
+        let a = CrewKeyBackup.Local(keys: [x: key2], keyedAt: [x: 5_000])
+        let again = CrewKeyBackup.merge(local: a, remote: merged.out, now: 7_000)
+        #expect(again.forget.isEmpty && again.out == merged.out)
+    }
+
+    @Test("a key joined before the crew was left is not taken back")
+    func staleKeyStaysOut() {
+        let b = CrewKeyBackup.Local(leftAt: [x: 2_000])
+        let merged = CrewKeyBackup.merge(local: b, remote: .init(keys: [x: key1], keyedAt: [x: 1_000]), now: 3_000)
+        #expect(merged.take.isEmpty && merged.out.keys.isEmpty && merged.out.left[x] == 2_000)
     }
 
     @Test("a crew left on another phone is dropped here, not re-joined")
@@ -71,5 +96,6 @@ struct CrewKeyBackupTests {
         // One written before sealing is still read, once.
         #expect(CrewKeyWrap.open(text, with: wrap) == text)
         #expect(CrewKeyWrap.seal(text, with: nil) == nil, "no key, nothing written in the clear")
+        #expect(CrewKeyWrap.open(stored, with: nil) == nil, "sealed by another phone, no key here: unread, not empty")
     }
 }

@@ -278,8 +278,13 @@ final class TowerGestureTests: XCTestCase {
                                "-strataSeedPlan", "5"]
         app.launch()
 
+        // **A line that is there every day** (2026-10-10). This pressed the
+        // seed's second line, "Send the invoice", which the seed makes repeat
+        // on weekdays only: the test passed Monday to Friday and failed every
+        // Saturday and Sunday with "the plan did not open", about a plan that
+        // had opened. The first line is a plain one-off.
         let line = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'Send the invoice'")).firstMatch
+            NSPredicate(format: "label CONTAINS 'Run the loop'")).firstMatch
         XCTAssertTrue(line.waitForExistence(timeout: 40), "the plan did not open")
         line.tap()
 
@@ -288,7 +293,7 @@ final class TowerGestureTests: XCTestCase {
         // well the pre-fill works.
         let field = app.textFields["What did you do?"]
         XCTAssertTrue(field.waitForExistence(timeout: 15), "the add sheet did not open")
-        XCTAssertEqual(field.value as? String, "Send the invoice",
+        XCTAssertEqual(field.value as? String, "Run the loop",
                        "the title was not pre-filled from the plan line")
 
         // Back out. The line must still be there, not thrown away.
@@ -299,7 +304,7 @@ final class TowerGestureTests: XCTestCase {
                       "did not get back to the tower after the add sheet")
         plan.tap()
         let back = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS 'Send the invoice'")).firstMatch
+            NSPredicate(format: "label CONTAINS 'Run the loop'")).firstMatch
         if !back.waitForExistence(timeout: 15) {
             add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
             XCTFail("cancelling the add sheet threw the plan line away")
@@ -318,7 +323,7 @@ final class TowerGestureTests: XCTestCase {
         // bullet's label carries the state ("<text>, done" when ticked).
         XCTAssertFalse(back.label.contains("done"),
                        "cancelling the add sheet left the line ticked with no win: \(back.label)")
-        XCTAssertEqual(back.label, "Log Send the invoice as a win",
+        XCTAssertEqual(back.label, "Log Run the loop as a win",
                        "the line did not come back as an unfinished line")
     }
 

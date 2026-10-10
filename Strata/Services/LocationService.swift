@@ -1,4 +1,5 @@
 import CoreLocation
+import UIKit
 import Foundation
 
 /// Where you were, for the photograph you just took.
@@ -70,6 +71,27 @@ final class LocationService: NSObject {
         manager.distanceFilter = 10
         authorization = manager.authorizationStatus
         isPrecise = manager.accuracyAuthorization == .fullAccuracy
+        // **"Running" means fixes are arriving** (found 2026-10-10 by the
+        // second review). The camera is a tab, so leaving the app never
+        // released its hold; iOS delivers nothing in the background; and a
+        // fix from before then stayed "current" for ever, pinning a photo
+        // taken across town to where the app was last open. The run starts
+        // again each time the app comes forward, so a fix from before is
+        // judged by its age like any other.
+        let center = NotificationCenter.default
+        center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.runningSince = nil }
+        }
+        center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning else { return }
+                self.runningSince = Date()
+                // Started again, which always hands over a fix: standing
+                // where you were, no movement would ever bring a new one.
+                self.manager.stopUpdatingLocation()
+                self.manager.startUpdatingLocation()
+            }
+        }
     }
 
     /// Whether asking would show a prompt, so a caller can prime it first
@@ -210,6 +232,8 @@ extension LocationService: CLLocationManagerDelegate {
                 // Granted mid-session: start now rather than making somebody
                 // leave the screen and come back.
                 if self.isRunning {
+                    // Fixes begin now, not when the camera asked for them.
+                    self.runningSince = Date()
                     manager.startUpdatingLocation()
                 } else {
                     self.start(for: Self.grantedHolder)

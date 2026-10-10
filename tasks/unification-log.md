@@ -436,3 +436,41 @@ iCloud Keychain joins by the invite link instead.
 - **Push did not land.** GitHub was 204 commits behind when I checked at
   00:15, so `docs/join.html` is not published and invite links open a
   missing page until `git push origin main` succeeds.
+
+### The fixes, checked again (same night)
+
+A second reviewer read only the fix commit, assuming each fix was wrong. It
+confirmed six of ten and found the other four incomplete, plus one new bug
+of mine. All fixed:
+
+- **Leaving, properly this time.** The first fix only worked between
+  phones sharing an iCloud Keychain. Leaving now also leaves one small
+  sealed note in the crew itself ("this account left, at this time"), which
+  your other phone reads and obeys; joining again by a link removes it.
+  And a rejoin on one phone now reaches the other, instead of the two
+  undoing each other for ever.
+- **The crew's "ended" mark could be deleted** by the starter's own second
+  phone while tidying up, so members who had not looked yet never saw the
+  end. Tidying never deletes the crew's own record now.
+- **A photo could be pinned to where the phone was hours ago**, after the
+  app sat in the background. That was my standing-still fix from an hour
+  earlier. A place is only "current" for fixes since the app last came
+  forward, and coming forward asks for a fresh one.
+- **A post whose photo failed to download could be skipped for good.**
+  "Since" never moves past one that did not arrive.
+- **A sealed backup could lock itself** if a phone made its own sealing key
+  before the real one arrived. Reading never makes a key now, and a backup
+  nobody has been able to open for a week is replaced.
+- A dev phone's cache from before these fixes is read again whole, so the
+  starter of an existing test crew can end it.
+- A quiet crew no longer makes every refresh re-read a busy one.
+- A removed photo is certain to leave the server: the record is deleted and
+  written again, rather than trusting a blank to clear it.
+
+### A test that failed on weekends
+
+`testAPlanLineOpensTheAddSheetPrefilled` pressed a seeded plan line that
+repeats on weekdays only, so it failed every Saturday and Sunday with "the
+plan did not open" about a plan that had opened. It presses a plain line
+now. Nothing to do with this pass; found because the suite ran after
+midnight on a Saturday.

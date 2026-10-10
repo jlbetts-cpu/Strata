@@ -155,7 +155,9 @@ nonisolated enum EveningCheckIn {
 
     static func identifier(for date: Date) -> String { prefix + DateUtils.dateString(from: date) }
 
-    private static let crewEveningKey = "eveningCheckIn.crew"
+    /// Cleared when a crew is left (`SocialStore.forget`), so its moment
+    /// does not outlive it for the rest of the day.
+    static let crewEveningKey = "eveningCheckIn.crew"
 
     /// **In a crew, the evening is the crew's** (`CrewEvening`): the same
     /// moment on every phone in it, the crew livest lately first, with its
@@ -197,7 +199,9 @@ nonisolated enum EveningCheckIn {
         // 2026-10-10 by review). It was applied after `when` had already
         // judged 7pm, so a win logged at ten past seven took back the crew's
         // 8:25 and nothing put it back.
-        let crew = crewEvening(now: now, today: today, defaults: defaults)
+        // A crew moment that has already passed here (a crew in an earlier
+        // zone) leaves the plain seven o'clock, as before crews.
+        let crew = crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
