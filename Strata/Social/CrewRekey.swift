@@ -85,6 +85,8 @@ nonisolated enum CrewRekey {
     /// The most a rekey record can be: a copy for each of eight people is
     /// about two thousand bytes. Anything larger is not one.
     static let largest = 8192
+    /// How many keys from before a phone follows back and keeps.
+    static let kept = 16
 
     static func read(_ data: Data) -> Box? {
         guard data.count <= largest else { return nil }
@@ -153,6 +155,12 @@ nonisolated enum CrewRekey {
             while more {
                 more = false
                 for record in trusted {
+                    // No further back than the ring keeps (`CrewKeyRing`):
+                    // past that, each sync found the dropped ones again and
+                    // read the whole crew again, for ever.
+                    // (Half of it while nobody can be vouched for, so made-up
+                    // keys taken then can never fill the ring for good.)
+                    guard older.count + found.count < (starterKnown ? CrewRekey.kept : CrewRekey.kept / 2) else { return }
                     guard let before = previous(record.box, crew: crew, known: known), !known.contains(before) else { continue }
                     known.append(before)
                     found.append(before)
@@ -162,15 +170,33 @@ nonisolated enum CrewRekey {
         }
         chain()
         var learned = Learned()
-        if let mine {
-            for record in seen.filter(\.fromStarter).sorted(by: { $0.at > $1.at }) {
-                guard let key = unwrap(record.box, crew: crew, mine: mine) else { continue }
-                if key != current {
-                    learned.current = key
-                    if let current, !older.contains(current) { found.append(current) }
-                    if !known.contains(key) { known.append(key) }
-                    chain()
-                }
+        /// `key` becomes the crew's key; the one held is kept for reading.
+        func adopt(_ key: CrewKey) {
+            learned.current = key
+            if let current, !older.contains(current) { found.append(current) }
+            if !known.contains(key) { known.append(key) }
+            chain()
+        }
+        // **The starter's newest record names the crew's key.** Walked from
+        // the newest: the key it names is the one to be on, whether this
+        // phone is on it already, holds it from before, or can open its
+        // copy. Only a record this phone can do nothing with is passed
+        // over. (The second re-key review: taking "the newest it could
+        // open" pulled a phone that held the right key, from a fresh link,
+        // back to the key of an older record it had a copy in, for good.)
+        for record in seen.filter(\.fromStarter).sorted(by: { $0.at > $1.at }) {
+            if record.box.mark == current?.mark { break }
+            if let held = known.first(where: { $0.mark == record.box.mark }) {
+                adopt(held)
+                break
+            }
+            // A copy this phone can open is taken only if it is NEWER than
+            // the key held: the key held must lie behind it. (On the newest
+            // key from a fresh link, with the newest record not read yet, a
+            // phone otherwise stepped back to an older record's key.)
+            if let mine, let key = unwrap(record.box, crew: crew, mine: mine),
+               current == nil || descends(key, to: current, crew: crew, through: seen) {
+                adopt(key)
                 break
             }
         }
@@ -179,6 +205,20 @@ nonisolated enum CrewRekey {
             learned.older.append(key)
         }
         return learned
+    }
+
+    /// Whether `old` is a key the crew had before `key`: following each
+    /// record's key-before back from `key` arrives at it.
+    static func descends(_ key: CrewKey, to old: CrewKey?, crew: String, through seen: [Seen]) -> Bool {
+        guard let old else { return true }
+        var at = key
+        for _ in 0..<64 {
+            guard let record = seen.first(where: { $0.box.mark == at.mark }),
+                  let before = previous(record.box, crew: crew, known: [at]) else { return false }
+            if before == old { return true }
+            at = before
+        }
+        return false
     }
 
     /// Whether the key held is still the crew's: it is the one the starter's

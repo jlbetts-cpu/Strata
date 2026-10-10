@@ -53,7 +53,8 @@ final class RealPhotoTests: XCTestCase {
         Thread.sleep(forTimeInterval: 16)
 
         // Assert the sheet really is open before anything else is blamed.
-        let title = app.textFields["What did you do?"]
+        let title = app.textFields.matching(
+            NSPredicate(format: "placeholderValue == %@ OR label == %@", "What did you do?", "What did you do?")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 12),
                       "the add sheet never opened. On screen: \(app.debugDescription)")
         XCTAssertEqual(well(app).label, "Add a photo",

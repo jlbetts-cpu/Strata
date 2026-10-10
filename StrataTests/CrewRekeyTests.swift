@@ -97,6 +97,47 @@ struct CrewRekeyTests {
         #expect(learned.current == k1)
     }
 
+    /// The second re-key review: in the crew for the first re-key, away for
+    /// the second, back by a fresh link (so holding K2, with no copy in the
+    /// second record). The newest record names K2, which this phone is on.
+    @Test("a phone on the crew's key is not pulled back by an older record it has a copy in")
+    func notPulledBack() throws {
+        let first = try seen(new: k1, old: k0, to: [ana, leo], at: 100)
+        let second = try seen(new: k2, old: k1, to: [ana], at: 200)   // no copy for Leo
+        let learned = CrewRekey.learn([first, second], crew: crew, current: k2, older: [], mine: leo, starterKnown: true)
+        #expect(learned.current == nil, "stays on K2")
+        #expect(Set(learned.older.map(\.mark)) == [k1.mark, k0.mark], "and can read back")
+    }
+
+    /// The regression read: on the newest key from a fresh link, with the
+    /// newest record not read yet, and a copy held in an older one.
+    @Test("a phone ahead of what it has read does not step back to an older record's key")
+    func notSteppedBack() throws {
+        let k3 = CrewKey.new()
+        let first = try seen(new: k1, old: k0, to: [ana], at: 100)
+        let second = try seen(new: k2, old: k1, to: [ana], at: 200)
+        let learned = CrewRekey.learn([first, second], crew: crew, current: k3, older: [], mine: ana, starterKnown: true)
+        #expect(learned.current == nil, "K2 is not newer than K3: K3 is not behind it")
+        // And a key IS taken when the key held lies behind it.
+        #expect(CrewRekey.descends(k2, to: k0, crew: crew, through: [first, second]))
+        #expect(!CrewRekey.descends(k1, to: k2, crew: crew, through: [first, second]))
+    }
+
+    @Test("keys from before are followed back no further than the ring keeps")
+    func bounded() throws {
+        var keys = [CrewKey.new()]
+        var records: [CrewRekey.Seen] = []
+        for i in 1...24 {
+            keys.append(CrewKey.new())
+            records.append(try seen(new: keys[i], old: keys[i - 1], to: [ana], at: Double(i * 100)))
+        }
+        let learned = CrewRekey.learn(records, crew: crew, current: keys[24], older: [], mine: ana, starterKnown: true)
+        #expect(learned.older.count <= CrewRekey.kept)
+        // And with the ring full, there is nothing more to learn: no endless re-reading.
+        let again = CrewRekey.learn(records, crew: crew, current: keys[24], older: learned.older, mine: ana, starterKnown: true)
+        #expect(!again.changed)
+    }
+
     @Test("a public key that is not one gets no copy, and is known not to be one")
     func notAKey() throws {
         #expect(CrewRekey.isKey(text(ana)))

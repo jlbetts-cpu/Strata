@@ -291,7 +291,12 @@ final class TowerGestureTests: XCTestCase {
         // The add sheet's title field. Its LABEL is the placeholder; the text
         // in it is its VALUE — asserting on the label finds nothing however
         // well the pre-fill works.
-        let field = app.textFields["What did you do?"]
+        // **By its placeholder or its label** (2026-10-10). Looked up by
+        // label alone, this found the field at 1am and not at 10am: once the
+        // field has the focus its label is empty and the words are only its
+        // placeholder. The sheet had opened, pre-filled, both times.
+        let field = app.textFields.matching(
+            NSPredicate(format: "placeholderValue == %@ OR label == %@", "What did you do?", "What did you do?")).firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15), "the add sheet did not open")
         XCTAssertEqual(field.value as? String, "Run the loop",
                        "the title was not pre-filled from the plan line")

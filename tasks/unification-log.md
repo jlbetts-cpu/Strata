@@ -39,7 +39,8 @@ The Production CloudKit schema is deployed (I checked: `CrewItem` and
 | Crews off personal iCloud | 6 until it runs on two phones | The design is sound and every known hole is closed, but five review rounds each found real bugs, and that is a reason for care, not confidence. |
 | Bug sweep | 7 | The face-screen crash is fixed by reading, never reproduced (no crash log). |
 
-**Not done**
+**Not done** (as of 03:00; see "The three that were left" at the end for
+what happened to each on 2026-10-10)
 
 - Re-keying a crew when someone is removed (they keep the old key).
 - The crews film remake you asked for before this prompt.
@@ -596,3 +597,129 @@ verdict still holds, and four small things, fixed:
   evening cue.
 
 Full unit and UI suite on this commit: 0 failures.
+
+---
+
+## 8. The three that were left (2026-10-10, morning)
+
+You said "do the not done tasks". There were three.
+
+### A crew gets a new key when someone is removed
+
+**The problem.** Everyone in a crew holds its key. Removing someone hid
+the crew from them in the app, but they still held the key, so someone
+technical with the old invite link could keep reading.
+
+**What happens now.** When the starter removes someone, the starter's
+phone makes a new key for the crew. It has to reach everyone who is
+staying without reaching the person who is not, and everything in a crew
+is readable by anyone who knows where to look, so it is sent locked:
+
+- Each member's (sealed) member record now carries a **public key**. Its
+  private half lives in that person's iCloud Keychain and nowhere else.
+  Think of a padlock anyone can snap shut and only its owner can open.
+- The starter's phone writes one small "rekey" record holding the new key
+  once per remaining member, each copy locked with that member's padlock.
+  Each phone opens its own copy. There is no copy for the removed person.
+- A phone only takes a new key from a record **the crew's starter wrote**,
+  which Apple's servers vouch for. Anyone can write a record into a crew,
+  so a made-up "here is the new key" is ignored.
+- **Old invite links stop working** and say "This crew has ended, or the
+  link is old. Ask for a new one." The two weeks of posts from before the
+  change are still readable by everyone who stayed, and by anyone invited
+  afterwards.
+
+**When it does not happen.** Only when every remaining member's app has
+published a public key (they have opened this build once). If someone has
+not, the removal still goes through, as before, and the new key is made
+at the next refresh after they have. **REVIEW**: this means the re-key
+only protects a crew whose members are all on this build or later.
+
+**What it does not do. REVIEW.**
+- Anything posted *before* the removal was sealed with the old key, and
+  the removed person can still read that. No design can take that back.
+- A second phone of yours **without iCloud Keychain** cannot open its copy
+  of the new key. It gets it from the key backup if that is readable, or
+  from tapping a fresh invite link (which now works for that).
+- Leaving (rather than being removed) does not re-key. The person chose to
+  go; they had the key by right.
+
+**How it was checked.** The logic that decides which key a phone ends up
+on is pure and has 14 tests, including a removed person holding the old
+key and the whole record (gets nothing), a forged record (ignored), two
+re-keys read in either order, and a phone pushed back to an old key
+(returns). An independent reviewer then attacked it as the removed person
+and as an outsider: the core held (the cryptography is used correctly and
+only the starter's record can move a phone), and it found 12 gaps, all
+fixed, including a way for a removed person to be handed the *next* key
+by planting a hidden member record. **It has not run against real
+iCloud.**
+
+**A crash my own tests caught.** The first version crashed the moment a
+phone processed a re-key (two overlapping accesses to one value, which
+Swift stops the app for). The test run reported it by restarting, and the
+last line of the log still said "passed"; I nearly read that as a pass.
+The check I use now reads the overall verdict and counts restarts. Build
+114's run had none.
+
+### The crews film, remade
+
+17.5 seconds and five shots (it was 6.35 seconds and two):
+
+1. **Better with friends.** (kept)
+2. **One tower. Everyone's wins.** The crew's tower, filmed in the app,
+   as friends' blocks land in it.
+3. **Cheer each other on.** The chat (kept).
+4. **Keep it going together.** The crew list, the camera going to the
+   small flame beside a name.
+5. **Start your crew.** Your drawing of the three of them, the figures
+   first and the cheer strokes after, as the app draws it. The crews page
+   that follows opens on the same drawing.
+
+Same music, cut on the same beat. The app grew by about 4 MB.
+**REVIEW**: watch it once on your phone; I checked contact sheets and the
+in-app screenshots, not the motion at full speed with sound.
+
+### The face-screen crash
+
+Still not reproduced. I asked App Store Connect: **no tester has ever
+sent a crash report** through TestFlight for this app, and Apple's crash
+statistics are not available for these builds. The fix from the first
+night (the camera racing itself, and a memory spike) stands on reading
+alone. If the tester still has the phone: Settings, Privacy & Security,
+Analytics & Improvements, Analytics Data, and send the newest file that
+starts with "Strata" or "Some Wins".
+
+### The re-key, read twice more (same morning)
+
+Two more independent reads of the re-key after its first fixes. Each
+judged it safe for a ten-friend test and found smaller things, all fixed
+except one limit:
+
+- A friend who was in the crew for one removal, left, and came back after
+  a second could be pulled onto an old key for good. A phone now takes a
+  key only if it is the one the starter's newest record names, or newer
+  than the one it holds.
+- Two removals a second apart could leave the second person holding the
+  crew's key. A re-key that is owed stays owed until it is done, and a
+  removal during one makes it go round again.
+- A removal now writes down who is staying. Only they are sent the new
+  key, so someone who turns up with the old link before the new key is
+  made is not sent it.
+- **The limit, REVIEW:** that same rule means an honest friend who joins
+  with the old link in the gap between a removal and its re-key will need
+  a fresh link afterwards. The app cannot tell them from the removed
+  person trying again under a second Apple ID.
+
+### A test that depended on the simulator's state
+
+`testAPlanLineOpensTheAddSheetPrefilled` failed at 10am after passing at
+1am: it found the add sheet's field by a label that goes empty once the
+field has the focus. The sheet had opened, pre-filled, both times (I
+looked). It finds the field by its placeholder or its label now.
+
+### GitHub and the invite page
+
+You pushed at about 10:30. `docs/join.html` is live (it returns 200 and
+carries the redirect into the app), so crew invite links open from build
+114 on.
