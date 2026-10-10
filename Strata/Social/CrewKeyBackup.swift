@@ -89,7 +89,16 @@ nonisolated enum CrewKeyBackup {
     static func merge(local: Local, remote: Remote, now: Double) -> Merged {
         var merged = Merged()
         func leftAt(_ crew: String) -> Double { max(local.leftAt[crew] ?? 0, remote.left[crew] ?? 0) }
-        for (crew, key) in local.keys {
+        for (crew, held) in local.keys {
+            // **A crew re-keyed on another phone** (`CrewRekey`): the same
+            // crew under a different, later key. That key is the crew's
+            // now; this phone takes it and keeps its own for reading.
+            var key = held
+            if let theirs = remote.keys[crew], theirs != held,
+               (remote.keyedAt[crew] ?? 0) > (local.keyedAt[crew] ?? 0) {
+                key = theirs
+                merged.take[crew] = theirs
+            }
             // The same key joined later on another phone counts as joined then.
             let joined = max(local.keyedAt[crew] ?? 0, remote.keys[crew] == key ? (remote.keyedAt[crew] ?? 0) : 0)
             // Left after this key arrived: the leaving wins. Joined again

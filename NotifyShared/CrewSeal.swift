@@ -14,6 +14,12 @@ import Foundation
 nonisolated struct CrewKey: Equatable, Sendable {
     let bytes: Data
 
+    /// A short public name for the key, which says which key it is and
+    /// nothing about it (`CrewRekey`).
+    var mark: String {
+        SHA256.hash(data: bytes).prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
     static func new() -> CrewKey {
         CrewKey(bytes: SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) })
     }
@@ -60,6 +66,9 @@ nonisolated enum CrewKeyError: Error { case sealFailed }
 nonisolated struct CrewKeyRing: Sendable {
     static let groupID = "group.JaydenBetts.Strata"
     private static let defaultsKey = "crews.keys"
+    /// The keys a crew had before its current one (`CrewRekey`): what was
+    /// sealed before a re-key is still read with them.
+    private static let olderKey = "crews.keys.older"
     let suite: String?
 
     init(suite: String? = CrewKeyRing.groupID) { self.suite = suite }
@@ -73,17 +82,60 @@ nonisolated struct CrewKeyRing: Sendable {
         return out
     }
 
+    /// Setting a crew's key to nothing forgets its older keys too.
     func set(_ key: CrewKey?, for crew: String) {
         var raw = defaults.dictionary(forKey: Self.defaultsKey) as? [String: Data] ?? [:]
         raw[crew] = key?.bytes
         defaults.set(raw, forKey: Self.defaultsKey)
+        if key == nil {
+            var older = defaults.dictionary(forKey: Self.olderKey) as? [String: [Data]] ?? [:]
+            older[crew] = nil
+            defaults.set(older, forKey: Self.olderKey)
+        }
     }
 
-    func removeAll() { defaults.removeObject(forKey: Self.defaultsKey) }
+    func older(for crew: String) -> [CrewKey] {
+        ((defaults.dictionary(forKey: Self.olderKey) as? [String: [Data]])?[crew] ?? [])
+            .filter { $0.count == 32 }.map(CrewKey.init(bytes:))
+    }
+
+    /// Every key a crew's records may be sealed with, the current one first.
+    func candidates(for crew: String) -> [CrewKey] {
+        (all[crew].map { [$0] } ?? []) + older(for: crew)
+    }
+
+    /// A key the crew used to have, kept for reading.
+    func remember(_ key: CrewKey, for crew: String) {
+        guard all[crew] != key else { return }
+        var older = defaults.dictionary(forKey: Self.olderKey) as? [String: [Data]] ?? [:]
+        var list = older[crew] ?? []
+        guard !list.contains(key.bytes) else { return }
+        list.insert(key.bytes, at: 0)
+        // A crew re-keyed more often than this in two weeks is not a crew.
+        older[crew] = Array(list.prefix(16))
+        defaults.set(older, forKey: Self.olderKey)
+    }
+
+    /// The crew's key becomes `key`; the one it had is kept for reading.
+    func advance(to key: CrewKey, for crew: String) {
+        let was = all[crew]
+        guard was != key else { return }
+        var older = defaults.dictionary(forKey: Self.olderKey) as? [String: [Data]] ?? [:]
+        var list = (older[crew] ?? []).filter { $0 != key.bytes }
+        if let was, !list.contains(was.bytes) { list.insert(was.bytes, at: 0) }
+        older[crew] = Array(list.prefix(16))
+        defaults.set(older, forKey: Self.olderKey)
+        var raw = defaults.dictionary(forKey: Self.defaultsKey) as? [String: Data] ?? [:]
+        raw[crew] = key.bytes
+        defaults.set(raw, forKey: Self.defaultsKey)
+    }
+
+    func removeAll() {
+        defaults.removeObject(forKey: Self.defaultsKey)
+        defaults.removeObject(forKey: Self.olderKey)
+    }
 }
 
-/// **The public record a crew item lives in**: `CrewItem`, named
-/// `<crew>~<kind>~<name>`, its fields sealed in `box` as JSON.
 nonisolated enum CrewItemRecord {
     static let type = "CrewItem"
 
@@ -92,6 +144,16 @@ nonisolated enum CrewItemRecord {
     /// The string fields of an opened box, for the notification extension,
     /// which does not know the app's value type. The box is the app's
     /// `RecordFields` as JSON: each value `{"string": {"_0": ...}}` and so on.
+    /// The words of a box sealed with any of `keys`: a crew that was
+    /// re-keyed still has posts under the key before.
+    static func strings(in box: Data, keys: [CrewKey], recordName: String) -> [String: String] {
+        for key in keys {
+            let found = strings(in: box, key: key, recordName: recordName)
+            if !found.isEmpty { return found }
+        }
+        return [:]
+    }
+
     static func strings(in box: Data, key: CrewKey, recordName: String) -> [String: String] {
         guard let json = try? key.open(box, context: recordName),
               let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any] else { return [:] }

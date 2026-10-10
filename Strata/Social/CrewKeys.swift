@@ -46,6 +46,10 @@ nonisolated struct CrewKeyStore: Sendable {
     }
 
     func key(for crew: CrewID) -> CrewKey? { ring.all[crew.rawValue] }
+    /// Every key the crew's records may be sealed with, the current first.
+    func candidates(for crew: CrewID) -> [CrewKey] { ring.candidates(for: crew.rawValue) }
+    func remember(_ key: CrewKey, for crew: CrewID) { ring.remember(key, for: crew.rawValue) }
+    func advance(to key: CrewKey, for crew: CrewID) { ring.advance(to: key, for: crew.rawValue) }
     func set(_ key: CrewKey?, for crew: CrewID) { ring.set(key, for: crew.rawValue) }
     func removeAll() { ring.removeAll() }
 }

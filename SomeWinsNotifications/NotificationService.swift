@@ -106,14 +106,14 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     private static func read(kind: CrewPingRecord.Kind, crew: String, sender: String, winID: String,
                              in known: CrewNoteCache.Crew?) async -> Read {
         guard let known, let from = known.members[sender]?.profileID,
-              let key = CrewKeyRing().all[known.zoneName] else { return Read() }
+              case let keys = CrewKeyRing().candidates(for: known.zoneName), !keys.isEmpty else { return Read() }
         let db = CKContainer(identifier: CrewNoteCache.containerID).publicCloudDatabase
         func open(_ kind: String, _ name: String) async -> [String: String]? {
             let recordName = CrewItemRecord.name(crew: known.zoneName, kind: kind, name: name)
             let id = CKRecord.ID(recordName: recordName)
             guard let record = try? await db.records(for: [id], desiredKeys: ["box"])[id]?.get(),
                   let box = record["box"] as? Data else { return nil }
-            return CrewItemRecord.strings(in: box, key: key, recordName: recordName)
+            return CrewItemRecord.strings(in: box, keys: keys, recordName: recordName)
         }
         switch kind {
         case .win:
