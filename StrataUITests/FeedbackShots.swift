@@ -117,9 +117,13 @@ final class FeedbackShots: XCTestCase {
     func testCrewsFilm() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenCrews", "1",
                           "-crews.filmSeen", "NO", "-crews.rulesAccepted.v1", "NO"])
+        // The remade film (2026-10-10) is 17.5 seconds, five shots.
         wait(2.5); snap("crewsfilm-1")
-        wait(2.5); snap("crewsfilm-2")
-        wait(4); snap("crewsfilm-after")
+        wait(3.5); snap("crewsfilm-2")
+        wait(4); snap("crewsfilm-3")
+        wait(3.5); snap("crewsfilm-4")
+        wait(3); snap("crewsfilm-5")
+        wait(3.5); snap("crewsfilm-after")
         for word in ["I Agree"] where app.buttons[word].exists { app.buttons[word].tap() }
         wait(3); snap("crewsfilm-intro")
     }
