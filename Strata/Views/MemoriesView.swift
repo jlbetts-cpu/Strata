@@ -422,15 +422,7 @@ struct MemoriesView: View {
             Task { await MonthDrawingTip.visited.donate() }
             considerHouseCard()
             #if DEBUG
-            if DebugHarness.argument("-strataSeedSentToCrew") != nil {
-                for _ in 0..<40 where SocialStore.shared.crews.isEmpty { try? await Task.sleep(for: .milliseconds(150)) }
-            }
-            if DebugHarness.argument("-strataSeedSentToCrew") != nil, let crew = SocialStore.shared.crews.first {
-                let logs = (try? modelContext.fetch(FetchDescriptor<HabitLog>(
-                    predicate: #Predicate { $0.imageFileName != nil }))) ?? []
-                SocialStore.shared.debugMarkSent(logs.enumerated().filter { $0.offset % 2 == 0 }.map(\.element.id),
-                                                 to: crew.id)
-            }
+            await SocialStore.shared.debugMarkSentIfAsked(context: modelContext)
             let reloadStart = CACurrentMediaTime()
             #endif
             await vm.reload(context: modelContext)

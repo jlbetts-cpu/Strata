@@ -80,6 +80,10 @@ struct CohesionPassTests {
         #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when half the crew posts a win. Two days off a week are fine.")
         #expect(CrewStats.streakLine(people: 2, waiting: 1) == "A day counts when everyone posts a win. Two days off a week are fine.")
         #expect(CrewStats.streakLine(people: 1, waiting: 0) == "A day counts when everyone posts a win. Two days off a week are fine.")
+        // Celebrated on a milestone, a fresh start after a break, never a loss.
+        #expect(CrewStats.streakLine(people: 3, waiting: 1, current: 14, best: 14) == "Look what your crew is building. 14 days.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 3, current: 0, best: 21) == "Starting fresh. Your best is still 21.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 3, current: 0, best: 3) == "A day counts when half the crew posts a win. Two days off a week are fine.")
     }
 
     @Test("no crew screen says who is still to post")

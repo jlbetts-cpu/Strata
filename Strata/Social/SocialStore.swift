@@ -1,3 +1,4 @@
+import SwiftData
 import CloudKit
 import CryptoKit
 import Foundation
@@ -577,6 +578,16 @@ final class SocialStore {
             ledger[id] = entry
         }
         sent = ledger
+    }
+
+    /// `-strataSeedSentToCrew`: every other photographed win marked as sent
+    /// to the first crew, once the seeded crews have arrived.
+    func debugMarkSentIfAsked(context: ModelContext) async {
+        guard DebugHarness.argument("-strataSeedSentToCrew") != nil else { return }
+        for _ in 0..<40 where crews.isEmpty { try? await Task.sleep(for: .milliseconds(150)) }
+        guard let crew = crews.first else { return }
+        let logs = (try? context.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.imageFileName != nil }))) ?? []
+        debugMarkSent(logs.enumerated().filter { $0.offset % 2 == 0 }.map(\.element.id), to: crew.id)
     }
     #endif
 

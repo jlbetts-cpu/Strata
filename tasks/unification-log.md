@@ -272,6 +272,46 @@ where that lands outside 5 to 10pm, keeps their own 7pm.
 not a crew nudge, to keep one cue a day. If you would rather the crew
 evening be the cue on empty days too, that is a one-line change.
 
+### Added 2026-10-10
+
+- **Milestones and fresh starts.** On a 7, 14, 21, 30, 50, 75, 100...
+  day the line under the crew streak reads "Look what your crew is
+  building. 14 days." After a run ends it reads "Starting fresh. Your best
+  is still 21." (only once the best was a week or more). Nothing is sent as
+  a notification; it is there when you open the crew.
+
+---
+
+## 2b. The crew's sheet points at Memories
+
+The crew's top-middle pill opens its sheet, where "Recent Days" says wins
+stay for two weeks. Nothing there said what is kept. A last row in that
+list now reads **"Kept in Memories, 5 of your photos"** and opens the same
+crew album Memories shows, all months. The crew forgets; Memories keeps;
+one row says so. Your own photos only, as you chose on 2026-10-09.
+
+---
+
+## 4c. Doodles and stickers stay on their photo
+
+You asked: "where you draw or paste is where it should go." A strip's
+doodles were one picture laid over the paper from the top, and the paper
+moves: a photo logged later joins, a second Quick pairs with a lone one
+and turns a wide row into two squares, a frame is taken off in the editor.
+The doodle stayed put and ended up over a different photo.
+
+Now every stroke and sticker belongs to what it was drawn on. On a photo,
+it moves and scales with that photo. On the wordmark's foot, it moves with
+the foot. Take a photo off and its doodles go with it, and come back if
+you put it back.
+
+- Checked by drawing a ring on a wide photo, adding a photo so it became
+  half of a pair, and looking at both renders: the ring followed its photo.
+- **REVIEW**: strips doodled before this build only start following from
+  their next save, because the old files never recorded what was under
+  each mark. I have not seen it in the live editor with a finger, only in
+  renders and tests; worth one try on your phone.
+
 ---
 
 ## 6. Bugs and code health (first round)

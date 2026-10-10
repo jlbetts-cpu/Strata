@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// A crew's numbers, worked out once each time what they are made of
@@ -41,11 +42,20 @@ struct CrewStats: Equatable {
     /// not on the tower. One line when the day is complete, and the rule
     /// itself otherwise. The waiting list is still counted (`waiting`); only
     /// its emptiness is ever said out loud.
-    static func streakLine(people: Int, waiting: Int) -> String {
+    ///
+    /// **Milestones are celebrated, a break is a fresh start** (the
+    /// unification pass, 2026-10-09: "look what your crew is building, 14
+    /// days", never a threat of loss). On a milestone day the line says what
+    /// the crew built; after a run has ended it says the best still stands.
+    static let milestones: Set<Int> = [7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365]
+
+    static func streakLine(people: Int, waiting: Int, current: Int = 0, best: Int = 0) -> String {
+        if milestones.contains(current) { return "Look what your crew is building. \(current) days." }
         // The rule says rest days are free, so a quiet day reads as allowed
         // rather than as a streak quietly at risk (`Streaks.Rest`).
         if people > 1 && waiting == 0 { return "Everyone's in today." }
         if people > 2 && people - waiting >= CrewHistory.needed(of: people) { return "Today counts. Nice work, crew." }
+        if current == 0 && best >= 7 { return "Starting fresh. Your best is still \(best)." }
         let who = people > 2 ? "half the crew posts" : "everyone posts"
         return "A day counts when \(who) a win. Two days off a week are fine."
     }
@@ -101,6 +111,8 @@ struct CrewStatsSections: View {
     let play: (Replay) -> Void
 
     @State private var stats = CrewStats()
+    @State private var keptPhotos = 0
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("crewChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
 
     private var store: SocialStore { SocialStore.shared }
@@ -119,6 +131,12 @@ struct CrewStatsSections: View {
         streak
             .task(id: inputs) {
                 stats = CrewStats.make(inputs)
+                #if DEBUG
+                await store.debugMarkSentIfAsked(context: modelContext)
+                #endif
+                let sent = store.winsSent(to: crew.id)
+                keptPhotos = sent.isEmpty ? 0 : ((try? modelContext.fetch(FetchDescriptor<HabitLog>(
+                    predicate: #Predicate { $0.imageFileName != nil }))) ?? []).filter { sent.contains($0.id) }.count
                 #if DEBUG
                 // `-strataCrewDayReplay 1`: the newest day plays, so it can be filmed.
                 if DebugHarness.argument("-strataCrewDayReplay") == "1", !debugPlayed, let day = stats.days.first {
@@ -154,7 +172,9 @@ struct CrewStatsSections: View {
         .listRowSeparator(.hidden)
     }
 
-    private var streakLine: String { CrewStats.streakLine(people: stats.people, waiting: stats.waiting.count) }
+    private var streakLine: String {
+        CrewStats.streakLine(people: stats.people, waiting: stats.waiting.count, current: stats.current, best: stats.best)
+    }
 
     // MARK: - Days
 
@@ -185,6 +205,25 @@ struct CrewStatsSections: View {
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel("\(dayName(day.key)), \(day.count) \(day.count == 1 ? "win" : "wins")")
+            }
+            // **The other side of "two weeks"** (unification, 2026-10-09):
+            // the crew forgets, Memories keeps. Your own photographs sent
+            // here, all of them, as Memories' crew album.
+            if keptPhotos > 0 {
+                NavigationLink {
+                    PhotoCollectionView(source: .crew(crew.id.rawValue))
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Kept in Memories")
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                        Text("\(keptPhotos) of your \(keptPhotos == 1 ? "photo" : "photos")")
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
             }
         } header: {
             FormSectionLabel("Recent Days")

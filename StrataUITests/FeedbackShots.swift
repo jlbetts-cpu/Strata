@@ -222,6 +222,19 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
     }
 
+    /// One crew's own screen and its top-middle container, opened.
+    func testCrewScreen() {
+        let crew = ["-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "1", "-strataSeedCrewHistory", "14",
+                    "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"]
+        let app = launch(["-strataStartTab", "tower", "-strataOpenCrew", "0", "-strataCrewSheet", "info",
+                          "-strataSeedHistory", "10", "-strataSeedRealPhotos", "1", "-strataSeedSentToCrew", "1"] + crew)
+        wait(8); snap("crew-info-1")
+        app.swipeUp(velocity: .slow)
+        wait(2); snap("crew-info-2")
+        app.swipeUp(velocity: .slow)
+        wait(2); snap("crew-info-3")
+    }
+
     func testCrewCap() {
         let app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "5",
                           "-strataOpenCrews", "1", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
