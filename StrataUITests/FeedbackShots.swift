@@ -198,6 +198,31 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// A doodle at the strip's bottom right, off the photos, stays there
+    /// after Done (the owner, 2026-10-10: it "navigated to the middle").
+    func testStripDoodleKeepsItsPlace() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "3",
+                          "-strataOpenSheet", "booth", "-strataBoothDeveloped", "1"])
+        wait(9); snap("place-booth")
+        app.buttons["Doodle on the strip"].firstMatch.tap()
+        wait(3); snap("place-editor")
+        let window = app.windows.firstMatch
+        func at(_ x: CGFloat, _ y: CGFloat) -> XCUICoordinate {
+            window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y))
+        }
+        let spot = ProcessInfo.processInfo.environment["STRATA_SPOT"]?.split(separator: ",").compactMap { Double($0) } ?? []
+        if spot.count == 2 {
+            let x = CGFloat(spot[0]), y = CGFloat(spot[1])
+            at(x - 14, y - 10).press(forDuration: 0.05, thenDragTo: at(x + 14, y + 10))
+            at(x - 14, y + 10).press(forDuration: 0.05, thenDragTo: at(x + 14, y - 10))
+            wait(1); snap("place-drawn")
+            app.buttons["Done"].firstMatch.tap()
+            wait(3); snap("place-done")
+            app.buttons["Doodle on the strip"].firstMatch.tap()
+            wait(3); snap("place-reopened")
+        }
+    }
+
     /// Your strip into a crew: the share sheet with the crew in it, then the
     /// strip in that crew's chat (`CrewStripActivity`).
     func testStripToCrew() {

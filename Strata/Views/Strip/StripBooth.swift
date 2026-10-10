@@ -164,7 +164,9 @@ struct StripBooth: View {
     // MARK: Stages
 
     private func open() async {
-        let already = StripKeeping.isDeveloped(owner, day: day)
+        // `-strataBoothDeveloped 1`: already developed, so a UI test reaches
+        // the tools (a simulator cannot shake, and its tap is not a hand's).
+        let already = StripKeeping.isDeveloped(owner, day: day) || DebugHarness.argument("-strataBoothDeveloped") != nil
         // **Printed before it develops, every time** (the owner, 2026-10-07:
         // "I would prefer if the printing animation actually played before
         // developing"). Any strip not yet developed comes out of the island

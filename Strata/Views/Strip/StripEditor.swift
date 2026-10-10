@@ -58,8 +58,19 @@ struct StripEditor: View {
                                                           paper: paper, width: width, developed: 1)))
                         .frame(width: width)
                         .frame(maxWidth: .infinity)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fit(width: $0) }
-                        .onChange(of: stripHeight) { fit(width: width) }
+                        // **The well's own size, as it is laid out** (the
+                        // owner, 2026-10-10: stickers and drawings put at the
+                        // bottom right, off the photos, "navigate to the
+                        // middle"). This read the width of the row the strip
+                        // is centred in, the whole sheet's, where the strip
+                        // is at most 240 across, so every mark was saved at
+                        // about two thirds of its distance from the top
+                        // left: nothing moved at the top left, and a mark at
+                        // the bottom right landed mid-strip. Opening it again
+                        // made the same mistake backwards, so the editor
+                        // always looked right. Seen in the simulator: a
+                        // cross on the foot came back on the photo.
+                        .onChange(of: ink.canvasSize, initial: true) { _, size in fit(to: size) }
                         .onChange(of: frames.map(\.id)) { follow() }
                 }
             }
@@ -171,11 +182,10 @@ struct StripEditor: View {
         return max(120, min(240, (size.height - roomForControls) / ratio))
     }
 
-    /// The canvas as laid out, and the strip's doodles loaded onto it.
-    private func fit(width: CGFloat) {
-        let ratio = stripHeight > 0 ? stripHeight / StripDecor.canvasWidth : 2.4
-        let size = CGSize(width: width, height: width * ratio)
-        guard size.width > 0, size != canvas else { return }
+    /// The canvas as laid out (the well itself, `InkController.canvasSize`),
+    /// and the strip's doodles loaded onto it.
+    private func fit(to size: CGSize) {
+        guard size.width > 0, size.height > 0, size != canvas else { return }
         canvas = size
         // **Reloaded at every size until you draw** (as `MonthDrawingEditor`
         // learned): the width settles after the first layout, and loading
