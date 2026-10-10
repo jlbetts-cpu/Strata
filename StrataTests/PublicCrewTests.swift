@@ -34,14 +34,14 @@ struct PublicCrewTests {
         #expect(app.crew == crew && app.key == key)
     }
 
-    /// The address moved to somewins.xyz (2026-10-10). Links already sent
-    /// point at the old page, which forwards; both still open the crew.
-    @Test("links sent before the address changed still open")
-    func earlierLinks() throws {
+    /// The address moves to somewins.xyz once the domain is live
+    /// (2026-10-10). Every address the page answers at opens the crew, so
+    /// the build before the move reads the links the build after it sends.
+    @Test("the page's other addresses open the crew too")
+    func otherAddresses() throws {
         let key = CrewKey.new()
-        #expect(CrewInviteLink.url(crew: crew, key: key).host == "somewins.xyz")
-        #expect(!CrewInviteLink.url(crew: crew, key: key).absoluteString.contains("github"))
-        for page in CrewInviteLink.earlierPages {
+        #expect(CrewInviteLink.otherPages.contains("https://somewins.xyz/join"))
+        for page in CrewInviteLink.otherPages {
             let read = try #require(CrewInviteLink.read(URL(string: "\(page)#\(crew.rawValue).\(key.linkText)")!), "\(page)")
             #expect(read.crew == crew && read.key == key)
         }

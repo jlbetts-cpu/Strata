@@ -1,16 +1,20 @@
 import Foundation
 
-/// **The invite link**: `https://somewins.xyz/join#<crew>.<key>` (the
-/// owner's own address, 2026-10-10: "there shouldnt say github in the
-/// link"). The page opens the app by its own scheme,
-/// `somewins://join#<crew>.<key>`, and every form is read here, the links
-/// sent before the address changed among them. A link without a valid crew
-/// and key is no invitation.
+/// **The invite link**: `https://jlbetts-cpu.github.io/Strata/join.html#<crew>.<key>`.
+/// The page opens the app by its own scheme, `somewins://join#<crew>.<key>`,
+/// and every form is read here. A link without a valid crew and key is no
+/// invitation.
+///
+/// **It moves to `https://somewins.xyz/join`** (the owner's own address,
+/// bought 2026-10-10: "there shouldnt say github in the link") in the build
+/// after the domain is live: that day it still showed the registrar's
+/// parking page, and a link to it would have been a dead invitation. This
+/// build already reads those links, so the change is `page` and nothing else.
 nonisolated enum CrewInviteLink {
-    static let page = "https://somewins.xyz/join"
-    /// Where the page lived before, and where links already sent point.
-    static let earlierPages = ["https://jlbetts-cpu.github.io/Strata/join.html", "https://jlbetts-cpu.github.io/Strata/join",
-                               "https://somewins.xyz/join.html", "https://www.somewins.xyz/join"]
+    static let page = "https://jlbetts-cpu.github.io/Strata/join.html"
+    /// The other addresses the page answers at, now or soon.
+    static let otherPages = ["https://jlbetts-cpu.github.io/Strata/join", "https://somewins.xyz/join",
+                             "https://somewins.xyz/join.html", "https://www.somewins.xyz/join"]
     static let scheme = "somewins"
 
     static func url(crew: CrewID, key: CrewKey) -> URL {
@@ -26,7 +30,7 @@ nonisolated enum CrewInviteLink {
         // The address without what follows the #, so `/join` is not also
         // `/joinery`.
         let address = url.absoluteString.split(separator: "#", maxSplits: 1).first.map(String.init) ?? ""
-        let isPage = ([page] + earlierPages).contains(address)
+        let isPage = ([page] + otherPages).contains(address)
         let isApp = url.scheme == scheme && url.host == "join"
         guard isPage || isApp, let fragment = url.fragment, let dot = fragment.lastIndex(of: ".") else { return nil }
         let crew = String(fragment[..<dot])

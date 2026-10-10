@@ -873,9 +873,11 @@ Twelve findings; these are the ones that would have reached you.
 
 ### somewins.xyz
 
-You bought it on 2026-10-10. The invite link is now
-`https://somewins.xyz/join#...`; links already sent to the github address
-still open. It needs, from you, in this order:
+You bought it on 2026-10-10. **Build 116 still sends the github address**
+(your pick, asked that afternoon): the domain was showing the registrar's
+parking page, and a link to it would have been a dead invitation. 116
+already opens `https://somewins.xyz/join#...` links, so the build after the
+domain is live changes one line. It needs, from you, in this order:
 
 1. DNS at the registrar: four `A` records for `@` (185.199.108.153,
    185.199.109.153, 185.199.110.153, 185.199.111.153) and a `CNAME` for
@@ -884,10 +886,22 @@ still open. It needs, from you, in this order:
    Tick Enforce HTTPS when it is offered. Then `git pull` (GitHub adds a
    `CNAME` file).
 
-Not done, and worth doing next: **a universal link**, so a tap on the link
-opens the app with no page in between. It needs the Associated Domains
-capability switched on for the app in your developer account and a new
-signing profile. I did not change your account without asking.
+Next build, with your yes (asked 2026-10-10): **a universal link**, so a
+tap on the link opens the app with no page in between. It needs the
+Associated Domains capability switched on for the app in your developer
+account and a new signing profile, and the domain live first.
 Also yours: `hello@somewins.xyz` (email forwarding at the registrar); tell
 me when it works and I change `Support.address`, which is still your
 Hotmail.
+
+### The suites, and build 116
+
+- Unit: 1,325 tests, passed, no crash.
+- Full (unit and UI, 70 UI tests, 66 minutes): four UI failures, none from
+  this work. Two were the simulator's own audio service timing out after an
+  hour (the crash is inside Apple's audio code); one was the map's pinch,
+  which passed on a restarted simulator with the other two. The fourth was
+  a real fault in a test: the plan-line test took whichever tab the day
+  sheet was last left on, and now asks for Plan.
+- **Build 116 went to the Friends group** and to beta review, at your word
+  (asked that afternoon). Their old crews do not carry over.
