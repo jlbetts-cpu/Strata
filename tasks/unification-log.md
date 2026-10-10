@@ -723,3 +723,171 @@ looked). It finds the field by its placeholder or its label now.
 You pushed at about 10:30. `docs/join.html` is live (it returns 200 and
 carries the redirect into the app), so crew invite links open from build
 114 on.
+
+---
+
+## 9. What you bumped into while testing (2026-10-10, midday)
+
+### Stickers and drawings at the strip's bottom right moved to the middle
+
+**Fixed, and it was not the placement work.** The strip's editor asked how
+wide its canvas was in the wrong place: it read the width of the row the
+strip is centred in (the whole sheet, about 370 points) when the strip itself
+is at most 240 across. Every mark was saved at about two thirds of its
+distance from the top left. Near the top left that is nothing; at the bottom
+right it lands mid-strip. Opening the editor again made the same mistake
+backwards, so the editor always looked right and only the strip everywhere
+else was wrong, which is why I never saw it.
+
+- Reproduced on the simulator: a cross drawn on the foot, right of the
+  wordmark, came back on the photo, smaller. After the fix it is where it was
+  drawn (`FeedbackShots.testStripDoodleKeepsItsPlace`, looked at both).
+- The editor now takes the size from the drawing surface itself
+  (`InkController.canvasSize`), the one place that cannot be wrong.
+- **REVIEW: strips you doodled before this build keep their marks where the
+  strip has been showing them** (the wrong place). I did not try to move
+  them back: the file does not say how wide the sheet was when it was saved,
+  and a guess would move some marks further off. Open one and drag the
+  sticker back, and it saves right.
+- New debug flag `-strataBoothDeveloped 1`, so a UI test can reach the
+  strip's tools (a simulator cannot shake).
+
+### The crew's Draw tab is gone
+
+Your words: "there is no way to delete drawings or move them and honestly
+dont understand the point of the feature." Asked, you chose Remove.
+
+- Gone: the Draw tab in the crew's sheet, one drawing a day thrown onto the
+  tower, holding one to tuck it into the bubble, the count on the bubble, the
+  pencil at the end of the fan of heads. About 1,400 lines and five files.
+- The middle of a crew's tower opens the crew, as it first did.
+- Kept: doodles on your own wins, doodles and stickers in the chat, the
+  strip's editor.
+- A friend on an older build can still throw one. It travels as a chat line
+  with an invisible mark; this build goes on leaving those out of the chat,
+  never alerts for one, and they end with the crew's day.
+
+### Invite links said the address is invalid
+
+**The link was right; the phones opening it had build 113.** Checked in App
+Store Connect: your Friends group's newest build is 113, and a crew's link
+only opens in 114 or newer (that is where crews moved to the shared
+database and the app learned to open `somewins://`). A phone without it was
+sent straight to the app's link by the page, and Safari answers that with
+"the address is invalid".
+
+- With the current build installed the link works: on the simulator the page
+  asks "Open this page in Some Wins?".
+- The page no longer opens anything by itself. It is the app's look now
+  (the wordmark, your drawing of the three friends, the one white button),
+  with Open in Some Wins, and Get Some Wins, which goes to your TestFlight
+  public link. If the app does not open, the page says to get or update it.
+- A link preview card (`docs/join/card.png`): your drawing and the wordmark,
+  where Messages showed a bare address.
+- **REVIEW: the page now carries your TestFlight public link.** Anyone a
+  friend invites can join the beta through it. That is what an invite is
+  for, but it is your tester list.
+- **Yours: the address still says github.** Taking that off needs a domain
+  you own (somewins.com is taken; somewins.app and somewins.co looked free
+  on 2026-10-10, check at a registrar). With one, the link becomes
+  `https://<domain>/join` and opens the app directly with no page in
+  between (a universal link). That is one file on the site, one line in the
+  app and a build. Tell me the domain when you have it.
+- **The real fix for your friends is a build**: they need 116. You asked me
+  not to release to friends without you saying so.
+
+## 10. Leaning on push (2026-10-10)
+
+Your words: "I think we should lean on push notifications I feel like thats
+something we are missing." You picked all four.
+
+- **A line in the chat** pushes to the crew: "Sam: morning all", "Sam sent a
+  doodle", "Sam shared a photo strip". More than one waiting becomes "3 new
+  in Roommates", one notification a crew, as the app's own alert always was.
+  One a minute a crew from each phone, so four short lines are one tap on the
+  shoulder. A strip always goes.
+- **Someone joined**: "Priya joined.", quietly (in the list, no sound).
+- **A streak milestone** (7, 14, 21, 30, 50 ... days): "Look what your crew
+  is building. 7 days." Once a crew a day, whoever's win made it. Quiet.
+  Nothing is ever sent about a day missed.
+- **An open crew reads on the push.** It asked iCloud every three seconds
+  whether anything had changed. Now the push says so and the crew reads at
+  once; it still asks by itself, but once pushes are seen to arrive, every 8
+  seconds, then 40 when quiet. If pushes stop arriving it goes back to three.
+- The words of a line are never in the push that travels: iCloud carries
+  "something in this crew", and the phone opens the sealed line itself.
+- No new CloudKit fields: nothing for you to deploy.
+- **REVIEW: unproven on real phones**, like the rest of crews. The simulator
+  gets no pushes. Twelve tests cover what is sent, what is said and the
+  pacing; an independent review read the rest (below).
+
+### The review of all this, and what it changed (same afternoon)
+
+An independent read of the whole change, as the rule for crew code says.
+Twelve findings; these are the ones that would have reached you.
+
+- **One chat line could raise two banners.** The app's own chat alert was
+  still running beside the push. Now the app's stands down whenever the
+  chat's pushes are arriving, and only then.
+- **"3 new in Roommates" was a wrong number.** A phone pings a crew's chat
+  once a minute however many lines are written, so a count of pushes is not
+  a count of lines. The push is now always the newest line, and takes the
+  older one's place: one notification a crew, no number.
+- **A busy chat rang for every push.** Eight people talking could be several
+  sounds a minute. A conversation now rings once; what follows within five
+  minutes replaces the banner silently, until you open the chat.
+- **A streak number could be one phone's guess.** Each phone counts the
+  streak itself, and one that joined last week holds two weeks at most: it
+  would have told a crew on day forty that it had reached seven. A phone
+  now speaks only if its record reaches the crew's first day, or past where
+  the streak began. Otherwise it stays quiet and a phone that knows says it.
+- **A made-up ping could say "99999 days".** Pings are plain records anyone
+  can write. The phone now shows a milestone only for a number a crew is
+  ever told (7, 14, 21, 30 ...) and only for a crew it is in.
+- **If iCloud refused a subscription, the phone still believed it was
+  subscribed**, and its own notifications stayed off: silence. Now a refusal
+  takes every subscription back off, the app's own alerts carry on, and it
+  asks again in ten minutes rather than on every refresh.
+- **A push could arrive before iCloud would show the record**, and the open
+  crew then waited eight or forty seconds, slower than before. It now asks
+  twice more, three seconds apart.
+- **The invite page**: its art folder had the page's own name (`join/`),
+  which would have made `somewins.xyz/join` a folder and the link a missing
+  page. Moved to `invite/`. The "didn't open?" line no longer appears on a
+  timer (it showed up behind the system's own "Open in Some Wins?").
+
+**REVIEW, not fixed, your call**
+
+- Someone in a crew with a modified app could seal a chat line under a
+  friend's name, and the lock screen would show it as theirs. The app itself
+  checks who really wrote a record; the notification extension cannot yet.
+  It needs each member's iCloud identity in the extension's cache.
+- The once-a-minute chat ping is per phone and resets when the app restarts.
+- A removed person can still write a ping that makes phones say "Something
+  new in your crew". They cannot read or write the crew itself.
+- **Your repo is public and `docs/` is the website**, so every `.md` in it
+  is a web page: `.../monetization-research`, `.../launch-plan` and the rest
+  are on the open internet today, and will be at somewins.xyz/... once the
+  domain is on. Nothing secret is in them that I know of, but it is your
+  business plan. The fix is a separate folder for the site.
+
+### somewins.xyz
+
+You bought it on 2026-10-10. The invite link is now
+`https://somewins.xyz/join#...`; links already sent to the github address
+still open. It needs, from you, in this order:
+
+1. DNS at the registrar: four `A` records for `@` (185.199.108.153,
+   185.199.109.153, 185.199.110.153, 185.199.111.153) and a `CNAME` for
+   `www` to `jlbetts-cpu.github.io`.
+2. GitHub, the Strata repo, Settings, Pages, Custom domain: `somewins.xyz`.
+   Tick Enforce HTTPS when it is offered. Then `git pull` (GitHub adds a
+   `CNAME` file).
+
+Not done, and worth doing next: **a universal link**, so a tap on the link
+opens the app with no page in between. It needs the Associated Domains
+capability switched on for the app in your developer account and a new
+signing profile. I did not change your account without asking.
+Also yours: `hello@somewins.xyz` (email forwarding at the registrar); tell
+me when it works and I change `Support.address`, which is still your
+Hotmail.
