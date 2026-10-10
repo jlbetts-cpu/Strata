@@ -648,7 +648,7 @@ struct StripBooth: View {
     }
 
     private func refreshDecor() {
-        decor = StripDecor.picture(owner: owner, day: day)
+        decor = StripDecor.picture(owner: owner, day: day, frames: frames)
         saved = false
         StripKeeping.setExcluded(excluded, owner, day: day)
     }

@@ -30,6 +30,16 @@ struct StripEditor: View {
     /// kept every frame taken off (the 2026-10-08 audit).
     @State private var draft: Set<UUID>?
     private var current: Set<UUID> { draft ?? excluded }
+    /// **Marks follow their photos** (`StripDecorPlacement`). The layout the
+    /// ink on the canvas was drawn over, in `canvasWidth` points; marks on
+    /// photos taken off here, kept to come back with them; and whether the
+    /// canvas holds anything the file does not, so a resize never reloads
+    /// over it.
+    @State private var inkLayout: StripAnchors?
+    @State private var parked = (drawing: PKDrawing(), stickers: [InkSticker]())
+    @State private var parkedLayout = StripAnchors(frames: [:], footTop: 0)
+    @State private var moved = false
+    private var touched: Bool { ink.canUndo || moved }
 
     private var frames: [PhotoStrip.Frame] { strip.frames(excluding: current) }
 
@@ -51,6 +61,7 @@ struct StripEditor: View {
                         .frame(maxWidth: .infinity)
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fit(width: $0) }
                         .onChange(of: stripHeight) { fit(width: width) }
+                        .onChange(of: frames.map(\.id)) { follow() }
                 }
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
@@ -76,9 +87,14 @@ struct StripEditor: View {
                     HapticsEngine.lightTap()
                     // Kept at the canvas width, so the strip draws it at any size.
                     let k = canvas.width > 0 ? StripDecor.canvasWidth / canvas.width : 1
-                    StripDecor.save(ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
-                                    stickers: ink.stickers.map { $0.scaled(by: k) },
+                    // With the marks on photos taken off, where they were,
+                    // and where those photos were, so they come back.
+                    var drawing = ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k))
+                    drawing.append(parked.drawing)
+                    StripDecor.save(drawing,
+                                    stickers: ink.stickers.map { $0.scaled(by: k) } + parked.stickers,
                                     canvas: CGSize(width: canvas.width * k, height: canvas.height * k),
+                                    anchors: StripAnchors.of(frames).merging(parkedLayout),
                                     owner: strip.owner, day: strip.day)
                     if let draft { excluded = draft }
                     dismiss()
@@ -167,9 +183,57 @@ struct StripEditor: View {
         // **Reloaded at every size until you draw** (as `MonthDrawingEditor`
         // learned): the width settles after the first layout, and loading
         // once at the first width saved the drawing smaller on every Done.
-        guard !ink.canUndo, let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
-        let k = size.width / kept.canvas.width
-        ink.load(kept.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
-                 stickers: kept.stickers.map { $0.scaled(by: k).clamped(toCanvas: size) })
+        reload()
+    }
+
+    /// The kept drawing onto the canvas, each mark on its photo as the strip
+    /// stands now. Only while nothing here is unsaved.
+    private func reload() {
+        guard !touched, canvas.width > 0,
+              let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
+        let now = StripAnchors.of(frames)
+        // `canvasWidth` points first: the anchors are kept at that width.
+        let toKept = StripDecor.canvasWidth / kept.canvas.width
+        var drawing = kept.drawing.transformed(using: CGAffineTransform(scaleX: toKept, y: toKept))
+        var stickers = kept.stickers.map { $0.scaled(by: toKept) }
+        if let then = kept.anchors {
+            let move = StripDecorPlacement.move(drawing, stickers: stickers, from: then, to: now)
+            drawing = move.drawing
+            stickers = move.stickers
+            parked = (move.parkedDrawing, move.parkedStickers)
+            parkedLayout = then
+        }
+        inkLayout = now
+        show(drawing, stickers: stickers)
+    }
+
+    /// A photo taken off or put back: what is drawn on the canvas goes with
+    /// its photo, and what was parked comes back with one returning.
+    private func follow() {
+        let now = StripAnchors.of(frames)
+        guard touched, let then = inkLayout, !then.matches(now), canvas.width > 0 else {
+            reload()
+            return
+        }
+        let k = StripDecor.canvasWidth / canvas.width
+        let live = StripDecorPlacement.move(ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
+                                            stickers: ink.stickers.map { $0.scaled(by: k) }, from: then, to: now)
+        let back = StripDecorPlacement.move(parked.drawing, stickers: parked.stickers, from: parkedLayout, to: now)
+        var drawing = live.drawing
+        drawing.append(back.drawing)
+        var stillParked = live.parkedDrawing
+        stillParked.append(back.parkedDrawing)
+        parkedLayout = then.merging(parkedLayout)
+        parked = (stillParked, live.parkedStickers + back.parkedStickers)
+        inkLayout = now
+        moved = true
+        show(drawing, stickers: live.stickers + back.stickers)
+    }
+
+    /// `canvasWidth` points onto the canvas as laid out.
+    private func show(_ drawing: PKDrawing, stickers: [InkSticker]) {
+        let k = canvas.width / StripDecor.canvasWidth
+        ink.load(drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
+                 stickers: stickers.map { $0.scaled(by: k).clamped(toCanvas: canvas) })
     }
 }

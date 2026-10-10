@@ -53,8 +53,13 @@ final class HeadMakerModel {
     /// memory and must not.
     private(set) var saveFailure = ""
 
-    let camera = CameraService()
-    let engine = HeadCaptureEngine()
+    /// **Made on first use, not with the model** (2026-10-09, the crash
+    /// sweep's C5). `HeadMakerView` holds this in `@State`, whose initial
+    /// value is built on every init of the view and thrown away after the
+    /// first: each throwaway made an `AVCaptureSession`. Main-actor only, so
+    /// `lazy` is safe here.
+    @ObservationIgnored lazy var camera = CameraService()
+    @ObservationIgnored lazy var engine = HeadCaptureEngine()
 
     private var linedUpSince: Date?
     /// When a face first appeared, whether or not it was in the outline.

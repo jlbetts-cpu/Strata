@@ -151,7 +151,8 @@ struct YourDaySheet: View {
                         VStack(spacing: GridConstants.gapTight) {
                             StripView(frames: past.frames(excluding: StripKeeping.excluded(.me, day: past.day)),
                                       day: past.day, signature: past.signature, paper: StripKeeping.paper(for: colorScheme),
-                                      width: 44, developed: 1, decor: StripDecor.picture(owner: .me, day: past.day))
+                                      width: 44, developed: 1, decor: StripDecor.picture(owner: .me, day: past.day,
+                                                                    frames: past.frames(excluding: StripKeeping.excluded(.me, day: past.day))))
                             Text(Self.dayName(past.day))
                                 .font(Typography.screenSubtitle)
                                 .foregroundStyle(AppColors.inkSecondary)

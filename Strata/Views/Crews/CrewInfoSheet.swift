@@ -179,7 +179,7 @@ struct CrewInfoSheet: View {
                         StripView(frames: frames, day: strip.day, signature: strip.signature,
                                   paper: StripKeeping.paper(for: colorScheme), width: 64,
                                   developed: StripKeeping.isDeveloped(strip.owner, day: strip.day) ? 1 : 0,
-                                  decor: StripDecor.picture(owner: strip.owner, day: strip.day))
+                                  decor: StripDecor.picture(owner: strip.owner, day: strip.day, frames: frames))
                     }
                     Text(frames.isEmpty ? "Photos and doodles sent here today make the strip."
                                         : "Everyone's photos and doodles from today.")

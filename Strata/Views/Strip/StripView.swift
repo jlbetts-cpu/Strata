@@ -139,8 +139,9 @@ struct StripView: View {
 }
 
 /// **The strip's doodles and stickers, kept** per owner and day: the strokes
-/// and stickers to edit again, and the picture to draw, on a canvas the
-/// strip's own shape at `canvasWidth`.
+/// and stickers to edit again, the picture to draw, on a canvas the strip's
+/// own shape at `canvasWidth`, and where each photo was under them
+/// (`StripAnchors`), so they follow their photo when the strip changes.
 @MainActor
 enum StripDecor {
     static let canvasWidth: CGFloat = 320
@@ -150,37 +151,67 @@ enum StripDecor {
         var width: Double
         var height: Double
         var stickers: [InkSticker]
+        /// Nil on a drawing saved before marks followed their photos.
+        var anchors: StripAnchors?
+    }
+
+    /// A drawing as kept, in `canvasWidth` points.
+    struct Loaded {
+        var drawing: PKDrawing
+        var canvas: CGSize
+        var stickers: [InkSticker]
+        var anchors: StripAnchors?
     }
 
     private static func base(_ owner: PhotoStrip.Owner, _ day: String) -> String { "strip-\(owner.key)-\(day)" }
 
-    static func save(_ drawing: PKDrawing, stickers: [InkSticker], canvas: CGSize,
+    static func save(_ drawing: PKDrawing, stickers: [InkSticker], canvas: CGSize, anchors: StripAnchors?,
                      owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared) {
         let name = base(owner, day)
         guard !drawing.strokes.isEmpty || !stickers.isEmpty,
               let png = InkExport.png(of: drawing, stickers: stickers, in: CGRect(origin: .zero, size: canvas), scale: 3),
               let kept = try? JSONEncoder().encode(Kept(strokes: drawing.dataRepresentation(),
-                                                         width: canvas.width, height: canvas.height, stickers: stickers))
+                                                         width: canvas.width, height: canvas.height,
+                                                         stickers: stickers, anchors: anchors))
         else {
             files.remove(name + ".png"); files.remove(name + ".drawing")
-            cache.removeObject(forKey: name as NSString)
+            cache.removeAllObjects()
             return
         }
         _ = try? files.write(png, named: name + ".png")
         _ = try? files.write(kept, named: name + ".drawing")
-        cache.removeObject(forKey: name as NSString)
+        cache.removeAllObjects()
     }
 
-    static func load(owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared)
-        -> (drawing: PKDrawing, canvas: CGSize, stickers: [InkSticker])? {
+    static func load(owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared) -> Loaded? {
         guard let data = files.read(base(owner, day) + ".drawing"),
               let kept = try? JSONDecoder().decode(Kept.self, from: data),
               let drawing = try? PKDrawing(data: kept.strokes) else { return nil }
-        return (drawing, CGSize(width: kept.width, height: kept.height), kept.stickers)
+        return Loaded(drawing: drawing, canvas: CGSize(width: kept.width, height: kept.height),
+                      stickers: kept.stickers, anchors: kept.anchors)
     }
 
-    static func picture(owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared) -> InkPicture? {
+    /// The decoration over `frames` as they are now. The saved picture when
+    /// nothing under it has moved; drawn again, each mark on its own photo,
+    /// when something has.
+    static func picture(owner: PhotoStrip.Owner, day: String, frames: [PhotoStrip.Frame],
+                        files: InkFiles = .shared) -> InkPicture? {
         let name = base(owner, day)
+        let now = StripAnchors.of(frames)
+        guard let kept = load(owner: owner, day: day, files: files) else { return nil }
+        guard let then = kept.anchors, !then.matches(now) else { return saved(name, files: files) }
+        let key = "\(name)|\(now.frames.keys.sorted().joined(separator: ","))|\(Int(now.footTop))" as NSString
+        if let hit = cache.object(forKey: key) { return hit }
+        let moved = StripDecorPlacement.move(kept.drawing, stickers: kept.stickers, from: then, to: now)
+        let canvas = CGSize(width: kept.canvas.width, height: max(1, kept.canvas.height + now.footTop - then.footTop))
+        guard let png = InkExport.png(of: moved.drawing, stickers: moved.stickers,
+                                      in: CGRect(origin: .zero, size: canvas), scale: 3),
+              let picture = InkLayers.decode(png, scale: 1) else { return nil }
+        cache.setObject(picture, forKey: key)
+        return picture
+    }
+
+    private static func saved(_ name: String, files: InkFiles) -> InkPicture? {
         if let hit = cache.object(forKey: name as NSString) { return hit }
         guard let data = files.read(name + ".png"), let picture = InkLayers.decode(data, scale: 1) else { return nil }
         cache.setObject(picture, forKey: name as NSString)
