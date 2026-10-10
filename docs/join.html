@@ -5,46 +5,97 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Join a crew on Some Wins</title>
 <meta name="description" content="A friend invited you to their crew on Some Wins.">
+<meta property="og:site_name" content="Some Wins">
 <meta property="og:title" content="Join my crew on Some Wins">
-<meta property="og:description" content="Share the day's wins with a few friends.">
+<meta property="og:description" content="Winning is better together.">
+<meta property="og:image" content="https://jlbetts-cpu.github.io/Strata/invite/card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="robots" content="noindex">
 <style>
-  :root { --bg: #fdfdfd; --ink: #1d1b19; --ink-2: #5c5853; --fill: #1d1b19; --on-fill: #fdfdfd; }
+  /* The app's own ground, ink and wordmark (Zen Maru Gothic, SIL Open Font
+     License: invite/ZenMaruGothic-OFL.txt). */
+  @font-face { font-family: "Zen Maru"; src: url("invite/ZenMaruGothic-Bold.ttf") format("truetype"); font-display: swap; }
+  :root {
+    --bg-top: #f6f7fa; --bg-bottom: #f1f4f6;
+    --ink: #16171a; --ink-2: rgba(22,23,26,.70); --ink-3: rgba(22,23,26,.55);
+    --fill: #16171a; --on-fill: #f6f7fa; --rule: rgba(22,23,26,.12);
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #1c1c1b; --ink: #f2f0ee; --ink-2: #b2aea9; --fill: #f2f0ee; --on-fill: #1c1c1b; }
+    :root {
+      --bg-top: #211f1e; --bg-bottom: #181716;
+      --ink: #f4f3f1; --ink-2: rgba(244,243,241,.72); --ink-3: rgba(244,243,241,.52);
+      /* The one white button, as in the app. */
+      --fill: #ffffff; --on-fill: #16171a; --rule: rgba(244,243,241,.16);
+    }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  html, body { margin: 0; }
   body {
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+    min-height: 100vh; min-height: 100svh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom)) no-repeat fixed;
+    color: var(--ink);
     font: 400 17px/1.5 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased; text-align: center;
   }
+  .mark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 "Zen Maru", ui-rounded, sans-serif; }
+  /* His drawings are one black line: shown in the page's ink, as the app does. */
+  .ink { background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
+  .mark .ink { --art: url("invite/camera.png"); width: 26px; height: 25px; }
+  main { flex: 1; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0; }
+  .art { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 2; margin-bottom: 20px; }
+  .art .ink { position: absolute; inset: 0; }
+  .art .crew { --art: url("invite/crew.png"); }
+  .art .cheer { --art: url("invite/cheer.png"); }
   h1 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; margin: 0 0 8px; }
-  p { color: var(--ink-2); margin: 0 0 32px; max-width: 320px; }
+  p { color: var(--ink-2); margin: 0 0 28px; }
+  a { color: inherit; -webkit-tap-highlight-color: transparent; }
   a.open {
-    display: block; width: 100%; max-width: 360px; height: 50px; line-height: 50px; border-radius: 25px;
+    display: block; width: 100%; height: 50px; line-height: 50px; border-radius: 25px;
     background: var(--fill); color: var(--on-fill); text-decoration: none; font-weight: 600;
   }
-  a.get { display: inline-block; margin-top: 20px; min-height: 44px; line-height: 44px; color: var(--ink-2); }
+  a.open:active { opacity: .8; }
+  a.get {
+    display: block; width: 100%; height: 50px; line-height: 48px; border-radius: 25px; margin-top: 12px;
+    border: 1px solid var(--rule); text-decoration: none; font-weight: 600;
+  }
+  a.get:active { opacity: .6; }
+  .note { font-size: 15px; color: var(--ink-3); margin: 20px 0 0; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-  <h1>You're invited to a crew</h1>
-  <p>Open Some Wins to join. Crews share the day's wins with a few friends, privately.</p>
-  <a class="open" id="open" href="somewins://join">Open in Some Wins</a>
-  <a class="get" href="https://testflight.apple.com/">Don't have the app yet?</a>
+  <div class="mark" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</div>
+  <main>
+    <div class="art" aria-hidden="true"><div class="ink crew"></div><div class="ink cheer"></div></div>
+    <h1 id="title">You're invited to a crew</h1>
+    <p id="line">A few friends, one tower for the day. Winning is better together.</p>
+    <a class="open" id="open" href="somewins://join">Open in Some Wins</a>
+    <a class="get" id="get" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+    <p class="note" id="note">New here, or it didn't open? Get Some Wins first, then open this link again.</p>
+  </main>
 <script>
   // The crew and its key travel after the # and never leave this page: a
   // browser does not send the fragment to any server. It is handed straight
   // to the app's own link.
+  //
+  // Nothing opens by itself. Sending a phone without the app (or with an
+  // older build) straight to the app's link made Safari say the address is
+  // invalid, which read as a broken invitation.
   (function () {
     var invite = location.hash.replace(/^#/, "");
-    if (!/^crew-[0-9A-Fa-f-]{1,59}\.[A-Za-z0-9_-]{43}$/.test(invite)) return;
-    var app = "somewins://join#" + invite;
-    document.getElementById("open").setAttribute("href", app);
-    setTimeout(function () { location.href = app; }, 250);
+    var open = document.getElementById("open");
+    if (!/^crew-[0-9A-Fa-f-]{1,59}\.[A-Za-z0-9_-]{43}$/.test(invite)) {
+      document.getElementById("title").textContent = "This invite is incomplete";
+      document.getElementById("line").textContent = "Part of the link is missing. Ask your friend to send it again.";
+      open.hidden = true;
+      document.getElementById("note").hidden = true;
+      return;
+    }
+    open.setAttribute("href", "somewins://join#" + invite);
   })();
 </script>
 </body>

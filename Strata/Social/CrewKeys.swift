@@ -1,11 +1,16 @@
 import Foundation
 
-/// **The invite link**: `https://jlbetts-cpu.github.io/Strata/join.html#<crew>.<key>`.
-/// The page opens the app by its own scheme, `somewins://join#<crew>.<key>`,
-/// and both forms are read here. A link without a valid crew and key is no
-/// invitation.
+/// **The invite link**: `https://somewins.xyz/join#<crew>.<key>` (the
+/// owner's own address, 2026-10-10: "there shouldnt say github in the
+/// link"). The page opens the app by its own scheme,
+/// `somewins://join#<crew>.<key>`, and every form is read here, the links
+/// sent before the address changed among them. A link without a valid crew
+/// and key is no invitation.
 nonisolated enum CrewInviteLink {
-    static let page = "https://jlbetts-cpu.github.io/Strata/join.html"
+    static let page = "https://somewins.xyz/join"
+    /// Where the page lived before, and where links already sent point.
+    static let earlierPages = ["https://jlbetts-cpu.github.io/Strata/join.html", "https://jlbetts-cpu.github.io/Strata/join",
+                               "https://somewins.xyz/join.html", "https://www.somewins.xyz/join"]
     static let scheme = "somewins"
 
     static func url(crew: CrewID, key: CrewKey) -> URL {
@@ -18,7 +23,10 @@ nonisolated enum CrewInviteLink {
 
     /// The crew and key a link carries, or nil.
     static func read(_ url: URL) -> (crew: CrewID, key: CrewKey)? {
-        let isPage = url.absoluteString.hasPrefix(page)
+        // The address without what follows the #, so `/join` is not also
+        // `/joinery`.
+        let address = url.absoluteString.split(separator: "#", maxSplits: 1).first.map(String.init) ?? ""
+        let isPage = ([page] + earlierPages).contains(address)
         let isApp = url.scheme == scheme && url.host == "join"
         guard isPage || isApp, let fragment = url.fragment, let dot = fragment.lastIndex(of: ".") else { return nil }
         let crew = String(fragment[..<dot])

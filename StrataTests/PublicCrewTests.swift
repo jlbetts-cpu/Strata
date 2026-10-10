@@ -34,6 +34,23 @@ struct PublicCrewTests {
         #expect(app.crew == crew && app.key == key)
     }
 
+    /// The address moved to somewins.xyz (2026-10-10). Links already sent
+    /// point at the old page, which forwards; both still open the crew.
+    @Test("links sent before the address changed still open")
+    func earlierLinks() throws {
+        let key = CrewKey.new()
+        #expect(CrewInviteLink.url(crew: crew, key: key).host == "somewins.xyz")
+        #expect(!CrewInviteLink.url(crew: crew, key: key).absoluteString.contains("github"))
+        for page in CrewInviteLink.earlierPages {
+            let read = try #require(CrewInviteLink.read(URL(string: "\(page)#\(crew.rawValue).\(key.linkText)")!), "\(page)")
+            #expect(read.crew == crew && read.key == key)
+        }
+        // A page that only begins like the invite page is not it.
+        for other in ["https://somewins.xyz/joinery", "https://somewins.xyz/join/x", "https://somewins.xyz.evil.example/join"] {
+            #expect(CrewInviteLink.read(URL(string: "\(other)#\(crew.rawValue).\(key.linkText)")!) == nil, "\(other)")
+        }
+    }
+
     @Test("anything else is no invitation")
     func notLinks() {
         let key = CrewKey.new().linkText
