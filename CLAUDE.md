@@ -1807,54 +1807,20 @@ crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
   off, and gating on it meant a friend's head never reached anyone. A system permission prompt survives an
 uninstall in the simulator; reboot it.
 
-### Drawings thrown onto a crew's tower (2026-10-07)
+### Drawings thrown onto a crew's tower: removed (2026-10-10)
 
-The owner: "each person in the group can throw in one drawing per day ... it
-disappears at midnight, and can be put back in the middle", then, the same
-evening, "none of the doodles should go [on Wins], just keep it in the crew
-chats that you made the doodle for ... like the crew tower". So: **crew
-towers only.** Nothing of this touches Wins, `GoalCrest` or Your day.
+The owner, after using it: "there is no way to delete drawings or move them
+and honestly dont understand the point of the feature." Asked, he chose to
+remove it. Gone: the crew sheet's Draw tab (`CrewMiddleSheet`,
+`CrewDrawTab`), the drawings on the tower (`CrewTossLayer`, `TossPhysics`),
+the tuck into the bubble, the fan's Draw circle, and their launch arguments.
+**Do not bring it back.** The middle of a crew's tower opens `CrewInfoSheet`.
 
-- **Where you draw**: the bubble (empty) opens `CrewMiddleSheet` on **Draw**;
-  with heads parked the fan's last circle is Draw. The name opens it on
-  **Crew** (`CrewInfoSheet`, untouched). The switch is the day sheet's two
-  words, laid over the bar (`CrewMiddleSheet.switchTop`), because the Crew
-  tab keeps its own `NavigationStack`. Draw is `InkCanvas` square, "Throw
-  it in" (`PrimaryCapsule`), then the drawing small and "Back tomorrow".
-- **Transport: a chat doodle, marked** (`CrewToss.swift`). `text` is
-  `CrewMessage.tossMarker` (U+2063 U+2064, invisible, survives the decoder's
-  trim and `CrewWords`). **No new field**: a field on a production record
-  type needs a schema deploy first. `messages(in:)` drops tosses, so the
-  chat, its dot, alerts and line reactions never see one;
-  `tosses(in:)` is the tower's list: one per sender per crew day (first
-  wins), members only, blocked hidden, a friend's only after this phone's
-  photo check. An older build shows a toss as a wordless doodle in the chat.
-- **Landing** (`TossPhysics`, pure, `CrewTossLayer` draws it): `dropGravity`,
-  restitution 0.3, a seeded tilt, on `TowerSkyline` tops, the slot (a
-  solid: never covered), the floor and each other. Blocks still falling are
-  left out of the skyline, and a resting drawing hops onto ground that rose
-  under it. Seeded by message id salted with your profile id: same place on
-  every relaunch here. Landed ids are kept per crew per day
-  (`CrewTossShelf.landed`), so only arrivals you have not seen fall; a live
-  one waits while a sheet is up. Reduce Motion: placed, faded in.
-  A drawing spawns over the least crowded of six seeded spots (slot and
-  drawings already down count against a spot): three in a row once built a
-  pile into the header. Nothing piles past the header's foot
-  (`TossWorld.ceiling`); a later one lies over the pile instead. Taking one
-  away (a tuck) wakes the rest, so one that lay on it falls.
-  **`TossPhysics.settle` always runs one tick**: a resting body learns the
-  ground rose only when stepped, and a settle that skipped an all-at-rest
-  world left a drawing inside a new block.
-- **Tuck**: hold a drawing, it flies into the bubble (`TossTuckFlight`) and
-  `TossCountBadge` counts it on arrival. Per phone, per crew, per day
-  (`CrewTossShelf`, `UserDefaults`, keyed by day so midnight needs no job).
-  Draw's "Tucked Away" puts one back (it falls in again) or Reports it.
-- Simulator: `-strataSeedCrewTosses <n>` (friends throw, they fall on open),
-  `-strataCrewTossAfter <s>` (they throw s seconds in, one at a time, so the
-  fall is live), `-strataCrewSheet draw|throw` (`throw` draws and throws
-  yours), `-strataCrewTuckAfter <s>` (the first drawing at rest is held and
-  tucked). Pass `-crews.rulesAccepted.v1 YES` or Crew rules covers the film.
-  Tests: `TossTests`.
+What stays is `CrewMessage.tossMarker` and `isToss` (`CrewToss.swift`): an
+older build can still send one as a chat doodle whose `text` is the mark,
+and `messages(in:)` goes on leaving those out, so nothing shows or alerts
+for one. Doodles on your own wins, in the chat and on the strip are
+untouched.
 
 ## Words the app says
 

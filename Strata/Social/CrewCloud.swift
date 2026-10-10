@@ -79,6 +79,9 @@ protocol CrewCloud: AnyObject {
     /// Leaves a ping in the public database. Returns its record name, for
     /// deleting it a day later.
     func ping(_ fields: [String: String]) async throws -> String
+    /// A ping under a name every phone would give it, so only the first
+    /// is left: a crew's milestone, which every phone can see was reached.
+    func pingOnce(_ fields: [String: String], named name: String) async throws -> Bool
     /// Deletes this phone's own pings. Best effort: one missed is deleted
     /// next time.
     func deletePings(_ names: [String]) async
@@ -118,6 +121,11 @@ extension CrewCloud {
     /// Where accepting is joining (the stand-in cloud), turning away is
     /// leaving.
     func decline(_ crew: CrewID) async { try? await leave(crew) }
+    /// Where nothing can say who was first (the stand-in), it is left.
+    func pingOnce(_ fields: [String: String], named name: String) async throws -> Bool {
+        _ = try await ping(fields)
+        return true
+    }
     func settle(_ crew: CrewID) async {}
     func willLeave(_ crew: CrewID) async throws {}
 }

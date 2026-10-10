@@ -187,11 +187,15 @@ enum CrewNotifications {
             defaults.set(true, forKey: seenKey + ".started")
             return
         }
+        // **The chat pings now, so with pings arriving this stands down**
+        // (2026-10-10). It was the one alert not gated on pings, because
+        // until then the chat left none, and a guard here had silenced
+        // every chat alert there was (found 2026-10-06). With both running
+        // one line raised two banners: this one when the app was woken to
+        // refresh, and the push's a moment later (found by review). Still
+        // remembered as seen above, so nothing is told late if pings stop.
+        guard !store.chatPingsLive else { return }
         let news = chatNews(store, seen: seen, window: await reach(), now: Date(), visible: visibleCrew)
-        // **Not gated on `pingsLive`, as wins and reactions are.** The chat
-        // leaves no ping (`SocialStore.pingIfNew`), so with pings live the
-        // guard that stood here silenced every chat and reply alert: the
-        // pings it deferred to were never sent (found 2026-10-06).
         let center = UNUserNotificationCenter.current()
         for message in news.quotedToMe {
             guard let crew = store.crew(message.crewID) else { continue }
@@ -276,7 +280,17 @@ enum CrewNotifications {
             states[crew.rawValue]?.pending = []
             saveChatStates(states, defaults)
         }
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [chatID(crew)])
+        // And the chat's pushes, which are the extension's: found by what
+        // they are, a chat line in this crew. The next line rings again.
+        CrewChatPending.opened(crew: crew.rawValue)
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: [chatID(crew)])
+        Task {
+            let pushes = await center.deliveredNotifications().filter {
+                $0.request.content.userInfo[chatKey] != nil && $0.request.content.userInfo["crew"] as? String == crew.rawValue
+            }.map(\.request.identifier)
+            if !pushes.isEmpty { center.removeDeliveredNotifications(withIdentifiers: pushes) }
+        }
     }
 
     /// The keys a reaction record is remembered by: the reaction's own, and,

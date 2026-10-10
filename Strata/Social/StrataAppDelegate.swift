@@ -172,7 +172,7 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         case .crews:
             break
         }
-        await SocialStore.shared.refresh()
+        await SocialStore.shared.pushed()
         return .newData
     }
 }

@@ -25,25 +25,7 @@ struct CrewTowerView: View {
 
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
-    /// Where the heads and the drawings meet (`CrewPlayfield`).
-    @State private var playfield = CrewPlayfield()
     @State private var showsInfo = false
-    /// Which of the middle's tabs it opens on: the bubble opens Draw, the
-    /// name opens the crew (`CrewMiddleSheet`).
-    @State private var middleTab: CrewMiddleTab = .crew
-    /// Today's drawings tucked into the bubble on this phone.
-    @State private var tucks: CrewTossTucks
-    /// Drawings on their way into the bubble.
-    @State private var flights: [TuckFlight] = []
-    /// DEBUG films: bumped to tuck one, as a hold would.
-    @State private var tuckOldest = 0
-    private struct TuckFlight: Identifiable {
-        let id: UUID
-        let url: URL
-        let from: CGPoint
-        let size: CGSize
-        let angle: Double
-    }
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
     /// A photograph opened from its block, in the same viewer a past day's
@@ -84,8 +66,6 @@ struct CrewTowerView: View {
         self.onAddWin = onAddWin
         self.onLogWin = onLogWin
         _parking = State(initialValue: CrewParking(crewID: crewID))
-        let zone = SocialStore.shared.crew(crewID)?.timeZone ?? .current
-        _tucks = State(initialValue: CrewTossTucks(crewID: crewID, day: CrewDay.string(for: Date(), in: zone)))
     }
 
     private var store: SocialStore { SocialStore.shared }
@@ -116,8 +96,6 @@ struct CrewTowerView: View {
         // The fan, over everything, under the bubble; a tap anywhere else
         // folds it back.
         .overlay { fanOverlay }
-        // A held drawing flying into the bubble, over everything.
-        .overlay { tuckFlights }
         .toolbar(.hidden, for: .navigationBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
         // **The crew's midnight, while you are looking.** Today's tower is the
@@ -130,8 +108,6 @@ struct CrewTowerView: View {
                 else { return }
                 try? await Task.sleep(for: .seconds(max(1, next.timeIntervalSinceNow + 1)))
                 guard !Task.isCancelled else { return }
-                // Yesterday's drawings and what was tucked go with the day.
-                tucks.show(CrewDay.string(for: Date(), in: zone))
                 rebuild()
             }
         }
@@ -148,9 +124,6 @@ struct CrewTowerView: View {
             // `-strataCrewSheet info|win`: the crew's sheets, for captures.
             switch DebugHarness.argument("-strataCrewSheet") {
             case "info": showsInfo = true
-            // `-strataCrewSheet draw|throw`: the middle's Draw tab; `throw`
-            // also draws and throws a drawing by itself (`CrewDrawTab`).
-            case "draw", "throw": middleTab = .draw; showsInfo = true
             // `-strataCrewSheet chat`: today's chat, over the crew.
             case "chat": showsChat = true
             case "win": viewing = store.today(in: crewID).last { $0.senderProfileID != store.me && $0.photo == nil }?.winID.uuidString
@@ -205,14 +178,6 @@ struct CrewTowerView: View {
                     }
                 }
             }
-            // `-strataCrewTuckAfter <s>`: the oldest drawing at rest is held
-            // and tucked into the bubble, so the tuck can be filmed.
-            if let after = DebugHarness.argument("-strataCrewTuckAfter").flatMap(Double.init) {
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(after))
-                    tuckOldest += 1
-                }
-            }
             #endif
             rebuild()
             store.markSeen(crewID)
@@ -243,20 +208,40 @@ struct CrewTowerView: View {
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             var pace = CrewLivePace()
+            // **A push reads the crew at once** (2026-10-10): the loop
+            // below asked every three seconds whether or not anything had
+            // happened. It still asks, as the fallback, but once pushes are
+            // seen to arrive it asks far less (`CrewLivePace`).
+            store.liveCrew = crewID
+            defer { if store.liveCrew == crewID { store.liveCrew = nil } }
+            // The pushes already answered: kept across asks, so one that
+            // lands while an ask is out is seen at the top of the next wait
+            // rather than forgotten.
+            var answered = store.livePush
             while !Task.isCancelled {
                 let nudge = store.liveNudge
                 var waited: TimeInterval = 0
+                var byPush = false
                 while waited < pace.interval, !Task.isCancelled {
+                    if store.livePush != answered { answered = store.livePush; byPush = true; break }
                     try? await Task.sleep(for: .seconds(1))
                     waited += 1
                     if store.liveNudge != nudge { pace.nudged(); break }
                 }
                 guard !Task.isCancelled else { return }
-                pace.asked(changed: await store.refreshLive(crewID))
+                pace.asked(changed: await store.refreshLive(crewID), byPush: byPush)
             }
         }
         .sheet(isPresented: $showsInfo) {
-            if let crew { CrewMiddleSheet(crewID: crew.id, opening: middleTab, tucks: tucks, onLeft: onBack) }
+            // **Straight to the crew** (the owner, 2026-10-10, on the Draw
+            // tab this sheet used to share: "there is no way to delete
+            // drawings or move them and honestly dont understand the point of
+            // the feature"). Draw and the drawings it threw onto the tower
+            // are gone; the middle opens the crew, as it first did.
+            if let crew {
+                CrewInfoSheet(crewID: crew.id, onLeft: onBack)
+                    .presentationBackground { WarmBackground().ignoresSafeArea() }
+            }
         }
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
@@ -354,7 +339,7 @@ struct CrewTowerView: View {
     @ViewBuilder
     private var headsOverlay: some View {
         if let crew, store.showsHeads(crewID) {
-            CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking, playfield: playfield)
+            CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
                 .ignoresSafeArea()
         }
     }
@@ -374,11 +359,7 @@ struct CrewTowerView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { withAnimation(GridConstants.motionSnappy) { parking.fanned = false } }
                         .accessibilityHidden(true)
-                    CrewFan(crew: crew, me: store.me, parking: parking, onDraw: {
-                        withAnimation(GridConstants.motionSnappy) { parking.fanned = false }
-                        middleTab = .draw
-                        showsInfo = true
-                    })
+                    CrewFan(crew: crew, me: store.me, parking: parking)
                         .padding(.top, max(top, 0))
                         .transition(.scale(scale: 0.7, anchor: .top).combined(with: .opacity))
                 }
@@ -571,11 +552,8 @@ struct CrewTowerView: View {
                             : (parking.parked.count == 1 ? "1 head in the bubble" : "\(parking.parked.count) heads in the bubble"))
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { tapBubble() }
-                        // Today's drawings tucked in here, counted as each
-                        // one arrives (`CrewTossTucks`).
-                        .overlay(alignment: .bottomTrailing) { tuckedBadge }
                         .zIndex(1)
-                    Button { middleTab = .crew; showsInfo = true } label: {
+                    Button { showsInfo = true } label: {
                         // The caption the Wins tower's goal uses too
                         // (`CrestCaption`), so the two middles are one object.
                         CrestCaption(text: crew.displayName(excluding: store.me), chevron: true)
@@ -642,84 +620,6 @@ struct CrewTowerView: View {
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
     }
 
-    // MARK: Drawings
-
-    /// Today's drawings this phone shows on the tower: everyone's, one each,
-    /// less the ones tucked into the bubble.
-    private var towerTosses: [CrewMessage] {
-        store.tosses(in: crewID).filter { !tucks.isTucked($0.messageID) }
-    }
-
-    private func tossLayer(colW: CGFloat, gridH: CGFloat, viewport: CGFloat, slot: CGRect?) -> some View {
-        CrewTossLayer(crewID: crewID, tosses: towerTosses, day: tucks.day,
-                      names: Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) }),
-                      me: store.me, model: model, colW: colW, gridH: gridH, hPad: hPad,
-                      foot: GridConstants.gapWide, viewport: viewport, slot: slot,
-                      isBusy: showsInfo || showsChat || viewing != nil || reporting != nil,
-                      ceiling: parking.controls["name"]?.maxY,
-                      onTuck: { toss, at, size, angle in tuck(toss, from: at, size: size, angle: angle) },
-                      tuckOldest: tuckOldest, playfield: playfield, parking: parking)
-    }
-
-    /// The slot in the grid's own coordinates (y down from the grid's top),
-    /// when it is showing: a drawing lands on it, never over it.
-    private func slotRect(_ pos: (column: Int, row: Int)?, colW: CGFloat, gridH: CGFloat) -> CGRect? {
-        guard let pos, !model.animation.isCascading else { return nil }
-        let f = GridConstants.blockFrame(column: pos.column, row: pos.row, columnSpan: drawingSize.columnSpan,
-                                         rowSpan: drawingSize.rowSpan, cellSize: colW)
-        return CGRect(x: f.minX, y: gridH - f.minY - f.height, width: f.width, height: f.height)
-    }
-
-    /// **Held, a drawing goes into the bubble** (the owner: "can be put back
-    /// in the middle for those that don't want it on their tower"). On this
-    /// phone only, for today; the Draw tab puts it back.
-    private func tuck(_ toss: CrewMessage, from point: CGPoint, size: CGSize, angle: Double) {
-        HapticsEngine.success()
-        tucks.tuck(toss.messageID)
-        guard !reduceMotion, let url = toss.sketch, !parking.bubbleFrame.isEmpty else {
-            tucks.arrived()
-            return
-        }
-        flights.append(TuckFlight(id: toss.messageID, url: url, from: point, size: size, angle: angle))
-    }
-
-    @ViewBuilder
-    private var tuckFlights: some View {
-        if !flights.isEmpty {
-            let to = CGPoint(x: parking.bubbleFrame.midX, y: parking.bubbleFrame.midY)
-            ZStack {
-                ForEach(flights) { flight in
-                    TossTuckFlight(id: flight.id, url: flight.url, from: flight.from, to: to,
-                                   size: flight.size, angle: flight.angle) {
-                        flights.removeAll { $0.id == flight.id }
-                        tucks.arrived()
-                    }
-                }
-            }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-        }
-    }
-
-    /// The count on the bubble: drawings in it, not counting one still on
-    /// its way in.
-    @ViewBuilder
-    private var tuckedBadge: some View {
-        let visible = Set(store.tosses(in: crewID).map(\.messageID))
-        let count = tucks.ids.filter(visible.contains).count - flights.filter { visible.contains($0.id) }.count
-        if count > 0 {
-            TossCountBadge(count: count)
-                .offset(x: 10, y: 6)
-                .phaseAnimator([false, true], trigger: tucks.arrivals) { content, swell in
-                    content.scaleEffect(swell && !reduceMotion ? 1.18 : 1)
-                } animation: { swell in
-                    swell ? GridConstants.tapSquashSpring : GridConstants.elasticPop
-                }
-                .allowsHitTesting(false)
-                .transition(.scale(scale: 0.5).combined(with: .opacity))
-        }
-    }
-
     /// The unread dot: small, in ink, inside the glass circle's corner.
     private static let dotSide: CGFloat = 8
     private static let dotInset: CGFloat = 8
@@ -728,11 +628,6 @@ struct CrewTowerView: View {
     /// fans them out to choose from.
     private func tapBubble() {
         if parking.parked.isEmpty || !store.showsHeads(crewID) {
-            // **The middle opens Draw** (the owner, 2026-10-07: "when you
-            // tap the middle head slot there should be a little doodle
-            // tab"). The crew's details are the switch's other word, and
-            // the name under the bubble still opens them directly.
-            middleTab = .draw
             showsInfo = true
         } else {
             HapticsEngine.tick()
@@ -853,12 +748,6 @@ struct CrewTowerView: View {
             .padding(.horizontal, hPad)
             .padding(.bottom, GridConstants.gapWide)
             .frame(minHeight: viewport, alignment: .bottom)
-            // **Today's drawings, fallen onto the tower** (2026-10-07). Over
-            // the whole scroll content, so one can fall from above the
-            // tower's top and scrolls with the block it lands on.
-            .overlay(alignment: .topLeading) {
-                tossLayer(colW: colW, gridH: gridH, viewport: viewport, slot: slotRect(slot, colW: colW, gridH: gridH))
-            }
         }
         .defaultScrollAnchor(.bottom)
         // A finger choosing a reaction must not scroll the tower under it.

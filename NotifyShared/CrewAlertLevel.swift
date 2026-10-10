@@ -12,7 +12,10 @@ import UserNotifications
 /// names you as being there.
 enum CrewAlertLevel {
     static func apply(to content: UNMutableNotificationContent, kind: CrewPingRecord.Kind, tagsMe: Bool) {
-        if kind == .win && !tagsMe {
+        // A friend's win, someone joining and a milestone are good news
+        // that can wait: quiet, in the list. A reaction, a win you are in
+        // and a line in the chat are said to you: a banner and a sound.
+        if (kind == .win && !tagsMe) || kind == .joined || kind == .milestone {
             content.interruptionLevel = .passive
             content.sound = nil
             content.relevanceScore = 0.2

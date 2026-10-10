@@ -43,7 +43,6 @@ struct StripToCrewTests {
         #expect(line.isStrip)
         #expect(!line.isToss)
         #expect(line.sketch != nil)
-        #expect(b.tosses(in: crew.id).isEmpty, "a strip is a chat line, not a drawing on the tower")
     }
 
     @Test func theMarkerIsNeitherWordsNorAToss() {

@@ -12,6 +12,11 @@ nonisolated struct CrewPingPlan: Codable, Equatable, Sendable {
     var reactionCrews: [String]
     var me: String
     var excluding: [String]
+    /// What this plan listens for. A plan a phone kept from before this
+    /// has no version and no longer reads as a plan, so the phone is told
+    /// this one, which adds the crew's own subscription (`crewID`,
+    /// 2026-10-10).
+    var version = 2
 
     init(winCrews: [String], reactionCrews: [String], me: String, excluding: [String]) {
         self.winCrews = winCrews.sorted()
@@ -23,6 +28,15 @@ nonisolated struct CrewPingPlan: Codable, Equatable, Sendable {
     /// The two subscriptions' ids, fixed so a new plan replaces the old one.
     static let winsID = "pings-wins"
     static let reactionsID = "pings-reactions"
+    /// A crew's chat lines, joins and milestones (`CrewPingRecord.crewKinds`).
+    static let crewID = "pings-crew"
+
+    var crewPredicate: NSPredicate {
+        NSPredicate(format: "%K IN %@ AND %K IN %@ AND NOT (%K IN %@)",
+                    CrewPingRecord.kind, CrewPingRecord.crewKinds.map(\.rawValue),
+                    CrewPingRecord.crew, winCrews,
+                    CrewPingRecord.sender, excluding)
+    }
 
     var winsPredicate: NSPredicate {
         NSPredicate(format: "%K == %@ AND %K IN %@ AND NOT (%K IN %@)",

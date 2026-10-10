@@ -1661,6 +1661,20 @@ final class PublicCrewCloud: CrewCloud {
         return name
     }
 
+    /// A ping only one phone can leave: its name is the same on every
+    /// phone, and the server takes the first. False when another phone was
+    /// first.
+    func pingOnce(_ fields: [String: String], named name: String) async throws -> Bool {
+        let record = CKRecord(recordType: CrewPingRecord.type, recordID: CKRecord.ID(recordName: name))
+        for (key, value) in fields { record[key] = value as NSString }
+        let result = try await database.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged)
+        if case .failure(let error)? = result.saveResults[record.recordID] {
+            if (error as? CKError)?.code == .serverRecordChanged { return false }
+            throw error
+        }
+        return true
+    }
+
     func deletePings(_ names: [String]) async {
         guard !names.isEmpty else { return }
         do {
@@ -1671,7 +1685,7 @@ final class PublicCrewCloud: CrewCloud {
     }
 
     func listen(for plan: CrewPingPlan) async throws {
-        let ids = [CrewPingPlan.winsID, CrewPingPlan.reactionsID]
+        let ids = [CrewPingPlan.winsID, CrewPingPlan.reactionsID, CrewPingPlan.crewID]
         let removed = try await database.modifySubscriptions(saving: [], deleting: ids)
         for (id, result) in removed.deleteResults {
             if case .failure(let error) = result, (error as? CKError)?.code != .unknownItem {
@@ -1686,10 +1700,26 @@ final class PublicCrewCloud: CrewCloud {
             saving.append(Self.subscription(CrewPingPlan.reactionsID, plan.reactionsPredicate,
                                             fallback: CrewPingRecord.fallbackReaction))
         }
+        if !plan.winCrews.isEmpty {
+            saving.append(Self.subscription(CrewPingPlan.crewID, plan.crewPredicate, fallback: CrewPingRecord.fallbackCrew))
+        }
         guard !saving.isEmpty else { return }
-        let saved = try await database.modifySubscriptions(saving: saving, deleting: [])
-        for (_, result) in saved.saveResults {
-            if case .failure(let error) = result { throw error }
+        // **All of them or none** (found by review, 2026-10-10): the caller
+        // takes a failure to mean this phone is not subscribed and lets the
+        // app's own notifications carry on, so one refused while the others
+        // were saved would have told every win twice.
+        func undo() async { _ = try? await database.modifySubscriptions(saving: [], deleting: ids) }
+        do {
+            let saved = try await database.modifySubscriptions(saving: saving, deleting: [])
+            for (_, result) in saved.saveResults {
+                if case .failure(let error) = result {
+                    await undo()
+                    throw error
+                }
+            }
+        } catch {
+            await undo()
+            throw error
         }
     }
 

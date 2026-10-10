@@ -47,7 +47,7 @@ struct CrewStats: Equatable {
     /// unification pass, 2026-10-09: "look what your crew is building, 14
     /// days", never a threat of loss). On a milestone day the line says what
     /// the crew built; after a run has ended it says the best still stands.
-    static let milestones: Set<Int> = [7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365]
+    static let milestones = CrewPingRecord.milestones
 
     static func streakLine(people: Int, waiting: Int, current: Int = 0, best: Int = 0) -> String {
         if milestones.contains(current) { return "Look what your crew is building. \(current) days." }
@@ -87,6 +87,45 @@ struct CrewStats: Equatable {
     }
 
     @MainActor private static var streakMemo: [CrewID: (key: Int, value: Int)] = [:]
+
+    /// The milestone the crew reached TODAY, or nil: today is a kept day
+    /// (half the crew has posted) and the streak it makes is one of
+    /// `milestones`. What the crew is told about, once (`SocialStore
+    /// .pingMilestone`).
+    @MainActor
+    static func milestoneToday(for crew: Crew, store: SocialStore = .shared) -> Int? {
+        let today = CrewDay.string(for: store.now(), in: crew.timeZone)
+        var history = store.history[crew.id] ?? CrewHistory()
+        if let cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) {
+            let wins = store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) }
+            history.record(wins, from: cutoff, rewritingFrom: CrewHistory.rewriteFrom(today, in: crew.timeZone), through: today)
+        }
+        let kept = history.keptDays(members: crew.members, zone: crew.timeZone)
+        guard kept.contains(today) else { return nil }
+        let streak = CrewHistory.streak(kept, today: today, zone: crew.timeZone)
+        guard milestones.contains(streak) else { return nil }
+        // **Only a phone that has seen the whole streak says its number**
+        // (found by review, 2026-10-10). The count is each phone's own: one
+        // that joined last week, or was set up again, holds two weeks at
+        // most, and would have told a crew on day forty that it had reached
+        // seven. So this phone's record must reach back to the crew's first
+        // day, or past the day the streak began. Otherwise it says nothing
+        // and a phone that knows does.
+        let first = crew.members.map(\.joinedAt).min().map { CrewDay.string(for: $0, in: crew.timeZone) } ?? today
+        guard knowsWholeStreak(streak, earliest: history.days.keys.min(), crewBegan: first, today: today,
+                               zone: crew.timeZone) else { return nil }
+        return streak
+    }
+
+    /// Whether a phone whose record of a crew begins on `earliest` can vouch
+    /// for a streak of `streak` days ending `today`: the record reaches the
+    /// crew's first day, or a few days past where the streak began.
+    nonisolated static func knowsWholeStreak(_ streak: Int, earliest: String?, crewBegan: String, today: String,
+                                             zone: TimeZone) -> Bool {
+        guard let earliest else { return false }
+        let before = CrewDay.day(today, offsetBy: -(streak + 3), in: zone) ?? ""
+        return earliest <= crewBegan || earliest <= before
+    }
 
     static func make(_ inputs: Inputs) -> CrewStats {
         var history = inputs.history

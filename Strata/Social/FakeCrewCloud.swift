@@ -68,12 +68,28 @@ final class FakeCrewCloud: CrewCloud {
         return name
     }
 
+    /// As the real one: the name is the same on every phone and the first
+    /// to leave it wins.
+    func pingOnce(_ fields: [String: String], named name: String) async throws -> Bool {
+        try touch()
+        if let pingError { throw pingError }
+        guard world.pings[name] == nil else { return false }
+        world.pings[name] = fields
+        return true
+    }
+
     func deletePings(_ names: [String]) async {
         for name in names { world.pings[name] = nil }
     }
 
+    /// What every `listen` throws while set, and how many were asked.
+    var listenError: Error?
+    private(set) var listenAttempts = 0
+
     func listen(for plan: CrewPingPlan) async throws {
         try touch()
+        listenAttempts += 1
+        if let listenError { throw listenError }
         listening = plan
     }
 

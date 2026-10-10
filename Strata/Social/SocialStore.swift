@@ -738,6 +738,7 @@ final class SocialStore {
             throw error
         }
         await cloud.settle(id)
+        if !wasIn { await pingJoined(id) }
         await refresh()
         await shareMyself()
         if announces { await CrewNotifications.askOnce() }
@@ -1006,6 +1007,7 @@ final class SocialStore {
         record(win, in: chosen.filter { crew($0) != nil })
         nudgeLive()
         await flush()
+        for crewID in chosen { await pingMilestone(crewID) }
     }
 
     /// An edit: every copy changes, in every crew it is in. An edit that
@@ -1149,10 +1151,10 @@ final class SocialStore {
         let people = Set(crew.members.map(\.profileID))
         return (messagesByCrew[crewID] ?? [])
             .filter { message in
-                // A drawing thrown onto the tower is not a line in the chat
-                // (`CrewMessage.isToss`): the tower shows it (`tosses(in:)`),
-                // and so nothing that reads this list (the chat, its dot,
-                // its alerts, a line's reactions) ever meets one.
+                // A drawing an older build threw onto the tower is not a
+                // line in the chat (`CrewMessage.isToss`), so nothing that
+                // reads this list (the chat, its dot, its alerts, a line's
+                // reactions) ever meets one. Nothing shows them any more.
                 !message.isToss
                     && message.crewDay == today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
@@ -1187,7 +1189,7 @@ final class SocialStore {
     /// sent, and the receiving phone checks it again (`checkArrivedPhotos`).
     @discardableResult
     func sendDoodle(_ png: Data, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
-        await sendSketch(png, text: "", in: crewID, quoting: winID, paced: true)
+        await sendSketch(png, text: "", in: crewID, quoting: winID)
     }
 
     /// **Your photo strip in the crew's chat** (`CrewStripShare`): a
@@ -1195,18 +1197,16 @@ final class SocialStore {
     /// midnight like every line.
     @discardableResult
     func sendStrip(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
-        await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil, paced: true)
+        await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil)
     }
 
     /// A doodle with `text` beside it: none for the chat's, the marker for a
-    /// toss. The gate, the photo check and the file are the same for both.
-    /// `paced`: counted against `CrewSendThrottle`. A toss is not: it is
-    /// one a day already.
-    private func sendSketch(_ png: Data, text: String, in crewID: CrewID, quoting winID: UUID?,
-                            paced isPaced: Bool) async -> ReplyOutcome {
+    /// strip. The gate, the photo check and the file are the same for both,
+    /// and both count against `CrewSendThrottle`.
+    private func sendSketch(_ png: Data, text: String, in crewID: CrewID, quoting winID: UUID?) async -> ReplyOutcome {
         guard canReply(), isEnabled(), let crew = crew(crewID), !png.isEmpty else { return .notAllowed }
         if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
-        if isPaced, let held = paced(.message, in: crew) { return held }
+        if let held = paced(.message, in: crew) { return held }
         guard await photoCheck(png) else { return .refusedSketch }
         let id = UUID()
         let url = directory.appending(path: "Photos/\(crewID.rawValue)/message-\(id.uuidString).png")
@@ -1220,45 +1220,6 @@ final class SocialStore {
         keep(message)
         await flush()
         return .sent
-    }
-
-    // MARK: Drawings on the tower
-
-    /// **Today's drawings on a crew's tower**: one a person (`CrewTosses`),
-    /// today's in the crew's zone, from people in the crew, nobody you
-    /// blocked, and a friend's only once this phone's photo check has passed
-    /// it, exactly as a doodle in the chat is. Midnight is the filter: the
-    /// day ends and the list is empty, before anyone has deleted anything.
-    func tosses(in crewID: CrewID) -> [CrewMessage] {
-        guard let crew = crew(crewID) else { return [] }
-        let today = CrewDay.string(for: now(), in: crew.timeZone)
-        let people = Set(crew.members.map(\.profileID))
-        return CrewTosses.oneEach((messagesByCrew[crewID] ?? []).filter { message in
-            message.isToss && message.crewDay == today && people.contains(message.senderProfileID)
-                && !blocked.contains(message.senderProfileID)
-                && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? false)
-        })
-    }
-
-    /// Your drawing on this crew's tower today, if you threw one. Read from
-    /// everything held, not from `tosses(in:)`: one the check has not passed
-    /// on a friend's phone is still yours, and still today's one.
-    func myToss(in crewID: CrewID) -> CrewMessage? {
-        guard let crew = crew(crewID) else { return nil }
-        let today = CrewDay.string(for: now(), in: crew.timeZone)
-        return CrewTosses.oneEach((messagesByCrew[crewID] ?? []).filter {
-            $0.senderProfileID == me && $0.crewDay == today
-        }).first
-    }
-
-    /// **Throws today's drawing onto a crew's tower**: a doodle in the
-    /// crew's chat transport, marked (`CrewMessage.tossMarker`). One a day
-    /// per crew; a second is refused here, before anything is written. The
-    /// same gate as the chat (`canReply`) and the same photo check both ways.
-    @discardableResult
-    func toss(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
-        guard myToss(in: crewID) == nil else { return .notAllowed }
-        return await sendSketch(png, text: CrewMessage.tossMarker, in: crewID, quoting: nil, paced: false)
     }
 
     private func keep(_ message: CrewMessage) {
@@ -1598,6 +1559,24 @@ final class SocialStore {
     /// goes back to asking every 3 seconds (`CrewLivePace`), since an
     /// answer is likeliest just after you did something.
     private(set) var liveNudge = 0
+
+    /// **A push arrived** (`StrataAppDelegate`). The crew on screen reads
+    /// itself at once (its live loop watches `livePush`), which is one small
+    /// request; every crew is read too, but not more than twice a minute
+    /// while one is open, since a busy chat pushes for every line.
+    func pushed() async {
+        guard liveCrew != nil else { return await refresh() }
+        livePush += 1
+        guard now().timeIntervalSince(lastPushRefresh) > 30 else { return }
+        lastPushRefresh = now()
+        await refresh()
+    }
+
+    /// Bumped by a push while a crew is on screen.
+    private(set) var livePush = 0
+    /// The crew on screen, set by its live loop.
+    @ObservationIgnored var liveCrew: CrewID?
+    @ObservationIgnored private var lastPushRefresh = Date.distantPast
     private func nudgeLive() { liveNudge &+= 1 }
 
     @ObservationIgnored private var refreshAgain = false
@@ -2153,6 +2132,15 @@ final class SocialStore {
     /// notifies, and the app's own notifications would only repeat them.
     var pingsLive: Bool { sendsPings && defaults.data(forKey: Self.planKey) != nil }
 
+    /// Whether iCloud is sending this phone the chat's pings too: the plan
+    /// it was last told is this build's, which asks for them
+    /// (`CrewPingPlan.crewID`). Then the app's own chat alert stands down
+    /// (`CrewNotifications.announceMessages`).
+    var chatPingsLive: Bool {
+        sendsPings && defaults.data(forKey: Self.planKey)
+            .flatMap { try? JSONDecoder().decode(CrewPingPlan.self, from: $0) } != nil
+    }
+
     /// Tells iCloud the plan when it has changed since it last heard it. A
     /// timed mute ending is a change too, so every refresh asks.
     func listenForPings() async {
@@ -2160,15 +2148,28 @@ final class SocialStore {
         let plan = pingPlan()
         let told = defaults.data(forKey: Self.planKey).flatMap { try? JSONDecoder().decode(CrewPingPlan.self, from: $0) }
         guard plan != told else { return }
+        // Not again for a while after iCloud said no: every refresh comes
+        // through here, and an open crew refreshes every few seconds.
+        if let failed = lastListenFailure, now().timeIntervalSince(failed) < 600 { return }
         do {
             try await cloud.listen(for: plan)
             defaults.set(try? JSONEncoder().encode(plan), forKey: Self.planKey)
+            lastListenFailure = nil
         } catch {
-            // Before the Ping type is in iCloud, or offline: the app's own
-            // notifications carry on, and the next refresh asks again.
+            // **Then this phone is not subscribed, and says so** (found by
+            // review, 2026-10-10). The old plan used to stay written down:
+            // `listen` takes the subscriptions away before it saves the new
+            // ones, so after a failure there were none, the app still
+            // believed pings were arriving, and its own notifications stayed
+            // off. With the plan forgotten they carry on, and a later
+            // refresh asks again.
+            defaults.removeObject(forKey: Self.planKey)
+            lastListenFailure = now()
             Self.log.notice("ping subscriptions not saved: \(error)")
         }
     }
+
+    @ObservationIgnored private var lastListenFailure: Date?
 
     private func replan() {
         guard sendsPings else { return }
@@ -2178,7 +2179,9 @@ final class SocialStore {
     /// After a win or a reaction reaches the crew: one ping, the first time
     /// only. An edit to a win, or a changed emoji, is not news.
     private func pingIfNew(_ type: CrewRecordType, _ fields: RecordFields, in crewID: CrewID) async {
-        guard sendsPings, let winID = fields["winID"]?.uuid else { return }
+        guard sendsPings else { return }
+        if type == .message { return await pingMessage(fields, in: crewID) }
+        guard let winID = fields["winID"]?.uuid else { return }
         var ping = [CrewPingRecord.crew: CrewPingRecord.tag(crewID.rawValue),
                     CrewPingRecord.sender: CrewPingRecord.tag(me.uuidString),
                     CrewPingRecord.win: winID.uuidString]
@@ -2196,13 +2199,89 @@ final class SocialStore {
             ping[CrewPingRecord.kind] = CrewPingRecord.Kind.reaction.rawValue
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
             key = Self.pingKey(winID: winID, carriesLine: fields["line"]?.string.map { !$0.isEmpty } ?? false)
-        // **The chat leaves no ping.** Its alerts are the app's own, at most
-        // one a crew an hour (`CrewNotifications.announceMessages`, which
-        // for that reason is not gated on `pingsLive`); a ping would need
-        // its own kind and subscription.
+        // The chat's ping is its own (`pingMessage`); a crew's record and a
+        // member's are not news (joining is, and says so itself: `pingJoined`).
         case .crew, .member, .message:
             return
         }
+        await leave(ping, key: key)
+    }
+
+    /// **A line in the crew's chat pings the crew** (2026-10-10, the owner:
+    /// "I think we should lean on push notifications"). It used to leave
+    /// none: the only alert was the app's own, which needs the app to be
+    /// woken, and iOS wakes a closed app when it pleases. A doodle and a
+    /// photo strip are lines; a drawing thrown onto the tower is not.
+    ///
+    /// **One a minute a crew, from this phone**: someone typing four short
+    /// lines is one tap on a friend's shoulder, not four. A strip always
+    /// goes: it is the goal reached, once a day.
+    private func pingMessage(_ fields: RecordFields, in crewID: CrewID) async {
+        guard let id = fields["messageID"]?.uuid, fields["senderProfileID"]?.uuid == me else { return }
+        let text = fields["text"]?.string ?? ""
+        guard text != CrewMessage.tossMarker else { return }
+        guard let made = fields["createdAt"]?.date, now().timeIntervalSince(made) < 3600 else { return }
+        let isStrip = text == CrewMessage.stripMarker
+        if !isStrip, let last = lastMessagePing[crewID], now().timeIntervalSince(last) < Self.messagePingGap { return }
+        lastMessagePing[crewID] = now()
+        await leave([CrewPingRecord.crew: CrewPingRecord.tag(crewID.rawValue),
+                     CrewPingRecord.sender: CrewPingRecord.tag(me.uuidString),
+                     CrewPingRecord.kind: CrewPingRecord.Kind.message.rawValue,
+                     CrewPingRecord.win: id.uuidString], key: "message-\(id.uuidString)")
+    }
+
+    static let messagePingGap: TimeInterval = 60
+    @ObservationIgnored private var lastMessagePing: [CrewID: Date] = [:]
+
+    /// **You joined: the crew is told**, once. Your profile id rides in the
+    /// ping so a friend's phone, which has not met you yet, can read your
+    /// name off your own member record.
+    private func pingJoined(_ crewID: CrewID) async {
+        guard sendsPings else { return }
+        await leave([CrewPingRecord.crew: CrewPingRecord.tag(crewID.rawValue),
+                     CrewPingRecord.sender: CrewPingRecord.tag(me.uuidString),
+                     CrewPingRecord.kind: CrewPingRecord.Kind.joined.rawValue,
+                     CrewPingRecord.win: me.uuidString], key: "joined-\(crewID.rawValue)")
+    }
+
+    /// **A streak milestone: the crew is told, by whoever's win made it**
+    /// (`CrewStats.milestoneToday`). Every phone that posts after it sees
+    /// the same milestone, so the ping goes under a name they would all
+    /// give it, and the server keeps the first (`CrewCloud.pingOnce`).
+    /// Celebrated, never warned about: nothing is ever sent for a day
+    /// missed.
+    private func pingMilestone(_ crewID: CrewID) async {
+        guard sendsPings, let crew = crew(crewID), crew.members.count > 1,
+              let days = CrewStats.milestoneToday(for: crew, store: self) else { return }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        let key = "milestone-\(crewID.rawValue)-\(today)"
+        var done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
+        guard done[key] == nil else { return }
+        let tag = CrewPingRecord.tag(crewID.rawValue)
+        do {
+            let name = "ping-milestone-\(tag)-\(today)"
+            let first = try await cloud.pingOnce([CrewPingRecord.crew: tag,
+                                                  CrewPingRecord.sender: CrewPingRecord.tag(me.uuidString),
+                                                  CrewPingRecord.kind: CrewPingRecord.Kind.milestone.rawValue,
+                                                  CrewPingRecord.win: String(days)],
+                                                 named: name)
+            done[key] = now().timeIntervalSince1970
+            defaults.set(done, forKey: Self.pingedKey)
+            // Deleted later with this phone's other pings, when it was the
+            // one that left it: a ping is news for a day, not a record.
+            if first {
+                var sent = defaults.dictionary(forKey: Self.sentPingsKey) as? [String: Double] ?? [:]
+                sent[name] = now().timeIntervalSince1970
+                defaults.set(sent, forKey: Self.sentPingsKey)
+            }
+        } catch {
+            Self.log.notice("milestone ping not sent: \(error)")
+        }
+    }
+
+    /// One ping, the first time only for its key, kept for another try when
+    /// there was no signal.
+    private func leave(_ ping: [String: String], key: String) async {
         let done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
         guard done[key] == nil, !pendingPings.contains(where: { $0.key == key }) else { return }
         do {
