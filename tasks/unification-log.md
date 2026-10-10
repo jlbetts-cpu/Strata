@@ -474,3 +474,35 @@ repeats on weekdays only, so it failed every Saturday and Sunday with "the
 plan did not open" about a plan that had opened. It presses a plain line
 now. Nothing to do with this pass; found because the suite ran after
 midnight on a Saturday.
+
+### A third read, and a simpler rule (01:40)
+
+The third reviewer found the leave-and-rejoin fixes still had gaps: each
+compared a time kept on one phone with a time written by another, and every
+moment in between (a join still in flight, a clean-up that failed, a phone
+that had not looked yet) let one phone undo the other. Three rounds of
+patches on one mechanism is a sign the mechanism is wrong, so I changed the
+rule instead of patching it again:
+
+**You have left a crew when your note that you left is newer than your
+member record, by the server's own clock, or you have no member record.**
+Joining again writes a new member record, so an old note means nothing on
+any phone, and no phone's clock is involved. A join also marks the notes
+it found as answered, so the seconds before the member record is written
+are safe.
+
+Also from that read:
+
+- **Opening a link at the five-crew cap could empty you out of that crew
+  on your other phone**, and delete the crew if you started it, because
+  "turn this join away" used the same code as "leave". It has its own,
+  which touches nothing.
+- **Taking a crew's picture off could delete the crew for everyone** if
+  the save right after failed (my "delete it first" fix from the round
+  before). The record is fetched and its file blanked instead; nothing is
+  ever deleted first.
+- A join by link no longer fails the first time with "this crew has
+  ended" when a key sync happens to run during it.
+- One evening cue a day is counted, so a crew moment before 7pm is never
+  followed by a second cue at 7.
+- A member record is never written into a crew you have left.

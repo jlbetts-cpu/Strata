@@ -50,6 +50,8 @@ final class PublicCrewCloud: CrewCloud {
     /// The server's change tag of the copy in the cache, so a record read
     /// again unchanged is not opened or downloaded again.
     private static let tagKey = "_tag"
+    /// When the server last took the record: what `CrewLeaving` compares.
+    private static let modKey = "_modAt"
 
     let container: CKContainer
     private var database: CKDatabase { container.publicCloudDatabase }
@@ -142,6 +144,8 @@ final class PublicCrewCloud: CrewCloud {
         UserDefaults.standard.removeObject(forKey: Self.keyedAtKey)
         UserDefaults.standard.removeObject(forKey: Self.leftAtKey)
         UserDefaults.standard.removeObject(forKey: Self.unreadableSinceKey)
+        UserDefaults.standard.removeObject(forKey: Self.answeredKey)
+        joining.removeAll()
         keys.removeAll()
         pendingSave?.cancel()
         try? FileManager.default.removeItem(at: cacheURL)
@@ -225,11 +229,16 @@ final class PublicCrewCloud: CrewCloud {
         for (crew, key) in keys.all { local.keys[crew.rawValue] = key.linkText }
         let merged = CrewKeyBackup.merge(local: local, remote: CrewKeyBackup.parse(plain),
                                          now: Date().timeIntervalSince1970)
+        // **Everything this decides is written before anything else is
+        // awaited** (the third read): the times were written back wholesale
+        // after a delete had been awaited, so a join that finished in that
+        // moment had its time wiped and was forgotten on the next run.
+        var mine: [CKRecord.ID] = []
         for crew in merged.forget {
             // Left on another phone of yours: what this phone wrote there
-            // since goes too, while the cache still says what that is.
+            // since goes too, named while the cache still says what it is.
             let id = CrewID(rawValue: crew)
-            try? await deleteMine(in: id, keepingCrewRecord: true)
+            mine += mineIDs(in: id, keepingCrewRecord: true)
             dropLocally(id)
         }
         for (crew, text) in merged.take {
@@ -237,6 +246,9 @@ final class PublicCrewCloud: CrewCloud {
         }
         UserDefaults.standard.set(merged.out.keyedAt, forKey: Self.keyedAtKey)
         UserDefaults.standard.set(merged.out.left, forKey: Self.leftAtKey)
+        for chunk in stride(from: 0, to: mine.count, by: 200).map({ Array(mine[$0..<min($0 + 200, mine.count)]) }) {
+            _ = try? await database.modifyRecords(saving: [], deleting: chunk)
+        }
         let text = CrewKeyBackup.text(merged.out)
         guard text != plain || !stored.hasPrefix(CrewKeyWrap.prefix) else { return }
         // Nothing to say and nothing there: no record is made for it.
@@ -319,41 +331,65 @@ final class PublicCrewCloud: CrewCloud {
         try await requireAccount()
         guard let (crew, key) = CrewInviteLink.read(invite.url) else { throw CrewError.unknownCrew }
         let had = keys.key(for: crew)
-        if had != nil, cachedCrew(crew) != nil, !isEnded(crew) {
-            _ = try? await sync(crew, full: false)
-            return crew
-        }
-        let sinceBefore = since[crew]
-        keys.set(key, for: crew)
-        /// As it was before the link: the key held, and what had been read.
+        let before = (since: since[crew], keyedAt: times(Self.keyedAtKey)[crew.rawValue],
+                      leftAt: times(Self.leftAtKey)[crew.rawValue])
+        // **Joined now, before anything is awaited** (the third read). The
+        // key went in first and its time after the read, so a key sync that
+        // ran in between saw a key older than the leaving, dropped it, and
+        // the join failed with "this crew has ended" until tapped again.
+        setTime(Date().timeIntervalSince1970, for: crew, in: Self.keyedAtKey)
+        setTime(nil, for: crew, in: Self.leftAtKey)
+        joining.insert(crew)
+        defer { joining.remove(crew) }
+        /// As it was before the link.
         func putBack() {
             if let had {
                 keys.set(had, for: crew)
-                since[crew] = sinceBefore
+                since[crew] = before.since
+                setTime(before.keyedAt, for: crew, in: Self.keyedAtKey)
             } else {
                 dropLocally(crew)
             }
+            setTime(before.leftAt, for: crew, in: Self.leftAtKey)
         }
-        do {
-            try await sync(crew, full: true)
-        } catch {
-            putBack()
-            throw error
+        if had != nil, cachedCrew(crew) != nil, !isEnded(crew) {
+            // Already in it, with a key that works: the link's key is not
+            // needed, and its tap still counts as joining (below).
+            _ = try? await sync(crew, full: false)
+        } else {
+            keys.set(key, for: crew)
+            do {
+                try await sync(crew, full: true)
+            } catch {
+                putBack()
+                throw error
+            }
+            guard cachedCrew(crew) != nil, !isEnded(crew) else {
+                putBack()
+                throw CrewError.unknownCrew
+            }
         }
-        guard let found = cachedCrew(crew), !isEnded(crew) else {
-            putBack()
-            throw CrewError.unknownCrew
-        }
-        setTime(Date().timeIntervalSince1970, for: crew, in: Self.keyedAtKey)
-        setTime(nil, for: crew, in: Self.leftAtKey)
-        // Back in: your own word that you left goes.
-        if let me = meRecordName {
-            let notes = (cache[crew] ?? [:]).filter { $0.key.hasPrefix(Self.leftKind + "/") && $0.value[Self.creatorKey]?.string == me }.keys
-            for key in notes { try? await remove(kind: Self.leftKind, name: String(key.dropFirst(Self.leftKind.count + 1)), in: crew) }
-        }
+        // Every word of yours that you left, in view now, is answered by
+        // this join (`CrewLeaving`), and tidied away when it can be.
+        let notes = myLeftNotes(in: crew).map(\.key)
+        var answered = UserDefaults.standard.dictionary(forKey: Self.answeredKey) as? [String: [String]] ?? [:]
+        answered[crew.rawValue] = notes
+        UserDefaults.standard.set(answered, forKey: Self.answeredKey)
+        for key in notes { try? await remove(kind: Self.leftKind, name: String(key.dropFirst(Self.leftKind.count + 1)), in: crew) }
         Task { await syncKeys() }
-        return found.id
+        return crew
     }
+
+    /// A crew just read and not joined: off this phone, and nothing in the
+    /// crew touched (`CrewCloud.decline`).
+    func decline(_ crew: CrewID) async {
+        dropLocally(crew)
+    }
+
+    /// Crews whose link is being opened right now: not judged left until
+    /// the join has answered the notes it found.
+    private var joining: Set<CrewID> = []
+    private static let answeredKey = "crews.leftNotesAnswered"
 
     func fetchCrews() async throws -> [Crew] {
         try await requireAccount()
@@ -372,8 +408,12 @@ final class PublicCrewCloud: CrewCloud {
         await subscribe(to: mine)
         var crews: [Crew] = []
         for crew in mine {
-            if isEnded(crew) || isRemoved(myProfileID, from: crew) || iLeft(crew) {
+            if isEnded(crew) || isRemoved(myProfileID, from: crew) {
                 await tidyAway(crew)
+                continue
+            }
+            if let leftAt = leftAt(crew) {
+                await tidyAway(crew, leftAt: leftAt)
                 continue
             }
             if let found = cachedCrew(crew) { crews.append(found) }
@@ -451,15 +491,27 @@ final class PublicCrewCloud: CrewCloud {
         cache[crew]?["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"]?[Self.endedKey] != nil
     }
 
-    /// Whether this account left the crew, on any phone, since this phone's
-    /// key was joined (`leftKind`).
-    private func iLeft(_ crew: CrewID) -> Bool {
-        guard let me = meRecordName else { return false }
-        let joined = times(Self.keyedAtKey)[crew.rawValue] ?? 0
-        return (cache[crew] ?? [:]).contains { key, fields in
-            key.hasPrefix(Self.leftKind + "/") && fields[Self.creatorKey]?.string == me
-                && (fields["at"]?.date?.timeIntervalSince1970 ?? 0) > joined
-        }
+    /// Your own notes that you left this crew, as cached.
+    private func myLeftNotes(in crew: CrewID) -> [(key: String, fields: RecordFields)] {
+        guard let me = meRecordName else { return [] }
+        return (cache[crew] ?? [:]).filter { $0.key.hasPrefix(Self.leftKind + "/") && $0.value[Self.creatorKey]?.string == me }
+            .map { ($0.key, $0.value) }
+    }
+
+    /// When this account left the crew, on any phone, or nil when it has
+    /// not (`CrewLeaving`): the newest note's own time, as its writer's
+    /// phone told it, so every phone records the same leaving.
+    private func leftAt(_ crew: CrewID) -> Double? {
+        guard !joining.contains(crew) else { return nil }
+        let notes = myLeftNotes(in: crew)
+        guard !notes.isEmpty else { return nil }
+        let answered = Set((UserDefaults.standard.dictionary(forKey: Self.answeredKey) as? [String: [String]])?[crew.rawValue] ?? [])
+        let mine = cache[crew]?["\(CrewRecordType.member.rawValue)/\(myProfileID.uuidString)"]
+        let member: CrewLeaving.Member = mine == nil ? .none
+            : (mine?[Self.modKey]?.date).map { .at($0) } ?? .justWritten
+        let counted = notes.map { CrewLeaving.Note(name: $0.key, written: $0.fields[Self.modKey]?.date) }
+        guard CrewLeaving.isLeft(notes: counted, answered: answered, member: member) else { return nil }
+        return notes.compactMap { $0.fields["at"]?.date?.timeIntervalSince1970 }.max() ?? Date().timeIntervalSince1970
     }
 
     private func isRemoved(_ profileID: UUID, from crew: CrewID) -> Bool {
@@ -513,6 +565,16 @@ final class PublicCrewCloud: CrewCloud {
             for key in older { try? await remove(kind: Self.editKind, name: String(key.dropFirst(Self.editKind.count + 1)), in: crew) }
             return
         }
+        // **Your member record is never written into a crew you have left**
+        // (the third read). Queued writes go out before a refresh reads the
+        // crew, so a phone that had not yet seen your other phone's leaving
+        // could write you back in, and a member record newer than the note
+        // reads as a rejoin. The crew is read first, and a leaving in it
+        // refuses the write; the refresh that follows tidies up.
+        if type == .member, name == myProfileID.uuidString {
+            _ = try? await sync(crew, full: false)
+            if leftAt(crew) != nil { throw CrewError.unknownCrew }
+        }
         var fields = fields
         if type == .crew { fields[Self.editedAtKey] = .date(Date()) }
         try await write(fields, kind: type.rawValue, name: name, in: crew)
@@ -546,29 +608,27 @@ final class PublicCrewCloud: CrewCloud {
     private func write(_ fields: RecordFields, kind: String, name: String, in crew: CrewID) async throws {
         guard let key = keys.key(for: crew) else { throw CrewError.unknownCrew }
         let recordName = Self.recordName(crew: crew, kind: kind, name: name)
-        let record = CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: recordName))
-        record["crew"] = crew.rawValue as NSString
-        record["kind"] = kind as NSString
         // The cache's bookkeeping (who wrote it, who edited it) is the
         // server's to say, never sealed into the post.
         let posted = fields.filter { $0.key == Self.endedKey || !$0.key.hasPrefix("_") }
         let sealed = try CrewItemBox.seal(posted, key: key, recordName: recordName, folder: directory.appending(path: "Outgoing"))
+        defer { for url in sealed.assets.values { try? FileManager.default.removeItem(at: url) } }
+        // **A file that is going is cleared on the server's own copy** (the
+        // third read). A blank set on a record never fetched may leave the
+        // server's file where it is, and a photo someone took off must not
+        // stay; so when a file is going the record is fetched, and the
+        // blank is a change to it the server cannot miss. Never a delete
+        // first: a save that then failed would have left the crew without
+        // its own record, for everyone, with nothing to bring it back.
+        let id = CKRecord.ID(recordName: recordName)
+        let hadFiles = cache[crew]?["\(kind)/\(name)"]?.values.compactMap(\.asset).count ?? 0
+        var record = CKRecord(recordType: Self.recordType, recordID: id)
+        if hadFiles > sealed.assets.count, let onServer = try? await database.record(for: id) { record = onServer }
+        record["crew"] = crew.rawValue as NSString
+        record["kind"] = kind as NSString
         record["box"] = sealed.box as NSData
-        // **Every slot is set, the unused ones to nothing** (found
-        // 2026-10-10 by review): a save leaves a key it was not given as it
-        // was, so a photo taken off a win stayed on the server, sealed but
-        // there, for everyone with the key.
         for slot in CrewItemBox.slots {
             record[slot] = sealed.assets[slot].map { CKAsset(fileURL: $0) }
-        }
-        defer { for url in sealed.assets.values { try? FileManager.default.removeItem(at: url) } }
-        // **And when a file is going, the record goes first.** Whether a
-        // nil on a record never fetched clears the server's copy cannot be
-        // proven by reading, and a photo someone took off must not stay. A
-        // delete is certain: the record is written again a moment later.
-        let hadFiles = cache[crew]?["\(kind)/\(name)"]?.values.compactMap(\.asset).count ?? 0
-        if hadFiles > sealed.assets.count {
-            _ = try? await database.modifyRecords(saving: [], deleting: [record.recordID])
         }
         let result = try await database.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys)
         if case .failure(let error)? = result.saveResults[record.recordID] { throw error }
@@ -598,10 +658,13 @@ final class PublicCrewCloud: CrewCloud {
 
     /// Leaving: every record of yours in the crew goes, then its key.
     func leave(_ crew: CrewID) async throws {
+        // **The note first, and it has to be written** (the third read):
+        // last and best effort, a note that failed left a leaving your other
+        // phone would quietly undo. A leave that cannot say so fails here,
+        // to be tried again.
+        let me = try await me()
+        try await write(["at": .date(Date())], kind: Self.leftKind, name: "\(me).\(Self.suffix())", in: crew)
         try await deleteMine(in: crew)
-        if let me = try? await me() {
-            try? await write(["at": .date(Date())], kind: Self.leftKind, name: "\(me).\(Self.suffix())", in: crew)
-        }
         forget(crew)
     }
 
@@ -637,20 +700,27 @@ final class PublicCrewCloud: CrewCloud {
 
     /// Every record this phone's iCloud user wrote in a crew.
     private func deleteMine(in crew: CrewID, keepingCrewRecord: Bool = false) async throws {
-        let me = try await me()
+        _ = try await me()
+        let ids = mineIDs(in: crew, keepingCrewRecord: keepingCrewRecord)
+        guard !ids.isEmpty else { return }
+        for chunk in stride(from: 0, to: ids.count, by: 200).map({ Array(ids[$0..<min($0 + 200, ids.count)]) }) {
+            _ = try await database.modifyRecords(saving: [], deleting: chunk)
+        }
+    }
+
+    /// The names of what this account wrote in a crew, from the cache.
+    /// Never its word that it left, which is what keeps it out.
+    private func mineIDs(in crew: CrewID, keepingCrewRecord: Bool) -> [CKRecord.ID] {
+        guard let me = meRecordName else { return [] }
         let mine = (cache[crew] ?? [:]).filter { key, fields in
             fields[Self.creatorKey]?.string == me
                 && !key.hasPrefix(Self.leftKind + "/")
                 && !(keepingCrewRecord && key == "\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)")
         }.keys
-        let ids = mine.compactMap { key -> CKRecord.ID? in
+        return mine.compactMap { key -> CKRecord.ID? in
             guard let slash = key.firstIndex(of: "/") else { return nil }
             return CKRecord.ID(recordName: Self.recordName(crew: crew, kind: String(key[..<slash]),
                                                            name: String(key[key.index(after: slash)...])))
-        }
-        guard !ids.isEmpty else { return }
-        for chunk in stride(from: 0, to: ids.count, by: 200).map({ Array(ids[$0..<min($0 + 200, ids.count)]) }) {
-            _ = try await database.modifyRecords(saving: [], deleting: chunk)
         }
     }
 
@@ -661,16 +731,16 @@ final class PublicCrewCloud: CrewCloud {
     /// review): it carries the mark that says the crew ended, and the
     /// starter's second phone, tidying up, deleted it before every member
     /// had read it. They never saw the end, so their posts stayed.
-    private func tidyAway(_ crew: CrewID) async {
+    private func tidyAway(_ crew: CrewID, leftAt: Double? = nil) async {
         try? await deleteMine(in: crew, keepingCrewRecord: true)
-        forget(crew)
+        forget(crew, at: leftAt)
     }
 
     /// Leaving a crew for good, on every phone of yours: the key goes and
     /// the leaving is written down, so no older copy of the key brings the
     /// crew back (`CrewKeyBackup`).
-    private func forget(_ crew: CrewID) {
-        setTime(Date().timeIntervalSince1970, for: crew, in: Self.leftAtKey)
+    private func forget(_ crew: CrewID, at leftAt: Double? = nil) {
+        setTime(leftAt ?? Date().timeIntervalSince1970, for: crew, in: Self.leftAtKey)
         dropLocally(crew)
         Task { await syncKeys() }
     }
@@ -679,6 +749,9 @@ final class PublicCrewCloud: CrewCloud {
     private func dropLocally(_ crew: CrewID) {
         keys.set(nil, for: crew)
         setTime(nil, for: crew, in: Self.keyedAtKey)
+        var answered = UserDefaults.standard.dictionary(forKey: Self.answeredKey) as? [String: [String]] ?? [:]
+        answered[crew.rawValue] = nil
+        UserDefaults.standard.set(answered, forKey: Self.answeredKey)
         cache[crew] = nil
         since[crew] = nil
         saveCache()
@@ -708,7 +781,9 @@ final class PublicCrewCloud: CrewCloud {
                                             start.addingTimeInterval(-Self.overlap) as NSDate)))
         }
         if full, !known.isEmpty {
-            dropMissing(try await listNames(NSPredicate(format: "crew IN %@", known.map(\.rawValue))), in: known)
+            // Only a listing that saw every row can say what is gone.
+            let listing = try await listNames(NSPredicate(format: "crew IN %@", known.map(\.rawValue)))
+            if listing.complete { dropMissing(listing.seen, in: known) }
         }
     }
 
@@ -733,13 +808,15 @@ final class PublicCrewCloud: CrewCloud {
 
     /// Every record's name a query matches, and nothing else: no box, no
     /// photo is downloaded.
-    private func listNames(_ predicate: NSPredicate) async throws -> [CrewID: Set<String>] {
+    private func listNames(_ predicate: NSPredicate) async throws -> (seen: [CrewID: Set<String>], complete: Bool) {
         let query = CKQuery(recordType: Self.recordType, predicate: predicate)
         let keys = ["crew", "kind"]
         var seen: [CrewID: Set<String>] = [:]
+        var complete = true
         func note(_ results: [(CKRecord.ID, Result<CKRecord, Error>)]) {
             for (id, result) in results {
-                guard let record = try? result.get(), let crew = record["crew"] as? String,
+                guard let record = try? result.get() else { complete = false; continue }
+                guard let crew = record["crew"] as? String,
                       let kind = record["kind"] as? String else { continue }
                 let prefix = "\(crew)~\(kind)~"
                 guard id.recordName.hasPrefix(prefix) else { continue }
@@ -753,7 +830,7 @@ final class PublicCrewCloud: CrewCloud {
                                               resultsLimit: CKQueryOperation.maximumResults)
             note(page.matchResults)
         }
-        return seen
+        return (seen, complete)
     }
 
     @discardableResult
@@ -849,7 +926,13 @@ final class PublicCrewCloud: CrewCloud {
                 guard let (crew, at) = withFiles[id] else { continue }
                 switch result {
                 case .success(let record):
-                    if take(record) != nil { arrived(crew, record.modificationDate) }
+                    // Fetched and not opened (its file could not be kept, a
+                    // full disk): asked for again, like one not fetched.
+                    if take(record) != nil {
+                        arrived(crew, record.modificationDate)
+                    } else {
+                        out.failedFrom[crew] = min(out.failedFrom[crew] ?? .distantFuture, at)
+                    }
                 case .failure(let error):
                     // Deleted between the two reads: nothing to wait for.
                     if (error as? CKError)?.code == .unknownItem { continue }
@@ -891,6 +974,7 @@ final class PublicCrewCloud: CrewCloud {
         // A copy whose writer could not be named is read again next time.
         let unnamed = fields[Self.creatorKey]?.string == CKCurrentUserDefaultName
         if let tag = record.recordChangeTag, !unnamed { fields[Self.tagKey] = .string(tag) }
+        if let at = record.modificationDate { fields[Self.modKey] = .date(at) }
         cache[crew, default: [:]][cacheKey] = fields
         return (crew, cacheKey)
     }

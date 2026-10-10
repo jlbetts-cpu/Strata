@@ -119,6 +119,49 @@ nonisolated enum CrewKeyBackup {
     }
 }
 
+/// **Whether this account has left a crew**, decided from the crew's own
+/// records and the server's own times (the third read, 2026-10-10).
+///
+/// Leaving writes a small sealed note into the crew (`PublicCrewCloud
+/// .leftKind`). The first version compared the note's time with a time kept
+/// on each phone, and every gap between the two (a join still in flight, a
+/// note that could not be removed, a phone that had not looked yet) let one
+/// phone undo what another had just done. This rule needs neither clock nor
+/// phone to agree:
+///
+/// - a note this phone has already **answered** (it joined by a link with
+///   the note in view) never counts again;
+/// - any other note counts when there is **no member record of yours**, or
+///   when the note is **newer than your member record**, both as the server
+///   stamped them. Joining again writes a new member record, so an old note
+///   left lying around by a failed clean-up means nothing, on any phone.
+nonisolated enum CrewLeaving {
+    struct Note: Equatable {
+        var name: String
+        /// When the server took it. Nil for one this phone wrote a moment
+        /// ago: it is in the middle of leaving and decides nothing here.
+        var written: Date?
+    }
+
+    enum Member: Equatable {
+        case none
+        /// Written by this phone and not yet read back: newer than any note.
+        case justWritten
+        case at(Date)
+    }
+
+    static func isLeft(notes: [Note], answered: Set<String>, member: Member) -> Bool {
+        notes.contains { note in
+            guard !answered.contains(note.name), let written = note.written else { return false }
+            switch member {
+            case .none: return true
+            case .justWritten: return false
+            case .at(let joined): return written > joined
+            }
+        }
+    }
+}
+
 /// **The key the backup is sealed with**, kept in the iCloud Keychain so it
 /// reaches your other phones end to end and never sits in CloudKit. Without
 /// iCloud Keychain it stays on this phone, and a second phone joins by the

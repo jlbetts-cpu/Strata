@@ -702,7 +702,12 @@ final class SocialStore {
         let atCap = crews.count >= CrewCaps.crews
         let id = try await cloud.accept(invite)
         if atCap, !crews.contains(where: { $0.id == id }) {
-            try? await cloud.leave(id)
+            // **Turned away, not left** (the third read, 2026-10-10). In the
+            // public database leaving deletes everything this ACCOUNT wrote
+            // in the crew, so a phone at its cap opening a link to a crew
+            // your other phone is in would have emptied you out of it, and
+            // deleted the crew itself if you started it.
+            await cloud.decline(id)
             throw CrewError.tooManyCrews
         }
         let fetched = try await cloud.fetchCrews()
@@ -710,7 +715,7 @@ final class SocialStore {
         // Accepting is where the second check happens: eight people were
         // already in it when the link was opened.
         guard crew.members.filter({ $0.profileID != me }).count < CrewCaps.members else {
-            try? await cloud.leave(id)
+            await cloud.decline(id)
             throw CrewError.crewFull
         }
         let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
@@ -2441,6 +2446,9 @@ final class SocialStore {
     private func forget(_ crewID: CrewID) {
         crews.removeAll { $0.id == crewID }
         UserDefaults.standard.removeObject(forKey: EveningCheckIn.crewEveningKey)
+        // And tonight's cue, if it was worded for this crew: the next win
+        // schedules it again, plainly.
+        if announces { EveningCheckIn.takeBackToday() }
         if let wins = winsByCrew.removeValue(forKey: crewID) {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }

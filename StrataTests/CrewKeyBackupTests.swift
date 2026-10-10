@@ -98,4 +98,37 @@ struct CrewKeyBackupTests {
         #expect(CrewKeyWrap.seal(text, with: nil) == nil, "no key, nothing written in the clear")
         #expect(CrewKeyWrap.open(stored, with: nil) == nil, "sealed by another phone, no key here: unread, not empty")
     }
+
+    // MARK: - Whether you have left (`CrewLeaving`)
+
+    private func at(_ t: Double) -> Date { Date(timeIntervalSince1970: t) }
+
+    @Test("a note with no member record of yours means you left")
+    func leftNoMember() {
+        #expect(CrewLeaving.isLeft(notes: [.init(name: "Left/a", written: at(200))], answered: [], member: .none))
+    }
+
+    @Test("your other phone still shows the old member record: the newer note wins")
+    func leftOlderMember() {
+        #expect(CrewLeaving.isLeft(notes: [.init(name: "Left/a", written: at(200))], answered: [], member: .at(at(100))))
+    }
+
+    @Test("joined again since: an old note left lying about means nothing, on any phone")
+    func rejoinedSince() {
+        #expect(!CrewLeaving.isLeft(notes: [.init(name: "Left/a", written: at(200))], answered: [], member: .at(at(300))))
+        #expect(!CrewLeaving.isLeft(notes: [.init(name: "Left/a", written: at(200))], answered: [], member: .justWritten))
+    }
+
+    @Test("a join answers the notes it found, even before the member record is written")
+    func answered() {
+        let note = CrewLeaving.Note(name: "Left/a", written: at(200))
+        #expect(!CrewLeaving.isLeft(notes: [note], answered: ["Left/a"], member: .none))
+        // A later leaving is a new note, and counts.
+        #expect(CrewLeaving.isLeft(notes: [note, .init(name: "Left/b", written: at(400))], answered: ["Left/a"], member: .at(at(300))))
+    }
+
+    @Test("the note this phone is writing right now decides nothing")
+    func midLeave() {
+        #expect(!CrewLeaving.isLeft(notes: [.init(name: "Left/a", written: nil)], answered: [], member: .none))
+    }
 }

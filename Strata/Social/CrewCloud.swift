@@ -53,6 +53,9 @@ protocol CrewCloud: AnyObject {
     /// Writes a record whole: a key that is absent is cleared.
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws
     func delete(type: CrewRecordType, name: String, in crew: CrewID) async throws
+    /// Turns away from a crew just accepted and not joined (the cap was
+    /// reached, or it was full): nothing of yours in it is touched.
+    func decline(_ crew: CrewID) async
     /// Leaves a crew someone else started.
     func leave(_ crew: CrewID) async throws
     /// Ends a crew you started, for everyone: its zone is deleted.
@@ -103,4 +106,10 @@ nonisolated enum CrewAccount: Equatable, Sendable {
     /// Restricted, busy, offline or not answering: nothing can be said, and
     /// nothing may be thrown away on it.
     case unknown
+}
+
+extension CrewCloud {
+    /// Where accepting is joining (the stand-in cloud), turning away is
+    /// leaving.
+    func decline(_ crew: CrewID) async { try? await leave(crew) }
 }

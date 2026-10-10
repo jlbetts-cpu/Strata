@@ -201,13 +201,24 @@ nonisolated enum EveningCheckIn {
         // 8:25 and nothing put it back.
         // A crew moment that has already passed here (a crew in an earlier
         // zone) leaves the plain seven o'clock, as before crews.
+        //
+        // **One cue a day, counted** (the third read): with that fallback, a
+        // crew moment at half past five that had already fired was followed
+        // by a second cue at seven after a win logged in between. What was
+        // last scheduled for today is remembered; once its time has passed
+        // it has been delivered, and today has had its cue.
+        if let kept = defaults.dictionary(forKey: scheduledKey), kept["day"] as? String == today,
+           let at = kept["at"] as? Double, at <= now.timeIntervalSince1970 { return }
         let crew = crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
                             goal: DailyGoal.stored(on: today, defaults: defaults),
                             evening: crew?.at)
-        else { return }
+        else {
+            defaults.removeObject(forKey: scheduledKey)
+            return
+        }
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
@@ -222,5 +233,18 @@ nonisolated enum EveningCheckIn {
         try? await center.add(UNNotificationRequest(
             identifier: identifier(for: at), content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+        defaults.set(["day": today, "at": at.timeIntervalSince1970] as [String: Any], forKey: scheduledKey)
+    }
+
+    private static let scheduledKey = "eveningCheckIn.scheduled"
+
+    /// Tonight's cue taken back, if it has not come yet: a crew it was
+    /// worded for has been left. The next `update` decides again.
+    static func takeBackToday(now: Date = Date()) {
+        let defaults = UserDefaults.standard
+        if let kept = defaults.dictionary(forKey: scheduledKey), let at = kept["at"] as? Double,
+           at <= now.timeIntervalSince1970 { return }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
+        defaults.removeObject(forKey: scheduledKey)
     }
 }
