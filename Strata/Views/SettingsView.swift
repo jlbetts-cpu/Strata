@@ -1137,6 +1137,8 @@ struct SettingsView: View {
             let granted = try await center.requestAuthorization(options: [.alert, .sound])
             if granted {
                 scheduleReminder()
+                // And tonight's evening cue, which switching off took back.
+                await EveningCheckIn.update(context: modelContext)
             } else {
                 notificationsEnabled = false
                 systemNotificationsDenied = true

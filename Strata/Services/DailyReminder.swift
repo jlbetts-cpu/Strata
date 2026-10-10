@@ -253,6 +253,11 @@ nonisolated enum EveningCheckIn {
     /// Tonight's cue, taken back: reminders were switched off.
     static func removePending(now: Date = Date()) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
-        UserDefaults.standard.removeObject(forKey: scheduledKey)
+        // One that already came stays counted: switched back on today,
+        // there is no second cue.
+        let defaults = UserDefaults.standard
+        if let kept = defaults.dictionary(forKey: scheduledKey), let at = kept["at"] as? Double,
+           at <= now.timeIntervalSince1970 { return }
+        defaults.removeObject(forKey: scheduledKey)
     }
 }

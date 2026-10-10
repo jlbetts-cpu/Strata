@@ -816,9 +816,31 @@ final class PublicCrewCloud: CrewCloud {
     /// review): it carries the mark that says the crew ended, and the
     /// starter's second phone, tidying up, deleted it before every member
     /// had read it. They never saw the end, so their posts stayed.
+    ///
+    /// **Not forgotten while the tidying could still succeed** (the
+    /// regression check): the crew was forgotten whether or not the delete
+    /// went through, and with the key and the cache gone nothing could name
+    /// your posts again, so one dropped connection left them on the server
+    /// for good. No signal or a busy server means try again next refresh.
     private func tidyAway(_ crew: CrewID, leftAt: Double? = nil) async {
-        try? await deleteMine(in: crew, keepingCrewRecord: true)
+        do {
+            try await deleteMine(in: crew, keepingCrewRecord: true)
+        } catch {
+            if Self.mayPass(error) { return }
+        }
         forget(crew, at: leftAt)
+    }
+
+    /// Whether an error is the kind that goes away: no signal, a busy or
+    /// rate-limiting server. Anything else will not be different next time.
+    static func mayPass(_ error: Error) -> Bool {
+        guard let code = (error as? CKError)?.code else { return (error as NSError).domain == NSURLErrorDomain }
+        switch code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy, .serverResponseLost:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Leaving a crew for good, on every phone of yours: the key goes and
@@ -1010,14 +1032,19 @@ final class PublicCrewCloud: CrewCloud {
         for chunk in stride(from: 0, to: ids.count, by: 50).map({ Array(ids[$0..<min($0 + 50, ids.count)]) }) {
             for (id, result) in try await database.records(for: chunk) {
                 guard let (crew, at, row) = withFiles[id] else { continue }
-                /// Its files did not come. Waited for, three times; then the
+                /// Its files did not come. Waited for, for an hour; then the
                 /// record is taken without them, so one picture that will
                 /// never download does not hold "since" back for ever and
                 /// get fetched again on every sync (the fourth read).
+                /// **By the clock, not by a count** (the regression check):
+                /// the open crew syncs every three seconds, so three tries
+                /// were up in ten seconds of poor signal, and a friend's
+                /// photo was given up on for good.
                 func missed() {
                     let name = "\(id.recordName)|\(row.recordChangeTag ?? "")"
-                    fileFailures[name, default: 0] += 1
-                    if fileFailures[name, default: 0] >= Self.fileTries, take(row) != nil {
+                    let first = fileFailures[name] ?? Date()
+                    fileFailures[name] = first
+                    if Date().timeIntervalSince(first) > Self.fileWait, take(row) != nil {
                         Self.log.notice("crew item kept without its files: \(id.recordName, privacy: .public)")
                         fileFailures[name] = nil
                         arrived(crew, at)
@@ -1029,7 +1056,12 @@ final class PublicCrewCloud: CrewCloud {
                 case .success(let record):
                     // Fetched and not opened (its file could not be kept, a
                     // full disk): asked for again, like one not fetched.
-                    if take(record) != nil { arrived(crew, record.modificationDate) } else { missed() }
+                    if take(record) != nil {
+                        fileFailures["\(id.recordName)|\(row.recordChangeTag ?? "")"] = nil
+                        arrived(crew, record.modificationDate)
+                    } else {
+                        missed()
+                    }
                 case .failure(let error):
                     // Deleted between the two reads: nothing to wait for.
                     if (error as? CKError)?.code == .unknownItem { continue }
@@ -1076,9 +1108,9 @@ final class PublicCrewCloud: CrewCloud {
         return (crew, cacheKey)
     }
 
-    /// How often each record's files have failed to arrive, by name and tag.
-    private var fileFailures: [String: Int] = [:]
-    static let fileTries = 3
+    /// When each record's files first failed to arrive, by name and tag.
+    private var fileFailures: [String: Date] = [:]
+    static let fileWait: TimeInterval = 3600
 
     /// When this phone last wrote each record, by "crew|Type/name".
     private var writtenAt: [String: Date] = [:]

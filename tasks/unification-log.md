@@ -537,3 +537,21 @@ wrong crew states, not damage. Its ten findings are fixed:
 
 **Still true, and yours to weigh:** none of this has run against real
 iCloud. Four careful reads are not one real phone.
+
+### The last check before a build (03:00)
+
+A narrow read of only the fourth round's diff: the "safe for ten friends"
+verdict still holds, and four small things, fixed:
+
+- A friend's photo was given up on after three failed tries, which the
+  open crew gets through in ten seconds of poor signal, and was then never
+  fetched again. It waits an hour now.
+- A leave that failed twice in a row forgot the crew anyway and left your
+  posts on the server with nothing able to name them. The crew is kept
+  until the tidying goes through.
+- A refresh running alongside a join could make a full crew look already
+  joined.
+- Reminders off and back on the same day could lose, or repeat, the
+  evening cue.
+
+Full unit and UI suite on this commit: 0 failures.

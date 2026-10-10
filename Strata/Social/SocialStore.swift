@@ -700,8 +700,11 @@ final class SocialStore {
         // link is for is only known once it is accepted, and accepting one
         // you are in changes nothing; a new one is left again at once.
         let atCap = crews.count >= CrewCaps.crews
+        // Asked before the join begins: a refresh running alongside it
+        // lists the crew being joined, and it then looked already joined.
+        let before = Set(crews.map(\.id))
         let id = try await cloud.accept(invite)
-        let wasIn = crews.contains(where: { $0.id == id })
+        let wasIn = before.contains(id)
         if atCap, !wasIn {
             // **Turned away, not left** (the third read, 2026-10-10). In the
             // public database leaving deletes everything this ACCOUNT wrote
