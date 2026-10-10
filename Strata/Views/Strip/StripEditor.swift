@@ -36,8 +36,7 @@ struct StripEditor: View {
     /// canvas holds anything the file does not, so a resize never reloads
     /// over it.
     @State private var inkLayout: StripAnchors?
-    @State private var parked = (drawing: PKDrawing(), stickers: [InkSticker]())
-    @State private var parkedLayout = StripAnchors(frames: [:], footTop: 0)
+    @State private var parked: [String: StripDecorPlacement.Parked] = [:]
     @State private var moved = false
     private var touched: Bool { ink.canUndo || moved }
 
@@ -89,12 +88,10 @@ struct StripEditor: View {
                     let k = canvas.width > 0 ? StripDecor.canvasWidth / canvas.width : 1
                     // With the marks on photos taken off, where they were,
                     // and where those photos were, so they come back.
-                    var drawing = ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k))
-                    drawing.append(parked.drawing)
-                    StripDecor.save(drawing,
-                                    stickers: ink.stickers.map { $0.scaled(by: k) } + parked.stickers,
+                    StripDecor.save(ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
+                                    stickers: ink.stickers.map { $0.scaled(by: k) },
                                     canvas: CGSize(width: canvas.width * k, height: canvas.height * k),
-                                    anchors: StripAnchors.of(frames).merging(parkedLayout),
+                                    anchors: StripAnchors.of(frames), parked: parked,
                                     owner: strip.owner, day: strip.day)
                     if let draft { excluded = draft }
                     dismiss()
@@ -189,42 +186,49 @@ struct StripEditor: View {
     /// The kept drawing onto the canvas, each mark on its photo as the strip
     /// stands now. Only while nothing here is unsaved.
     private func reload() {
-        guard !touched, canvas.width > 0,
-              let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
+        guard !touched, canvas.width > 0 else { return }
         let now = StripAnchors.of(frames)
+        // **Noted even with nothing kept yet** (found 2026-10-10 by review):
+        // on a strip's first doodles there was no layout to move them from,
+        // so taking a photo off left them where they were and saved them
+        // against the new layout, on the wrong photo.
+        inkLayout = now
+        guard let kept = StripDecor.load(owner: strip.owner, day: strip.day), kept.canvas.width > 0 else { return }
         // `canvasWidth` points first: the anchors are kept at that width.
         let toKept = StripDecor.canvasWidth / kept.canvas.width
         var drawing = kept.drawing.transformed(using: CGAffineTransform(scaleX: toKept, y: toKept))
         var stickers = kept.stickers.map { $0.scaled(by: toKept) }
+        var waiting = kept.parked
         if let then = kept.anchors {
             let move = StripDecorPlacement.move(drawing, stickers: stickers, from: then, to: now)
             drawing = move.drawing
             stickers = move.stickers
-            parked = (move.parkedDrawing, move.parkedStickers)
-            parkedLayout = then
+            waiting.merge(move.parked) { old, _ in old }
         }
-        inkLayout = now
-        show(drawing, stickers: stickers)
+        let back = StripDecorPlacement.restore(waiting, to: now)
+        drawing.append(back.drawing)
+        parked = back.parked
+        show(drawing, stickers: stickers + back.stickers)
     }
 
     /// A photo taken off or put back: what is drawn on the canvas goes with
     /// its photo, and what was parked comes back with one returning.
     private func follow() {
         let now = StripAnchors.of(frames)
-        guard touched, let then = inkLayout, !then.matches(now), canvas.width > 0 else {
+        guard touched, canvas.width > 0, let then = inkLayout else {
             reload()
             return
         }
+        guard !then.matches(now) else { return }
         let k = StripDecor.canvasWidth / canvas.width
         let live = StripDecorPlacement.move(ink.drawing.transformed(using: CGAffineTransform(scaleX: k, y: k)),
                                             stickers: ink.stickers.map { $0.scaled(by: k) }, from: then, to: now)
-        let back = StripDecorPlacement.move(parked.drawing, stickers: parked.stickers, from: parkedLayout, to: now)
+        let back = StripDecorPlacement.restore(parked, to: now)
         var drawing = live.drawing
         drawing.append(back.drawing)
-        var stillParked = live.parkedDrawing
-        stillParked.append(back.parkedDrawing)
-        parkedLayout = then.merging(parkedLayout)
-        parked = (stillParked, live.parkedStickers + back.parkedStickers)
+        // A photo is on the strip or off it, never both, so the two sets of
+        // parked marks never share a photo.
+        parked = back.parked.merging(live.parked) { _, new in new }
         inkLayout = now
         moved = true
         show(drawing, stickers: live.stickers + back.stickers)

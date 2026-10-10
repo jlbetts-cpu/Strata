@@ -51,11 +51,36 @@ struct StripDecorPlacementTests {
         let onA = sticker(at: centre(try #require(all.rect(a.uuidString))))
         let onB = sticker(at: centre(try #require(all.rect(b.uuidString))))
         let off = StripDecorPlacement.move(PKDrawing(), stickers: [onA, onB], from: all, to: without)
-        #expect(off.parkedStickers.map(\.id) == [onA.id])
+        #expect(off.parked[a.uuidString]?.stickers.map(\.id) == [onA.id])
         let newB = try #require(without.rect(b.uuidString))
         #expect(abs((off.stickers.first?.y ?? 0) - newB.midY) < 0.5, "B moved up into A's place, its sticker too")
-        let back = StripDecorPlacement.move(PKDrawing(), stickers: off.parkedStickers, from: all, to: all)
+        let back = StripDecorPlacement.restore(off.parked, to: all)
         #expect(back.stickers.map(\.id) == [onA.id])
+        #expect(back.parked.isEmpty)
+        let oldA = try #require(all.rect(a.uuidString))
+        #expect(abs((back.stickers.first?.y ?? 0) - oldA.midY) < 0.5, "back where it was drawn")
+    }
+
+    /// The review's case (2026-10-10): A, B, C with a doodle on C; B comes
+    /// off and C moves up into B's place. Kept in one pile and matched back
+    /// by position, C's doodle could be taken for B's and vanish. Parked by
+    /// photo, it cannot: after the removal is saved and read again, the
+    /// doodle is still on C, wherever B's id sorts.
+    @Test("a neighbour's doodle is never mistaken for the removed photo's")
+    func neighbourKeepsItsDoodle() throws {
+        for _ in 0..<20 {
+            let a = UUID(), b = UUID(), c = UUID()
+            let all = StripAnchors.of([(a, .medium), (b, .medium), (c, .medium)])
+            let without = StripAnchors.of([(a, .medium), (c, .medium)])
+            let onC = sticker(at: centre(try #require(all.rect(c.uuidString))))
+            let off = StripDecorPlacement.move(PKDrawing(), stickers: [onC], from: all, to: without)
+            #expect(off.parked.isEmpty)
+            // Saved against `without`, opened again against `without`.
+            let again = StripDecorPlacement.move(PKDrawing(), stickers: off.stickers, from: without, to: without)
+            let newC = try #require(without.rect(c.uuidString))
+            #expect(again.parked.isEmpty)
+            #expect(abs((again.stickers.first?.y ?? 0) - newC.midY) < 0.5)
+        }
     }
 
     @Test("a mark on the foot moves with the foot; one on the paper above stays")

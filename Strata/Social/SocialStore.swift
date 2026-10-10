@@ -947,17 +947,12 @@ final class SocialStore {
         try await cloud.removeParticipant(profileID, from: crewID)
         crew.members.removeAll { $0.profileID == profileID }
         replace(crew)
-        // Their wins and reactions leave with them, from the crew's own
-        // zone: the owner may delete anything in it.
-        for win in winsByCrew[crewID] ?? [] where win.senderProfileID == profileID {
-            enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: win), fields: nil))
-        }
-        for reaction in reactionsByCrew[crewID] ?? [] where reaction.profileID == profileID {
-            enqueue(.init(crew: crewID, type: .reaction, name: reaction.id, fields: nil))
-        }
-        for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == profileID {
-            enqueue(.init(crew: crewID, type: .message, name: CrewRecords.name(of: message), fields: nil))
-        }
+        // Their wins and reactions leave this phone now and every phone's
+        // view at the removal (`PublicCrewCloud.keep`). **Their records are
+        // theirs to delete** (2026-10-10): in the public database only a
+        // record's writer may, so the deletes this queued were each refused
+        // by the server and retried until given up on. Their own phone
+        // deletes them when it reads the removal (`tidyAway`).
         winsByCrew[crewID]?.removeAll { $0.senderProfileID == profileID }
         reactionsByCrew[crewID]?.removeAll { $0.profileID == profileID }
         messagesByCrew[crewID]?.removeAll { $0.senderProfileID == profileID }

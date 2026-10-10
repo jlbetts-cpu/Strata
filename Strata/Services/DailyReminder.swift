@@ -142,9 +142,10 @@ nonisolated enum EveningCheckIn {
     /// When today's should come, or nil for none.
     static func when(winsToday: Int, firstWin: Date?, now: Date, morningHour: Int, morningMinute: Int,
                      cueSeenToday: Bool, goal: Int = WinCue.elseUpTo + 1,
+                     evening target: Date? = nil,
                      calendar: Calendar = .current) -> Date? {
         guard winsToday >= 1, winsToday < goal, !cueSeenToday, let firstWin,
-              let evening = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), evening > now,
+              let evening = target ?? calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), evening > now,
               let morning = calendar.date(bySettingHour: morningHour, minute: morningMinute, second: 0, of: now)
         else { return nil }
         // The morning reminder fired if the day was still empty at its time.
@@ -153,6 +154,31 @@ nonisolated enum EveningCheckIn {
     }
 
     static func identifier(for date: Date) -> String { prefix + DateUtils.dateString(from: date) }
+
+    private static let crewEveningKey = "eveningCheckIn.crew"
+
+    /// **In a crew, the evening is the crew's** (`CrewEvening`): the same
+    /// moment on every phone in it, the crew livest lately first, with its
+    /// line. Remembered for the day, because this also runs where the crews
+    /// are not loaded (a win logged from the widget or the reminder).
+    @MainActor
+    private static func crewEvening(now: Date, today: String, defaults: UserDefaults) -> (at: Date, line: String)? {
+        let store = SocialStore.shared
+        let crews = store.crews.filter { $0.members.count > 1 }
+            .sorted { (store.latest(in: $0.id)?.createdAt ?? .distantPast) > (store.latest(in: $1.id)?.createdAt ?? .distantPast) }
+        if let crew = crews.first {
+            guard let at = CrewEvening.time(crew: crew.id.rawValue, zone: crew.timeZone, now: now) else {
+                defaults.removeObject(forKey: crewEveningKey)
+                return nil
+            }
+            let line = CrewEvening.line(crewName: crew.displayName(excluding: store.me))
+            defaults.set(["day": today, "at": at.timeIntervalSince1970, "line": line] as [String: Any], forKey: crewEveningKey)
+            return (at, line)
+        }
+        guard let kept = defaults.dictionary(forKey: crewEveningKey), kept["day"] as? String == today,
+              let at = kept["at"] as? Double, let line = kept["line"] as? String else { return nil }
+        return (Date(timeIntervalSince1970: at), line)
+    }
 
     /// Today's decided again, from the store: after a win, and when the cue
     /// has been seen on the tower.
@@ -167,10 +193,16 @@ nonisolated enum EveningCheckIn {
             predicate: #Predicate { $0.dateString == today && $0.completed }))) ?? []
         let hour = defaults.object(forKey: "reminderHour") as? Int ?? 8
         let minute = defaults.object(forKey: "reminderMinute") as? Int ?? 0
-        guard var at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
+        // **The crew's moment is the evening, decided first** (found
+        // 2026-10-10 by review). It was applied after `when` had already
+        // judged 7pm, so a win logged at ten past seven took back the crew's
+        // 8:25 and nothing put it back.
+        let crew = crewEvening(now: now, today: today, defaults: defaults)
+        guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,
-                            goal: DailyGoal.stored(on: today, defaults: defaults))
+                            goal: DailyGoal.stored(on: today, defaults: defaults),
+                            evening: crew?.at)
         else { return }
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
@@ -178,16 +210,7 @@ nonisolated enum EveningCheckIn {
         // Today's goal, as you set it.
         let goal = DailyGoal.stored(on: today, defaults: defaults)
         content.title = logs.count == goal - 1 ? WinCue.oneMore : title
-        // **In a crew, it is the crew's evening** (`CrewEvening`): the same
-        // moment on every phone in it, the crew livest lately first.
-        let store = SocialStore.shared
-        let crews = store.crews.filter { $0.members.count > 1 }
-            .sorted { (store.latest(in: $0.id)?.createdAt ?? .distantPast) > (store.latest(in: $1.id)?.createdAt ?? .distantPast) }
-        if let crew = crews.first, let synced = CrewEvening.time(crew: crew.id.rawValue, zone: crew.timeZone, now: now),
-           synced > now {
-            at = synced
-            content.body = CrewEvening.line(crewName: crew.displayName(excluding: store.me))
-        }
+        if let crew { content.body = crew.line }
         content.sound = .default
         content.threadIdentifier = NotificationRoute.Thread.daily
         content.categoryIdentifier = DailyReminder.category

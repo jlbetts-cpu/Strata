@@ -153,6 +153,14 @@ enum StripDecor {
         var stickers: [InkSticker]
         /// Nil on a drawing saved before marks followed their photos.
         var anchors: StripAnchors?
+        /// Marks on photos that are off the strip, by photo.
+        var parked: [String: KeptParked]?
+    }
+
+    private struct KeptParked: Codable {
+        var strokes: Data
+        var stickers: [InkSticker]
+        var rect: [Double]
     }
 
     /// A drawing as kept, in `canvasWidth` points.
@@ -161,64 +169,102 @@ enum StripDecor {
         var canvas: CGSize
         var stickers: [InkSticker]
         var anchors: StripAnchors?
+        var parked: [String: StripDecorPlacement.Parked] = [:]
     }
 
     private static func base(_ owner: PhotoStrip.Owner, _ day: String) -> String { "strip-\(owner.key)-\(day)" }
 
     static func save(_ drawing: PKDrawing, stickers: [InkSticker], canvas: CGSize, anchors: StripAnchors?,
+                     parked: [String: StripDecorPlacement.Parked] = [:],
                      owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared) {
         let name = base(owner, day)
-        guard !drawing.strokes.isEmpty || !stickers.isEmpty,
-              let png = InkExport.png(of: drawing, stickers: stickers, in: CGRect(origin: .zero, size: canvas), scale: 3),
-              let kept = try? JSONEncoder().encode(Kept(strokes: drawing.dataRepresentation(),
-                                                         width: canvas.width, height: canvas.height,
-                                                         stickers: stickers, anchors: anchors))
-        else {
+        defer { forgetPictures() }
+        let shown = !drawing.strokes.isEmpty || !stickers.isEmpty
+        let held = parked.filter { !$0.value.drawing.strokes.isEmpty || !$0.value.stickers.isEmpty }
+        guard shown || !held.isEmpty else {
             files.remove(name + ".png"); files.remove(name + ".drawing")
-            cache.removeAllObjects()
             return
         }
-        _ = try? files.write(png, named: name + ".png")
+        let keptParked = held.mapValues {
+            KeptParked(strokes: $0.drawing.dataRepresentation(), stickers: $0.stickers,
+                       rect: [$0.rect.minX, $0.rect.minY, $0.rect.width, $0.rect.height].map(Double.init))
+        }
+        guard let kept = try? JSONEncoder().encode(Kept(strokes: drawing.dataRepresentation(),
+                                                         width: canvas.width, height: canvas.height,
+                                                         stickers: stickers, anchors: anchors,
+                                                         parked: keptParked.isEmpty ? nil : keptParked)) else { return }
+        // The picture is what is ON the strip: marks parked with a photo
+        // that is off it are kept, never drawn.
+        if shown, let png = InkExport.png(of: drawing, stickers: stickers, in: CGRect(origin: .zero, size: canvas), scale: 3) {
+            _ = try? files.write(png, named: name + ".png")
+        } else {
+            files.remove(name + ".png")
+        }
         _ = try? files.write(kept, named: name + ".drawing")
-        cache.removeAllObjects()
     }
 
     static func load(owner: PhotoStrip.Owner, day: String, files: InkFiles = .shared) -> Loaded? {
         guard let data = files.read(base(owner, day) + ".drawing"),
               let kept = try? JSONDecoder().decode(Kept.self, from: data),
               let drawing = try? PKDrawing(data: kept.strokes) else { return nil }
+        var parked: [String: StripDecorPlacement.Parked] = [:]
+        for (id, group) in kept.parked ?? [:] where group.rect.count == 4 {
+            parked[id] = StripDecorPlacement.Parked(
+                drawing: (try? PKDrawing(data: group.strokes)) ?? PKDrawing(), stickers: group.stickers,
+                rect: CGRect(x: group.rect[0], y: group.rect[1], width: group.rect[2], height: group.rect[3]))
+        }
         return Loaded(drawing: drawing, canvas: CGSize(width: kept.width, height: kept.height),
-                      stickers: kept.stickers, anchors: kept.anchors)
+                      stickers: kept.stickers, anchors: kept.anchors, parked: parked)
     }
 
     /// The decoration over `frames` as they are now. The saved picture when
     /// nothing under it has moved; drawn again, each mark on its own photo,
     /// when something has.
+    ///
+    /// **The cache is asked first** (2026-10-10): this is called from view
+    /// bodies, once per strip per redraw, and it read and decoded the
+    /// drawing's file every time before looking.
     static func picture(owner: PhotoStrip.Owner, day: String, frames: [PhotoStrip.Frame],
                         files: InkFiles = .shared) -> InkPicture? {
         let name = base(owner, day)
         let now = StripAnchors.of(frames)
-        guard let kept = load(owner: owner, day: day, files: files) else { return nil }
-        guard let then = kept.anchors, !then.matches(now) else { return saved(name, files: files) }
-        let key = "\(name)|\(now.frames.keys.sorted().joined(separator: ","))|\(Int(now.footTop))" as NSString
-        if let hit = cache.object(forKey: key) { return hit }
-        let moved = StripDecorPlacement.move(kept.drawing, stickers: kept.stickers, from: then, to: now)
-        let canvas = CGSize(width: kept.canvas.width, height: max(1, kept.canvas.height + now.footTop - then.footTop))
-        guard let png = InkExport.png(of: moved.drawing, stickers: moved.stickers,
-                                      in: CGRect(origin: .zero, size: canvas), scale: 3),
-              let picture = InkLayers.decode(png, scale: 1) else { return nil }
-        cache.setObject(picture, forKey: key)
+        let key = "\(files.directory.path)|\(name)|\(now.signature)"
+        if let hit = cache.object(forKey: key as NSString) { return hit }
+        if misses.contains(key) { return nil }
+        guard let picture = drawn(name, owner: owner, day: day, now: now, files: files) else {
+            misses.insert(key)
+            return nil
+        }
+        cache.setObject(picture, forKey: key as NSString)
         return picture
     }
 
-    private static func saved(_ name: String, files: InkFiles) -> InkPicture? {
-        if let hit = cache.object(forKey: name as NSString) { return hit }
-        guard let data = files.read(name + ".png"), let picture = InkLayers.decode(data, scale: 1) else { return nil }
-        cache.setObject(picture, forKey: name as NSString)
-        return picture
+    private static func drawn(_ name: String, owner: PhotoStrip.Owner, day: String, now: StripAnchors,
+                              files: InkFiles) -> InkPicture? {
+        guard let kept = load(owner: owner, day: day, files: files) else { return nil }
+        let returning = kept.parked.keys.contains { now.rect($0) != nil }
+        guard let then = kept.anchors, !then.matches(now) || returning else {
+            return files.read(name + ".png").flatMap { InkLayers.decode($0, scale: 1) }
+        }
+        let moved = StripDecorPlacement.move(kept.drawing, stickers: kept.stickers, from: then, to: now)
+        let back = StripDecorPlacement.restore(kept.parked, to: now)
+        var drawing = moved.drawing
+        drawing.append(back.drawing)
+        let stickers = moved.stickers + back.stickers
+        guard !drawing.strokes.isEmpty || !stickers.isEmpty else { return nil }
+        let canvas = CGSize(width: kept.canvas.width, height: max(1, kept.canvas.height + now.footTop - then.footTop))
+        return InkExport.png(of: drawing, stickers: stickers, in: CGRect(origin: .zero, size: canvas), scale: 3)
+            .flatMap { InkLayers.decode($0, scale: 1) }
+    }
+
+    private static func forgetPictures() {
+        cache.removeAllObjects()
+        misses.removeAll()
     }
 
     private static let cache = NSCache<NSString, InkPicture>()
+    /// Strips asked for that have no decoration, so they are not read again.
+    private static var misses: Set<String> = []
 }
 
 /// **How tight the strip is printed** (the owner, 2026-10-07: "the photos

@@ -63,6 +63,29 @@ final class CrewStripActivity: UIActivity {
             }
             sent(outcome == .sent)
             self.activityDidFinish(outcome == .sent)
+            // **A strip that did not go says so** (found 2026-10-10 by
+            // review): the sheet closed the same way either way, and a
+            // strip held back by the pace or the photo check simply never
+            // arrived.
+            if outcome != .sent {
+                HapticsEngine.warning()
+                let alert = UIAlertController(title: Self.words(for: outcome), message: nil, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                try? await Task.sleep(for: .milliseconds(450))
+                CrewSharing.present(alert)
+            }
+        }
+    }
+
+    /// Why a strip did not reach the crew, in the chat's own words
+    /// (`CrewChatSheet`: "That sticker stays with you").
+    static func words(for outcome: SocialStore.ReplyOutcome) -> String {
+        switch outcome {
+        case .sent: ""
+        case .refusedSketch: "That strip stays with you"
+        case .dailyLimit: "The chat takes more from you when the crew's day starts again."
+        case .throttled: "Give it a second, then send it again."
+        case .notAllowed, .refusedWords: "The strip didn't send. Try again."
         }
     }
 

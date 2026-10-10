@@ -58,6 +58,8 @@ final class LocationService: NSObject {
     /// promised).
     private var holders: Set<String> = []
     private var isRunning: Bool { !holders.isEmpty }
+    /// When the updates now running began, or nil when none are.
+    private var runningSince: Date?
 
     override init() {
         super.init()
@@ -96,7 +98,10 @@ final class LocationService: NSObject {
         let wasRunning = isRunning
         holders.insert(holder)
         tuneAccuracy()
-        if !wasRunning { manager.startUpdatingLocation() }
+        if !wasRunning {
+            runningSince = Date()
+            manager.startUpdatingLocation()
+        }
     }
 
     /// **Ten metres while the camera holds it, a hundred otherwise**
@@ -116,7 +121,12 @@ final class LocationService: NSObject {
         // particular; the first holder to leave releases it, as a stop always
         // did.
         holders.remove(Self.grantedHolder)
-        if !isRunning { manager.stopUpdatingLocation() } else { tuneAccuracy() }
+        if !isRunning {
+            runningSince = nil
+            manager.stopUpdatingLocation()
+        } else {
+            tuneAccuracy()
+        }
     }
 
     private static let grantedHolder = "granted"
@@ -137,10 +147,26 @@ final class LocationService: NSObject {
     /// nothing.
     func fix(maxAge: TimeInterval = 120, maxAccuracy: CLLocationDistance = 200) -> CLLocation? {
         guard let latest else { return nil }
-        guard -latest.timestamp.timeIntervalSinceNow <= maxAge else { return nil }
+        guard Self.isCurrent(measured: latest.timestamp, now: Date(), maxAge: maxAge, runningSince: runningSince)
+        else { return nil }
         guard latest.horizontalAccuracy > 0,
               latest.horizontalAccuracy <= maxAccuracy else { return nil }
         return latest
+    }
+
+    /// Whether a fix still says where the phone is.
+    ///
+    /// **A fix measured while updates have been running is current however
+    /// old it is** (found 2026-10-10 by review). Updates only arrive after
+    /// ten metres of movement (`distanceFilter`), so a phone standing still
+    /// gets one fix and no more: with the camera's 30 second limit, framing
+    /// a shot for half a minute without walking left the photo with no place
+    /// at all. No newer fix while running means it has not moved. A fix from
+    /// before the updates began (the system's cached one, handed over at the
+    /// start) is still judged by its age.
+    nonisolated static func isCurrent(measured: Date, now: Date, maxAge: TimeInterval, runningSince: Date?) -> Bool {
+        if let runningSince, measured >= runningSince { return true }
+        return now.timeIntervalSince(measured) <= maxAge
     }
 
     /// The same fix as a `WinPlace`, which is what everything downstream

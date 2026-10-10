@@ -62,6 +62,12 @@ struct StripAnchors: Codable, Equatable {
         return StripAnchors(frames: rects, footTop: Double(y))
     }
 
+    /// The layout as one line, for a cache's key.
+    var signature: String {
+        frames.keys.sorted().map { "\($0):\((frames[$0] ?? []).map { String(Int($0.rounded())) }.joined(separator: ","))" }
+            .joined(separator: ";") + "|\(Int(footTop.rounded()))"
+    }
+
     /// The same layout to within a hair, so a strip that has not changed
     /// draws the picture already saved rather than drawing it again.
     func matches(_ other: StripAnchors) -> Bool {
@@ -70,11 +76,6 @@ struct StripAnchors: Codable, Equatable {
             guard let o = other.frames[key] else { return false }
             return zip(r, o).allSatisfy { abs($0 - $1) < 0.5 }
         }
-    }
-
-    /// `other`'s frames added to these, where these have none of their own.
-    func merging(_ other: StripAnchors) -> StripAnchors {
-        StripAnchors(frames: frames.merging(other.frames) { mine, _ in mine }, footTop: footTop)
     }
 }
 
@@ -103,65 +104,102 @@ enum StripDecorPlacement {
         return point.y >= layout.footTop ? .foot : .paper
     }
 
-    /// How a mark on `anchor` moves from `old` to `new`, or nil when its photo
-    /// is not on the new strip.
-    static func transform(for anchor: Anchor, from old: StripAnchors, to new: StripAnchors) -> CGAffineTransform? {
-        switch anchor {
-        case .paper:
-            return .identity
-        case .foot:
-            return CGAffineTransform(translationX: 0, y: new.footTop - old.footTop)
-        case .frame(let id):
-            guard let o = old.rect(id), let n = new.rect(id), o.width > 0, o.height > 0 else { return nil }
-            // By the centre, at the scale that keeps it inside the new frame:
-            // a Quick that goes from a full row to half a pair keeps its
-            // doodle on the same part of the picture, smaller.
-            let s = min(n.width / o.width, n.height / o.height)
-            return CGAffineTransform(translationX: -o.midX, y: -o.midY)
-                .concatenating(CGAffineTransform(scaleX: s, y: s))
-                .concatenating(CGAffineTransform(translationX: n.midX, y: n.midY))
-        }
+    /// A mark carried from one rectangle of a photo to another: by the
+    /// centre, at the scale that keeps it inside the new one. A Quick that
+    /// goes from a full row to half a pair keeps its doodle on the same part
+    /// of the picture, smaller.
+    static func carry(from o: CGRect, to n: CGRect) -> CGAffineTransform? {
+        guard o.width > 0, o.height > 0 else { return nil }
+        let s = min(n.width / o.width, n.height / o.height)
+        return CGAffineTransform(translationX: -o.midX, y: -o.midY)
+            .concatenating(CGAffineTransform(scaleX: s, y: s))
+            .concatenating(CGAffineTransform(translationX: n.midX, y: n.midY))
+    }
+
+    /// The marks of one photo that is off the strip, where they were, and
+    /// where the photo was. **Kept by the photo's own id** (found 2026-10-10
+    /// by review): they were kept in one pile and matched back to a photo by
+    /// position, and a photo taken off leaves its old rectangle lying over
+    /// whichever photo moved up into its place, so a neighbour's doodle
+    /// could be taken for the removed photo's and vanish with it.
+    struct Parked {
+        var drawing = PKDrawing()
+        var stickers: [InkSticker] = []
+        var rect: CGRect
     }
 
     struct Moved {
         var drawing: PKDrawing
         var stickers: [InkSticker]
-        /// Marks on photos no longer on the strip, where they were, so they
-        /// come back with their photo.
-        var parkedDrawing: PKDrawing
-        var parkedStickers: [InkSticker]
+        /// Marks on photos that are not on the new strip, by photo.
+        var parked: [String: Parked]
     }
 
     /// Everything from `old` to `new`, in `StripDecor.canvasWidth` points.
     static func move(_ drawing: PKDrawing, stickers: [InkSticker],
                      from old: StripAnchors, to new: StripAnchors) -> Moved {
-        var kept: [PKStroke] = [], parked: [PKStroke] = []
+        var kept: [PKStroke] = [], keptStickers: [InkSticker] = []
+        var parked: [String: Parked] = [:]
+        /// The transform for a mark at `point`, or the photo it is parked with.
+        func place(_ point: CGPoint) -> (CGAffineTransform?, String?) {
+            switch anchor(of: point, in: old) {
+            case .paper: return (.identity, nil)
+            case .foot: return (CGAffineTransform(translationX: 0, y: new.footTop - old.footTop), nil)
+            case .frame(let id):
+                guard let o = old.rect(id) else { return (.identity, nil) }
+                if let n = new.rect(id), let t = carry(from: o, to: n) { return (t, nil) }
+                if parked[id] == nil { parked[id] = Parked(rect: o) }
+                return (nil, id)
+            }
+        }
         for stroke in drawing.strokes {
             let b = stroke.renderBounds
-            let anchor = anchor(of: CGPoint(x: b.midX, y: b.midY), in: old)
-            if let t = transform(for: anchor, from: old, to: new) {
-                var moved = stroke
-                moved.transform = stroke.transform.concatenating(t)
-                kept.append(moved)
-            } else {
-                parked.append(stroke)
+            let (t, id) = place(CGPoint(x: b.midX, y: b.midY))
+            if let t {
+                kept.append(moved(stroke, by: t))
+            } else if let id {
+                parked[id]?.drawing.append(PKDrawing(strokes: [stroke]))
             }
         }
-        var keptStickers: [InkSticker] = [], parkedStickers: [InkSticker] = []
         for sticker in stickers {
-            let anchor = anchor(of: sticker.center, in: old)
-            if let t = transform(for: anchor, from: old, to: new) {
-                var moved = sticker
-                let c = sticker.center.applying(t)
-                moved.x = c.x
-                moved.y = c.y
-                moved.size = sticker.size * Double(hypot(t.a, t.b))
-                keptStickers.append(moved)
-            } else {
-                parkedStickers.append(sticker)
+            let (t, id) = place(sticker.center)
+            if let t {
+                keptStickers.append(moved(sticker, by: t))
+            } else if let id {
+                parked[id]?.stickers.append(sticker)
             }
         }
-        return Moved(drawing: PKDrawing(strokes: kept), stickers: keptStickers,
-                     parkedDrawing: PKDrawing(strokes: parked), parkedStickers: parkedStickers)
+        return Moved(drawing: PKDrawing(strokes: kept), stickers: keptStickers, parked: parked)
+    }
+
+    /// The parked marks whose photo is on `new`, put back on it; the rest
+    /// stay parked.
+    static func restore(_ parked: [String: Parked], to new: StripAnchors) -> Moved {
+        var strokes: [PKStroke] = [], stickers: [InkSticker] = []
+        var still: [String: Parked] = [:]
+        for (id, group) in parked {
+            guard let n = new.rect(id), let t = carry(from: group.rect, to: n) else {
+                still[id] = group
+                continue
+            }
+            strokes += group.drawing.strokes.map { moved($0, by: t) }
+            stickers += group.stickers.map { moved($0, by: t) }
+        }
+        return Moved(drawing: PKDrawing(strokes: strokes), stickers: stickers, parked: still)
+    }
+
+    private static func moved(_ stroke: PKStroke, by t: CGAffineTransform) -> PKStroke {
+        var out = stroke
+        out.transform = stroke.transform.concatenating(t)
+        return out
+    }
+
+    private static func moved(_ sticker: InkSticker, by t: CGAffineTransform) -> InkSticker {
+        var out = sticker
+        let c = sticker.center.applying(t)
+        out.x = c.x
+        out.y = c.y
+        out.size = sticker.size * Double(hypot(t.a, t.b))
+        return out
     }
 }

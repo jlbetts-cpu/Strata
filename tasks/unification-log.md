@@ -358,3 +358,81 @@ All fixed at the cause, with tests:
 - The "perfect day" celebration and patina (see 4a).
 - The zone-and-share crew cloud and its push routing (see 1).
 - The two onboarding pages you asked out (yesterday).
+
+---
+
+## 7. The independent review (2026-10-10, overnight)
+
+I had a second reviewer read every change in this pass, read-only, looking
+for crashes, data loss, privacy leaks and logic bugs. It found 15 things.
+None were caught by tests, because the simulator has no iCloud account and
+the crew cloud code had only ever run against a stand-in. All but the
+last group below are fixed; **none of the CloudKit fixes could be run
+against real iCloud here either. REVIEW on two phones before friends get
+the build**: start a crew, invite, join, post a photo, remove the photo,
+leave, end.
+
+### Would have broken crews for real people
+
+- **A starter could not end their own crew, and leaving deleted nothing.**
+  iCloud calls the writer of your own records by a placeholder name, not
+  your account, and the app compared the two. Fixed: the placeholder is
+  read as you.
+- **A bad invite link could wipe a crew off your phone.** A link for a crew
+  you were already in, with a wrong key after the `#`, replaced your good
+  key and emptied the crew. A link never replaces a key that works now.
+- **Leaving did not stick with two phones** (or after a failed backup): the
+  other phone put the key back and re-joined you. Leaving is written down
+  now and beats any older key on any of your phones.
+- **A photo you took off a win stayed on the server**, sealed but there.
+  Its slot is cleared on the save now.
+- **Someone could block being removed** by creating the removal record's
+  name first. Removals and renames are written under names nobody can take
+  ahead of time.
+- **A post could be missed for good** when a phone's clock ran fast or a
+  first read was slow: "what changed since" used the phone's clock. It uses
+  the server's own time now.
+- **A crew or win you had just made could flicker away** for a moment: a
+  listing run straight after a save could come back without it. What this
+  phone wrote in the last 90 seconds is never dropped.
+- **Junk aimed at a crew** (anyone signed in can write under a crew's id,
+  though never read it) would have had its files downloaded by everyone.
+  Photos are fetched only for records that open with the crew's key.
+
+### The promise "sealed end to end" had a hole
+
+Your crew keys were backed up to your private iCloud **in plain text**,
+which Apple can read, next to the sealed posts. The backup is now sealed
+with a key that lives only in your iCloud Keychain. A second phone without
+iCloud Keychain joins by the invite link instead.
+
+### Elsewhere
+
+- **A photo taken after standing still for 30 seconds lost its place.** My
+  own map fix caused it: fixes only arrive when you move 10 metres. A fix
+  measured while the camera has been open is current however old it is.
+- **Logging a win after 7pm cancelled the crew's later evening moment.**
+  The crew's time is decided first now.
+- **Two doodle bugs in last night's fix**: a neighbour's doodle could
+  vanish when a photo came off, and a strip's very first doodles did not
+  follow. Marks parked with a removed photo are kept under that photo's own
+  id, never matched back by position.
+- **A strip that failed to send into a crew said nothing.** It says why.
+- Three places did real work on every redraw (the strip's doodles, the
+  crew list's flame, the crew sheet's photo count). Cached or run once.
+
+### Not fixed. REVIEW, your call
+
+- **A removed person keeps the crew's key.** The app stops them, but
+  someone technical with the old link could still read the crew, or rejoin
+  under a second Apple ID. Closing it means giving the crew a new key when
+  anyone is removed and re-sealing what is there: a real piece of work, and
+  the usual answer in sealed group chat. I would do it before a public
+  launch, not before a friends test.
+- **The 8-person limit is only enforced by the app**, for the same reason.
+- **Crew keys on the phone sit in the app's shared settings, not the
+  Keychain**, so they travel in a device backup. Moving them needs a
+  signing change shared with the notification extension.
+- **Push did not land.** GitHub was 204 commits behind when I checked at
+  00:15, so `docs/join.html` is not published and invite links open a
+  missing page until `git push origin main` succeeds.

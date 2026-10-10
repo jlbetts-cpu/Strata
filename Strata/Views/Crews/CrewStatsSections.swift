@@ -61,16 +61,32 @@ struct CrewStats: Equatable {
     }
 
     /// The crew's current streak alone, for its row in the list (the flame).
+    ///
+    /// **Worked out when its inputs change, not on every redraw** (found
+    /// 2026-10-10 by review): the list asks per row per render, and each ask
+    /// rebuilt the crew's history and walked its days.
     @MainActor
     static func current(for crew: Crew, store: SocialStore = .shared) -> Int {
         let today = CrewDay.string(for: Date(), in: crew.timeZone)
-        var history = store.history[crew.id] ?? CrewHistory()
+        let wins = store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) }
+        let stored = store.history[crew.id] ?? CrewHistory()
+        var hasher = Hasher()
+        hasher.combine(today)
+        hasher.combine(stored.days)
+        hasher.combine(wins.map(\.winID))
+        hasher.combine(crew.members.map(\.profileID))
+        let key = hasher.finalize()
+        if let hit = streakMemo[crew.id], hit.key == key { return hit.value }
+        var history = stored
         if let cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) {
-            let wins = store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) }
             history.record(wins, from: cutoff, rewritingFrom: CrewHistory.rewriteFrom(today, in: crew.timeZone), through: today)
         }
-        return CrewHistory.streak(history.keptDays(members: crew.members, zone: crew.timeZone), today: today, zone: crew.timeZone)
+        let value = CrewHistory.streak(history.keptDays(members: crew.members, zone: crew.timeZone), today: today, zone: crew.timeZone)
+        streakMemo[crew.id] = (key, value)
+        return value
     }
+
+    @MainActor private static var streakMemo: [CrewID: (key: Int, value: Int)] = [:]
 
     static func make(_ inputs: Inputs) -> CrewStats {
         var history = inputs.history
@@ -125,18 +141,26 @@ struct CrewStatsSections: View {
                          today: CrewDay.string(for: Date(), in: crew.timeZone))
     }
 
+    /// How many of your photographs this crew holds, counted once when the
+    /// sheet opens: the crew's inputs change every few seconds during a
+    /// sync, and this is a fetch of every photographed win.
+    private func countKept() async {
+        #if DEBUG
+        await store.debugMarkSentIfAsked(context: modelContext)
+        #endif
+        let sent = store.winsSent(to: crew.id)
+        keptPhotos = sent.isEmpty ? 0 : ((try? modelContext.fetch(FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.imageFileName != nil }))) ?? []).filter { sent.contains($0.id) }.count
+    }
+
     var body: some View {
         // **The work hangs on ONE section.** A modifier on a `Group` is
         // applied to each of its children, so this ran three times a change.
         streak
+            .task(id: crew.id) { await countKept() }
             .task(id: inputs) {
                 stats = CrewStats.make(inputs)
-                #if DEBUG
-                await store.debugMarkSentIfAsked(context: modelContext)
-                #endif
-                let sent = store.winsSent(to: crew.id)
-                keptPhotos = sent.isEmpty ? 0 : ((try? modelContext.fetch(FetchDescriptor<HabitLog>(
-                    predicate: #Predicate { $0.imageFileName != nil }))) ?? []).filter { sent.contains($0.id) }.count
+
                 #if DEBUG
                 // `-strataCrewDayReplay 1`: the newest day plays, so it can be filmed.
                 if DebugHarness.argument("-strataCrewDayReplay") == "1", !debugPlayed, let day = stats.days.first {
