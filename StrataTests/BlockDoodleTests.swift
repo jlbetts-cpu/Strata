@@ -81,8 +81,24 @@ struct BlockDoodleTests {
     @Test("the Add sheet keeps a block to one or the other, and draws in white")
     func addSheetWiring() throws {
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
-        #expect(sheet.contains("doodleTile(well)"), "the pen beside the block is gone")
-        #expect(sheet.contains("Button(\"Doodle\") { doodling = true }"))
+        // **The pen tile is gone, on purpose** (the owner, 2026-10-10: the
+        // dedicated doodle block "wastes space on a sheet that otherwise
+        // shows the day's recent photos"). This line used to demand the
+        // tile; it now holds the decision that replaced it: no tile in the
+        // strip, and Doodle offered where a photograph is chosen.
+        #expect(!sheet.contains("doodleTile("), "the pen tile is back in the photo strip")
+        let menu = try #require(sheet.components(separatedBy: "isPresented: $choosingSource").dropFirst().first)
+        let choices = menu.components(separatedBy: "Button(\"Cancel\"").first ?? ""
+        #expect(choices.contains("Take Photo") && choices.contains("Choose from Library"))
+        #expect(choices.contains("\"Doodle\"") && choices.contains("doodling = true"),
+                "Doodle is a way to fill the block, beside the two ways to get a photograph")
+        #expect(choices.contains("Remove Doodle"))
+        // The first thing after the block in the strip is a photograph (or
+        // the tile that asks for the library), never a tool.
+        let strip = try #require(sheet.components(separatedBy: "private func photoStrip").dropFirst().first)
+        let afterBlock = try #require(strip.components(separatedBy: ".id(Self.blockInStrip)").dropFirst().first)
+        let next = afterBlock.trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(next.hasPrefix("if showsTodaysPhotos") || next.hasPrefix("ForEach(todaysAssets"))
         // A photograph put on takes the doodle off, and a doodle the photo.
         #expect(sheet.contains("if now != nil, doodle != nil {"))
         let keep = try #require(sheet.components(separatedBy: "private func keepDoodle").dropFirst().first)

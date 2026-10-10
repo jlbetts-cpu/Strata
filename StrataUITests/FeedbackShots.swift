@@ -198,6 +198,27 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// The add sheet's strip with the pen tile gone: today's photographs
+    /// straight after the block, and Doodle in the block's own menu (the
+    /// owner, 2026-10-10).
+    func testAddSheetDoodleInTheMenu() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add",
+                          "-strataTodaysPhotos", "all"])
+        wait(8)
+        let ask = app.buttons["Show today's photos"].firstMatch
+        if ask.waitForExistence(timeout: 3) {
+            ask.tap()
+            let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow Full Access"].firstMatch
+            if allow.waitForExistence(timeout: 5) { allow.tap() }
+        }
+        wait(4); snap("add-strip")
+        app.buttons["Add a photo"].firstMatch.tap()
+        wait(2); snap("add-menu")
+        let doodle = app.buttons["Doodle"].firstMatch
+        if doodle.waitForExistence(timeout: 3) { doodle.tap() }
+        wait(3); snap("add-doodle")
+    }
+
     /// A doodle at the strip's bottom right, off the photos, stays there
     /// after Done (the owner, 2026-10-10: it "navigated to the middle").
     func testStripDoodleKeepsItsPlace() {

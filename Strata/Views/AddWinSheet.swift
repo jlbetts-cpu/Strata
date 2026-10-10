@@ -400,11 +400,21 @@ struct AddWinSheet: View {
         .confirmationDialog(Text(verbatim: ""), isPresented: $choosingSource, titleVisibility: .hidden) {
             Button("Take Photo") { showCamera = true }
             Button("Choose from Library") { showLibrary = true }
-            Button("Doodle") { doodling = true }
+            // **Doodle lives here** (2026-10-10): a block is a photograph or
+            // a drawing, so drawing one is the third way to fill it, beside
+            // the two ways to get a photograph.
+            Button(doodle == nil ? "Doodle" : "Edit Doodle") { doodling = true }
             if photo != nil {
                 Button("Remove Photo", role: .destructive) {
                     photo = nil
                     photoChanged = true
+                }
+            }
+            if doodle != nil {
+                Button("Remove Doodle", role: .destructive) {
+                    doodle = nil
+                    doodleStickers = []
+                    doodleChanged = true
                 }
             }
             Button("Cancel", role: .cancel) { }
@@ -703,7 +713,12 @@ struct AddWinSheet: View {
             LazyHStack(alignment: .top, spacing: GridConstants.spacing) {
                 photoWell(pageWidth: pageWidth, visibleHeight: visibleHeight)
                     .id(Self.blockInStrip)
-                doodleTile(well)
+                // **Today's photographs come straight after the block** (the
+                // owner, 2026-10-10: the doodle tile "wastes space on a sheet
+                // that otherwise shows the day's recent photos"). A pen stood
+                // here, a whole block wide, pushing the first photograph off
+                // the page. Doodle is where a photograph is chosen now: press
+                // the block.
                 if showsTodaysPhotos, photoAccess == .notAsked {
                     askTile(well)
                 }
@@ -735,28 +750,6 @@ struct AddWinSheet: View {
         // inset, and it faded the crew names above the strip.
         .modifier(NoScrollEdgeEffect())
         .task(id: photoAccess) { loadTodaysPhotos() }
-    }
-
-    /// **The pen, first beside the block** (the owner's pick, 2026-10-06):
-    /// the ask tile's quiet shape with a pen in it. Draws on the block, in
-    /// white, instead of a photograph.
-    private func doodleTile(_ well: (size: CGSize, radius: CGFloat)) -> some View {
-        Button {
-            HapticsEngine.lightTap()
-            doodleAspect = well.size.width / max(well.size.height, 1)
-            doodling = true
-        } label: {
-            RoundedRectangle(cornerRadius: well.radius, style: .continuous)
-                .fill(AppColors.inkPrimary.opacity(0.05))
-                .frame(width: well.size.width, height: well.size.height)
-                .overlay {
-                    Image(systemName: "scribble")
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkTertiary)
-                }
-        }
-        .buttonStyle(.pressSurface)
-        .accessibilityLabel(doodle == nil ? "Doodle on the block" : "Edit the doodle")
     }
 
     /// Done in the doodle sheet. Nothing drawn takes a doodle off; a drawing
@@ -1160,10 +1153,11 @@ struct AddWinSheet: View {
             // replacing or removing moves to a long press — which is where
             // iOS puts a secondary action on something you are mainly looking
             // at.
+            // The block's shape now, for a doodle begun from the menu.
+            doodleAspect = w / max(h, 1)
             if photo != nil {
                 peeking = true
             } else if doodle != nil {
-                doodleAspect = w / max(h, 1)
                 doodling = true
             } else {
                 choosingSource = true
@@ -1345,10 +1339,24 @@ struct AddWinSheet: View {
         // same action was spelled two ways depending on which door you used.
         .contextMenu {
             if photo != nil {
-                Button("Replace Photo") { choosingSource = true }
+                Button("Replace Photo") {
+                    doodleAspect = w / max(h, 1)
+                    choosingSource = true
+                }
                 Button("Remove Photo", role: .destructive) {
                     photo = nil
                     photoChanged = true
+                }
+            } else if doodle != nil {
+                // A drawing is swapped for a photograph the same way.
+                Button("Replace Doodle") {
+                    doodleAspect = w / max(h, 1)
+                    choosingSource = true
+                }
+                Button("Remove Doodle", role: .destructive) {
+                    doodle = nil
+                    doodleStickers = []
+                    doodleChanged = true
                 }
             }
         }
