@@ -73,6 +73,45 @@ struct CrewRekeyTests {
         #expect(!CrewRekey.learn([first, second], crew: crew, current: k2, older: [k1, k0], mine: ana).changed)
     }
 
+    /// The re-key review's cases (2026-10-10).
+    @Test("made-up earlier keys from someone holding an old key are not followed, once the starter is known")
+    func forgedChain() throws {
+        let real = try seen(new: k1, old: k0, to: [ana], at: 100)
+        // The removed person, who holds K0: "the key before K0 was this".
+        var junk: [CrewRekey.Seen] = []
+        for i in 0..<20 {
+            let data = try JSONEncoder().encode(CrewRekey.Box(
+                mark: k0.mark, wraps: [:],
+                prev: try k0.seal(CrewKey.new().bytes, context: "\(crew)|rekey-prev").base64EncodedString()))
+            junk.append(.init(box: try #require(CrewRekey.read(data)), fromStarter: false, at: Date(timeIntervalSince1970: 200 + Double(i))))
+        }
+        let learned = CrewRekey.learn(junk + [real], crew: crew, current: k1, older: [k0], mine: ana, starterKnown: true)
+        #expect(!learned.changed, "nothing to learn, so nothing to read again")
+    }
+
+    @Test("a phone pushed back to an old key returns to the crew's key")
+    func returnsToTheRightKey() throws {
+        let record = try seen(new: k1, old: k0, to: [ana], at: 100)
+        // It knows K1 already, and something put K0 back as its key.
+        let learned = CrewRekey.learn([record], crew: crew, current: k0, older: [k1], mine: ana, starterKnown: true)
+        #expect(learned.current == k1)
+    }
+
+    @Test("a public key that is not one gets no copy, and is known not to be one")
+    func notAKey() throws {
+        #expect(CrewRekey.isKey(text(ana)))
+        #expect(!CrewRekey.isKey("not base64 at all"))
+        #expect(!CrewRekey.isKey(Data(repeating: 1, count: 12).base64EncodedString()))
+        let data = try CrewRekey.make(new: k1, old: k0, recipients: ["junk", text(ana)], crew: crew)
+        #expect(try #require(CrewRekey.read(data)).wraps.keys.sorted() == [text(ana)])
+    }
+
+    @Test("a rekey record larger than one could be is not read")
+    func oversize() throws {
+        let fat = try JSONEncoder().encode(CrewRekey.Box(mark: k1.mark, wraps: ["x": String(repeating: "A", count: 20_000)], prev: ""))
+        #expect(CrewRekey.read(fat) == nil)
+    }
+
     @Test("a record for another crew opens nothing here")
     func boundToItsCrew() throws {
         let data = try CrewRekey.make(new: k1, old: k0, recipients: [text(ana)], crew: "crew-OTHER")

@@ -106,7 +106,12 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     private static func read(kind: CrewPingRecord.Kind, crew: String, sender: String, winID: String,
                              in known: CrewNoteCache.Crew?) async -> Read {
         guard let known, let from = known.members[sender]?.profileID,
-              case let keys = CrewKeyRing().candidates(for: known.zoneName), !keys.isEmpty else { return Read() }
+              // **The crew's key now, and no older one** (the re-key review):
+              // this cannot check who wrote a record, so a win sealed with a
+              // key a removed person still holds, naming a friend as its
+              // sender, would have been shown on the lock screen in their
+              // name. Until the app learns a new key, the plain words stand.
+              let key = CrewKeyRing().all[known.zoneName], case let keys = [key] else { return Read() }
         let db = CKContainer(identifier: CrewNoteCache.containerID).publicCloudDatabase
         func open(_ kind: String, _ name: String) async -> [String: String]? {
             let recordName = CrewItemRecord.name(crew: known.zoneName, kind: kind, name: name)

@@ -62,17 +62,32 @@ nonisolated enum CrewRekey {
     static func make(new: CrewKey, old: CrewKey, recipients: [String], crew: String) throws -> Data {
         var wraps: [String: String] = [:]
         for text in Set(recipients) {
+            // A public key that is not one (see `isKey`) gets no copy; the
+            // caller has already refused to re-key over one.
             guard let raw = Data(base64Encoded: text),
-                  let key = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: raw) else { continue }
-            var sender = try HPKE.Sender(recipientKey: key, ciphersuite: suite, info: info(crew))
-            let sealed = try sender.seal(new.bytes)
+                  let key = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: raw),
+                  var sender = try? HPKE.Sender(recipientKey: key, ciphersuite: suite, info: info(crew)),
+                  let sealed = try? sender.seal(new.bytes) else { continue }
             wraps[text] = (sender.encapsulatedKey + sealed).base64EncodedString()
         }
         let prev = try new.seal(old.bytes, context: prevContext(crew)).base64EncodedString()
         return try JSONEncoder().encode(Box(mark: new.mark, wraps: wraps, prev: prev))
     }
 
+    /// Whether `text` is a public key a new crew key can be locked to.
+    static func isKey(_ text: String) -> Bool {
+        guard let raw = Data(base64Encoded: text), raw.count == 32,
+              let key = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: raw),
+              (try? HPKE.Sender(recipientKey: key, ciphersuite: suite, info: Data())) != nil else { return false }
+        return true
+    }
+
+    /// The most a rekey record can be: a copy for each of eight people is
+    /// about two thousand bytes. Anything larger is not one.
+    static let largest = 8192
+
     static func read(_ data: Data) -> Box? {
+        guard data.count <= largest else { return nil }
         guard let box = try? JSONDecoder().decode(Box.self, from: data), box.v == 1 else { return nil }
         return box
     }
@@ -116,39 +131,53 @@ nonisolated enum CrewRekey {
     }
 
     /// What a phone holding `current` and `older` learns from every rekey
-    /// record of a crew, oldest first.
+    /// record of a crew.
+    ///
+    /// - **The crew's key is the one the starter's newest record gives this
+    ///   phone**, whether or not the phone has seen that key before (the
+    ///   re-key review, 2026-10-10: taking only keys it had never seen, a
+    ///   phone pushed back to an old key by a stale backup could never
+    ///   return to the right one).
+    /// - **The keys before** are followed back through `prev`, from the
+    ///   starter's records only once the starter is known: followed from
+    ///   anyone's, a removed person holding an old key could feed a phone
+    ///   made-up "earlier keys" until the real ones were crowded out.
     static func learn(_ seen: [Seen], crew: String, current: CrewKey?, older: [CrewKey],
-                      mine: Curve25519.KeyAgreement.PrivateKey?) -> Learned {
-        var now = current
+                      mine: Curve25519.KeyAgreement.PrivateKey?, starterKnown: Bool = false) -> Learned {
         var known = (current.map { [$0] } ?? []) + older
-        var learned = Learned()
+        var found: [CrewKey] = []
+        let trusted = starterKnown ? seen.filter(\.fromStarter) : seen
         /// Every key before any key held, back to the first.
         func chain() {
-            var found = true
-            while found {
-                found = false
-                for record in seen {
+            var more = true
+            while more {
+                more = false
+                for record in trusted {
                     guard let before = previous(record.box, crew: crew, known: known), !known.contains(before) else { continue }
                     known.append(before)
-                    learned.older.append(before)
-                    found = true
+                    found.append(before)
+                    more = true
                 }
             }
         }
         chain()
-        for record in seen.sorted(by: { $0.at < $1.at }) where record.fromStarter {
-            guard let mine, let key = unwrap(record.box, crew: crew, mine: mine), !known.contains(key) else { continue }
-            if let was = now, !learned.older.contains(was), !older.contains(was) { learned.older.append(was) }
-            now = key
-            known.append(key)
-            learned.current = key
-            chain()
+        var learned = Learned()
+        if let mine {
+            for record in seen.filter(\.fromStarter).sorted(by: { $0.at > $1.at }) {
+                guard let key = unwrap(record.box, crew: crew, mine: mine) else { continue }
+                if key != current {
+                    learned.current = key
+                    if let current, !older.contains(current) { found.append(current) }
+                    if !known.contains(key) { known.append(key) }
+                    chain()
+                }
+                break
+            }
         }
-        // Read into a constant first: asking `learned` for its current key
-        // inside a change to `learned` is two accesses at once, which Swift
-        // stops the process for.
-        let current = learned.current
-        learned.older.removeAll { $0 == current }
+        let now = learned.current
+        for key in found where key != now && !older.contains(key) && !learned.older.contains(key) {
+            learned.older.append(key)
+        }
         return learned
     }
 
@@ -177,7 +206,11 @@ nonisolated enum CrewAgreement {
          kSecAttrAccount as String: account]
     }
 
-    private static func existing() -> Curve25519.KeyAgreement.PrivateKey? {
+    /// The private key this phone has, or nil. **Reading never makes one**
+    /// (`CrewKeyWrap.existing` says why): a key minted before the real one
+    /// arrived from the iCloud Keychain could win there, and the public key
+    /// already in your member record would have no private half anywhere.
+    static func existing() -> Curve25519.KeyAgreement.PrivateKey? {
         var find = query()
         find[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
         find[kSecReturnData as String] = true
@@ -187,7 +220,8 @@ nonisolated enum CrewAgreement {
         return try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: data)
     }
 
-    /// The private key, made the first time it is asked for.
+    /// The private key, made if there is none: only for publishing its
+    /// public half in your member record.
     static func privateKey() -> Curve25519.KeyAgreement.PrivateKey? {
         if let existing = existing() { return existing }
         let fresh = Curve25519.KeyAgreement.PrivateKey()

@@ -152,6 +152,9 @@ final class PublicCrewCloud: CrewCloud {
         UserDefaults.standard.removeObject(forKey: Self.answeredKey)
         joining.removeAll()
         wantsReseal.removeAll()
+        rekeying.removeAll()
+        UserDefaults.standard.removeObject(forKey: Self.wantsRekeyKey)
+        UserDefaults.standard.removeObject(forKey: Self.agreeTriedKey)
         keys.removeAll()
         pendingSave?.cancel()
         try? FileManager.default.removeItem(at: cacheURL)
@@ -260,6 +263,11 @@ final class PublicCrewCloud: CrewCloud {
             guard let key = CrewKey(linkText: text) else { continue }
             let id = CrewID(rawValue: crew)
             if keys.key(for: id) != nil {
+                // Only the key the starter's newest rekey names: "later" is
+                // each phone's own clock, and a phone left on the old key
+                // could otherwise pull this one back to it.
+                let rekeys = rekeysSeen(id).seen
+                guard rekeys.contains(where: \.fromStarter), CrewRekey.isCurrent(key, seen: rekeys) else { continue }
                 // The crew's new key, from another phone of yours: the one
                 // held is kept for reading, and the crew is read again.
                 keys.advance(to: key, for: id)
@@ -381,10 +389,21 @@ final class PublicCrewCloud: CrewCloud {
             }
             setTime(before.leftAt, for: crew, in: Self.leftAtKey)
         }
-        if had != nil, cachedCrew(crew) != nil, !isEnded(crew) {
+        if let had, cachedCrew(crew) != nil, !isEnded(crew) {
             // Already in it, with a key that works: the link's key is not
             // needed, and its tap still counts as joining (`settle`).
             _ = try? await sync(crew, full: false)
+            // **Unless the crew has moved to a new key this phone missed**
+            // (the re-key review): then a fresh link is the way back, and
+            // it carries the key the starter's newest rekey names.
+            let rekeys = rekeysSeen(crew).seen
+            if key != had, rekeys.contains(where: \.fromStarter),
+               !CrewRekey.isCurrent(had, seen: rekeys), CrewRekey.isCurrent(key, seen: rekeys) {
+                keys.advance(to: key, for: crew)
+                since[crew] = .distantPast
+                wantsReseal.insert(crew)
+                _ = try? await sync(crew, full: true)
+            }
         } else {
             keys.set(key, for: crew)
             do {
@@ -460,18 +479,6 @@ final class PublicCrewCloud: CrewCloud {
             Self.log.error("crews sync failed: \(error)")
         }
         await subscribe(to: mine)
-        // Your member record again where it wants it: under a crew's new
-        // key, or with your public key, which a crew needs from everyone in
-        // it before it can be re-keyed.
-        for crew in mine {
-            let key = "\(CrewRecordType.member.rawValue)/\(myProfileID.uuidString)"
-            if let own = cache[crew]?[key], own[Self.creatorKey]?.string == meRecordName, own[CrewAgreement.field] == nil {
-                wantsReseal.insert(crew)
-            }
-        }
-        for crew in wantsReseal where mine.contains(crew) && !joining.contains(crew) {
-            if (try? await resealMember(in: crew)) != nil { wantsReseal.remove(crew) }
-        }
         var crews: [Crew] = []
         for crew in mine {
             if isEnded(crew) || isRemoved(myProfileID, from: crew) {
@@ -482,6 +489,10 @@ final class PublicCrewCloud: CrewCloud {
                 await tidyAway(crew, leftAt: leftAt)
                 continue
             }
+            // Still in it: what this phone owes the crew, after the checks
+            // above, never before (a member record written into a crew
+            // being left would have read as joining it again).
+            if !joining.contains(crew) { await keepUp(crew) }
             if let found = cachedCrew(crew) { crews.append(found) }
         }
         saveCache()
@@ -546,25 +557,45 @@ final class PublicCrewCloud: CrewCloud {
             fields["name"] = edit["name"]
             fields["photo"] = edit["photo"]
         }
+        let members = memberRecords(in: crew).map(\.member)
+        return CrewRecords.crew(fields, id: crew, members: members)
+    }
+
+    /// **The member records that count**, by one rule, for the crew's list
+    /// and for who is sent a new key (the re-key review, 2026-10-10: the two
+    /// had separate rules, and a record the list hid was still handed the
+    /// crew's next key). A record counts when:
+    /// - it is filed under its own profile's name;
+    /// - its writer is not banned, has not left, and is not the account of
+    ///   anyone the starter removed, under any profile;
+    /// - its profile was not removed;
+    /// - if written since the crew's key last changed, it is sealed with
+    ///   the key it changed to: one under the key before is someone holding
+    ///   only the old key (`CrewRekey`).
+    private func memberRecords(in crew: CrewID) -> [(fields: RecordFields, member: CrewMember)] {
         let rekeyed = lastRekey(crew)
         let current = keys.key(for: crew)
-        // The crew record's writer is its starter: a crew record claiming an
-        // owner who did not write it is not believed.
-        let members = records.filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }
-            .values.compactMap { fields -> CrewMember? in
-                if let user = fields[Self.creatorKey]?.string, banned.contains(user) { return nil }
-                if let user = fields[Self.creatorKey]?.string,
-                   hasLeft(account: user, memberAt: fields[Self.modKey]?.date, in: crew) { return nil }
-                // **Joined with an old link after a re-key: not in.** A
-                // member record written since the crew's key changed has to
-                // be sealed with the key it changed to; one under the key
-                // before is someone holding only the old key (`CrewRekey`).
-                if let rekeyed, let sealedWith = fields[Self.sealKey]?.string, sealedWith != current?.mark,
-                   let at = fields[Self.modKey]?.date, at > rekeyed { return nil }
-                guard let member = CrewRecords.member(fields), !isRemoved(member.profileID, from: crew) else { return nil }
-                return member
+        let gone = removedAccounts(in: crew)
+        let prefix = CrewRecordType.member.rawValue + "/"
+        return (cache[crew] ?? [:]).compactMap { key, fields in
+            guard key.hasPrefix(prefix), let member = CrewRecords.member(fields),
+                  key == prefix + member.profileID.uuidString else { return nil }
+            if let user = fields[Self.creatorKey]?.string {
+                if banned.contains(user) || gone.contains(user) { return nil }
+                if hasLeft(account: user, memberAt: fields[Self.modKey]?.date, in: crew) { return nil }
             }
-        return CrewRecords.crew(fields, id: crew, members: members)
+            if let rekeyed, let sealedWith = fields[Self.sealKey]?.string, sealedWith != current?.mark,
+               let at = fields[Self.modKey]?.date, at > rekeyed { return nil }
+            guard !isRemoved(member.profileID, from: crew) else { return nil }
+            return (fields, member)
+        }
+    }
+
+    /// The accounts of everyone the starter removed, as their removals say.
+    private func removedAccounts(in crew: CrewID) -> Set<String> {
+        guard let starter = crewRecord(crew)?[Self.creatorKey]?.string else { return [] }
+        return Set((cache[crew] ?? [:]).filter { $0.key.hasPrefix(Self.removalKind + "/") && $0.value[Self.creatorKey]?.string == starter }
+            .compactMap { $0.value["account"]?.string })
     }
 
     private func isEnded(_ crew: CrewID) -> Bool {
@@ -676,8 +707,11 @@ final class PublicCrewCloud: CrewCloud {
         // Your member record carries the public key a new crew key is sent
         // to you with (`CrewAgreement`): the one already there, or yours.
         if type == .member, name == myProfileID.uuidString {
-            fields[CrewAgreement.field] = cache[crew]?["\(type.rawValue)/\(name)"]?[CrewAgreement.field]
-                ?? CrewAgreement.publicText().map { .string($0) }
+            // This phone's, always: one left there by a phone whose private
+            // half this one does not hold would never be replaced, and a
+            // new crew key locked to it could not be opened here.
+            fields[CrewAgreement.field] = CrewAgreement.publicText().map { .string($0) }
+                ?? cache[crew]?["\(type.rawValue)/\(name)"]?[CrewAgreement.field]
         }
         try await write(fields, kind: type.rawValue, name: name, in: crew)
     }
@@ -692,19 +726,26 @@ final class PublicCrewCloud: CrewCloud {
     /// it, starter included (their own crew record's modification counts as
     /// theirs through `editedAt` when they set it).
     private func latestEdit(_ crew: CrewID) -> RecordFields? {
-        (cache[crew] ?? [:]).filter { $0.key.hasPrefix(Self.editKind + "/") }.values
-            .filter { fields in
-                guard let writer = fields[Self.creatorKey]?.string else { return false }
-                return !banned.contains(writer) && !isRemovedAccount(writer, from: crew)
+        // **From someone in the crew, under the crew's key, and no later
+        // than the server says it was written** (the re-key review): an
+        // edit was taken from any account under any key the phone held, at
+        // whatever time it claimed, so a removed person could rename the
+        // crew for good with a date in the year 2100.
+        let people = Set(memberRecords(in: crew).compactMap { $0.fields[Self.creatorKey]?.string })
+        let rekeyed = lastRekey(crew)
+        let current = keys.key(for: crew)
+        return (cache[crew] ?? [:]).filter { $0.key.hasPrefix(Self.editKind + "/") }.values
+            .compactMap { fields -> RecordFields? in
+                guard let writer = fields[Self.creatorKey]?.string, people.contains(writer), !banned.contains(writer) else { return nil }
+                if let rekeyed, let sealedWith = fields[Self.sealKey]?.string, sealedWith != current?.mark,
+                   let at = fields[Self.modKey]?.date, at > rekeyed { return nil }
+                var edit = fields
+                if let said = fields[Self.editedAtKey]?.date, let took = fields[Self.modKey]?.date, said > took {
+                    edit[Self.editedAtKey] = .date(took)
+                }
+                return edit
             }
             .max { ($0[Self.editedAtKey]?.date ?? .distantPast) < ($1[Self.editedAtKey]?.date ?? .distantPast) }
-    }
-
-    private func isRemovedAccount(_ account: String, from crew: CrewID) -> Bool {
-        (cache[crew] ?? [:]).contains { key, fields in
-            key.hasPrefix(CrewRecordType.member.rawValue + "/") && fields[Self.creatorKey]?.string == account
-                && (CrewRecords.member(fields).map { isRemoved($0.profileID, from: crew) } ?? false)
-        }
     }
 
     private func write(_ fields: RecordFields, kind: String, name: String, in crew: CrewID) async throws {
@@ -816,43 +857,71 @@ final class PublicCrewCloud: CrewCloud {
         // Under a name nobody can take first (see `save`): a removal named
         // by the profile alone could be created ahead of the starter by the
         // person it was for, and then they could never be removed.
-        try await write(["profileID": .uuid(profileID)], kind: Self.removalKind,
-                        name: "\(profileID.uuidString).\(Self.suffix())", in: crew)
-        // The removal stands whether or not the new key could be made.
+        // With the removed person's account, so no other record of theirs
+        // counts as a member either (`memberRecords`).
+        var removal: RecordFields = ["profileID": .uuid(profileID)]
+        if let account = account(of: profileID, in: crew) { removal["account"] = .string(account) }
+        try await write(removal, kind: Self.removalKind, name: "\(profileID.uuidString).\(Self.suffix())", in: crew)
+        // The removal stands whether or not the new key could be made; a
+        // re-key that could not be is tried again at each refresh.
+        setWantsRekey(crew, true)
+        await rekeyIfWanted(crew)
+    }
+
+    // MARK: A new key when someone is removed
+
+    private static let wantsRekeyKey = "crews.wantsRekey"
+    private static let agreeTriedKey = "crews.agreePublishedAt"
+    private func wantsRekey(_ crew: CrewID) -> Bool {
+        (UserDefaults.standard.stringArray(forKey: Self.wantsRekeyKey) ?? []).contains(crew.rawValue)
+    }
+    private func setWantsRekey(_ crew: CrewID, _ wants: Bool) {
+        var all = Set(UserDefaults.standard.stringArray(forKey: Self.wantsRekeyKey) ?? [])
+        if wants { all.insert(crew.rawValue) } else { all.remove(crew.rawValue) }
+        UserDefaults.standard.set(all.sorted(), forKey: Self.wantsRekeyKey)
+    }
+
+    /// Crews being re-keyed right now: one at a time each, so two removals
+    /// in a row do not both start from the same key and leave the crew on
+    /// two.
+    private var rekeying: Set<CrewID> = []
+
+    /// A re-key that is owed, tried: after a removal, and at each refresh
+    /// until it has been done (someone had no public key yet, or there was
+    /// no signal).
+    private func rekeyIfWanted(_ crew: CrewID) async {
+        guard wantsRekey(crew), !rekeying.contains(crew),
+              let me = meRecordName, crewRecord(crew)?[Self.creatorKey]?.string == me else { return }
+        rekeying.insert(crew)
+        defer { rekeying.remove(crew) }
         do {
-            try await rekey(crew, without: profileID)
+            // Read first: someone who joined a moment ago must be counted.
+            try await sync(crew, full: false)
+            if try await rekey(crew) { setWantsRekey(crew, false) }
         } catch {
             Self.log.error("crew not re-keyed after a removal: \(error)")
         }
     }
 
-    // MARK: A new key when someone is removed
-
-    /// The crew's members as cached, each with their public key if they
-    /// have published one.
-    private func keyHolders(in crew: CrewID, without removed: UUID) -> [(profile: UUID, agree: String?)] {
-        (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }.values
-            .compactMap { fields -> (UUID, String?)? in
-                guard let member = CrewRecords.member(fields), member.profileID != removed,
-                      !isRemoved(member.profileID, from: crew) else { return nil }
-                if let user = fields[Self.creatorKey]?.string,
-                   banned.contains(user) || hasLeft(account: user, memberAt: fields[Self.modKey]?.date, in: crew) { return nil }
-                return (member.profileID, fields[CrewAgreement.field]?.string)
-            }
+    /// The crew's members, each with their public key if it is one.
+    private func keyHolders(in crew: CrewID) -> [(profile: UUID, agree: String?)] {
+        memberRecords(in: crew).map { record in
+            (record.member.profileID, record.fields[CrewAgreement.field]?.string.flatMap { CrewRekey.isKey($0) ? $0 : nil })
+        }
     }
 
     /// **The crew moves to a key the removed person never receives**
-    /// (`CrewRekey`). Only when every remaining member has published a
-    /// public key: a member without one could not be sent the new key and
-    /// would be locked out of their own crew, which is worse than what the
-    /// re-key prevents. Then the removal stands on its own, as it did.
-    private func rekey(_ crew: CrewID, without removed: UUID) async throws {
-        guard let old = keys.key(for: crew), let mine = CrewAgreement.publicText() else { return }
-        let holders = keyHolders(in: crew, without: removed)
+    /// (`CrewRekey`). Only when every member has published a public key: a
+    /// member without one could not be sent the new key and would be locked
+    /// out of their own crew, which is worse than what the re-key prevents.
+    /// False when it could not be done yet.
+    private func rekey(_ crew: CrewID) async throws -> Bool {
+        guard let old = keys.key(for: crew), let mine = CrewAgreement.publicText() else { return false }
+        let holders = keyHolders(in: crew)
         let published = holders.compactMap(\.agree)
         guard published.count == holders.count else {
-            Self.log.notice("crew not re-keyed: \(holders.count - published.count) member(s) without a public key yet")
-            return
+            Self.log.notice("crew not re-keyed yet: \(holders.count - published.count) member(s) without a public key")
+            return false
         }
         let new = CrewKey.new()
         let box = try CrewRekey.make(new: new, old: old, recipients: published + [mine], crew: crew.rawValue)
@@ -865,7 +934,7 @@ final class PublicCrewCloud: CrewCloud {
         let result = try await database.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys)
         guard case .success(let saved)? = result.saveResults[record.recordID] else {
             if case .failure(let error)? = result.saveResults[record.recordID] { throw error }
-            return
+            return false
         }
         var fields: RecordFields = [Self.rawKey: .string(box.base64EncodedString())]
         if let me = meRecordName { fields[Self.creatorKey] = .string(me) }
@@ -876,18 +945,25 @@ final class PublicCrewCloud: CrewCloud {
         keys.advance(to: new, for: crew)
         setTime(Date().timeIntervalSince1970, for: crew, in: Self.keyedAtKey)
         saveCache()
-        // The crew's own record under the new key, so someone invited from
-        // now on can open it; an old link cannot, and is told it is old.
-        if let own = crewRecord(crew) {
-            try? await write(own, kind: CrewRecordType.crew.rawValue, name: CrewRecords.crewRecordName, in: crew)
-        }
+        // The crew's own record and yours under the new key (`fetchCrews`
+        // does both again if either does not go through now).
+        await resealCrewRecord(crew)
         try? await resealMember(in: crew)
         Task { await syncKeys() }
+        return true
     }
 
-    /// What this phone learns from the crew's rekey records: true when its
-    /// keys changed, and the crew wants reading again.
-    private func learnKeys(_ crew: CrewID) -> Bool {
+    /// The crew's own record under its key now, when this account started
+    /// it: so someone invited from now on can open it, and an old link
+    /// cannot and is told it is old.
+    private func resealCrewRecord(_ crew: CrewID) async {
+        guard let own = crewRecord(crew), let me = meRecordName, own[Self.creatorKey]?.string == me,
+              own[Self.sealKey]?.string != keys.key(for: crew)?.mark else { return }
+        try? await write(own, kind: CrewRecordType.crew.rawValue, name: CrewRecords.crewRecordName, in: crew)
+    }
+
+    /// The crew's rekey records as cached, and whether its starter is known.
+    private func rekeysSeen(_ crew: CrewID) -> (seen: [CrewRekey.Seen], starterKnown: Bool) {
         let starter = crewRecord(crew)?[Self.creatorKey]?.string
         let seen = (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRekey.kind + "/") }.values.compactMap { fields -> CrewRekey.Seen? in
             guard let raw = fields[Self.rawKey]?.string.flatMap({ Data(base64Encoded: $0) }),
@@ -895,27 +971,82 @@ final class PublicCrewCloud: CrewCloud {
             return CrewRekey.Seen(box: box, fromStarter: starter != nil && fields[Self.creatorKey]?.string == starter,
                                   at: fields[Self.modKey]?.date ?? .distantPast)
         }
+        return (seen, starter != nil)
+    }
+
+    /// What this phone learns from the crew's rekey records: true when its
+    /// keys really changed, and the crew wants reading again.
+    private func learnKeys(_ crew: CrewID) -> Bool {
+        // Once the starter is known, nobody else's rekey records are kept:
+        // they are believed for nothing, and anyone can write them.
+        if let starter = crewRecord(crew)?[Self.creatorKey]?.string {
+            for (key, fields) in cache[crew] ?? [:] where key.hasPrefix(CrewRekey.kind + "/") && fields[Self.creatorKey]?.string != starter {
+                cache[crew]?[key] = nil
+            }
+        }
+        let (seen, starterKnown) = rekeysSeen(crew)
         guard !seen.isEmpty else { return false }
+        let before = keys.candidates(for: crew)
         let learned = CrewRekey.learn(seen, crew: crew.rawValue, current: keys.key(for: crew),
-                                      older: keys.ring.older(for: crew.rawValue), mine: CrewAgreement.privateKey())
+                                      older: keys.ring.older(for: crew.rawValue), mine: CrewAgreement.existing(),
+                                      starterKnown: starterKnown)
         guard learned.changed else { return false }
         for key in learned.older { keys.remember(key, for: crew) }
         if let key = learned.current {
             keys.advance(to: key, for: crew)
             setTime(Date().timeIntervalSince1970, for: crew, in: Self.keyedAtKey)
             // Your member record under the new key, so it still counts
-            // (`cachedCrew`), and the key to your other phones.
+            // (`memberRecords`), and the key to your other phones.
             wantsReseal.insert(crew)
             Task { await syncKeys() }
         }
+        guard keys.candidates(for: crew) != before else { return false }
+        // Kept, so a re-read cut short (the app closed) is done next time.
+        since[crew] = .distantPast
+        saveCache()
         return true
     }
+
+    /// How many rekey records a crew keeps: far more re-keys than a crew
+    /// has in the two weeks its posts last, and a bound all the same.
+    static let rekeysKept = 64
+    /// And how many before its starter is known, when none can be vouched for.
+    static let rekeysUnvouched = 24
 
     /// When the crew's starter last re-keyed it, as cached.
     private func lastRekey(_ crew: CrewID) -> Date? {
         guard let starter = crewRecord(crew)?[Self.creatorKey]?.string else { return nil }
         return (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRekey.kind + "/") && $0.value[Self.creatorKey]?.string == starter }
             .compactMap { $0.value[Self.modKey]?.date }.max()
+    }
+
+    /// What this phone owes a crew it is in: a re-key the starter still
+    /// owes it; the crew's own record under its key now; and your member
+    /// record again, under a new key or with your public key, which a crew
+    /// needs from everyone in it before it can be re-keyed.
+    private func keepUp(_ crew: CrewID) async {
+        await rekeyIfWanted(crew)
+        await resealCrewRecord(crew)
+        let key = "\(CrewRecordType.member.rawValue)/\(myProfileID.uuidString)"
+        if let own = cache[crew]?[key], own[Self.creatorKey]?.string == meRecordName, let mine = CrewAgreement.publicText() {
+            let published = own[CrewAgreement.field]?.string
+            if published == nil {
+                wantsReseal.insert(crew)
+            } else if published != mine {
+                // Another phone of yours published a key this one cannot
+                // open (no shared iCloud Keychain). This phone's goes up
+                // instead, at most once a day: two such phones would
+                // otherwise rewrite each other's at every refresh.
+                var tried = UserDefaults.standard.dictionary(forKey: Self.agreeTriedKey) as? [String: Double] ?? [:]
+                let now = Date().timeIntervalSince1970
+                if now - (tried[crew.rawValue] ?? 0) > 86_400 {
+                    tried[crew.rawValue] = now
+                    UserDefaults.standard.set(tried, forKey: Self.agreeTriedKey)
+                    wantsReseal.insert(crew)
+                }
+            }
+        }
+        if wantsReseal.contains(crew), (try? await resealMember(in: crew)) != nil { wantsReseal.remove(crew) }
     }
 
     /// Crews where this phone's member record wants writing again: under a
@@ -928,7 +1059,7 @@ final class PublicCrewCloud: CrewCloud {
         let key = "\(CrewRecordType.member.rawValue)/\(myProfileID.uuidString)"
         guard let mine = cache[crew]?[key], mine[Self.creatorKey]?.string == meRecordName else { return }
         var fields = mine.filter { !$0.key.hasPrefix("_") }
-        if fields[CrewAgreement.field] == nil, let text = CrewAgreement.publicText() { fields[CrewAgreement.field] = .string(text) }
+        if let text = CrewAgreement.publicText() { fields[CrewAgreement.field] = .string(text) }
         try await write(fields, kind: CrewRecordType.member.rawValue, name: myProfileID.uuidString, in: crew)
     }
 
@@ -1106,7 +1237,7 @@ final class PublicCrewCloud: CrewCloud {
         // the crew is read whole with it (and once more, for a chain of
         // them; never round and round).
         var again = 0
-        while learnKeys(crew), again < 3 {
+        while again < 3, learnKeys(crew) {
             again += 1
             since[crew] = .distantPast
             _ = try await syncOnce(crew, full: true)
@@ -1178,6 +1309,14 @@ final class PublicCrewCloud: CrewCloud {
             // who must read it hold different ones): kept as it is, and
             // read by `learnKeys`.
             if kind == CrewRekey.kind {
+                // **Small, few, and the starter's** (the re-key review):
+                // these are not sealed, so anyone who knew a crew's id could
+                // have filled every member's phone with them.
+                let starter = crewRecord(crew)?[Self.creatorKey]?.string
+                let writer = owner(record.creatorUserRecordID)
+                let kept = (cache[crew] ?? [:]).keys.filter { $0.hasPrefix(CrewRekey.kind + "/") }.count
+                guard starter == nil ? kept < Self.rekeysUnvouched : writer == starter,
+                      cache[crew]?[cacheKey] != nil || kept < Self.rekeysKept else { return }
                 guard let raw = record["box"] as? Data, CrewRekey.read(raw) != nil else { return }
                 var fields: RecordFields = [Self.rawKey: .string(raw.base64EncodedString())]
                 if let creator = owner(record.creatorUserRecordID) { fields[Self.creatorKey] = .string(creator) }
@@ -1293,6 +1432,11 @@ final class PublicCrewCloud: CrewCloud {
             Self.log.notice("crew item not opened: \(recordName, privacy: .public)")
             return nil
         }
+        // **The cache's own fields are the server's to say, never the
+        // box's** (the re-key review): who wrote a record now decides whose
+        // key is taken, and a box that named its own writer would only have
+        // been overruled while the server always named one.
+        fields = fields.filter { !$0.key.hasPrefix("_") || $0.key == Self.endedKey }
         fields[Self.sealKey] = .string(key.mark)
         if let creator = owner(record.creatorUserRecordID) { fields[Self.creatorKey] = .string(creator) }
         if type == .crew, let editor = owner(record.lastModifiedUserRecordID) {
