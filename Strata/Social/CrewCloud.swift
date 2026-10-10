@@ -56,6 +56,12 @@ protocol CrewCloud: AnyObject {
     /// Turns away from a crew just accepted and not joined (the cap was
     /// reached, or it was full): nothing of yours in it is touched.
     func decline(_ crew: CrewID) async
+    /// A join that went through: the member record is written. Until this
+    /// or `decline`, the crew is only being joined.
+    func settle(_ crew: CrewID) async
+    /// Said before anything of yours in the crew is deleted: the leaving
+    /// itself, where a cloud keeps one.
+    func willLeave(_ crew: CrewID) async throws
     /// Leaves a crew someone else started.
     func leave(_ crew: CrewID) async throws
     /// Ends a crew you started, for everyone: its zone is deleted.
@@ -112,4 +118,6 @@ extension CrewCloud {
     /// Where accepting is joining (the stand-in cloud), turning away is
     /// leaving.
     func decline(_ crew: CrewID) async { try? await leave(crew) }
+    func settle(_ crew: CrewID) async {}
+    func willLeave(_ crew: CrewID) async throws {}
 }

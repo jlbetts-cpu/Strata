@@ -269,7 +269,9 @@ struct SettingsView: View {
                     if enabled {
                         Task { await requestNotificationPermission() }
                     } else {
+                        // The evening's cue too: off is off for both.
                         Task { await DailyReminder.removePending() }
+                        EveningCheckIn.removePending()
                     }
                 }
 

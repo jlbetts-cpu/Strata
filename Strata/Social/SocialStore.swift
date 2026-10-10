@@ -701,7 +701,8 @@ final class SocialStore {
         // you are in changes nothing; a new one is left again at once.
         let atCap = crews.count >= CrewCaps.crews
         let id = try await cloud.accept(invite)
-        if atCap, !crews.contains(where: { $0.id == id }) {
+        let wasIn = crews.contains(where: { $0.id == id })
+        if atCap, !wasIn {
             // **Turned away, not left** (the third read, 2026-10-10). In the
             // public database leaving deletes everything this ACCOUNT wrote
             // in the crew, so a phone at its cap opening a link to a crew
@@ -710,16 +711,30 @@ final class SocialStore {
             await cloud.decline(id)
             throw CrewError.tooManyCrews
         }
-        let fetched = try await cloud.fetchCrews()
-        guard let crew = fetched.first(where: { $0.id == id }) else { throw CrewError.unknownCrew }
-        // Accepting is where the second check happens: eight people were
-        // already in it when the link was opened.
-        guard crew.members.filter({ $0.profileID != me }).count < CrewCaps.members else {
-            await cloud.decline(id)
-            throw CrewError.crewFull
+        // **A join ends one of two ways, said to the cloud** (the fourth
+        // read): settled, with your member record written, or turned away.
+        // Left half done, its key reached your key backup, came back on the
+        // next sync, and "that crew is full" became a ninth member.
+        let crew: Crew
+        do {
+            let fetched = try await cloud.fetchCrews()
+            guard let found = fetched.first(where: { $0.id == id }) else { throw CrewError.unknownCrew }
+            // Accepting is where the second check happens: eight people were
+            // already in it when the link was opened.
+            guard found.members.filter({ $0.profileID != me }).count < CrewCaps.members else { throw CrewError.crewFull }
+            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
+            try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
+            crew = found
+        } catch {
+            // Full, or not there: turned away. Anything else (no signal, a
+            // full iCloud) and the join stands: the key is held, and the
+            // next refresh writes the member record
+            // (`repairMissingMembership`, the 2026-10-08 audit).
+            let turnedAway = (error as? CrewError) == .crewFull || (error as? CrewError) == .unknownCrew
+            if turnedAway, !wasIn { await cloud.decline(id) } else { await cloud.settle(id) }
+            throw error
         }
-        let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
-        try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
+        await cloud.settle(id)
         await refresh()
         await shareMyself()
         if announces { await CrewNotifications.askOnce() }
@@ -918,6 +933,13 @@ final class SocialStore {
         try requireOn()
         guard let crew = crew(crewID) else { throw CrewError.unknownCrew }
         if crew.isOwner(me) { return try await end(crewID) }
+        // **The leaving is said first** (the fourth read). Your posts and
+        // member record were deleted before the note that you left existed,
+        // so a failure in between left you in the crew with your posts
+        // gone, and your other phone, seeing no member and no note, wrote
+        // you back. With the note down, anything that fails after it is
+        // finished by the next refresh.
+        try await cloud.willLeave(crewID)
         for win in winsByCrew[crewID] ?? [] where win.senderProfileID == me {
             try await cloud.delete(type: .sharedWin, name: CrewRecords.name(of: win), in: crewID)
         }
@@ -2446,9 +2468,11 @@ final class SocialStore {
     private func forget(_ crewID: CrewID) {
         crews.removeAll { $0.id == crewID }
         UserDefaults.standard.removeObject(forKey: EveningCheckIn.crewEveningKey)
-        // And tonight's cue, if it was worded for this crew: the next win
-        // schedules it again, plainly.
-        if announces { EveningCheckIn.takeBackToday() }
+        // And tonight's cue is decided again, without this crew: taken back
+        // outright, it cost the day its only cue when it was the plain one.
+        if announces {
+            Task { @MainActor in await EveningCheckIn.update(context: SharedModelContainer.shared.mainContext) }
+        }
         if let wins = winsByCrew.removeValue(forKey: crewID) {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }

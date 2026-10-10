@@ -506,3 +506,34 @@ Also from that read:
 - One evening cue a day is counted, so a crew moment before 7pm is never
   followed by a second cue at 7.
 - A member record is never written into a crew you have left.
+
+### A fourth read (02:30): the verdict, and its ten
+
+The fourth reviewer traced ten whole scenarios (leave with two phones,
+rejoin, end, remove, the cap, a first join, a new crew, a photo that never
+downloads). Eight were correct in their main paths. Its verdict: **safe to
+hand to about ten friends**: no crash path found, and no route from the
+crew code into your private wins or their photos; what it expected was
+wrong crew states, not damage. Its ten findings are fixed:
+
+- A join that was turned away ("that crew is full") could still happen on
+  the next sync, because its key had already reached your key backup. A
+  join now ends one of two ways, said out loud: settled or turned away,
+  and only a settled one is backed up.
+- Leaving deleted your posts before the note that you left existed. The
+  note is first now, so a leave that fails half way finishes itself on the
+  next refresh instead of putting you back without your posts.
+- A friend who left stayed in the crew, wins and all, for up to ten
+  minutes. They are gone the moment their note is read.
+- A photo that never downloads is given up on after three tries, instead
+  of being fetched again on every sync for ever.
+- A delete the server refused is no longer taken for a delete.
+- The evening cue's bookkeeping could cost a day its only cue (reminders
+  switched off and on; leaving a crew). Fixed, and switching reminders off
+  now also takes back tonight's evening cue, which it did not.
+- A join whose member record could not be written (no signal) still
+  stands and is mended by the next refresh, as it was meant to: a test
+  from the 2026-10-08 audit caught me undoing that.
+
+**Still true, and yours to weigh:** none of this has run against real
+iCloud. Four careful reads are not one real phone.

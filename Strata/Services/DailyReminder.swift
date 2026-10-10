@@ -189,7 +189,11 @@ nonisolated enum EveningCheckIn {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
-        guard defaults.bool(forKey: "notificationsEnabled") else { return }
+        guard defaults.bool(forKey: "notificationsEnabled") else {
+            // Taken back above, so nothing is scheduled: not "delivered".
+            defaults.removeObject(forKey: scheduledKey)
+            return
+        }
         let today = DateUtils.dateString(from: now)
         let logs = (try? context.fetch(FetchDescriptor<HabitLog>(
             predicate: #Predicate { $0.dateString == today && $0.completed }))) ?? []
@@ -220,7 +224,10 @@ nonisolated enum EveningCheckIn {
             return
         }
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            defaults.removeObject(forKey: scheduledKey)
+            return
+        }
         let content = UNMutableNotificationContent()
         // Today's goal, as you set it.
         let goal = DailyGoal.stored(on: today, defaults: defaults)
@@ -230,21 +237,22 @@ nonisolated enum EveningCheckIn {
         content.threadIdentifier = NotificationRoute.Thread.daily
         content.categoryIdentifier = DailyReminder.category
         let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: at)
-        try? await center.add(UNNotificationRequest(
-            identifier: identifier(for: at), content: content,
-            trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
-        defaults.set(["day": today, "at": at.timeIntervalSince1970] as [String: Any], forKey: scheduledKey)
+        do {
+            try await center.add(UNNotificationRequest(
+                identifier: identifier(for: at), content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+            // Only what was really scheduled can later count as delivered.
+            defaults.set(["day": today, "at": at.timeIntervalSince1970] as [String: Any], forKey: scheduledKey)
+        } catch {
+            defaults.removeObject(forKey: scheduledKey)
+        }
     }
 
     private static let scheduledKey = "eveningCheckIn.scheduled"
 
-    /// Tonight's cue taken back, if it has not come yet: a crew it was
-    /// worded for has been left. The next `update` decides again.
-    static func takeBackToday(now: Date = Date()) {
-        let defaults = UserDefaults.standard
-        if let kept = defaults.dictionary(forKey: scheduledKey), let at = kept["at"] as? Double,
-           at <= now.timeIntervalSince1970 { return }
+    /// Tonight's cue, taken back: reminders were switched off.
+    static func removePending(now: Date = Date()) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
-        defaults.removeObject(forKey: scheduledKey)
+        UserDefaults.standard.removeObject(forKey: scheduledKey)
     }
 }
