@@ -6,6 +6,47 @@ marked **REVIEW** is a call I made that you may want to undo.
 
 ---
 
+## Start here (written 03:00, 2026-10-10)
+
+**Build 114 is in TestFlight, for you only.** I did not add it to the
+Friends group or send it for review, on purpose. Before your friends get
+it:
+
+1. **Push.** `cd ~/Desktop/Strata && git push origin main`. GitHub was 204
+   commits behind at 00:15, so the invite page (`docs/join.html`) is not
+   published and every crew invite opens a missing page until this lands.
+   Check: https://jlbetts-cpu.github.io/Strata/join.html should load.
+2. **Try crews on two phones** (yours and one friend's, or two of yours):
+   start a crew, send the invite, join, post a win with a photo, take the
+   photo off, leave, join again by the link, end the crew. This code has
+   been read five times by independent reviewers and has never once run
+   against real iCloud, because the simulator has no iCloud account.
+3. **Then release it**: in App Store Connect, TestFlight, build 114, add
+   the Friends group. Or tell me and I will.
+
+The Production CloudKit schema is deployed (I checked: `CrewItem` and
+`CrewKeys` are there).
+
+**How I would rate each piece, honestly**
+
+| Piece | Rating | Why not higher |
+|---|---|---|
+| Yesterday's tower into Memories | 9 | Seen frame by frame, light and dark. The Memories tab itself does not react when the tower lands (it is the system's bar). |
+| The month's albums | 7 | Right place, quiet. With little data it is one lonely card; needs your eye on real photos. |
+| Strip into a crew | 8 | Clean entry (no new button). Not tried on a real phone's share sheet. |
+| Doodles stay on their photo | 8 | Proven by render and tests; I never drew with a finger in the live editor. |
+| Crew streak, flame, evening | 8 | The rule is kinder and the flame is tiny. The evening timing is unproven on real phones in a real crew. |
+| Crews off personal iCloud | 6 until it runs on two phones | The design is sound and every known hole is closed, but five review rounds each found real bugs, and that is a reason for care, not confidence. |
+| Bug sweep | 7 | The face-screen crash is fixed by reading, never reproduced (no crash log). |
+
+**Not done**
+
+- Re-keying a crew when someone is removed (they keep the old key).
+- The crews film remake you asked for before this prompt.
+- Albums with friends' photos: you chose your own photos only.
+
+---
+
 ## 1. Crew data out of personal iCloud
 
 ### What I found (the audit)
