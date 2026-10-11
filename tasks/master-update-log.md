@@ -525,6 +525,6 @@ compiles.
 
 **For you**
 - Build 119 is in TestFlight for you only. Friends are on 117.
-- Six commits are waiting for `cd ~/Desktop/Strata && git push origin main`.
+- Everything since Build 117 is waiting for `cd ~/Desktop/Strata && git push origin main`.
 - somewins.xyz still points at the registrar's parking page, so invite
   links still say github.
