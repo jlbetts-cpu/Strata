@@ -113,6 +113,7 @@ struct PlanScopeRow: View {
                 }
                 .padding(.horizontal, margin)
             }
+            .moreToTheRight()
             .onChange(of: scope) { _, now in
                 withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
             }
@@ -184,7 +185,9 @@ struct WhenRow: View {
                     HStack(spacing: 0) {
                         ForEach(choices, id: \.self) { item in word(item) }
                     }
+                    .padding(.trailing, GridConstants.gapWide)
                 }
+                .moreToTheRight()
                 .transition(.opacity)
             } else {
                 Button {
@@ -258,5 +261,18 @@ struct PlannedHereList: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Planned: " + lines.joined(separator: ", "))
         .accessibilityHidden(lines.isEmpty)
+    }
+}
+
+private extension View {
+    /// **A row that runs on past the edge fades into it**, so the last word
+    /// in view is not cut in half and the row says there is more (seen
+    /// 2026-10-10: "Repeating" stood at the screen's edge as an "R").
+    func moreToTheRight() -> some View {
+        mask {
+            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9),
+                                   .init(color: .clear, location: 1)],
+                           startPoint: .leading, endPoint: .trailing)
+        }
     }
 }

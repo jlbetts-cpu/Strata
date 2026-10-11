@@ -255,14 +255,20 @@ struct GoalCrest: View {
                 // and nothing may travel (Reduce Motion, `RingMoment`).
                 .overlay {
                     if RingMoment.shared.checkInPlace {
-                        Image("MarkCheck")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(AppColors.inkPrimary)
-                            .padding(side * 0.26)
-                            .background(Circle().fill(WarmBackground.top))
-                            .transition(.opacity)
+                        // Over the face only: the ring it sits in stays in
+                        // view (seen 2026-10-10: the disc under the check
+                        // was the crest's whole size and hid the ring).
+                        ZStack {
+                            Circle().fill(WarmBackground.top)
+                                .padding(Self.line + 6)
+                            Image("MarkCheck")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(AppColors.inkPrimary)
+                                .padding(side * 0.29)
+                        }
+                        .transition(.opacity)
                     }
                 }
                 .scaleEffect(swell && !reduceMotion ? 1.1 : 1)
