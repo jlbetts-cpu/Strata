@@ -42,8 +42,28 @@ final class RingMoment {
     private(set) var goal = 1
     /// The crest in its place, with the check over it (Reduce Motion).
     private(set) var checkInPlace = false
+    /// **The count the header shows until the ring has taken the win**
+    /// (found by review): the header had the new segment and the new
+    /// fraction for the best part of a second, and then the ring came out
+    /// showing the old ones and filled them again. Held at the old count
+    /// from the moment a win is accepted until the segment is drawn.
+    private(set) var holding: Int?
 
     @ObservationIgnored private var playing: Task<Void, Never>?
+    /// One is waiting on the block or under way: the goal's dance waits for
+    /// it (`MainAppView.celebrateGoalIfDue`), so the two are never on
+    /// screen at once.
+    var isPlaying: Bool { playing != nil }
+
+    /// The beats, in seconds, after the wait for the block.
+    static let growsFor = 0.42
+    static let sweepsFor = 0.34
+    static let settlesFor = 0.16
+    static let returnsFor = 0.44
+    /// From the press to home again.
+    static var whole: Double {
+        GridConstants.ringWaitsForBlock + growsFor + sweepsFor + settlesFor + GridConstants.ringHold + returnsFor
+    }
 
     /// A win was logged: `from` wins became `to`. Nothing plays for a count
     /// that fell, for the first count of a launch, or while one is playing
@@ -53,34 +73,44 @@ final class RingMoment {
         self.from = from
         self.to = to
         self.goal = max(1, goal)
+        holding = from
         playing = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(GridConstants.ringWaitsForBlock))
-            guard let self, !Task.isCancelled else { return }
+            /// Waits, and says whether the moment is still wanted: a
+            /// cancelled one must not go on to tap or to move anything
+            /// (found by review: only the first wait was checked).
+            func wait(_ seconds: Double) async -> Bool {
+                try? await Task.sleep(for: .seconds(seconds))
+                return !Task.isCancelled
+            }
+            guard await wait(GridConstants.ringWaitsForBlock), let self else { return }
             if reduceMotion {
                 withAnimation(GridConstants.crossFade) { self.checkInPlace = true }
+                self.holding = nil
                 HapticsEngine.tick()
-                try? await Task.sleep(for: .seconds(GridConstants.ringHold + 0.4))
+                guard await wait(GridConstants.ringHold + 0.4) else { return }
                 withAnimation(GridConstants.crossFade) { self.checkInPlace = false }
                 self.playing = nil
                 return
             }
             self.lifted = true
             withAnimation(GridConstants.ringLift) { self.grown = true }
-            try? await Task.sleep(for: .seconds(0.42))
+            guard await wait(Self.growsFor) else { return }
             withAnimation(GridConstants.ringSweep) { self.filled = true }
+            self.holding = nil
             // The tap lands as the segment closes, with the check.
-            try? await Task.sleep(for: .seconds(0.34))
+            guard await wait(Self.sweepsFor) else { return }
             HapticsEngine.tick()
-            try? await Task.sleep(for: .seconds(0.16 + GridConstants.ringHold))
+            guard await wait(Self.settlesFor + GridConstants.ringHold) else { return }
             withAnimation(GridConstants.ringReturn) { self.grown = false }
-            try? await Task.sleep(for: .seconds(0.44))
+            guard await wait(Self.returnsFor) else { return }
             self.lifted = false
             self.filled = false
             self.playing = nil
         }
     }
 
-    /// Stopped where it is: the screen it was over has gone.
+    /// Stopped where it is: the screen it was over has gone, or the win
+    /// was taken back.
     func cancel() {
         playing?.cancel()
         playing = nil
@@ -88,6 +118,56 @@ final class RingMoment {
         grown = false
         filled = false
         checkInPlace = false
+        holding = nil
+    }
+}
+
+/// **When the ring's moment plays**, as a rule that can be tested without a
+/// screen (found by review: the first version lived in a view modifier and
+/// had four faults nothing tested). Fed the day's count and whether the
+/// tower is in view with nothing over it.
+nonisolated struct RingTrigger: Equatable {
+    enum Action: Equatable {
+        case none
+        case play(from: Int, to: Int)
+        case cancel
+    }
+
+    /// A win logged while something was over the tower, and when.
+    private(set) var waiting: (from: Int, to: Int, at: Date)?
+    /// How long a win waits for the tower to come back into view. Long
+    /// enough for the add sheet to leave; past it the moment has gone, and
+    /// the count is simply the count (a win from the widget, one brought by
+    /// iCloud, a backup restored on another tab).
+    static let keeps: TimeInterval = 6
+
+    static func == (a: RingTrigger, b: RingTrigger) -> Bool {
+        a.waiting?.from == b.waiting?.from && a.waiting?.to == b.waiting?.to && a.waiting?.at == b.waiting?.at
+    }
+
+    mutating func counted(old: Int, new: Int, isClear: Bool, now: Date = Date()) -> Action {
+        // **A win taken back takes the moment with it** (found by review:
+        // Undo inside the wait still played the ring up to a count the
+        // header no longer had).
+        guard new > old else {
+            waiting = nil
+            return new < old ? .cancel : .none
+        }
+        let from = waiting.map { now.timeIntervalSince($0.at) < Self.keeps ? $0.from : old } ?? old
+        if isClear {
+            waiting = nil
+            return .play(from: from, to: new)
+        }
+        waiting = (from, new, waiting?.at ?? now)
+        return .none
+    }
+
+    mutating func cleared(_ isClear: Bool, now: Date = Date()) -> Action {
+        guard isClear else { return .cancel }
+        guard let due = waiting else { return .none }
+        waiting = nil
+        guard now.timeIntervalSince(due.at) < Self.keeps else { return .none }
+        return .play(from: due.from, to: due.to)
     }
 }
 
@@ -206,33 +286,25 @@ struct GoalRingMomentWatch: ViewModifier {
     /// Wins is the screen in front and nothing else is over it.
     let isClear: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// A win logged while something was over the tower (the add sheet saves
-    /// before it leaves): played once the tower is in view again.
-    @State private var waiting: (from: Int, to: Int)?
+    @State private var trigger = RingTrigger()
 
     func body(content: Content) -> some View {
         content
             .overlay { GoalRingMomentLayer().ignoresSafeArea() }
             .onChange(of: wins) { old, new in
-                // The first count of a launch is the count, not a win; and
-                // a win taken off is not a moment.
-                guard LaunchMoment.shared.finished, new > old else {
-                    waiting = nil
-                    return
-                }
-                let from = waiting?.from ?? old
-                if isClear {
-                    waiting = nil
-                    RingMoment.shared.play(from: from, to: new, goal: goal, reduceMotion: reduceMotion)
-                } else {
-                    waiting = (from, new)
-                }
+                // The first count of a launch is the count, not a win.
+                guard LaunchMoment.shared.finished else { return }
+                act(trigger.counted(old: old, new: new, isClear: isClear))
             }
-            .onChange(of: isClear) { _, clear in
-                guard clear else { return RingMoment.shared.cancel() }
-                guard let due = waiting else { return }
-                waiting = nil
-                RingMoment.shared.play(from: due.from, to: due.to, goal: goal, reduceMotion: reduceMotion)
-            }
+            .onChange(of: isClear) { _, clear in act(trigger.cleared(clear)) }
+    }
+
+    private func act(_ action: RingTrigger.Action) {
+        switch action {
+        case .none: break
+        case .cancel: RingMoment.shared.cancel()
+        case .play(let from, let to):
+            RingMoment.shared.play(from: from, to: to, goal: goal, reduceMotion: reduceMotion)
+        }
     }
 }

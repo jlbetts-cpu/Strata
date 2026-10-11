@@ -1846,6 +1846,30 @@ placeholder ... a user should be able to plan their entire next day in under
 - The plan sheet's bar is a UIKit field and the simulator's keyboard will
   not type into it from a UI test; type into the add sheet's name instead.
 
+### The ring's moment (2026-10-10)
+
+The owner: "when a win is completed, animate the ring large on screen ...
+then zoom back to its spot ... calm and minimal, not loud".
+`GoalRingMoment.swift`.
+
+- `RingMoment` (singleton) runs the trip: the header crest itself lifts,
+  grows, the new segment is drawn (`RingSweep`), his `MarkCheck` shows for a
+  beat, the fraction counts up, home. `RingTrigger` is the rule for WHEN,
+  pure and tested: a win with the tower clear plays; one saved under a sheet
+  waits at most six seconds for the tower; a count that falls cancels.
+- **Order with the goal's celebration**: block lands, ring, ring home, THEN
+  the dance and confetti (`celebrateGoalIfDue` waits on
+  `RingMoment.shared.isPlaying`). Do not let them overlap again.
+- The header shows the OLD count until the ring has drawn the new segment
+  (`RingMoment.holding`), or it fills twice.
+- `MainAppView.ringIsClear` must list every sheet, cover and pushed screen
+  the main view presents. Add to it when adding one.
+- Reduce Motion: nothing travels; the check fades in over the face, the
+  ring stays visible.
+- To see it: record `FeedbackShots.testRingMoment` (`-goalDanceDay none`
+  lets the goal's dance follow) and sample frames; a screenshot cannot show
+  an order.
+
 ### Drawings thrown onto a crew's tower: removed (2026-10-10)
 
 The owner, after using it: "there is no way to delete drawings or move them

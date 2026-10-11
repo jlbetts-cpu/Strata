@@ -549,6 +549,10 @@ struct MainAppView: View {
                     scheduleReminder()
                     refreshReplayWindow()
                 } else {
+                    // And the reminders, with the plan as it stands on the
+                    // way out: a line planned from the add sheet or moved on
+                    // the tower is in tomorrow's cue (found by review).
+                    scheduleReminder()
                     // **Leaving the app is the moment before the home screen
                     // is looked at.** The snapshot was only ever published
                     // from `refreshData`, which runs while you are still in
@@ -667,9 +671,11 @@ struct MainAppView: View {
             // backing out goes straight back. From the dismissal, as the add
             // sheet itself opens from the plan's.
             if returnsToPlan {
-                returnsToPlan = false
                 Task { @MainActor in
                     if saved { try? await Task.sleep(for: .milliseconds(900)) }
+                    // Held true until the plan is back: the ring's moment
+                    // reads it (`ringIsClear`) and must not start in the gap.
+                    returnsToPlan = false
                     dayOpeningTab = .plan
                     isPlanning = true
                 }
@@ -2102,8 +2108,15 @@ struct MainAppView: View {
     /// Wins is in front with nothing over it: where the ring's moment may
     /// play (`GoalRingMomentWatch`).
     private var ringIsClear: Bool {
-        selectedTab == .tower && handoffLogs == nil && winDraft == nil && !isPlanning
-            && editingHabit == nil && capturingPlan == nil
+        // Every sheet, cover and pushed screen this view puts over the
+        // tower (found by review: a win on a crew's tower played your ring
+        // over the crew). And not while a win ticked from the plan is on
+        // its way back to the plan: the sheet returns in under a second
+        // and cut the ring off mid-air.
+        selectedTab == .tower && scenePhase == .active && crewPath.isEmpty
+            && handoffLogs == nil && winDraft == nil && !isPlanning && !returnsToPlan
+            && editingHabit == nil && capturingPlan == nil && editingPlan == nil
+            && expandedBlockID == nil && booth == nil && !showsYourDay && !showsTipAsk
     }
 
     private var blocksToday: Int {
@@ -2136,8 +2149,11 @@ struct MainAppView: View {
             return
         }
         // Up to four seconds for the landing to settle.
+        // And until the ring has taken the win and gone home (`RingMoment`):
+        // the dance started under it, and the confetti came out of a crest
+        // that was not in its place (found by review).
         var waited = 0
-        while !animCoord.isStill, waited < 40 {
+        while !animCoord.isStill || RingMoment.shared.isPlaying, waited < 60 {
             try? await Task.sleep(for: .milliseconds(100))
             waited += 1
         }

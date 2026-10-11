@@ -236,6 +236,9 @@ struct GoalCrest: View {
     var side: CGFloat = 60
 
     private var arrived: Bool { LaunchMoment.shared.finished }
+    /// What the ring and the fraction show: the count, or the count before
+    /// the win the ring is about to come forward for (`RingMoment.holding`).
+    private var shown: Int { RingMoment.shared.holding ?? wins }
     @State private var swell = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -245,7 +248,7 @@ struct GoalCrest: View {
         VStack(spacing: GridConstants.spacing) {
             Button { openDay() } label: {
                 ZStack {
-                    GoalRingStroke(wins: wins, goal: goal, line: Self.line)
+                    GoalRingStroke(wins: shown, goal: goal, line: Self.line)
                         .padding(Self.line / 2 + 2)
                     CrestFace(side: side - 2 * (Self.line + 6))
                 }
@@ -283,7 +286,7 @@ struct GoalCrest: View {
             .buttonStyle(.press)
             .zIndex(1)
             Button { openDay() } label: {
-                CrestCaption(text: "\(wins)/\(goal)")
+                CrestCaption(text: "\(shown)/\(goal)")
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
                     .contentShape(Rectangle())
@@ -296,7 +299,7 @@ struct GoalCrest: View {
             .buttonStyle(.plain)
             .zIndex(2)
         }
-        .animation(GridConstants.cueIn, value: wins)
+        .animation(GridConstants.cueIn, value: shown)
         // **It arrives after the launch** (the owner: drawn, "erased and then
         // that middle progress comes in"): small and clear until the logo
         // has been rubbed out, then in on the cue's spring.

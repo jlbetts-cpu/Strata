@@ -23,6 +23,11 @@ inference of ours.
   word moves them all to today and a swipe lets one go. It is never deleted
   for you. A repeating line simply returns on its next day.
 
+- **The day's one reminder carries the day's plan**: "Today: Morning walk,
+  Laundry" under its usual title. Up to three lines by name, never a count,
+  and no extra notification: the one that was going anyway says more.
+- **The plan is in backups** (what is still to do, and every routine).
+
 ## The test it was built to
 
 The owner's: "plan their entire next day in under 15 seconds: open it, type a

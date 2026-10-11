@@ -164,6 +164,15 @@ struct RestoreBackupView: View {
                  : "\(plan.winsToAdd) wins will be added.")
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkPrimary)
+            // The plan's lines this phone lacks (2026-10-10): said, or a
+            // backup with only those to add read "0 wins will be added".
+            if !plan.planLinesToAdd.isEmpty {
+                Text(plan.planLinesToAdd.count == 1
+                     ? "1 line will go back on your plan."
+                     : "\(plan.planLinesToAdd.count) lines will go back on your plan.")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkSecondary)
+            }
             if plan.winsAlreadyHere > 0 {
                 Text(plan.winsAlreadyHere == 1
                      ? "1 is already on this phone and will be left as it is."
@@ -240,7 +249,7 @@ struct RestoreBackupView: View {
             Spacer(minLength: 0)
             // A backup with only journal days left to add still has an action,
             // and "Add 0 wins" would be a button saying it does nothing.
-            primaryButton(plan.winsToAdd == 0 ? "Add Journal"
+            primaryButton(plan.winsToAdd == 0 ? (plan.notesToAdd.isEmpty ? "Add to Plan" : "Add Journal")
                           : plan.winsToAdd == 1 ? "Add 1 win" : "Add \(plan.winsToAdd) wins") {
                 await restore(plan)
             }
@@ -294,6 +303,9 @@ struct RestoreBackupView: View {
                 }
                 if report.notesAdded > 0 {
                     fact("Journal days", value: "\(report.notesAdded)")
+                }
+                if report.planLinesAdded > 0 {
+                    fact("Plan lines", value: "\(report.planLinesAdded)")
                 }
                 fact("Wins untouched", value: "everything you already had", isLast: true)
             }

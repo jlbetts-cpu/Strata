@@ -115,7 +115,9 @@ struct PlanItemDetailSheet: View {
                 // the row of days the plan has, so a line can be moved from
                 // where it is edited. A day off the row (one gone by, or
                 // more than a week on) shows none chosen until one is.
-                if !item.repeats {
+                // Not on a line already done: it is today's by having been
+                // done today, and a day chosen here would show nothing.
+                if !item.repeats, item.completedAt == nil {
                     Section {
                         PlanScopeRow(scope: Binding(
                             // A line from before lines had days is today's.

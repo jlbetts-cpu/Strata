@@ -353,3 +353,70 @@ Thirteen findings. The ones that would have reached you:
 5. Say whether 117 goes to friends.
 6. Still open from before: the domain's DNS and GitHub Pages setting, then
    I switch the invite link to somewins.xyz and add the direct open.
+
+---
+
+## 5. The pass to a 10 (2026-10-10, evening, after "keep editing")
+
+You asked for everything to rate a 10 for connectivity, look and function.
+What I found by looking, by a fourth independent review, and fixed:
+
+### The ring
+- **It played over the goal's dance**, and the confetti came out of a crest
+  that was not in its place. The order is now: block lands, ring takes the
+  win and goes home, then the dance, then the confetti. Seen on a recording.
+- **The header filled twice**: it showed the new count for most of a second
+  and then the ring came out showing the old one. The header now holds the
+  old count until the ring has drawn the new segment.
+- **Undo did not stop it.** A win taken back inside the first second still
+  played the ring up to a count that was no longer true. It cancels now.
+- **It played over other screens**: a win logged on a crew's tower played
+  your ring over the crew. It now plays only with the Wins tower in front
+  and nothing over it.
+- **A win ticked from the plan cut it off mid-air** when the plan sheet came
+  back. It waits for the tower instead, for at most six seconds; past that
+  the moment has gone and the count is just the count. The same six seconds
+  stop it playing for a win that arrived from the widget or iCloud.
+- With Reduce Motion the check covered the ring itself. Only the face gives
+  way now.
+
+### The planner
+- **An outline's words were bigger and heavier than a real block's title**,
+  and a long line shrank to a size its neighbours did not have. They wear
+  the block's own title type and place now, and truncate.
+- **The day's one reminder knows the plan**: "Today: Morning walk, Laundry"
+  under the usual title, up to three lines by name. No new notification.
+- **The plan is in backups.** It never was. What is still to do and every
+  routine go in, come back once, and the restore screen says so.
+- A line can be moved to another day from its own sheet (the same row of
+  days).
+- Deleting an old win from a repeating line no longer unticks today's.
+- Planning is not offered in the add sheet opened from a crew's tower.
+- A friend's win put on your plan (Do It Too) is dated today, so it stands
+  on your tower at once.
+- The row of days fades at the screen's edge instead of cutting a word in
+  half.
+
+### Rated honestly, after this round
+
+| Piece | Rating | What keeps it from higher |
+|---|---|---|
+| Crews outliving the app | 8 | Read four times, tested on rules; never run on real iCloud. |
+| Doodle in the block's menu | 9 | Never saw a real photo take the freed place (simulator permission). |
+| Outlines on the tower | 9 | Around a Deep block they fill its side gaps, which is where blocks would land but reads less like a queue. |
+| Plan sheet's days | 9 | No reorder; no typed dates. |
+| Add sheet's Now | 9 | One more row under the name on every fresh Add, quiet as it is. |
+| Finishing from the tower | 8 | The camera hand-off after a real shot is unproven on a phone. |
+| The ring's moment | 9 | Needs your eye on glass with a real head in the middle. |
+| The reminder with the plan | 8 | Rescheduled on leaving the app and closing the plan; never seen on a lock screen. |
+
+**Still for you to decide (REVIEW)**
+- Your Three are not outlines on the tower. They are in the plan and in the
+  row over the keyboard. If your three are really your daily routine, they
+  could stand on the tower like repeating lines; I left them, since for a
+  new person they are generic suggestions and three outlines would greet
+  everyone every morning.
+- Restoring an old backup can bring back a one-off you have since done (it
+  lands under Earlier). The backup does not know what was finished later.
+- Plan text now shows in the day's reminder on the lock screen, as a win's
+  title already does in others.
