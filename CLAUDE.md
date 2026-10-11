@@ -1807,6 +1807,40 @@ crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
   off, and gating on it meant a friend's head never reached anyone. A system permission prompt survives an
 uninstall in the simulator; reboot it.
 
+### Planning ahead (2026-10-10)
+
+The owner: "let users plan wins ahead ... planned wins appear in the tower
+as empty lattice blocks: no color, clear, a liquid-glass checkbox-style
+placeholder ... a user should be able to plan their entire next day in under
+15 seconds". Design, research and what was left out: `docs/planning.md`.
+
+- **A plan line has a day** (`PlanItem.day`), kept in `repeatDaysRaw` as
+  `d:yyyy-MM-dd` so no iCloud schema deploy is needed. **Do not add a stored
+  field to `PlanItem` for it**: a phone on TestFlight cannot save a field
+  Production has not been deployed, and its whole sync stalls.
+- `belongs(on:)`, `isOpen(on:)`, `isEarlier(than:)`: a one-off is its own
+  day's; one whose day went by waits under Earlier in the plan, **never
+  marked, never counted, never on the tower**. Do not add "missed",
+  "overdue", a badge or a count.
+- **Outlines on the tower** (`PlannedSlots`, `PlannedOutlines` in
+  `PlannedBlocks.swift`): today's open lines, one Quick cell each, behind
+  the slot, at most eight. The slot's glass (`glassSlot`), never
+  `BlockSurface`, a colour, a rim or a shadow. They are **not**
+  `PlacedBlock`s: the goal and its dance count wins.
+- Press an outline: the camera (`PlannedCapture`), then the add sheet
+  holding the photo, the line's name and colour. Hold: a `contextMenu`
+  (never a recogniser of our own in the tower).
+- **The plan sheet's days** are `PlanScope` / `PlanScopeRow`; the add
+  sheet's "Now" is `WhenRow`. Both add through
+  `DayComposing.addPlanLines`, which splits a pasted list.
+- Simulator: `-strataSeedPlan 5 -strataPlanOnTower 1` (outlines, sheet
+  shut), `-strataSeedPlanAhead 1` (lines for other days, a repeat and an
+  earlier one), `-strataPlanScope <n>|repeating`. Tests:
+  `PlanningAheadTests`; `FeedbackShots.testPlanningTomorrowIsQuick` times
+  the owner's test.
+- The plan sheet's bar is a UIKit field and the simulator's keyboard will
+  not type into it from a UI test; type into the add sheet's name instead.
+
 ### Drawings thrown onto a crew's tower: removed (2026-10-10)
 
 The owner, after using it: "there is no way to delete drawings or move them

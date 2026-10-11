@@ -198,6 +198,60 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// **The test the owner set**: "a user should be able to plan their
+    /// entire next day in under 15 seconds: open it, type a few bullet-point
+    /// wins, done". Timed from the press on the slot to the tower again,
+    /// with three lines typed at a thumb's pace (about four characters a
+    /// second), not a script's.
+    ///
+    /// Through the add sheet, whose name is a SwiftUI field. The plan
+    /// sheet's bar is one press shorter (the plan button, Tomorrow, type),
+    /// but it is a UIKit field and the simulator's keyboard will not type
+    /// into it reliably from a script, so that door is checked by hand.
+    func testPlanningTomorrowIsQuick() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3"])
+        wait(7)
+        let started = Date()
+        app.descendants(matching: .any)["Log a win"].firstMatch.tap()
+        app.buttons["When: now"].firstMatch.tap()
+        app.buttons["Tomorrow"].firstMatch.tap()
+        for line in ["Email the professor", "Laundry", "Gym with Sam"] {
+            let typing = Date()
+            app.typeText(line + "\n")
+            // Held to a thumb's pace: whatever the script saved is waited out.
+            let human = Double(line.count) * 0.25
+            let spent = Date().timeIntervalSince(typing)
+            if spent < human { Thread.sleep(forTimeInterval: human - spent) }
+        }
+        snap("quick-1-typed")
+        app.buttons["Done"].firstMatch.tap()
+        let took = Date().timeIntervalSince(started)
+        print("PLANNING-TOMORROW-SECONDS \(String(format: "%.1f", took))")
+        XCTAssertLessThan(took, 15, "planning tomorrow took \(took) seconds")
+        wait(2)
+        app.buttons["Plan and Journal"].firstMatch.tap()
+        wait(2)
+        app.buttons["Tomorrow"].firstMatch.tap()
+        wait(1); snap("quick-2-tomorrow")
+    }
+
+    /// A planned win finished from the tower: press the outline, the camera
+    /// opens, the shot goes on a win named as the line was.
+    func testFinishingAPlannedWin() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                          "-strataPlanOnTower", "1"])
+        wait(8); snap("finish-0-tower")
+        let outline = app.buttons["Planned: Run the loop"].firstMatch
+        outline.press(forDuration: 1.2)
+        wait(1); snap("finish-1-menu")
+        app.buttons["Log Without a Photo"].firstMatch.tap()
+        wait(3); snap("finish-2-sheet")
+        app.buttons["Add"].firstMatch.tap()
+        wait(7); snap("finish-3-landed")
+        app.buttons["Planned: Call the landlord"].firstMatch.tap()
+        wait(4); snap("finish-4-camera")
+    }
+
     /// Planning from the add sheet (the owner, 2026-10-10): Now, then a
     /// day, a line a Return, Plan; and what was planned for later today
     /// standing on the tower as outlines.
@@ -214,7 +268,7 @@ final class FeedbackShots: XCTestCase {
         app.buttons["Later"].firstMatch.tap()
         wait(1)
         app.typeText("Call Mum\n")
-        app.typeText("Stretch\n")
+        app.typeText("Stretch")
         wait(1); snap("plan-add-3-later")
         app.buttons["Plan"].firstMatch.tap()
         wait(3); snap("plan-add-4-tower")

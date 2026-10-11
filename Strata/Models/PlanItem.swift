@@ -8,6 +8,11 @@ import SwiftData
 /// concession to planning in advance, kept to the smallest thing that helps:
 /// a line of text, the days it comes back on, and whether it is done yet.
 ///
+/// **Since 2026-10-10 a line has a day and today's open lines stand on the
+/// tower**, as clear outlines behind the slot (`PlannedSlots`,
+/// `docs/planning.md`). The paragraph above still holds where it matters:
+/// an outline is not a block, takes no colour and is never counted.
+///
 /// It is **not** a `Habit`. A habit with `isTodo` goes through
 /// `QuickWinService`'s signature, appears in the tower's queries and gets
 /// counted — which would put things you have NOT done on a tower whose whole

@@ -1109,9 +1109,10 @@ struct AddWinSheet: View {
     private var confirmButton: some View {
         Button {
             if isPlanning {
-                // Whatever is typed is kept, and that is the plan made.
-                planLine()
-                if !plannedHere.isEmpty { HapticsEngine.lightTap(); dismiss() }
+                // What is typed is kept, and that is the plan made. With
+                // nothing typed there is nothing for this to do: the lines
+                // already written are kept, and Done, beside it, leaves.
+                if planLine() { dismiss() }
             } else {
                 Task { await save() }
             }
@@ -1121,7 +1122,7 @@ struct AddWinSheet: View {
             Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan" : "Add")).sheetAction()
         }
         .buttonStyle(.pressWord)
-        .disabled(isPlanning ? (plannedHere.isEmpty && !DayComposing.hasWords(title)) : !canSave)
+        .disabled(isPlanning ? !DayComposing.hasWords(title) : !canSave)
     }
 
     /// The tense is the mode (`PlanItemDetailSheet`): what you did, or what

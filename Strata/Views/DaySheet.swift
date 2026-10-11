@@ -524,7 +524,7 @@ struct DaySheet: View {
                           onReturn: {}, returnKey: .send, onSend: sendPlanLine)
                 // A `UITextField` takes all the height it is offered.
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Add to the plan")
+                .accessibilityLabel(planPlaceholder)
         }
     }
 
