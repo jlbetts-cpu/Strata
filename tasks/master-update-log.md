@@ -420,3 +420,8 @@ What I found by looking, by a fourth independent review, and fixed:
   lands under Earlier). The backup does not know what was finished later.
 - Plan text now shows in the day's reminder on the lock screen, as a win's
   title already does in others.
+
+**The suites and the build, after this round:** 1,367 unit tests pass; the
+full suite (76 UI tests) passes with no failure and no crash. **Build 118 is
+in TestFlight for you only.** Friends have 117, waiting on Apple's beta
+review; say the word and 118 goes to them too.
