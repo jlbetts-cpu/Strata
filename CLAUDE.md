@@ -1848,7 +1848,10 @@ placeholder ... a user should be able to plan their entire next day in under
   there or in the line's own sheet.
 - **The `+` slot and a planned outline are one pane** (`SlotPane`,
   2026-10-11, the owner: "they should look the same"): the slot's glass,
-  one shared edge, no recess at rest, nothing dimmed. An outline's title is
+  no recess at rest, nothing dimmed. **No drawn edge in dark** (his, the
+  same morning: "why in dark mode is there an outline on everything"); the
+  dark pane is lifted by white in the glass (`SlotPane.darkLift`), the
+  light one keeps a quiet hairline. An outline's title is
   the block's face in `inkPrimary` at full strength. Do not give either a
   look the other lacks. The seven weekday chips are one component in all
   three places, square; a line's own sheet passes its colour as `tint`.

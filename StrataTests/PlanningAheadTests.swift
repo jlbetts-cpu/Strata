@@ -382,7 +382,12 @@ struct PlanningAheadTests {
     /// block font and weight should be the same as the other blocks".
     @Test("the slot and a planned win are one pane, and an outline's words are a block's")
     func onePane() throws {
-        #expect(SlotPane.edge(.dark) > SlotPane.edge(.light), "the dark pane needs more of an edge to be found")
+        // No line in dark (the owner, 2026-10-11: "why in dark mode is there
+        // an outline on everything"): the dark pane is lifted in its glass.
+        #expect(SlotPane.edge(.dark) == 0 && SlotPane.edge(.light) > 0)
+        #expect(SlotPane.darkLift > 0)
+        let glass = SourceSweep.code(try SourceSweep.read("Strata/Views/SlotGlass.swift"))
+        #expect(glass.contains("GlassRecipe.slot(thickness: thickness, dark: scheme == .dark)"))
         let slot = SourceSweep.code(try SourceSweep.read("Strata/Views/NextSlotButton.swift"))
         #expect(slot.contains("let base = SlotPane.edge(scheme)"))
         #expect(slot.contains("AppColors.slotInk.opacity(isDown ? base * 2 : 0)"), "no recess at rest; it answers a press")

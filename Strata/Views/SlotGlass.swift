@@ -79,8 +79,19 @@ extension GlassRecipe {
     /// it was guarding against is answerable more cheaply: what stops a slot
     /// reading as a filled block is that it carries no colour of its own and
     /// holds a `+`, not that you can see the lattice through it.
-    static func slot(thickness: Double) -> Glass {
+    ///
+    /// **On the dark page the pane is lifted, not outlined** (the owner,
+    /// 2026-10-11, an hour after the slot and the planned wins were given
+    /// one edge: "why in dark mode is there an outline on everything, it
+    /// should just be liquid glass like it is in light mode"). In light the
+    /// glass stands off the page by itself: it is brighter than what it is
+    /// over. On a near-black page it has nothing to brighten and came out
+    /// the page's own colour, which is what the outline was covering for. A
+    /// little white in the glass does in dark what the material does unasked
+    /// in light, so the pane is a raised charcoal tile and needs no line.
+    static func slot(thickness: Double, dark: Bool = false) -> Glass {
         let t = max(0, min(1, thickness))
+        if dark { return .regular.tint(.white.opacity(SlotPane.darkLift + 0.05 * t)).interactive() }
         guard t > 0 else { return .regular.interactive() }
         // Thickening: ink, never a hue. See the note on §4 below.
         return .regular.tint(.black.opacity(0.06 * t)).interactive()
@@ -101,12 +112,17 @@ extension GlassRecipe {
 /// wireframe box next to three lit tiles in light, and one bright outline
 /// next to three tiles that could barely be seen in dark.
 ///
-/// One edge for both, at rest: quiet on the light page, where the glass
-/// already stands off the ground, and stronger on the dark one, where it
-/// does not. The slot is still first, still holds the `+`, and still
-/// answers a press (its recess and edge deepen under the finger).
+/// One pane for both, at rest. On the light page a quiet hairline, where
+/// the glass already stands off the ground. **On the dark page no line at
+/// all**: the first version drew a stronger one there, and four outlined
+/// boxes in a row read as a wireframe, not as glass (the owner, the same
+/// morning). The dark pane is lifted in the glass itself (`GlassRecipe
+/// .slot(thickness:dark:)`). The slot is still first, still holds the `+`,
+/// and still answers a press (its recess and edge deepen under the finger).
 enum SlotPane {
-    static func edge(_ scheme: ColorScheme) -> Double { scheme == .dark ? 0.38 : 0.20 }
+    static func edge(_ scheme: ColorScheme) -> Double { scheme == .dark ? 0 : 0.20 }
+    /// How much white the dark pane's glass carries.
+    static let darkLift = 0.10
 }
 
 extension View {
@@ -124,14 +140,25 @@ extension View {
     /// Layout first, glass after: the effect takes its shape from the final
     /// frame, so the caller applies this to a view that has already filled the
     /// cell it is pointing at.
-    @ViewBuilder
     func glassSlot(cornerRadius r: CGFloat, thickness: Double = 0) -> some View {
+        modifier(SlotGlassPane(cornerRadius: r, thickness: thickness))
+    }
+}
+
+/// `glassSlot`'s body, as a modifier so it can read the appearance: the
+/// dark pane's glass is not the light one's (`GlassRecipe.slot`).
+private struct SlotGlassPane: ViewModifier {
+    let cornerRadius: CGFloat
+    let thickness: Double
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(GlassRecipe.slot(thickness: thickness),
-                             in: .rect(cornerRadius: r, style: .continuous))
+            content.glassEffect(GlassRecipe.slot(thickness: thickness, dark: scheme == .dark),
+                                in: .rect(cornerRadius: cornerRadius, style: .continuous))
         } else {
-            self.background(.ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: r, style: .continuous))
+            content.background(.ultraThinMaterial,
+                               in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 }

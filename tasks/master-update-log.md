@@ -559,3 +559,10 @@ weight should be the same as the other blocks, decide which one is better".
   block's is one line and cut with an ellipsis). The words are all an
   outline has. The replay's dashed waiting slot is a different thing and
   was not touched.
+
+**An hour later, you:** "why in dark mode is there an outline on everything,
+it should just be liquid glass like it is in light mode". Right. I had given
+the dark pane a stronger hairline because dark glass on a dark page came out
+the page's own colour. The line is gone in dark. The glass itself carries a
+little white there (10%), so the pane is a raised charcoal tile, the way the
+light one is a brighter tile, with no drawn edge. Build 121.
