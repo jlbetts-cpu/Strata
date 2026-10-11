@@ -499,7 +499,9 @@ struct DaySheet: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if PlanSuggestions.isAvailable {
+                // Suggestions are for today, and are kept for today: on
+                // another day's page one would be kept where it is not shown.
+                if PlanSuggestions.isAvailable, planScope == .day(0) {
                     PlanSuggestionsView(
                         context: { shown in
                             PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)

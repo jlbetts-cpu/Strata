@@ -53,9 +53,15 @@ final class PlanItem {
     /// planning ahead). A new stored field needs the iCloud schema deployed
     /// from the console before any phone on a TestFlight or App Store build
     /// can save one, and until it is, the whole store's sync stalls on the
-    /// first line that carries it. This field is already in the schema. A
-    /// build from before reads `d:...` as no weekdays at all, which is a
-    /// plain one-off: the line still shows and still ticks.
+    /// first line that carries it. This field is already in the schema.
+    ///
+    /// **Written with its weekday in front, `3,d:2026-10-13`, for a build
+    /// from before this** (found by review). That build takes any text here
+    /// for a repeat and shows a line only on the weekdays it can read, so a
+    /// bare `d:...` was a line on no day at all: hidden on a phone not yet
+    /// updated. With the weekday in front that phone shows it on its own
+    /// day (and, being an older build, takes it for a weekly repeat until it
+    /// is done). This build reads the `d:` and ignores the number.
     var repeatDaysRaw: String = ""
     /// The size its block opens at once checked. Small unless a suggestion
     /// sized it (`PlanSuggestions`); the add sheet can still change it.
@@ -77,7 +83,7 @@ final class PlanItem {
 
     var repeatDays: Set<Int> {
         get {
-            guard !repeatDaysRaw.hasPrefix(Self.dayPrefix) else { return [] }
+            guard day == nil else { return [] }
             return Set(repeatDaysRaw.split(separator: ",").compactMap { Int($0) })
         }
         set {
@@ -96,10 +102,17 @@ final class PlanItem {
     /// and for a one-off from before lines had a day.
     var day: String? {
         get {
-            guard repeatDaysRaw.hasPrefix(Self.dayPrefix) else { return nil }
-            return String(repeatDaysRaw.dropFirst(Self.dayPrefix.count))
+            repeatDaysRaw.split(separator: ",").first { $0.hasPrefix(Self.dayPrefix) }
+                .map { String($0.dropFirst(Self.dayPrefix.count)) }
         }
-        set { repeatDaysRaw = newValue.map { Self.dayPrefix + $0 } ?? "" }
+        set { repeatDaysRaw = newValue.map(Self.raw(forDay:)) ?? "" }
+    }
+
+    /// A day as the field holds it: its weekday for a build from before,
+    /// then the day itself.
+    static func raw(forDay day: String) -> String {
+        guard let date = DateUtils.date(from: day) else { return dayPrefix + day }
+        return "\(DateUtils.keyCalendar().component(.weekday, from: date)),\(dayPrefix)\(day)"
     }
 
     init(text: String = "", order: Int = 0, category: HabitCategory = .health, day: String? = nil) {
@@ -108,7 +121,7 @@ final class PlanItem {
         self.order = order
         self.createdAt = Date()
         self.categoryRaw = category.rawValue
-        if let day { self.repeatDaysRaw = Self.dayPrefix + day }
+        if let day { self.repeatDaysRaw = Self.raw(forDay: day) }
     }
 
     /// Whether this line belongs on today's list.
@@ -143,17 +156,27 @@ final class PlanItem {
     /// **A one-off whose day went by without it.** It is not on today's
     /// tower and not in today's list: a new day starts with what you planned
     /// for it, not with what yesterday left. It waits in the plan, under
-    /// today's lines, where one press brings it to today and a swipe lets it
-    /// go. Never marked, never counted (the research in `docs/planning.md`:
-    /// every planner that rolls leftovers forward grows a backlog that then
-    /// has to be cleaned, and a "missed" mark is the app criticising you).
+    /// today's lines, where one press brings them to today and a swipe lets
+    /// one go. Never marked, never counted (`docs/planning.md`: every
+    /// planner that rolls leftovers forward grows a backlog that then has to
+    /// be cleaned, and a "missed" mark is the app criticising you).
+    ///
+    /// **And never deleted for you.** For a few hours it was let go two
+    /// weeks after its day; the rule this type has always had is the right
+    /// one ("deciding for somebody that an unfinished plan expires overnight
+    /// is the kind of tidying that loses work"), and a person's existing
+    /// plan, given a day by the update, would have been gone a fortnight
+    /// later with nothing said (found by review).
     func isEarlier(than today: Date = Date()) -> Bool {
         guard completedAt == nil, !repeats, let day else { return false }
         return day < DateUtils.dateString(from: today)
     }
 
-    /// How long a one-off waits after its day before it is let go.
-    static let keptAfterItsDay = 14
+    /// Ticked on this day: what a line's box shows on that day's page. A
+    /// repeating line done today is not done tomorrow.
+    func isTicked(on date: Date, calendar: Calendar) -> Bool {
+        completedAt.map { calendar.isDate($0, inSameDayAs: date) } ?? false
+    }
 
     /// A human reading of the repeat, for the row's subtitle.
     func repeatSummary(calendar: Calendar) -> String? {
@@ -178,9 +201,10 @@ final class PlanItem {
     ///
     /// Run once at launch. A completed **one-off** is finished, so it goes. A
     /// completed **repeating** line comes back unchecked, because that is what
-    /// repeating means. Anything still unfinished is left exactly where it is:
-    /// deciding for somebody that an unfinished plan expires overnight is the
-    /// kind of tidying that loses work.
+    /// repeating means. Anything still unfinished is kept: deciding for
+    /// somebody that an unfinished plan expires overnight is the kind of
+    /// tidying that loses work. (Since lines have days it is kept under
+    /// Earlier rather than in today's list; see `isEarlier`.)
     /// Put a line back to unfinished, because the block it became is gone.
     ///
     /// A tick on the plan means "this turned into a block". Deleting the block
@@ -212,19 +236,11 @@ final class PlanItem {
         }
         var changed = false
         let todayString = DateUtils.dateString(from: now)
-        let cutoff = calendar.date(byAdding: .day, value: -Self.keptAfterItsDay, to: now)
-            .map(DateUtils.dateString(from:)) ?? ""
         for item in items {
             // A one-off from before lines had a day has been today's every
             // day; from here it is today's, and then it is its own.
             if item.repeatDaysRaw.isEmpty, item.completedAt == nil {
                 item.day = todayString
-                changed = true
-                continue
-            }
-            // One whose day went by two weeks ago, untouched: let go.
-            if item.completedAt == nil, let day = item.day, day < cutoff {
-                context.delete(item)
                 changed = true
                 continue
             }

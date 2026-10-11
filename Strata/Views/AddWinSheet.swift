@@ -175,7 +175,9 @@ struct AddWinSheet: View {
         guard let opening, failure?.winIsSaved != true else { return false }
         // Planning, what was written is already kept, a line at a time:
         // only words still in the field are unsaved.
-        if isPlanning { return DayComposing.hasWords(title) }
+        // A photograph or a drawing put on before the day was pressed is
+        // still unsaved work, though planning hides it (found by review).
+        if isPlanning { return DayComposing.hasWords(title) || photoChanged || doodleChanged }
         return photoChanged || doodleChanged || !withPeople.isEmpty || asItStands != opening
     }
 
@@ -533,7 +535,10 @@ struct AddWinSheet: View {
                             // note: the line is kept and the field is ready
                             // for another. An empty Return is "that's all".
                             if isPlanning {
-                                if planLine() { titleFocused = true } else { dismiss() }
+                                // Return on an empty field leaves only once
+                                // something has been planned; before that it
+                                // is a slip, and the field stays.
+                                if planLine() || plannedHere.isEmpty { titleFocused = true } else { dismiss() }
                             } else {
                                 Task { await save() }
                             }
@@ -1129,9 +1134,10 @@ struct AddWinSheet: View {
     /// you mean to.
     private var namePrompt: String { isPlanning ? "What do you mean to do?" : "What did you do?" }
 
-    /// What is typed becomes a plan line (or several, if a list was pasted)
-    /// for the day chosen, and the field is cleared for the next. False when
-    /// there was nothing to keep.
+    /// What is typed becomes a plan line for the day chosen, and the field
+    /// is cleared for the next. False when there was nothing to keep. (A
+    /// pasted list is one line here: this field is a single line and joins
+    /// what is pasted. The plan's own bar takes a list as a list.)
     @discardableResult
     private func planLine() -> Bool {
         guard let scope = planFor, DayComposing.hasWords(title) else { return false }

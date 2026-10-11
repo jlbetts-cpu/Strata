@@ -29,21 +29,44 @@ struct PlanningAheadTests {
     }
 
     /// No new stored field: the day rides in the field the weekdays use, so
-    /// no iCloud schema has to be deployed. A build from before reads it as
-    /// no weekdays, which is a plain one-off.
+    /// no iCloud schema has to be deployed.
     @Test("the day is kept in the field that already exists")
     func dayRidesInTheRepeatField() {
-        let line = PlanItem(text: "Laundry", day: "2026-10-12")
-        #expect(line.repeatDaysRaw == "d:2026-10-12")
-        #expect(line.repeatDays.isEmpty)
-        // As a build from before this reads it.
-        let oldReading = Set(line.repeatDaysRaw.split(separator: ",").compactMap { Int($0) })
-        #expect(oldReading.isEmpty)
+        let line = PlanItem(text: "Laundry", day: "2026-10-12")   // a Monday
+        #expect(line.repeatDaysRaw == "2,d:2026-10-12")
+        #expect(line.day == "2026-10-12")
+        #expect(line.repeatDays.isEmpty && !line.repeats, "to this build it is a day, not a repeat")
         // A repeat still round trips, and turning it off leaves a one-off.
         line.repeatDays = [2, 4]
         #expect(line.repeatDaysRaw == "2,4" && line.day == nil && line.repeats)
         line.repeatDays = []
         #expect(!line.repeats && line.day != nil)
+        // Clearing the weekdays of a line that has a day keeps its day.
+        let dated = PlanItem(text: "Gym", day: "2026-10-14")
+        dated.repeatDays = []
+        #expect(dated.day == "2026-10-14")
+    }
+
+    /// **A phone not yet updated still shows the line, on its day.** That
+    /// build's own rules, written out here as they stand in it: any text in
+    /// the field is a repeat, on the weekdays it can read as numbers. A bare
+    /// `d:...` was therefore a line on no day at all (found by review: the
+    /// first version's test checked only that no number was read, and so
+    /// passed while proving the opposite of what it said).
+    @Test("a build from before reads the line as due on its own weekday")
+    func olderBuildsStillShowIt() {
+        func oldRepeats(_ raw: String) -> Bool { !raw.isEmpty }
+        func oldBelongs(_ raw: String, on date: Date) -> Bool {
+            guard oldRepeats(raw) else { return true }
+            let days = Set(raw.split(separator: ",").compactMap { Int($0) })
+            return days.contains(calendar.component(.weekday, from: date))
+        }
+        let monday = DateUtils.date(from: "2026-10-12")!
+        let line = PlanItem(text: "Laundry", day: "2026-10-12")
+        #expect(oldBelongs(line.repeatDaysRaw, on: monday), "shown on the day it is for")
+        #expect(!oldBelongs(line.repeatDaysRaw, on: day(1)), "and not on a Sunday")
+        // What the first version wrote, and why it was changed.
+        #expect(!oldBelongs("d:2026-10-12", on: monday))
     }
 
     @Test("a line from before lines had a day is today's")
@@ -86,7 +109,7 @@ struct PlanningAheadTests {
         #expect(!walk.isEarlier(than: today))
     }
 
-    @Test("the sweep gives old lines a day, clears done ones, and lets go after two weeks")
+    @Test("the sweep gives old lines a day and clears done ones; nothing unfinished is ever deleted")
     func sweep() throws {
         let container = try ModelContainer(for: PlanItem.self, configurations: .init(isStoredInMemoryOnly: true))
         let context = container.mainContext
@@ -94,16 +117,43 @@ struct PlanningAheadTests {
         let doneYesterday = PlanItem(text: "Done", day: name(-1)); doneYesterday.completedAt = day(-1)
         context.insert(doneYesterday)
         let recent = PlanItem(text: "Three days back", day: name(-3)); context.insert(recent)
-        let stale = PlanItem(text: "Long gone", day: name(-PlanItem.keptAfterItsDay - 1)); context.insert(stale)
+        let old = PlanItem(text: "Two months back", day: name(-60)); context.insert(old)
         let repeatDone = PlanItem(text: "Walk"); repeatDone.repeatDays = PlanScope.everyDay
         repeatDone.completedAt = day(-1); context.insert(repeatDone)
         try context.save()
         PlanItem.sweep(context: context, now: today, calendar: calendar)
         let left = try context.fetch(FetchDescriptor<PlanItem>())
-        #expect(Set(left.map(\.text)) == ["Undated", "Three days back", "Walk"])
+        #expect(Set(left.map(\.text)) == ["Undated", "Three days back", "Two months back", "Walk"])
         #expect(left.first { $0.text == "Undated" }?.day == name(0), "today's from here, then its own day's")
         #expect(left.first { $0.text == "Walk" }?.completedAt == nil)
-        #expect(left.first { $0.text == "Three days back" }?.isEarlier(than: today) == true, "kept, waiting, unmarked")
+        #expect(left.first { $0.text == "Two months back" }?.isEarlier(than: today) == true,
+                "kept, waiting, unmarked: a plan is never thrown away for you")
+    }
+
+    @Test("a box is ticked only on the day the line was done")
+    func tickedOnItsDay() {
+        let walk = PlanItem(text: "Walk"); walk.repeatDays = PlanScope.everyDay
+        walk.completedAt = today.addingTimeInterval(3600)
+        #expect(walk.isTicked(on: today, calendar: calendar))
+        #expect(!walk.isTicked(on: day(1), calendar: calendar), "done today is not done tomorrow")
+        #expect(!PlanItem(text: "Open").isTicked(on: today, calendar: calendar))
+        // Tomorrow's page lists it, unticked: pressing it there must never
+        // be read as undoing today's.
+        #expect(PlanScope.day(1).lines([walk], today: today, calendar: calendar).count == 1)
+        let lines = SourceSweep.code((try? SourceSweep.read("Strata/Views/PlanLines.swift")) ?? "")
+        #expect(lines.contains("guard scope == .day(0) else {"), "only today's page does things")
+    }
+
+    @Test("Not Today moves a one-off to tomorrow; a repeat is skipped for the day and can be put back")
+    func notToday() {
+        let walk = PlanItem(text: "Walk"); walk.repeatDays = PlanScope.everyDay
+        #expect(PlannedSlots.open([walk], on: today, calendar: calendar).count == 1)
+        PlanSkips.skip(walk.id, on: today)
+        #expect(PlannedSlots.open([walk], on: today, calendar: calendar).isEmpty)
+        #expect(PlanScope.day(0).lines([walk], today: today, calendar: calendar).isEmpty, "the plan and the tower agree")
+        #expect(PlannedSlots.open([walk], on: day(1), calendar: calendar).count == 1, "back on its next day")
+        PlanSkips.unskip(walk.id, on: today)
+        #expect(PlannedSlots.open([walk], on: today, calendar: calendar).count == 1)
     }
 
     // MARK: Writing a plan as fast as a note
@@ -200,7 +250,7 @@ struct PlanningAheadTests {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         let layer = try #require(main.components(separatedBy: "private func plannedLayer").dropFirst().first)
         let body = layer.components(separatedBy: "private func emptyTowerSlot").first ?? ""
-        #expect(body.contains("PlannedOutlines("))
+        #expect(body.contains("PlannedLayer("))
         #expect(!body.contains("PlacedBlock(") && !body.contains("buildTower"))
         let outline = SourceSweep.code(try SourceSweep.read("Strata/Views/PlannedBlocks.swift"))
         // No colour, rim, band or shadow: the slot's own glass.

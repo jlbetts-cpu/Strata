@@ -1815,15 +1815,20 @@ placeholder ... a user should be able to plan their entire next day in under
 15 seconds". Design, research and what was left out: `docs/planning.md`.
 
 - **A plan line has a day** (`PlanItem.day`), kept in `repeatDaysRaw` as
-  `d:yyyy-MM-dd` so no iCloud schema deploy is needed. **Do not add a stored
+  `<weekday>,d:yyyy-MM-dd` so no iCloud schema deploy is needed and a phone
+  on an older build still shows the line on its day. **Do not add a stored
   field to `PlanItem` for it**: a phone on TestFlight cannot save a field
   Production has not been deployed, and its whole sync stalls.
 - `belongs(on:)`, `isOpen(on:)`, `isEarlier(than:)`: a one-off is its own
   day's; one whose day went by waits under Earlier in the plan, **never
-  marked, never counted, never on the tower**. Do not add "missed",
-  "overdue", a badge or a count.
-- **Outlines on the tower** (`PlannedSlots`, `PlannedOutlines` in
-  `PlannedBlocks.swift`): today's open lines, one Quick cell each, behind
+  marked, never counted, never on the tower, never deleted for the
+  person**. Do not add "missed", "overdue", a badge, a count or an expiry.
+  Only today's page ticks (`PlanLines.ticked`); the sweep runs at launch
+  only, never under an open sheet.
+- **Outlines on the tower** (`PlannedSlots`, `PlannedLayer`,
+  `PlannedOutlines` in `PlannedBlocks.swift`; the plan's `@Query` lives in
+  `PlannedLayer`, never on `MainAppView`, whose body it re-ran on every
+  letter typed into a line): today's open lines, one Quick cell each, behind
   the slot, at most eight. The slot's glass (`glassSlot`), never
   `BlockSurface`, a colour, a rim or a shadow. They are **not**
   `PlacedBlock`s: the goal and its dance count wins.

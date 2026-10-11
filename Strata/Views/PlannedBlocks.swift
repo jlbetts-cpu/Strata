@@ -156,8 +156,9 @@ struct PlannedOutlines: View {
         .transition(.scale(scale: 0.86).combined(with: .opacity))
         .accessibilityLabel("Planned: \(item.text)")
         .accessibilityHint("Opens the camera to finish it.")
-        .accessibilityAction(named: "Log without a photo") { onLog(item) }
+        .accessibilityAction(named: "Log Without a Photo") { onLog(item) }
         .accessibilityAction(named: "Edit") { onEdit(item) }
+        .accessibilityAction(named: item.repeats ? "Skip Today" : "Not Today") { onNotToday(item) }
     }
 
     @ViewBuilder
@@ -169,22 +170,72 @@ struct PlannedOutlines: View {
     }
 }
 
+/// **The outlines, with the plan they are read from.** The query lives
+/// here, not on `MainAppView`: there, every letter typed into a plan line
+/// re-evaluated the whole main screen under the sheet (found by review).
+/// The main screen is told one number, how many rows the outlines need, and
+/// only when it changes.
+struct PlannedLayer: View {
+    @Query(sort: \PlanItem.order) private var lines: [PlanItem]
+
+    let grid: [[Bool]]
+    let slot: (column: Int, row: Int)?
+    let slotSize: BlockSize
+    let cellSize: CGFloat
+    let gridHeight: CGFloat
+    let cornerRadius: CGFloat
+    /// Bumped when a line is skipped for today or the day turns: neither is
+    /// something the query notices.
+    let nudge: Int
+    @Binding var rowsNeeded: Int
+    var onCamera: (PlanItem) -> Void
+    var onLog: (PlanItem) -> Void
+    var onEdit: (PlanItem) -> Void
+    var onNotToday: (PlanItem) -> Void
+
+    var body: some View {
+        let open = PlannedSlots.open(lines)
+        let cells = PlannedSlots.cells(count: open.count, grid: grid, slot: slot, slotSize: slotSize)
+        PlannedOutlines(items: open, cells: cells, cellSize: cellSize, gridHeight: gridHeight,
+                        cornerRadius: cornerRadius, onCamera: onCamera, onLog: onLog, onEdit: onEdit,
+                        onNotToday: onNotToday)
+            .onChange(of: PlannedSlots.rows(cells), initial: true) { _, rows in
+                if rowsNeeded != rows { rowsNeeded = rows }
+            }
+            .onChange(of: nudge) { _, _ in }
+            .onDisappear { rowsNeeded = 0 }
+    }
+}
+
 // MARK: - Finishing one from the tower
 
 /// The camera a planned win opens, and the sheet that changes one: kept out
-/// of `MainAppView`'s body, which is at the type checker's ceiling.
+/// of `MainAppView`'s body, which is at the type checker's ceiling, and on
+/// the screen's root, so neither goes away with the tower's layers.
 struct PlannedCapture: ViewModifier {
     @Binding var capturing: PlanItem?
     @Binding var editing: PlanItem?
     var onCaptured: (PlanItem, UIImage, BlockSize, WinPlace?, CGPoint) -> Void
 
+    /// What the shutter took, held until the camera has gone.
+    @State private var taken: (item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint)?
+
     func body(content: Content) -> some View {
         content
-            .fullScreenCover(item: $capturing) { item in
+            // **The add sheet opens once the camera has left** (found by
+            // review): asked for in the same moment, a sheet presented over
+            // one still going away is dropped without a word, and the
+            // photograph with it. The plan's own tick does the same
+            // (`pendingDraft`).
+            .fullScreenCover(item: $capturing, onDismiss: {
+                guard let shot = taken else { return }
+                taken = nil
+                onCaptured(shot.item, shot.photo, shot.size, shot.place, shot.crop)
+            }) { item in
                 CameraView(
                     onCaptured: { image, drawn, place, crop in
+                        taken = (item, image, drawn, place, crop)
                         capturing = nil
-                        onCaptured(item, image, drawn, place, crop)
                     },
                     onClose: { capturing = nil },
                     fillsScreen: true

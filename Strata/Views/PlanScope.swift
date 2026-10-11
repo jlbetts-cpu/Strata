@@ -36,6 +36,14 @@ enum PlanScope: Hashable {
         }
     }
 
+    /// The word read aloud: the day's whole name, not "Mon".
+    func spokenTitle(from today: Date = Date(), calendar: Calendar = .current) -> String {
+        guard case .day(let offset) = self, offset > 1, let date = date(from: today, calendar: calendar) else {
+            return title(from: today, calendar: calendar)
+        }
+        return calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
+    }
+
     /// The same, in a sentence: "for today", "for tomorrow", "for Monday".
     func spoken(from today: Date = Date(), calendar: Calendar = .current) -> String {
         switch self {
@@ -121,7 +129,7 @@ struct PlanScopeRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressWord)
-        .accessibilityLabel(item.title())
+        .accessibilityLabel(item.spokenTitle())
         .accessibilityValue(planned(item) ? "Has plans" : "")
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
         .animation(GridConstants.crossFade, value: chosen)
@@ -206,7 +214,7 @@ struct WhenRow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pressWord)
-        .accessibilityLabel(Self.title(item))
+        .accessibilityLabel(item.map { $0 == .day(0) ? "Later today" : $0.spokenTitle() } ?? "Now")
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
         .animation(GridConstants.crossFade, value: chosen)
     }
@@ -235,5 +243,6 @@ struct PlannedHereList: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Planned: " + lines.joined(separator: ", "))
+        .accessibilityHidden(lines.isEmpty)
     }
 }

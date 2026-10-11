@@ -63,6 +63,8 @@ struct PlanLines: View {
     /// The line whose Delete is showing, if one is. One at a time, as Mail
     /// and Reminders do: opening another closes it.
     @State private var swiped: UUID?
+    /// Bumped when a skip is undone, which is kept beside the model.
+    @State private var skipsChanged = 0
 
     /// A hairline is `1 / displayScale` (`docs/design-system-future.md` section
     /// 6), which is one device pixel however dense the screen is.
@@ -122,7 +124,8 @@ struct PlanLines: View {
 
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
-        scope.lines(allItems, calendar: calendar)
+        _ = skipsChanged
+        return scope.lines(allItems, calendar: calendar)
     }
 
     /// One-offs whose day went by, under today's lines (`PlanItem.isEarlier`).
@@ -315,9 +318,9 @@ struct PlanLines: View {
     /// **What an earlier day planned and did not get to**, under today's
     /// lines. Quiet, and never counted: no "missed", no number, no red. A
     /// press on a line's box does it as any line; one word brings them all
-    /// to today; a swipe lets one go; untouched, each goes by itself two
-    /// weeks after its day (`PlanItem.sweep`). The tower shows none of them:
-    /// a new day's tower starts with that day's plan.
+    /// to today; a swipe lets one go; untouched, it stays, because a plan is
+    /// never thrown away for you. The tower shows none of them: a new day's
+    /// tower starts with that day's plan.
     @ViewBuilder
     private var earlierGroup: some View {
         let waiting = earlier
@@ -328,6 +331,7 @@ struct PlanLines: View {
                     .kerning(Typography.sectionKerning)
                     .textCase(.uppercase)
                     .foregroundStyle(AppColors.inkSecondary)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: GridConstants.gapItem)
                 Button {
                     HapticsEngine.lightTap()
@@ -386,7 +390,7 @@ struct PlanLines: View {
             Button {
                 complete(item)
             } label: {
-                PlanBullet(category: item.category, isDone: item.isDone)
+                PlanBullet(category: item.category, isDone: ticked(item))
                     // **A real 44pt frame, not padding cancelled by negative
                     // padding.**
                     //
@@ -415,7 +419,7 @@ struct PlanLines: View {
             // from the box's bottom, not derived, because where a 17pt line's
             // baseline sits inside its line box is the font's business.
             .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 27 }
-            .accessibilityLabel(item.isDone
+            .accessibilityLabel(ticked(item)
                                 ? "\(item.text), done"
                                 : "Log \(item.text.isEmpty ? "this line" : item.text) as a win")
 
@@ -425,7 +429,7 @@ struct PlanLines: View {
                     placeholder: "",
                     focused: $focused,
                     id: item.id,
-                    isDone: item.isDone,
+                    isDone: ticked(item),
                     onReturn: { addLine(after: item) },
                     onBackspaceWhenEmpty: { backspace(item) }
                 )
@@ -517,6 +521,16 @@ struct PlanLines: View {
             Button { detail = item } label: {
                 Label("Options", systemImage: "info.circle")
             }
+            // Skipped for today from the tower: back on it from here.
+            if PlanSkips.isSkipped(item.id, on: Date()) {
+                Button {
+                    PlanSkips.unskip(item.id, on: Date())
+                    HapticsEngine.lightTap()
+                    skipsChanged += 1
+                } label: {
+                    Label("Put Back on Today", systemImage: "arrow.uturn.backward")
+                }
+            }
             Button(role: .destructive) { delete(item) } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -525,8 +539,24 @@ struct PlanLines: View {
 
     // MARK: - Editing
 
+    /// **The box on this page**: ticked when the line was done on the day the
+    /// page is for, which only today can be. A repeating line done today is
+    /// not done on tomorrow's page (found by review: it showed ticked there,
+    /// and pressing it took today's tick off).
+    private func ticked(_ item: PlanItem) -> Bool {
+        scope == .day(0) && item.isTicked(on: Date(), calendar: calendar)
+    }
+
     private func complete(_ item: PlanItem) {
-        guard !item.isDone else {
+        // **Only today's page does things.** On a day that has not come, or
+        // among the lines that repeat, the box opens the line: there is
+        // nothing to tick yet, and what you did early is logged from today.
+        guard scope == .day(0) else {
+            HapticsEngine.lightTap()
+            detail = item
+            return
+        }
+        guard !ticked(item) else {
             // Pressing a finished line puts it back. Nothing here is
             // irreversible, and a tick you cannot undo is a trap.
             item.completedAt = nil

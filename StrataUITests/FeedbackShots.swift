@@ -243,6 +243,9 @@ final class FeedbackShots: XCTestCase {
         wait(2)
         app.buttons["Plan and Journal"].firstMatch.tap()
         wait(2)
+        // The sheet opens on whichever tab was used last.
+        let planTab = app.buttons["Plan"].firstMatch
+        if planTab.exists { planTab.tap(); wait(1) }
         app.buttons["Tomorrow"].firstMatch.tap()
         wait(1); snap("quick-2-tomorrow")
     }
@@ -277,7 +280,7 @@ final class FeedbackShots: XCTestCase {
         app.typeText("Email the professor\n")
         app.typeText("Laundry\n")
         wait(1); snap("plan-add-2-tomorrow")
-        app.buttons["Later"].firstMatch.tap()
+        app.buttons["Later today"].firstMatch.tap()
         wait(1)
         app.typeText("Call Mum\n")
         app.typeText("Stretch")

@@ -107,7 +107,10 @@ nonisolated enum WinIdeas {
         -> (three: [WinIdea], plan: [WinIdea], logged: [Logged], today: String) {
         let today = DateUtils.dateString(from: now)
         let plan = ((try? context.fetch(FetchDescriptor<PlanItem>(sortBy: [SortDescriptor(\.order)]))) ?? [])
-            .filter { $0.completedAt == nil && $0.belongs(on: now, calendar: calendar) }
+            // Open today, and not skipped for it: what the tower's outlines
+            // are (`PlannedSlots.open`), so the row over the keyboard and the
+            // tower never disagree.
+            .filter { $0.isOpen(on: now, calendar: calendar, today: now) && !PlanSkips.isSkipped($0.id, on: now) }
             .map { WinIdea(title: $0.text.trimmingCharacters(in: .whitespacesAndNewlines), category: $0.category) }
         let since = calendar.date(byAdding: .day, value: -lookback, to: now).map(DateUtils.dateString(from:)) ?? today
         var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString >= since })

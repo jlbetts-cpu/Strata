@@ -81,9 +81,6 @@ struct MainAppView: View {
     @Environment(\.requestReview) private var requestReview
     @Query private var habits: [Habit]
     @Query private var logs: [HabitLog]
-    /// The plan, for the outlines today's open lines stand as on the tower
-    /// (`PlannedSlots`).
-    @Query(sort: \PlanItem.order) private var planLines: [PlanItem]
 
     init() {
         let calendar = Calendar.current
@@ -225,6 +222,9 @@ struct MainAppView: View {
     /// Bumped when a line is skipped for today, which is kept beside the
     /// model (`PlanSkips`) and so is not something a query notices.
     @State private var plannedNudge = 0
+    /// The rows the outlines need, told by the layer that draws them
+    /// (`PlannedLayer`), so the grid is tall enough for them.
+    @State private var plannedRows = 0
     /// **The day's cue over the slot** (`WinCue`), while it is up, and where
     /// the slot is on screen for it to rise from.
     @State private var winCue: String?
@@ -727,25 +727,34 @@ struct MainAppView: View {
 
     // MARK: Planned wins on the tower (`PlannedSlots`)
 
-    /// Today's open plan lines, in the plan's order: the outlines behind
-    /// the slot.
-    private var plannedToday: [PlanItem] {
-        _ = plannedNudge
-        return PlannedSlots.open(planLines)
-    }
-
     /// A planned win finished with a photo: the add sheet opens holding it,
     /// named and coloured as the line was, at the size drawn at the shutter.
     /// Add is one press, and the size can still change there: a planned
     /// win's weight is decided once it is done.
     private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint) {
+        guard stillThere(item) else { return }
         winDraft = WinDraft(title: item.text, photo: photo, size: size, place: place, crop: crop,
                             colour: item.category, planItemID: item.id)
     }
 
     /// The same, with no photo: the sheet a plan line's tick always opened.
     private func logPlanned(_ item: PlanItem) {
+        guard stillThere(item) else { return }
+        // **Its win is already there** (unticked in the plan after it was
+        // done): the tick goes back and nothing is logged twice, as the
+        // plan's own box does (`PlanLines.complete`).
+        if habits.contains(where: { $0.planItemID == item.id && Calendar.current.isDateInToday($0.createdAt) }) {
+            HapticsEngine.lightTap()
+            setPlanItemDone(item.id, true)
+            return
+        }
         winDraft = WinDraft(title: item.text, size: .small, colour: item.category, planItemID: item.id)
+    }
+
+    /// A line taken off the plan somewhere else (another phone, the plan
+    /// sheet) while its camera or menu was up is not finished from here.
+    private func stillThere(_ item: PlanItem) -> Bool {
+        !item.isDeleted && item.modelContext != nil
     }
 
     /// **Off today's tower, with nothing said about it.** A one-off goes to
@@ -754,6 +763,7 @@ struct MainAppView: View {
     private func notToday(_ item: PlanItem) {
         HapticsEngine.lightTap()
         withAnimation(GridConstants.motionSnappy) {
+            guard stillThere(item) else { return }
             if item.repeats {
                 PlanSkips.skip(item.id, on: Date())
             } else if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
@@ -924,6 +934,10 @@ struct MainAppView: View {
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
+        // The camera a planned win opens, and the sheet that changes one.
+        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan) { item, photo, size, place, crop in
+            finishPlanned(item, photo: photo, size: size, place: place, crop: crop)
+        })
         .overlay {
             if let handoffLogs {
                 DayHandoffLayer(logs: handoffLogs, modelContext: modelContext) {
@@ -2134,10 +2148,10 @@ struct MainAppView: View {
         let today = DateUtils.dateString(from: Date())
         guard today != dayOnScreen else { return }
         dayOnScreen = today
-        // The plan turns with the day too (it only did at the next launch):
-        // yesterday's done lines go, a repeat is open again, and the
-        // outlines on the tower are today's.
-        PlanItem.sweep(context: modelContext)
+        // The outlines on the tower are today's. Nothing is swept here: a
+        // line knows which day it is open on (`PlanItem.isOpen`), and
+        // sweeping under an open sheet deleted the line a win was being
+        // written from (found by review). The sweep stays at launch.
         plannedNudge += 1
         _ = refreshData()
     }
@@ -3241,19 +3255,16 @@ struct MainAppView: View {
         // planning lives elsewhere.
         let slotPos = towerVM.computeGhostPosition(for: drawingSize)
         let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
-        // **Today's planned wins, as outlines behind the slot**
-        // (`PlannedSlots`, 2026-10-10). The paragraph above stands for what
+        // **Today's planned wins stand behind the slot as outlines**
+        // (`PlannedLayer`, 2026-10-10). The paragraph above stands for what
         // it was about: nothing faded and coloured pretends to be a block.
         // These are the slot's own glass, clear, one cell each.
-        let planned = plannedToday
-        let plannedCells = PlannedSlots.cells(count: planned.count, grid: towerVM.currentGrid,
-                                              slot: slotPos, slotSize: drawingSize)
         // The tallest of the three things the container has to hold. It used
         // to be `rowCount > 0 ? max(rowCount, slotRows) : placeholderRows`,
         // which dropped `slotRows` on an EMPTY tower — so the first slot of
         // the day could be dragged out to a 2x2 and the grid stayed one cell
         // tall, leaving the drawn block outside the scrollable content.
-        let layoutRows = max(rowCount, slotRows, placeholderRows, PlannedSlots.rows(plannedCells))
+        let layoutRows = max(rowCount, slotRows, placeholderRows, plannedRows)
         let gridH = layoutRows > 0
             ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
             : 0
@@ -3634,25 +3645,16 @@ struct MainAppView: View {
     /// then dropped a block bigger than the slot you had drawn. Every day
     /// starts on this screen, so that was the first thing anyone saw the
     /// gesture do — and it was the one place it did not work.
-    /// Today's planned wins behind the slot (`PlannedSlots`), and the
-    /// camera and sheet they open, on a host of no size. One of these is on
-    /// screen at a time: the empty tower's or the built one's.
-    @ViewBuilder
+    /// Today's planned wins behind the slot (`PlannedLayer`). One of these
+    /// is on screen at a time: the empty tower's or the built one's.
     private func plannedLayer(colW: CGFloat, gridH: CGFloat, slotPos: (column: Int, row: Int)?) -> some View {
-        // The same answer `towerContent` sized the grid for.
-        let planned = plannedToday
-        let plannedCells = PlannedSlots.cells(count: planned.count, grid: towerVM.currentGrid,
-                                              slot: slotPos, slotSize: drawingSize)
-        PlannedOutlines(items: planned, cells: plannedCells, cellSize: colW, gridHeight: gridH,
-                        cornerRadius: cornerRadius,
-                        onCamera: { capturingPlan = $0 },
-                        onLog: { logPlanned($0) },
-                        onEdit: { editingPlan = $0 },
-                        onNotToday: { notToday($0) })
-        Color.clear.frame(width: 0, height: 0)
-            .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan) { item, photo, size, place, crop in
-                finishPlanned(item, photo: photo, size: size, place: place, crop: crop)
-            })
+        PlannedLayer(grid: towerVM.currentGrid, slot: slotPos, slotSize: drawingSize, cellSize: colW,
+                     gridHeight: gridH, cornerRadius: cornerRadius, nudge: plannedNudge,
+                     rowsNeeded: $plannedRows,
+                     onCamera: { capturingPlan = $0 },
+                     onLog: { logPlanned($0) },
+                     onEdit: { editingPlan = $0 },
+                     onNotToday: { notToday($0) })
     }
 
     @ViewBuilder
@@ -3706,7 +3708,9 @@ struct MainAppView: View {
             Color.clear
                 .frame(width: gridW, height: 0)
                 .overlay(alignment: .bottomLeading) {
-                    if !animCoord.isCascading {
+                    // Not over a plan: with outlines standing there the
+                    // tower is not empty, and the sentence ran across them.
+                    if !animCoord.isCascading, plannedRows == 0 {
                         towerEmptyStateMessage
                             .padding(.bottom, GridConstants.gapLabel)
                             .frame(width: gridW, alignment: .leading)

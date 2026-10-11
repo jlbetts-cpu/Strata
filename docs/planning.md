@@ -20,8 +20,8 @@ inference of ours.
   Return.
 - **Nothing is ever "missed".** A one-off whose day went by is not on the
   next day's tower or list. It waits in the plan under Earlier, where one
-  word moves them all to today and a swipe lets one go; untouched, it goes by
-  itself two weeks later. A repeating line simply returns on its next day.
+  word moves them all to today and a swipe lets one go. It is never deleted
+  for you. A repeating line simply returns on its next day.
 
 ## The test it was built to
 
@@ -51,11 +51,21 @@ queue moves up. An outline is a cue; a wall of them is a debt.
 
 **Not counted.** The goal counts wins.
 
-**No new stored field.** The day is written into the field the weekdays use
-(`d:2026-10-12`). A new field needs the iCloud schema deployed from the
-console before a TestFlight or App Store phone can save one, and until then
-that phone's whole sync stalls. A build from before this reads the value as
-"no weekdays", a plain one-off.
+**No new stored field.** The day is written into the field the weekdays use,
+with its weekday in front (`2,d:2026-10-12`). A new field needs the iCloud
+schema deployed from the console before a TestFlight or App Store phone can
+save one, and until then that phone's whole sync stalls. A phone still on a
+build from before reads the number and shows the line on that weekday; a
+bare `d:...` would have been hidden there (found by review).
+
+**Only today's page ticks.** On another day's page, or under Repeating, a
+line's box opens the line. A repeating line done today is not shown done
+tomorrow.
+
+**Nothing is deleted for you.** For a few hours an Earlier line was let go
+after two weeks. The update gives every existing line a day, so a person's
+whole old plan would have gone a fortnight later with nothing said. The
+app's older rule stands: an unfinished plan never expires by itself.
 
 **Skip Today** for a repeating line is kept beside the model, on this phone,
 by day: the model has one row per line and nowhere to put "not this Tuesday".
