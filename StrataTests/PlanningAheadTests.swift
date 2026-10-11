@@ -189,6 +189,16 @@ struct PlanningAheadTests {
         #expect(PlanScope.day(0).lines(all, today: today, calendar: calendar).map(\.text) == ["Morning walk"])
     }
 
+    @Test("a line's own sheet can move it to another day")
+    func dayFromTheLine() {
+        #expect(PlanScope.of(day: name(0), today: today, calendar: calendar) == .day(0))
+        #expect(PlanScope.of(day: name(3), today: today, calendar: calendar) == .day(3))
+        #expect(PlanScope.of(day: name(-2), today: today, calendar: calendar) == nil, "a day gone by is none of the row's")
+        #expect(PlanScope.of(day: name(9), today: today, calendar: calendar) == nil)
+        #expect(PlanScope.of(day: nil, today: today, calendar: calendar) == nil)
+        #expect(PlanScope.days.count == 7 && !PlanScope.days.contains(.repeating))
+    }
+
     @Test("the row of days reads Today, Tomorrow, then the days by name")
     func scopeWords() {
         #expect(PlanScope.all.count == 8)

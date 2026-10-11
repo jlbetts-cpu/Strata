@@ -111,6 +111,24 @@ struct PlanItemDetailSheet: View {
                     .padding(.vertical, GridConstants.spacing)
                 }
 
+                // **Which day it is for**, when it is for one (2026-10-10):
+                // the row of days the plan has, so a line can be moved from
+                // where it is edited. A day off the row (one gone by, or
+                // more than a week on) shows none chosen until one is.
+                if !item.repeats {
+                    Section {
+                        PlanScopeRow(scope: Binding(
+                            // A line from before lines had days is today's.
+                            get: { PlanScope.of(day: item.day) ?? (item.day == nil ? .day(0) : .day(-1)) },
+                            set: { chosen in
+                                if let date = chosen.date() { item.day = DateUtils.dateString(from: date) }
+                            }
+                        ), choices: PlanScope.days, margin: 0)
+                        .listRowInsets(EdgeInsets(top: 0, leading: GridConstants.gapTight, bottom: 0,
+                                                  trailing: GridConstants.gapTight))
+                    }
+                }
+
                 Section {
                     Toggle(isOn: Binding(
                         get: { item.repeats },

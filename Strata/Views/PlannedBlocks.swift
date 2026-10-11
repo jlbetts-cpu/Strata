@@ -202,7 +202,6 @@ struct PlannedLayer: View {
             .onChange(of: PlannedSlots.rows(cells), initial: true) { _, rows in
                 if rowsNeeded != rows { rowsNeeded = rows }
             }
-            .onChange(of: nudge) { _, _ in }
             .onDisappear { rowsNeeded = 0 }
     }
 }

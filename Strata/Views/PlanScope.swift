@@ -60,6 +60,15 @@ enum PlanScope: Hashable {
     /// them. Fewer is one press away, on the line (`PlanItemDetailSheet`).
     static let everyDay: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
 
+    /// The days alone, for choosing a line's day.
+    static let days: [PlanScope] = (0...6).map(PlanScope.day)
+
+    /// The scope a day falls in, when it is one of the seven on the row.
+    static func of(day: String?, today: Date = Date(), calendar: Calendar = .current) -> PlanScope? {
+        guard let day else { return nil }
+        return days.first { $0.date(from: today, calendar: calendar).map(DateUtils.dateString(from:)) == day }
+    }
+
     /// The lines this scope shows.
     func lines(_ all: [PlanItem], today: Date = Date(), calendar: Calendar = .current) -> [PlanItem] {
         switch self {
@@ -85,6 +94,11 @@ enum PlanScope: Hashable {
 /// sheet's own Plan and Journal are (`DaySheet.tabWord`), a size down.
 struct PlanScopeRow: View {
     @Binding var scope: PlanScope
+    /// The words offered: every day and Repeating, or the days alone where
+    /// only a day is being chosen (a line's own sheet).
+    var choices: [PlanScope] = PlanScope.all
+    /// The page's margin either side, or none inside a form's own row.
+    var margin: CGFloat = GridConstants.horizontalPadding - GridConstants.gapTight
     /// How many open lines each scope holds, so a day with something
     /// planned can say so with a dot, never a number.
     var planned: (PlanScope) -> Bool = { _ in false }
@@ -93,11 +107,11 @@ struct PlanScopeRow: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                    ForEach(PlanScope.all, id: \.self) { item in
+                    ForEach(choices, id: \.self) { item in
                         word(item).id(item)
                     }
                 }
-                .padding(.horizontal, GridConstants.horizontalPadding - GridConstants.gapTight)
+                .padding(.horizontal, margin)
             }
             .onChange(of: scope) { _, now in
                 withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
