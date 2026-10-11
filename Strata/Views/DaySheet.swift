@@ -259,6 +259,19 @@ struct DaySheet: View {
     /// lines' focus: the bar owns the keyboard when `planFocus` is its id.
     @State private var planDraft = ""
     @State private var planComposerID = UUID()
+    /// Which day of the plan is on the page, or the repeating lines.
+    @State private var planScope: PlanScope = DaySheet.openingScope
+
+    /// Today, or in a debug run the day `-strataPlanScope <n>|repeating`
+    /// names, so each can be photographed.
+    private static var openingScope: PlanScope {
+        #if DEBUG
+        if let raw = DebugHarness.argument("-strataPlanScope") {
+            return raw == "repeating" ? .repeating : .day(Int(raw) ?? 0)
+        }
+        #endif
+        return .day(0)
+    }
     /// Counts tab choices; see `choose`.
     @State private var choices = 0
 
@@ -471,9 +484,17 @@ struct DaySheet: View {
     /// foot, on a phone with Apple's model.
     private var planTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PlanLines(focused: $planFocus, onComplete: onComplete,
-                      onStart: { planFocus = planComposerID }, onThree: onThree)
-                .frame(maxWidth: .infinity, alignment: .top)
+            VStack(alignment: .leading, spacing: 0) {
+                // **The days, then that day's lines** (2026-10-10, planning
+                // ahead). The plan was today's only; a line had no day.
+                PlanScopeRow(scope: $planScope) { scope in
+                    scope != .repeating && scope != .day(0)
+                        && scope.lines(allItems).contains { $0.completedAt == nil && !$0.text.isEmpty && !$0.repeats }
+                }
+                PlanLines(focused: $planFocus, onComplete: onComplete,
+                          onStart: { planFocus = planComposerID }, onThree: onThree, scope: planScope)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -498,7 +519,7 @@ struct DaySheet: View {
     /// stays up for the next line.
     private var planComposer: some View {
         DayComposer(canSend: DayComposing.hasWords(planDraft), onSend: { sendPlanLine(planDraft) }) {
-            PlanTextField(text: $planDraft, placeholder: "Add to the plan",
+            PlanTextField(text: $planDraft, placeholder: planPlaceholder,
                           focused: $planFocus, id: planComposerID, isDone: false,
                           onReturn: {}, returnKey: .send, onSend: sendPlanLine)
                 // A `UITextField` takes all the height it is offered.
@@ -507,12 +528,25 @@ struct DaySheet: View {
         }
     }
 
+    /// What the bar says it adds to: today's plan, tomorrow's, a day's, or
+    /// the lines that repeat.
+    private var planPlaceholder: String {
+        switch planScope {
+        case .day(0): "Add to the plan"
+        case .repeating: "Add something that repeats"
+        default: "Plan \(planScope.spoken())"
+        }
+    }
+
+    /// One line, or as many as were pasted in, for the day on the page.
     private func sendPlanLine(_ words: String) {
         planDraft = ""
         guard DayComposing.hasWords(words) else { return }
         HapticsEngine.tick()
         withAnimation(motion) {
-            _ = DayComposing.addPlanLine(words, after: allItems, habits: habits, context: modelContext)
+            _ = DayComposing.addPlanLines(words, after: allItems, habits: habits, context: modelContext,
+                                          day: planScope.date() ?? Date(),
+                                          repeatDays: planScope == .repeating ? PlanScope.everyDay : [])
         }
     }
 

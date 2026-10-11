@@ -1205,6 +1205,24 @@ enum DebugHarness {
                 if i == 3 { item.completedAt = Date() }
                 context.insert(item)
             }
+            // `-strataSeedPlanAhead 1`: two lines for tomorrow, one for two
+            // days on, one that comes back every day, and one whose day was
+            // yesterday, so every part of the plan can be photographed.
+            if argument("-strataSeedPlanAhead") != nil {
+                let cal = Calendar.current
+                func day(_ offset: Int) -> String {
+                    DateUtils.dateString(from: cal.date(byAdding: .day, value: offset, to: Date()) ?? Date())
+                }
+                let ahead: [(String, Int?)] = [("Email the professor", 1), ("Laundry", 1), ("Gym with Sam", 2),
+                                               ("Morning walk", nil), ("Return the library book", -1)]
+                for (k, entry) in ahead.enumerated() {
+                    let item = PlanItem(text: entry.0, order: 100 + k,
+                                        category: HabitCategory.selectable[k % HabitCategory.selectable.count],
+                                        day: entry.1.map(day))
+                    if entry.1 == nil { item.repeatDays = [1, 2, 3, 4, 5, 6, 7] }
+                    context.insert(item)
+                }
+            }
             try? context.save()
         }
 

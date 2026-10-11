@@ -60,6 +60,17 @@ struct AddWinSheet: View {
     @State private var wellTop: CGFloat = 0
 
     @State private var title = ""
+    /// **Now, or later** (`WhenRow`). Nil is now: the sheet adds a win, as
+    /// it always did. A day, or the repeating lines, and it writes plan
+    /// lines instead: a name a line, no colour, size or photo, because a
+    /// planned win is an empty Quick outline until it is done.
+    @State private var planFor: PlanScope?
+    /// The lines planned in this sitting, shown under the name as they go.
+    @State private var plannedHere: [(scope: PlanScope, text: String)] = []
+    private var isPlanning: Bool { planFor != nil }
+    /// Offered on a fresh win only: not while editing one, and not for a
+    /// win already under way (a photo just taken, a plan line being done).
+    private var offersPlanning: Bool { !isEditing && initialPhoto == nil && initialTitle == nil }
     /// What the row over the keyboard is chosen from (`WinIdeas`), read once
     /// when the sheet opens.
     @State private var ideaSource: (three: [WinIdea], plan: [WinIdea], logged: [WinIdeas.Logged], today: String)?
@@ -162,6 +173,9 @@ struct AddWinSheet: View {
     /// is nothing left to lose, and Done never asks.
     private var hasUnsavedEdits: Bool {
         guard let opening, failure?.winIsSaved != true else { return false }
+        // Planning, what was written is already kept, a line at a time:
+        // only words still in the field are unsaved.
+        if isPlanning { return DayComposing.hasWords(title) }
         return photoChanged || doodleChanged || !withPeople.isEmpty || asItStands != opening
     }
 
@@ -302,10 +316,22 @@ struct AddWinSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
-                        decisions
+                        if offersPlanning {
+                            WhenRow(when: $planFor)
+                                .padding(.top, GridConstants.gapTight)
+                        }
+                        if isPlanning {
+                            // The day on the row, and only its lines: what
+                            // was written for tomorrow is not listed under
+                            // today.
+                            PlannedHereList(lines: plannedHere.filter { $0.scope == planFor }.map(\.text))
+                                .padding(.top, GridConstants.gapItem)
+                        }
+                        // What a win is made of, and none of it a plan's.
+                        if !isPlanning { decisions }
                         // Not on a win too old for any crew's tower: ticked,
                         // it would arrive in a day already gone.
-                        if crewsCanTakeIt {
+                        if crewsCanTakeIt, !isPlanning {
                             HStack(alignment: .center, spacing: GridConstants.gapItem) {
                                 // The one place a win's crews are chosen,
                                 // the camera's included, so the camera's line
@@ -327,8 +353,10 @@ struct AddWinSheet: View {
                             }
                             .padding(.top, GridConstants.gapSection)
                         }
-                        subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
-                            .padding(.top, GridConstants.gapSection)
+                        if !isPlanning {
+                            subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
+                                .padding(.top, GridConstants.gapSection)
+                        }
                     }
                     .coordinateSpace(name: Self.pageSpace)
                     // **The app's page margin, not a private one.** This was
@@ -353,7 +381,7 @@ struct AddWinSheet: View {
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
             }
-            .sheetTitle(isEditing ? "Edit" : "Add a win", drawn: true)
+            .sheetTitle(isEditing ? "Edit" : isPlanning ? "Plan a win" : "Add a win", drawn: true)
             .toolbar {
                 addWinToolbar
             }
@@ -482,9 +510,9 @@ struct AddWinSheet: View {
                     // so a placeholder never reads as an answer. (Dark was
                     // already 6.0.)
                     TextField(
-                        isEditing ? "Name" : "What did you do?",
+                        isEditing ? "Name" : namePrompt,
                         text: $title,
-                        prompt: Text(isEditing ? "Name" : "What did you do?")
+                        prompt: Text(isEditing ? "Name" : namePrompt)
                             .foregroundStyle(AppColors.inkTertiary)
                     )
                         .font(Typography.headerMedium)
@@ -499,8 +527,17 @@ struct AddWinSheet: View {
                         // drawn in an ink the design system does not own.
                         .foregroundStyle(AppColors.inkPrimary)
                         .focused($titleFocused)
-                        .submitLabel(.done)
-                        .onSubmit { Task { await save() } }
+                        .submitLabel(isPlanning ? .next : .done)
+                        .onSubmit {
+                            // **Planning, Return is the next line**, as in a
+                            // note: the line is kept and the field is ready
+                            // for another. An empty Return is "that's all".
+                            if isPlanning {
+                                if planLine() { titleFocused = true } else { dismiss() }
+                            } else {
+                                Task { await save() }
+                            }
+                        }
                         .toolbar {
                             ToolbarItemGroup(placement: .keyboard) {
                                 if !isEditing, !ideas.isEmpty { ideaRow }
@@ -1048,7 +1085,9 @@ struct AddWinSheet: View {
             }
             dismiss()
         } label: {
-            Text(failure?.dismissal ?? "Cancel").sheetAction(.cancel)
+            // Planning, each line is kept as it is written: once there is
+            // one, leaving is finishing, not cancelling.
+            Text(failure?.dismissal ?? (isPlanning && !plannedHere.isEmpty ? "Done" : "Cancel")).sheetAction(.cancel)
         }
         .buttonStyle(.pressWord)
         // One line and two answers. Hung on Cancel itself because iOS 26
@@ -1068,13 +1107,43 @@ struct AddWinSheet: View {
     /// `\.isEnabled` out of the environment, so "cannot save yet" is one
     /// modifier rather than a ternary on a colour at every call site.
     private var confirmButton: some View {
-        Button { Task { await save() } } label: {
+        Button {
+            if isPlanning {
+                // Whatever is typed is kept, and that is the plan made.
+                planLine()
+                if !plannedHere.isEmpty { HapticsEngine.lightTap(); dismiss() }
+            } else {
+                Task { await save() }
+            }
+        } label: {
             // **The verb changes with what the press will do**, as the head
             // maker's Save becomes Try Saving Again. See `AddWinFailure.retry`.
-            Text(failure?.retry ?? (isEditing ? "Save" : "Add")).sheetAction()
+            Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan" : "Add")).sheetAction()
         }
         .buttonStyle(.pressWord)
-        .disabled(!canSave)
+        .disabled(isPlanning ? (plannedHere.isEmpty && !DayComposing.hasWords(title)) : !canSave)
+    }
+
+    /// The tense is the mode (`PlanItemDetailSheet`): what you did, or what
+    /// you mean to.
+    private var namePrompt: String { isPlanning ? "What do you mean to do?" : "What did you do?" }
+
+    /// What is typed becomes a plan line (or several, if a list was pasted)
+    /// for the day chosen, and the field is cleared for the next. False when
+    /// there was nothing to keep.
+    @discardableResult
+    private func planLine() -> Bool {
+        guard let scope = planFor, DayComposing.hasWords(title) else { return false }
+        let all = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+        let habits = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
+        let made = DayComposing.addPlanLines(title, after: all, habits: habits, context: modelContext,
+                                             day: scope.date() ?? Date(),
+                                             repeatDays: scope == .repeating ? PlanScope.everyDay : [])
+        guard !made.isEmpty else { return false }
+        HapticsEngine.tick()
+        withAnimation(GridConstants.motionSnappy) { plannedHere += made.map { (scope, $0.text) } }
+        title = ""
+        return true
     }
 
     /// The page's own coordinate space, so the well can read where it starts.

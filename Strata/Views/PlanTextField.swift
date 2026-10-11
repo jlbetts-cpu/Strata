@@ -130,6 +130,22 @@ struct PlanTextField: UIViewRepresentable {
             parent.text = field.text ?? ""
         }
 
+        /// **A list pasted in is a list of lines** (2026-10-10). A text
+        /// field flattens a pasted list into one long line; where the field
+        /// sends (the Plan's bar), what was pasted goes on whole, breaks and
+        /// all, and the plan makes a line of each (`DayComposing.planLines`).
+        func textField(_ field: UITextField, shouldChangeCharactersIn range: NSRange,
+                       replacementString string: String) -> Bool {
+            guard let onSend = parent.onSend, string.contains(where: \.isNewline),
+                  string.split(whereSeparator: \.isNewline).count > 1 else { return true }
+            let before = field.text ?? ""
+            let typed = (before as NSString).replacingCharacters(in: range, with: "")
+            field.text = ""
+            parent.text = ""
+            onSend(typed.isEmpty ? string : typed + "\n" + string)
+            return false
+        }
+
         func textFieldShouldReturn(_ field: UITextField) -> Bool {
             if let onSend = parent.onSend {
                 let words = field.text ?? ""

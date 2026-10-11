@@ -34,12 +34,23 @@ final class PlanItem {
     /// Decided when the line is written rather than when it is completed, so
     /// the plan looks like the tower it is going to be.
     var categoryRaw: String = HabitCategory.health.rawValue
-    /// Weekdays it comes back on, 1 = Sunday through 7 = Saturday, as
-    /// `Calendar.component(.weekday:)` numbers them. Empty means a one-off.
+    /// **When it is for.** Weekdays it comes back on, 1 = Sunday through
+    /// 7 = Saturday, as `Calendar.component(.weekday:)` numbers them; or,
+    /// for a one-off, the one day it is planned for, written `d:2026-10-12`
+    /// (`day`). Empty is a one-off from before lines had a day, which is
+    /// today's until the sweep gives it one.
     ///
     /// Stored as a sorted comma-joined string rather than `[Int]`: SwiftData
     /// can hold an array of `Int`, but it cannot be used inside a
     /// `#Predicate`, and this is a field the sweep has to filter on.
+    ///
+    /// **The day rides in this field, and that is on purpose** (2026-10-10,
+    /// planning ahead). A new stored field needs the iCloud schema deployed
+    /// from the console before any phone on a TestFlight or App Store build
+    /// can save one, and until it is, the whole store's sync stalls on the
+    /// first line that carries it. This field is already in the schema. A
+    /// build from before reads `d:...` as no weekdays at all, which is a
+    /// plain one-off: the line still shows and still ticks.
     var repeatDaysRaw: String = ""
     /// The size its block opens at once checked. Small unless a suggestion
     /// sized it (`PlanSuggestions`); the add sheet can still change it.
@@ -55,19 +66,44 @@ final class PlanItem {
     }
 
     var isDone: Bool { completedAt != nil }
-    var repeats: Bool { !repeatDaysRaw.isEmpty }
+    var repeats: Bool { !repeatDays.isEmpty }
+
+    static let dayPrefix = "d:"
 
     var repeatDays: Set<Int> {
-        get { Set(repeatDaysRaw.split(separator: ",").compactMap { Int($0) }) }
-        set { repeatDaysRaw = newValue.sorted().map(String.init).joined(separator: ",") }
+        get {
+            guard !repeatDaysRaw.hasPrefix(Self.dayPrefix) else { return [] }
+            return Set(repeatDaysRaw.split(separator: ",").compactMap { Int($0) })
+        }
+        set {
+            // Turning a repeat off leaves a one-off for today; it never
+            // wipes the day of a line that had one and was not repeating.
+            if newValue.isEmpty {
+                if repeats { day = DateUtils.dateString(from: Date()) }
+                return
+            }
+            repeatDaysRaw = newValue.sorted().map(String.init).joined(separator: ",")
+        }
     }
 
-    init(text: String = "", order: Int = 0, category: HabitCategory = .health) {
+    /// **The one day a one-off is planned for**, `yyyy-MM-dd` as a win's own
+    /// day is written (`DateUtils.dateString`). Nil for a repeating line,
+    /// and for a one-off from before lines had a day.
+    var day: String? {
+        get {
+            guard repeatDaysRaw.hasPrefix(Self.dayPrefix) else { return nil }
+            return String(repeatDaysRaw.dropFirst(Self.dayPrefix.count))
+        }
+        set { repeatDaysRaw = newValue.map { Self.dayPrefix + $0 } ?? "" }
+    }
+
+    init(text: String = "", order: Int = 0, category: HabitCategory = .health, day: String? = nil) {
         self.id = UUID()
         self.text = text
         self.order = order
         self.createdAt = Date()
         self.categoryRaw = category.rawValue
+        if let day { self.repeatDaysRaw = Self.dayPrefix + day }
     }
 
     /// Whether this line belongs on today's list.
@@ -76,11 +112,43 @@ final class PlanItem {
     /// repeating line belongs on the days it repeats on — and on any day it
     /// was completed, so that ticking something off on a day it was not due
     /// does not make it vanish under your finger.
-    func belongs(on date: Date, calendar: Calendar) -> Bool {
-        guard repeats else { return true }
+    ///
+    /// **A one-off belongs to its own day** (2026-10-10). It used to belong
+    /// to today, every day, until it was done, because a line had no day.
+    /// Planning tomorrow needs it to wait for tomorrow, and a day's plan that
+    /// was not finished no longer follows you into the next day's list (see
+    /// `isEarlier`).
+    func belongs(on date: Date, calendar: Calendar, today: Date = Date()) -> Bool {
         if let done = completedAt, calendar.isDate(done, inSameDayAs: date) { return true }
-        return repeatDays.contains(calendar.component(.weekday, from: date))
+        if repeats { return repeatDays.contains(calendar.component(.weekday, from: date)) }
+        // Done on another day than this: that day's, not this one's.
+        guard completedAt == nil else { return false }
+        if let day { return day == DateUtils.dateString(from: date) }
+        return calendar.isDate(date, inSameDayAs: today)
     }
+
+    /// **Still to do on this day**: it belongs here and was not done here.
+    /// What the tower draws an outline for, and what the plan lists unticked.
+    func isOpen(on date: Date, calendar: Calendar, today: Date = Date()) -> Bool {
+        guard belongs(on: date, calendar: calendar, today: today) else { return false }
+        guard let done = completedAt else { return true }
+        return !calendar.isDate(done, inSameDayAs: date)
+    }
+
+    /// **A one-off whose day went by without it.** It is not on today's
+    /// tower and not in today's list: a new day starts with what you planned
+    /// for it, not with what yesterday left. It waits in the plan, under
+    /// today's lines, where one press brings it to today and a swipe lets it
+    /// go. Never marked, never counted (the research in `docs/planning.md`:
+    /// every planner that rolls leftovers forward grows a backlog that then
+    /// has to be cleaned, and a "missed" mark is the app criticising you).
+    func isEarlier(than today: Date = Date()) -> Bool {
+        guard completedAt == nil, !repeats, let day else { return false }
+        return day < DateUtils.dateString(from: today)
+    }
+
+    /// How long a one-off waits after its day before it is let go.
+    static let keptAfterItsDay = 14
 
     /// A human reading of the repeat, for the row's subtitle.
     func repeatSummary(calendar: Calendar) -> String? {
@@ -138,7 +206,23 @@ final class PlanItem {
             return
         }
         var changed = false
+        let todayString = DateUtils.dateString(from: now)
+        let cutoff = calendar.date(byAdding: .day, value: -Self.keptAfterItsDay, to: now)
+            .map(DateUtils.dateString(from:)) ?? ""
         for item in items {
+            // A one-off from before lines had a day has been today's every
+            // day; from here it is today's, and then it is its own.
+            if item.repeatDaysRaw.isEmpty, item.completedAt == nil {
+                item.day = todayString
+                changed = true
+                continue
+            }
+            // One whose day went by two weeks ago, untouched: let go.
+            if item.completedAt == nil, let day = item.day, day < cutoff {
+                context.delete(item)
+                changed = true
+                continue
+            }
             guard let done = item.completedAt else { continue }
             guard !calendar.isDate(done, inSameDayAs: now) else { continue }
             if item.repeats {
@@ -170,4 +254,35 @@ extension PlanItem {
     /// because offering a choice the model cannot keep would be a lie. Adding
     /// it means a per-day exception on the model first.
     static let supportsSingleOccurrenceDelete = false
+}
+
+// MARK: - Skipped for a day
+
+/// **A repeating line, skipped for one day.** The line is one row with the
+/// weekdays it comes back on (`supportsSingleOccurrenceDelete`), so "not
+/// this Tuesday" is kept beside it: on this phone, by day, and forgotten a
+/// week on. Nothing is counted and nothing is marked: the outline is not on
+/// that day's tower, and the line is back on its next day.
+enum PlanSkips {
+    private static let key = "plan.skipped"
+
+    private static func entry(_ id: UUID, _ date: Date) -> String {
+        "\(DateUtils.dateString(from: date))|\(id.uuidString)"
+    }
+
+    static func skip(_ id: UUID, on date: Date, defaults: UserDefaults = .standard) {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: date).map(DateUtils.dateString(from:)) ?? ""
+        var kept = (defaults.stringArray(forKey: key) ?? []).filter { $0 >= cutoff }
+        let new = entry(id, date)
+        if !kept.contains(new) { kept.append(new) }
+        defaults.set(kept, forKey: key)
+    }
+
+    static func unskip(_ id: UUID, on date: Date, defaults: UserDefaults = .standard) {
+        defaults.set((defaults.stringArray(forKey: key) ?? []).filter { $0 != entry(id, date) }, forKey: key)
+    }
+
+    static func isSkipped(_ id: UUID, on date: Date, defaults: UserDefaults = .standard) -> Bool {
+        (defaults.stringArray(forKey: key) ?? []).contains(entry(id, date))
+    }
 }

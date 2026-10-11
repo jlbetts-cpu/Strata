@@ -120,12 +120,15 @@ struct YourThreeTests {
     @Test("pinned at the top of every day's plan, ticked from today's wins, never stored per day")
     func inThePlan() throws {
         let lines = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanLines.swift"))
-        #expect(lines.contains("if onThree != nil { yourThree }"), "above the day's own lines")
+        // Today's plan only, since the plan got days (2026-10-10): your
+        // three are ticked from TODAY's wins, so on tomorrow's page they
+        // would be three boxes that cannot be ticked.
+        #expect(lines.contains("if onThree != nil, scope == .day(0) { yourThree }"), "above the day's own lines")
         #expect(lines.contains("YourThree.done(three, titlesToday: WinIdeas.titlesToday(context: modelContext))"),
                 "the tick is today's wins, so midnight resets it with no sweep")
         #expect(!lines.contains("PlanItem(text: item.title"), "never written into the plan as lines")
         let day = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
-        #expect(day.contains("onThree: onThree)"))
+        #expect(day.contains("onThree: onThree, scope: planScope)"))
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         #expect(main.contains("pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)"),
                 "a press opens Add with it written, as a plan line does")

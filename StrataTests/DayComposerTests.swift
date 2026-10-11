@@ -44,7 +44,10 @@ struct DayComposerTests {
         #expect(bar.contains("GlassIconButton(systemName: \"arrow.up\""))
         #expect(bar.contains(".disabled(!canSend)"))
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
-        #expect(sheet.contains("placeholder: \"Add to the plan\""))
+        // The bar says which day it adds to since the plan got days
+        // (2026-10-10); for today it still says what it always did.
+        #expect(sheet.contains("placeholder: planPlaceholder"))
+        #expect(sheet.contains("case .day(0): \"Add to the plan\""))
         #expect(sheet.contains("isToday ? \"Write about today\" : \"Write about that day\""))
     }
 

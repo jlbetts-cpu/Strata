@@ -93,13 +93,58 @@ enum DayComposing {
 
     @discardableResult
     static func addPlanLine(_ text: String, after all: [PlanItem], habits: [Habit],
-                            context: ModelContext) -> PlanItem? {
-        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !words.isEmpty else { return nil }
-        let line = PlanItem(text: words, order: (all.map(\.order).max() ?? -1) + 1,
-                            category: QuickWinService.spontaneousCategory(existing: habits))
-        context.insert(line)
+                            context: ModelContext, day: Date = Date(), repeatDays: Set<Int> = []) -> PlanItem? {
+        addPlanLines(text, after: all, habits: habits, context: context, day: day, repeatDays: repeatDays).last
+    }
+
+    /// **As many lines as were written** (2026-10-10, planning as fast as a
+    /// note: "essentially dropping a quick bullet list of intended wins").
+    /// One line is one plan line. A list pasted or dictated in, one thing a
+    /// line, becomes that many, with whatever bullet it wore taken off.
+    /// For `day`, or coming back on `repeatDays`.
+    @discardableResult
+    static func addPlanLines(_ text: String, after all: [PlanItem], habits: [Habit],
+                             context: ModelContext, day: Date = Date(), repeatDays: Set<Int> = []) -> [PlanItem] {
+        let lines = planLines(in: text)
+        guard !lines.isEmpty else { return [] }
+        var order = (all.map(\.order).max() ?? -1) + 1
+        var made: [PlanItem] = []
+        for words in lines {
+            let line = PlanItem(text: words, order: order,
+                                category: QuickWinService.spontaneousCategory(existing: habits),
+                                day: DateUtils.dateString(from: day))
+            if !repeatDays.isEmpty { line.repeatDays = repeatDays }
+            context.insert(line)
+            made.append(line)
+            order += 1
+        }
         try? context.save()
-        return line
+        return made
+    }
+
+    /// What was typed, as lines: split where it breaks, each trimmed, and a
+    /// leading "-", "•", "*", "[ ]", "1." or "1)" taken off, since a list
+    /// brought from Notes or Reminders arrives wearing them.
+    static func planLines(in text: String) -> [String] {
+        text.split(whereSeparator: \.isNewline).compactMap { raw in
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            // The bullet, the hollow bullet and the short dash are written
+            // by their numbers: they are marks to take off, not words the
+            // app says, and no dash of any length is typed in this source.
+            for mark in ["- [ ]", "- [x]", "[ ]", "[x]", "-", "\u{2022}", "*", "\u{25E6}", "\u{2013}"]
+            where line.hasPrefix(mark) {
+                line = String(line.dropFirst(mark.count)).trimmingCharacters(in: .whitespaces)
+                break
+            }
+            // "1." or "12)" and a space.
+            let digits = line.prefix { $0.isNumber }
+            if !digits.isEmpty, digits.count <= 2 {
+                let rest = line.dropFirst(digits.count)
+                if let first = rest.first, first == "." || first == ")", rest.dropFirst().first == " " {
+                    line = String(rest.dropFirst()).trimmingCharacters(in: .whitespaces)
+                }
+            }
+            return line.isEmpty ? nil : line
+        }
     }
 }

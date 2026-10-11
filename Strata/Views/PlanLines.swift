@@ -46,6 +46,9 @@ struct PlanLines: View {
     /// One of your three was pressed: the caller opens the add sheet with it
     /// written. Nil hides them (a page that is not today's plan).
     var onThree: ((YourThree.Item) -> Void)? = nil
+    /// Which day's lines, or the repeating ones (`PlanScope`). Today unless
+    /// the sheet says otherwise.
+    var scope: PlanScope = .day(0)
 
     /// **Your three, pinned at the top of every day's plan** (the owner,
     /// 2026-10-07: "why don't they go into the plan everyday"; his pick:
@@ -119,7 +122,12 @@ struct PlanLines: View {
 
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
-        allItems.filter { $0.belongs(on: Date(), calendar: calendar) }
+        scope.lines(allItems, calendar: calendar)
+    }
+
+    /// One-offs whose day went by, under today's lines (`PlanItem.isEarlier`).
+    private var earlier: [PlanItem] {
+        scope == .day(0) ? PlanScope.earlier(allItems) : []
     }
 
     var body: some View {
@@ -165,7 +173,9 @@ struct PlanLines: View {
         // separator below has to ask how many there are.
         let lines = items
         VStack(alignment: .leading, spacing: 0) {
-            if onThree != nil { yourThree }
+            // Your three are today's, every day: not a future day's, and not
+            // among the lines that repeat.
+            if onThree != nil, scope == .day(0) { yourThree }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(lines) { item in
                     row(item)
@@ -188,6 +198,7 @@ struct PlanLines: View {
                 }
             }
             if lines.isEmpty { ghostRow }
+            earlierGroup
 
             // **No words under a list** (the owner, 2026-10-05: "why does
             // there need to be the add to plan just have the + button on the
@@ -274,7 +285,7 @@ struct PlanLines: View {
         HStack(spacing: GridConstants.spacing) {
             PlanBullet(category: .unlabeled, isDone: false)
                 .frame(width: Self.tapTarget, height: Self.tapTarget)
-            Text("Plan a few small things for today")
+            Text(ghostWords)
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -288,9 +299,58 @@ struct PlanLines: View {
             if let onStart { onStart() } else { withAnimation(GridConstants.motionSnappy) { addLine() } }
         }
         .accessibilityElement()
-        .accessibilityLabel("Plan a few small things for today")
+        .accessibilityLabel(ghostWords)
         .accessibilityAddTraits(.isButton)
         .transition(.opacity)
+    }
+
+    /// The empty plan's one line, for the day on the page.
+    private var ghostWords: String {
+        scope == .repeating ? "Plan something that comes back, like a morning walk"
+            : "Plan a few small things \(scope.spoken(calendar: calendar))"
+    }
+
+    // MARK: - Earlier
+
+    /// **What an earlier day planned and did not get to**, under today's
+    /// lines. Quiet, and never counted: no "missed", no number, no red. A
+    /// press on a line's box does it as any line; one word brings them all
+    /// to today; a swipe lets one go; untouched, each goes by itself two
+    /// weeks after its day (`PlanItem.sweep`). The tower shows none of them:
+    /// a new day's tower starts with that day's plan.
+    @ViewBuilder
+    private var earlierGroup: some View {
+        let waiting = earlier
+        if !waiting.isEmpty {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Earlier")
+                    .font(Typography.sectionLabel)
+                    .kerning(Typography.sectionKerning)
+                    .textCase(.uppercase)
+                    .foregroundStyle(AppColors.inkSecondary)
+                Spacer(minLength: GridConstants.gapItem)
+                Button {
+                    HapticsEngine.lightTap()
+                    withAnimation(GridConstants.motionSnappy) { bringToToday(waiting) }
+                } label: {
+                    Text("Move to Today")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .frame(minHeight: Self.tapTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressWord)
+            }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.top, GridConstants.gapSection)
+            ForEach(waiting) { item in row(item) }
+        }
+    }
+
+    private func bringToToday(_ lines: [PlanItem]) {
+        let today = DateUtils.dateString(from: Date())
+        for line in lines { line.day = today }
+        try? modelContext.save()
     }
 
     static func suggestionContext(lines: [PlanItem], habits: [Habit],
@@ -304,9 +364,10 @@ struct PlanLines: View {
     /// colour, at its size, with its repeat.
     static func keep(_ suggestion: PlanSuggestion, after all: [PlanItem], context: ModelContext) -> UUID {
         let position = (all.last?.order ?? -1) + 1
-        let line = PlanItem(text: suggestion.title, order: position, category: suggestion.category)
+        let line = PlanItem(text: suggestion.title, order: position, category: suggestion.category,
+                            day: DateUtils.dateString(from: Date()))
         line.size = suggestion.size
-        line.repeatDays = suggestion.repeatDays
+        if !suggestion.repeatDays.isEmpty { line.repeatDays = suggestion.repeatDays }
         context.insert(line)
         try? context.save()
         return line.id
@@ -511,7 +572,10 @@ struct PlanLines: View {
         for existing in allItems where existing.order >= position {
             existing.order += 1
         }
-        let line = PlanItem(text: "", order: position, category: colour)
+        // For the day on the page, or coming back every day under Repeating.
+        let line = PlanItem(text: "", order: position, category: colour,
+                            day: scope.date().map(DateUtils.dateString(from:)))
+        if scope == .repeating { line.repeatDays = PlanScope.everyDay }
         modelContext.insert(line)
         try? modelContext.save()
         focused = line.id

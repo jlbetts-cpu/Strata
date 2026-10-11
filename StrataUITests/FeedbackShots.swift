@@ -198,6 +198,28 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// Planning from the add sheet (the owner, 2026-10-10): Now, then a
+    /// day, a line a Return, Plan; and what was planned for later today
+    /// standing on the tower as outlines.
+    func testPlanningFromTheAddSheet() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
+        wait(7); snap("plan-add-0")
+        app.buttons["When: now"].firstMatch.tap()
+        wait(1); snap("plan-add-1-row")
+        app.buttons["Tomorrow"].firstMatch.tap()
+        wait(1)
+        app.typeText("Email the professor\n")
+        app.typeText("Laundry\n")
+        wait(1); snap("plan-add-2-tomorrow")
+        app.buttons["Later"].firstMatch.tap()
+        wait(1)
+        app.typeText("Call Mum\n")
+        app.typeText("Stretch\n")
+        wait(1); snap("plan-add-3-later")
+        app.buttons["Plan"].firstMatch.tap()
+        wait(3); snap("plan-add-4-tower")
+    }
+
     /// The add sheet's strip with the pen tile gone: today's photographs
     /// straight after the block, and Doodle in the block's own menu (the
     /// owner, 2026-10-10).
