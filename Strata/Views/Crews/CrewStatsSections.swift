@@ -56,7 +56,7 @@ struct CrewStats: Equatable {
         if people > 1 && waiting == 0 { return "Everyone's in today." }
         if people > 2 && people - waiting >= CrewHistory.needed(of: people) { return "Today counts. Nice work, crew." }
         if current == 0 && best >= 7 { return "Starting fresh. Your best is still \(best)." }
-        let who = people > 2 ? "half the crew posts" : "everyone posts"
+        let who = people > 2 ? "half the crew sends" : "everyone sends"
         return "A day counts when \(who) a win. Two days off a week are fine."
     }
 

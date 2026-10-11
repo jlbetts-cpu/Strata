@@ -751,7 +751,7 @@ struct MemoriesView: View {
             } label: {
                 GlassIconLabel(systemName: "play", onPage: true)
             }
-            .accessibilityLabel("Play a recap")
+            .accessibilityLabel("Play a replay")
             .transition(.scale.combined(with: .opacity))
         }
     }
@@ -1056,6 +1056,8 @@ struct MonthArtHold: ViewModifier {
     var originalLine: String? = nil
 
     @State private var changingLine = false
+    /// Your own drawing for the month is deleted by this, so it asks.
+    @State private var usingOriginal = false
     @State private var draft = ""
 
     func body(content: Content) -> some View {
@@ -1069,7 +1071,7 @@ struct MonthArtHold: ViewModifier {
                 // 2026-10-06: "for those that want to keep the scarecrow but
                 // change the quote").
                 if !hasOwn {
-                    Button("Change Line", systemImage: "text.cursor") {
+                    Button("Change Words", systemImage: "text.cursor") {
                         draft = MonthLines.shared.line(for: month) ?? originalLine ?? ""
                         // Once the menu has closed: asked while it is still
                         // going, the alert never came up (simulator).
@@ -1081,18 +1083,24 @@ struct MonthArtHold: ViewModifier {
                 }
                 if hasOwn {
                     Button("Use Original", systemImage: "arrow.uturn.backward", role: .destructive) {
-                        MonthDrawingStore.shared.remove(month)
+                        usingOriginal = true
                     }
                 }
             }
-            .alert("Line Under the Drawing", isPresented: $changingLine) {
-                TextField("Your line", text: $draft)
+            .confirmationDialog("Use the original drawing?", isPresented: $usingOriginal, titleVisibility: .visible) {
+                Button("Delete My Drawing", role: .destructive) { MonthDrawingStore.shared.remove(month) }
+                Button("Keep Mine", role: .cancel) { }
+            } message: {
+                Text("Your drawing for this month will be gone.")
+            }
+            .alert("Words Under the Drawing", isPresented: $changingLine) {
+                TextField("Your words", text: $draft)
                 Button("Save") {
                     HapticsEngine.lightTap()
                     MonthLines.shared.set(draft, for: month)
                 }
                 if MonthLines.shared.line(for: month) != nil {
-                    Button("Use Original Line", role: .destructive) {
+                    Button("Use Original Words", role: .destructive) {
                         MonthLines.shared.set(nil, for: month)
                     }
                 }

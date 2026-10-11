@@ -50,13 +50,16 @@ struct StickerPicker: View {
             } else {
                 HStack {
                     Spacer(minLength: 0)
-                    Button(editing ? "Done" : "Edit") {
+                    Button {
                         HapticsEngine.lightTap()
                         withAnimation(GridConstants.crossFade) { editing.toggle() }
+                    } label: {
+                        Text(editing ? "Done" : "Edit")
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .font(Typography.headerSmall)
                     .foregroundStyle(AppColors.inkSecondary)
-                    .frame(minWidth: 44, minHeight: 32)
                     .buttonStyle(.pressWord)
                 }
                 ScrollView {
@@ -125,7 +128,8 @@ struct StickerPicker: View {
         .contextMenu {
             Button("Delete Sticker", systemImage: "trash", role: .destructive) { store.remove(name) }
         }
-        .accessibilityLabel(editing ? "Remove sticker" : symbol == current ? "Sticker, chosen" : "Sticker")
+        .accessibilityLabel(editing ? "Delete sticker" : "Sticker")
+        .accessibilityAddTraits(!editing && symbol == current ? [.isSelected] : [])
         .accessibilityHint(editing ? "Takes it off this list. Anywhere you placed it keeps it" : purpose == .drawing ? "Puts it on the drawing"
                            : symbol == current ? "Takes it off the day" : "Puts it on the day")
     }

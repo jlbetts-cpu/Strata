@@ -149,6 +149,7 @@ struct StripStoryComposer: View {
     @State private var turning = false
     @State private var file: URL?
     @State private var saved = false
+    @State private var saveFailed = false
     @State private var stripSize = CGSize.zero
 
     var body: some View {
@@ -205,9 +206,13 @@ struct StripStoryComposer: View {
                             HapticsEngine.success()
                             saved = true
                             Analytics.shared.signal(.stripShared, [.destination(.saved)])
+                        } else {
+                            HapticsEngine.warning()
+                            saveFailed = true
                         }
                     }
                 }
+                .photoSaveFailed($saveFailed)
                 .disabled(saved)
             }
         }

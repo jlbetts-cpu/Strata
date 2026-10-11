@@ -20,7 +20,7 @@ struct LogWinControl: ControlWidget {
             }
         }
         .displayName("Log a Win")
-        .description("Adds a win to today's tower.")
+        .description("Logs a win on today's tower.")
     }
 }
 

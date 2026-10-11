@@ -49,14 +49,18 @@ struct YourThreePicker: View {
             .background(WarmBackground().ignoresSafeArea())
             .animation(GridConstants.crossFade, value: chosen)
             .sheetTitle(YourThree.Copy.pickerTitle, drawn: false)
+            // **Kept on every change** (rule 3 of `docs/ten.md`): Done kept
+            // them and a swipe down threw them away, on a sheet with no
+            // Cancel to say that leaving loses anything.
+            .onChange(of: chosen.map(\.id)) { _, _ in onDone(chosen) }
             .toolbar {
                 // Done alone, as Your day under it has: a swipe down is the
                 // way out that keeps nothing.
-                ToolbarItem(placement: .confirmationAction) {
+                BareToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        onDone(chosen)
                         dismiss()
                     } label: { Text("Done").sheetAction(.confirm) }
+                        .buttonStyle(.pressWord)
                 }
             }
         }
@@ -77,7 +81,8 @@ struct YourThreePicker: View {
     private func row(_ item: YourThree.Item) -> some View {
         let on = chosen.contains { $0.id == item.id }
         return Button {
-            HapticsEngine.lightTap()
+            // Choosing among options is a tick (rule 5, `docs/ten.md`).
+            HapticsEngine.tick()
             if on { chosen.removeAll { $0.id == item.id } } else if !full { chosen.append(item) }
         } label: {
             HStack(spacing: GridConstants.gapLabel) {

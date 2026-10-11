@@ -53,6 +53,9 @@ struct PhotoViewer: View {
     /// wins screen... it should just let you edit it").
     @State private var editingLog: HabitLog?
     @State private var saving = false
+    @State private var saveFailed = false
+    /// Taking a win off a crew asks first (rule 3 of `docs/ten.md`).
+    @State private var withdrawing = false
     @State private var saved: Set<String> = []
     /// Friends' wins put on your plan from here, by photo id.
     @State private var planned: Set<String> = []
@@ -243,8 +246,18 @@ struct PhotoViewer: View {
         } message: {
             // Said out loud, because the block is the thing the app is about
             // and nobody should have to guess whether this takes one away.
-            Text("The win stays on your tower. Only the photograph is deleted.")
+            Text("The win stays on your tower. Only the photo is deleted.")
         }
+        .confirmationDialog("Remove this win from the crew?", isPresented: $withdrawing, titleVisibility: .visible) {
+            Button("Remove Win from Crew", role: .destructive) {
+                if let current { onWithdraw(current) }
+                onClose()
+            }
+            Button("Keep It", role: .cancel) { }
+        } message: {
+            Text("The crew stops seeing it. It stays on the tower of whoever made it.")
+        }
+        .photoSaveFailed($saveFailed)
         .sheet(item: $editingLog) { log in
             AddWinSheet(modelContext: modelContext,
                         tower: log.habit?.tower,
@@ -483,13 +496,13 @@ struct PhotoViewer: View {
                         Label("Report", systemImage: "exclamationmark.bubble")
                     }
                     if canRemove(current) {
-                        Button(role: .destructive) { onWithdraw(current); onClose() } label: {
-                            Label("Remove from Crew", systemImage: "minus.circle")
+                        Button(role: .destructive) { withdrawing = true } label: {
+                            Label("Remove Win from Crew", systemImage: "minus.circle")
                         }
                     }
                 } else {
-                    Button(role: .destructive) { onWithdraw(current); onClose() } label: {
-                        Label("Remove from Crew", systemImage: "minus.circle")
+                    Button(role: .destructive) { withdrawing = true } label: {
+                        Label("Remove Win from Crew", systemImage: "minus.circle")
                     }
                 }
             } else {
@@ -683,6 +696,9 @@ struct PhotoViewer: View {
             if ok {
                 saved.insert(current.id)
                 HapticsEngine.success()
+            } else {
+                HapticsEngine.warning()
+                saveFailed = true
             }
         }
     }

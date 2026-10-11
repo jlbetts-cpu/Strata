@@ -45,9 +45,12 @@ struct DayComposerTests {
         #expect(bar.contains(".disabled(!canSend)"))
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
         // The bar says which day it adds to since the plan got days
-        // (2026-10-10); for today it still says what it always did.
+        // (2026-10-10), and in one voice for every day since 2026-10-11:
+        // "Plan for today", "Plan for tomorrow", "Plan something that
+        // repeats". Today's was "Add to the plan", the one that did not match.
         #expect(sheet.contains("placeholder: planPlaceholder"))
-        #expect(sheet.contains("case .day(0): \"Add to the plan\""))
+        #expect(sheet.contains("case .repeating: \"Plan something that repeats\""))
+        #expect(!sheet.contains("\"Add to the plan\""))
         #expect(sheet.contains("isToday ? \"Write about today\" : \"Write about that day\""))
     }
 

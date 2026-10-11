@@ -50,9 +50,12 @@ struct CrewInfoSheet: View {
                         }
                         if crew.members.count < CrewCaps.members {
                             Button {
+                                HapticsEngine.lightTap()
                                 Task { await CrewSharing.invite(crewID) }
                             } label: {
-                                Label("Add People", systemImage: "person.badge.plus")
+                                Label {
+                                    Text("Invite People").foregroundStyle(AppColors.inkPrimary)
+                                } icon: { SettingsIcon(systemName: "person.badge.plus") }
                                     .font(Typography.bodyLarge)
                             }
                         }
@@ -68,7 +71,9 @@ struct CrewInfoSheet: View {
                     Section {
                         Toggle(isOn: Binding(get: { store.showsHeads(crewID) },
                                              set: { on in withAnimation(GridConstants.motionSnappy) { store.setShowsHeads(on, for: crewID) } })) {
-                            Label("Heads", systemImage: "face.smiling")
+                            Label {
+                                Text("Heads").foregroundStyle(AppColors.inkPrimary)
+                            } icon: { SettingsIcon(systemName: "face.smiling") }
                                 .font(Typography.bodyLarge)
                         }
                         .tint(AppColors.switchTrack)
@@ -93,7 +98,7 @@ struct CrewInfoSheet: View {
                                     }
                                 }
                             } message: {
-                                Text("Its name or picture. Your report goes to Some Wins and nobody in the crew is told.")
+                                Text("Its name or photo. Your report goes to Some Wins and nobody in the crew is told.")
                             }
                         Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { confirmsLeave = true }
                             .font(Typography.bodyLarge)
@@ -120,8 +125,9 @@ struct CrewInfoSheet: View {
                 .scrollContentBackground(.hidden)
                 .background(WarmBackground().ignoresSafeArea())
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
+                    BareToolbarItem(placement: .topBarTrailing) {
                         Button { commitName(); dismiss() } label: { Text("Done").sheetAction(.confirm) }
+                            .buttonStyle(.pressWord)
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -146,7 +152,7 @@ struct CrewInfoSheet: View {
                         let data = try? await item.loadTransferable(type: Data.self)
                         do { try await store.setPhoto(crewID, jpeg: data) } catch CrewError.photoNotAllowed {
                             problem = "That photo stays with you. Pick another, or keep everyone's faces."
-                        } catch { problem = "The picture could not be saved." }
+                        } catch { problem = "The photo could not be saved." }
                         pickerItem = nil
                     }
                 }
@@ -172,6 +178,7 @@ struct CrewInfoSheet: View {
         let frames = strip.map { $0.frames(excluding: StripKeeping.excluded($0.owner, day: $0.day)) } ?? []
         return Section {
             Button {
+                HapticsEngine.lightTap()
                 showsStrip = true
             } label: {
                 HStack(spacing: GridConstants.gapLabel) {
@@ -213,10 +220,10 @@ struct CrewInfoSheet: View {
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications are off for Some Wins")
+                        Text("Notifications are off for Some Wins in Settings.")
                             .font(Typography.bodyLarge)
                             .foregroundStyle(AppColors.inkPrimary)
-                        Text("Turn On in Settings")
+                        Text("Open Settings")
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkSecondary)
                     }
@@ -229,9 +236,10 @@ struct CrewInfoSheet: View {
                 }
             } label: {
                 HStack {
-                    Label("Mute", systemImage: store.isMuted(crewID) ? "bell.slash" : "bell")
+                    Label {
+                        Text("Mute").foregroundStyle(AppColors.inkPrimary)
+                    } icon: { SettingsIcon(systemName: store.isMuted(crewID) ? "bell.slash" : "bell") }
                         .font(Typography.bodyLarge)
-                        .foregroundStyle(AppColors.inkPrimary)
                     Spacer()
                     Text(muteState)
                         .font(Typography.screenSubtitle)
@@ -240,7 +248,9 @@ struct CrewInfoSheet: View {
             }
             Toggle(isOn: Binding(get: { store.reactionAlerts(crewID) },
                                  set: { store.setReactionAlerts($0, for: crewID) })) {
-                Label("Reactions to My Wins", systemImage: "heart")
+                Label {
+                    Text("Reactions to My Wins").foregroundStyle(AppColors.inkPrimary)
+                } icon: { SettingsIcon(systemName: "heart") }
                     .font(Typography.bodyLarge)
             }
             .tint(AppColors.switchTrack)
@@ -284,6 +294,9 @@ struct CrewInfoSheet: View {
                             // capsule has: the type-panel recipe is for words
                             // over a photograph and read as a grey pill here.
                             .glassCapsule(onPage: true)
+                            // 44 round a 30pt capsule, as the crew's name has.
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Change the crew's photo")
                 }
@@ -413,9 +426,13 @@ struct CrewInfoSheet: View {
                             .font(Typography.bodyLarge)
                             .foregroundStyle(AppColors.inkPrimary)
                         Spacer()
-                        Button("Unblock") {
-                            HapticsEngine.tick()
+                        Button {
+                            HapticsEngine.lightTap()
                             store.unblock(id)
+                        } label: {
+                            Text("Unblock")
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .font(Typography.headerSmall)
                         .buttonStyle(.pressWord)

@@ -82,7 +82,10 @@ struct CrewFace: View {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Text(member.initial.isEmpty ? " " : member.initial)
-                    .font(.system(size: side * 0.42, weight: .semibold, design: .rounded))
+                    // The app's face and weight, as your own avatar's initial is
+                    // (`ProfileAvatar`): this one was SF Rounded Semibold, a
+                    // second face and a third weight (rule 7, `docs/ten.md`).
+                    .font(.system(size: side * 0.42, weight: Typography.bodyWeight))
                     .foregroundStyle(.white)
             }
         }
@@ -126,7 +129,7 @@ struct CrewFaces: View {
                 ForEach(Array(people.enumerated()), id: \.element.id) { index, member in
                     let spot = Self.spot(index, of: people.count)
                     CrewFace(member: member, crew: crew.id, me: me, side: side * spot.size)
-                        .overlay(Circle().strokeBorder(AppColors.quietFill, lineWidth: people.count > 1 ? 1.5 : 0))
+                        .overlay(Circle().strokeBorder(AppColors.quietFill, lineWidth: people.count > 1 ? GridConstants.strokeDefault : 0))
                         .offset(x: side * spot.x, y: side * spot.y)
                 }
             }
@@ -162,5 +165,22 @@ enum CrewPictures {
         guard let image = UIImage(contentsOfFile: url.path) else { return nil }
         cache.setObject(image, forKey: key)
         return image
+    }
+}
+
+/// **Something new, said with a dot.** One size and one ink in the three
+/// places it stands: a crew's row, the Crews button, a crew's chat button.
+/// They were 9, 10 and 8 points (rule 1 of `docs/ten.md`, 2026-10-11).
+struct NewsDot: View {
+    static let side: CGFloat = 9
+    /// A ring of the page's colour round it, where it sits on a glass button's rim.
+    var ringed = false
+
+    var body: some View {
+        Circle()
+            .fill(AppColors.inkPrimary)
+            .frame(width: Self.side, height: Self.side)
+            .overlay { if ringed { Circle().strokeBorder(WarmBackground.top, lineWidth: GridConstants.strokeDefault) } }
+            .accessibilityHidden(true)
     }
 }

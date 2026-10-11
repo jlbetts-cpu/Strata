@@ -66,7 +66,7 @@ struct TipJarSection: View {
 
 /// **The one ask** (spec section 5): once, ever, after a strip is developed,
 /// from the third strip on. Quiet, at medium height, the three tips and a
-/// plain "Not now". Whatever happens here, it is never shown again.
+/// plain "Not Now". Whatever happens here, it is never shown again.
 struct TipAskSheet: View {
     @State private var jar = TipJar.shared
     @State private var thanked = false
@@ -104,13 +104,10 @@ struct TipAskSheet: View {
                         .disabled(jar.isPurchasing)
                     }
                 }
-                Button(TipJar.Copy.notNow) {
+                QuietWord(TipJar.Copy.notNow) {
                     Analytics.shared.signal(.tipAsk, [.action(.dismissed)])
                     dismiss()
                 }
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(minHeight: 44)
             }
         }
         .padding(.horizontal, GridConstants.gapWide)

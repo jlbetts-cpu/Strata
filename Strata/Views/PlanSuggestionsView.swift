@@ -85,21 +85,25 @@ struct PlanSuggestionsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)
-        .accessibilityHint("Shows three ideas for today's plan")
+        .accessibilityHint("Shows three ideas for today's plan.")
     }
 
     private var footer: some View {
         HStack {
-            Button("Others") { ask() }
-                .accessibilityHint("Shows three different ideas")
+            Button { HapticsEngine.lightTap(); ask() } label: {
+                Text("Others").frame(minWidth: 44, minHeight: Self.tapTarget).contentShape(Rectangle())
+            }
+                .accessibilityHint("Shows three different ideas.")
             Spacer()
             // "Hide", not "Done": the sheet's own Done is one line up the
             // screen, and two of them meant two different things.
-            Button("Hide") {
+            Button {
                 HapticsEngine.lightTap()
                 kept = [:]
                 shown = []
                 phase = .idle
+            } label: {
+                Text("Hide").frame(minWidth: 44, minHeight: Self.tapTarget).contentShape(Rectangle())
             }
         }
         .font(Typography.headerMedium)
@@ -111,9 +115,8 @@ struct PlanSuggestionsView: View {
 
     private func placeholder(_ i: Int) -> some View {
         HStack(spacing: GridConstants.spacing) {
-            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 24), style: .continuous)
-                .strokeBorder(PlanBullet.outlineInk, lineWidth: PlanBullet.outlineWidth(forSide: 24))
-                .frame(width: 24, height: 24)
+            // The plan's own box (`PlanBullet`), not a second drawing of it.
+            PlanBullet(category: .unlabeled, isDone: false)
                 .frame(width: Self.tapTarget, height: Self.tapTarget)
             Capsule()
                 .fill(AppColors.inkQuiet.opacity(0.35))

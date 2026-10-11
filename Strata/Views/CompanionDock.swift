@@ -193,7 +193,7 @@ struct CompanionDock: View {
         .onDisappear { CompanionObstacles.shared.remove("dock") }
         .accessibilityElement()
         .accessibilityLabel("Your head, parked")
-        .accessibilityHint("Double-tap to pop the bubble and let him float again.")
+        .accessibilityHint("Double-tap to pop the bubble and let it float again.")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { pop() }
         .accessibilityHidden(!parking.parked)

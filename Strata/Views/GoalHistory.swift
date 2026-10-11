@@ -53,19 +53,22 @@ struct GoalHistoryChart: View {
     var body: some View {
         let top = max(history.days.max() ?? 0, goal, 1)
         GeometryReader { geo in
-            let gap: CGFloat = 4
+            let gap = GridConstants.spacing
             let bar = (geo.size.width - gap * CGFloat(GoalHistory.length - 1)) / CGFloat(GoalHistory.length)
             ZStack(alignment: .bottomLeading) {
                 HStack(alignment: .bottom, spacing: gap) {
                     ForEach(Array(history.days.enumerated()), id: \.offset) { _, count in
                         RoundedRectangle(cornerRadius: min(3, bar * 0.3), style: .continuous)
-                            .fill(count >= goal ? AppColors.inkPrimary.opacity(0.85) : AppColors.inkQuiet.opacity(0.45))
+                            // The inks as they are named, not thinned: an under-goal bar
+                            // at `inkQuiet` times 0.45 computed to 1.6 to 1 against the
+                            // page, under the 3 to 1 a mark is held to (rule 6, `docs/ten.md`).
+                            .fill(count >= goal ? AppColors.inkPrimary : AppColors.inkQuiet)
                             .frame(width: bar, height: max(3, Self.height * CGFloat(count) / CGFloat(top)))
                     }
                 }
                 Rectangle()
                     .fill(AppColors.inkTertiary)
-                    .frame(height: 1)
+                    .frame(height: GridConstants.strokeThin)
                     .offset(y: -Self.height * CGFloat(goal) / CGFloat(top))
             }
             .animation(GridConstants.motionSnappy, value: goal)

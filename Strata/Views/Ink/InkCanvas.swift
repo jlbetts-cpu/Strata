@@ -312,7 +312,7 @@ struct InkCanvas<Accessory: View>: View {
             InkStickerLayer(controller: controller, interactive: false)
             InkSurface(controller: controller, lightInk: lightInk, darkInk: darkInk)
                 .accessibilityLabel("Drawing")
-                .accessibilityHint("Draw with one finger")
+                .accessibilityHint("Draw with one finger.")
             InkStickerLayer(controller: controller, interactive: true)
         }
         .background(Rectangle().fill(ground))
@@ -915,6 +915,10 @@ nonisolated enum InkImageCache {
 struct InkSheetToolbar: ToolbarContent {
     let confirm: String
     var confirmDisabled = false
+    /// Something was drawn or changed in this sitting. Cancel then asks
+    /// first, as the add sheet does (rule 3 of `docs/ten.md`): it used to
+    /// throw the strokes away at one press.
+    var hasWork = false
     let onCancel: () -> Void
     let onConfirm: () -> Void
 
@@ -935,8 +939,7 @@ struct InkSheetToolbar: ToolbarContent {
     }
 
     private var cancel: some View {
-        Button(action: onCancel) { Text("Cancel").sheetAction(.cancel) }
-            .buttonStyle(.pressWord)
+        InkCancelButton(hasWork: hasWork, onCancel: onCancel)
     }
 
     private var confirmButton: some View {
@@ -944,5 +947,23 @@ struct InkSheetToolbar: ToolbarContent {
             .buttonStyle(.pressWord)
             .disabled(confirmDisabled)
             .opacity(confirmDisabled ? 0.4 : 1)
+    }
+}
+
+/// Cancel, which asks when there is a drawing to lose.
+private struct InkCancelButton: View {
+    let hasWork: Bool
+    let onCancel: () -> Void
+    @State private var asking = false
+
+    var body: some View {
+        Button {
+            if hasWork { asking = true } else { onCancel() }
+        } label: { Text("Cancel").sheetAction(.cancel) }
+            .buttonStyle(.pressWord)
+            .confirmationDialog("Discard this drawing?", isPresented: $asking, titleVisibility: .visible) {
+                Button("Discard", role: .destructive) { onCancel() }
+                Button("Keep Editing", role: .cancel) { }
+            }
     }
 }

@@ -130,13 +130,13 @@ enum BackupRestore {
         var warnings: [String] {
             var lines: [String] = []
             if summary.version < BackupArchive.currentFormatVersion, summary.photographs > 0 {
-                lines.append("This backup was made by an older version of Some Wins, which did not record which win each photograph belongs to. Its \(summary.photographs) photograph\(summary.photographs == 1 ? "" : "s") cannot be put back on your wins. You can still save them from the zip in the Files app.")
+                lines.append("This backup was made by an older version of Some Wins, which did not record which win each photo belongs to. Its \(summary.photographs) photo\(summary.photographs == 1 ? "" : "s") cannot be put back on your wins. You can still save them from the zip in the Files app.")
             }
             if winsWithoutATemplate > 0 {
                 lines.append("\(winsWithoutATemplate) win\(winsWithoutATemplate == 1 ? "" : "s") in this backup doesn't say what kind of win it was, so \(winsWithoutATemplate == 1 ? "it" : "they") can't be restored.")
             }
             if summary.version >= BackupArchive.currentFormatVersion, !unattachablePhotographs.isEmpty {
-                lines.append("\(unattachablePhotographs.count) photograph\(unattachablePhotographs.count == 1 ? "" : "s") in this backup isn't attached to any win, so \(unattachablePhotographs.count == 1 ? "it" : "they") won't be restored.")
+                lines.append("\(unattachablePhotographs.count) photo\(unattachablePhotographs.count == 1 ? "" : "s") in this backup isn't attached to any win, so \(unattachablePhotographs.count == 1 ? "it" : "they") won't be restored.")
             }
             return lines
         }
@@ -524,7 +524,7 @@ enum BackupRestore {
                 // Named individually. A count of failures is not something
                 // anybody can act on, and the win is still restored — without
                 // its photograph, and said out loud.
-                outcome.problems.append("A photograph (\(failedName)) could not be restored: \(reason). Its win was restored without it.")
+                outcome.problems.append("A photo (\(failedName)) could not be restored: \(reason). Its win was restored without it.")
             }
         }
         return outcome

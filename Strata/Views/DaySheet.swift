@@ -265,6 +265,7 @@ struct DaySheet: View {
     /// while the sheet is up, so several lines for the same days are set
     /// once; every day again the next time it opens.
     @State private var repeatDays: Set<Int> = PlanScope.everyDay
+    @State private var removingSketch = false
 
     /// Today, or in a debug run the day `-strataPlanScope <n>|repeating`
     /// names, so each can be photographed.
@@ -502,6 +503,8 @@ struct DaySheet: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        // Where a deleted line's Undo shows: over the list, above the bar.
+        .undoLine()
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 // Suggestions are for today, and are kept for today: on
@@ -549,8 +552,7 @@ struct DaySheet: View {
     /// the lines that repeat.
     private var planPlaceholder: String {
         switch planScope {
-        case .day(0): "Add to the plan"
-        case .repeating: "Add something that repeats"
+        case .repeating: "Plan something that repeats"
         default: "Plan \(planScope.spoken())"
         }
     }
@@ -732,7 +734,7 @@ struct DaySheet: View {
         .buttonStyle(.pressWord)
         .id(question)
         .accessibilityLabel("Write in: \(question)")
-        .accessibilityHint("Adds the question to your note, so you can answer it")
+        .accessibilityHint("Adds the question to your note, so you can answer it.")
     }
 
     private func insert(_ question: String) {
@@ -758,10 +760,18 @@ struct DaySheet: View {
             }
             .buttonStyle(.press)
             .contextMenu {
-                Button("Remove", systemImage: "xmark", role: .destructive) { removeSketch() }
+                Button("Remove", systemImage: "xmark", role: .destructive) { removingSketch = true }
             }
+            // It cannot be brought back, so it asks (rule 3, `docs/ten.md`).
+            .confirmationDialog("Remove this sketch?", isPresented: $removingSketch, titleVisibility: .visible) {
+                Button("Remove Sketch", role: .destructive) { removeSketch() }
+                Button("Keep It", role: .cancel) { }
+            } message: {
+                Text("It will be gone. Your note stays.")
+            }
+            .accessibilityAction(named: "Remove") { removingSketch = true }
             .accessibilityLabel("Sketch")
-            .accessibilityHint("Opens it to draw on")
+            .accessibilityHint("Opens it to draw on.")
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.vertical, GridConstants.gapItem)
             .transition(.opacity)
@@ -821,7 +831,7 @@ struct DaySheet: View {
         .buttonStyle(.press)
         .disabled(thinking)
         .opacity(thinking ? 0.5 : 1)
-        .accessibilityHint("Shows a question about your day")
+        .accessibilityHint("Shows a question about your day.")
     }
 
     /// `win`: the win a photograph in the row was pressed for, so the question

@@ -349,6 +349,7 @@ struct MemoriesConsistencyTests {
             "CrewReactions.swift": "labels are Liquid Glass, which answers the press itself; a scaling press style on interactive glass cancelled taps on a real phone (2026-10-05)",
             "CrewTowerView.swift": "the name capsule is `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06 audit)",
             "DaySheet.swift": "the emoji disc is `glassCircle(onPage:)`, as `GlassIconButton` is; the CrewReactions reason (2026-10-06 audit)",
+            "MakeYourHead.swift": "the pill is `glassCapsule(onPage:)`, interactive glass; the CrewReactions reason (2026-10-11)",
             "GoalRing.swift": "the goal's caption is `CrestCaption`, the crew name's own `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06)"
         ]
         let unexplained = Self.hits(".buttonStyle(.plain)").filter { hit in

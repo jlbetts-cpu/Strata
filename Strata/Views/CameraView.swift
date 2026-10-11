@@ -510,7 +510,7 @@ struct CameraView: View {
                 Text("\(AppName.display) cannot use the camera")
                     .font(Typography.screenTitle)
                     .foregroundStyle(.white)
-                Text("A win can be a photograph. Turn the camera on for \(AppName.display) in Settings and this becomes the viewfinder.")
+                Text("A win can be a photo. Turn the camera on for \(AppName.display) in Settings and this becomes the viewfinder.")
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.onDarkSecondary)
                     .padding(.bottom, GridConstants.gapItem)

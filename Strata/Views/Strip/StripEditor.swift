@@ -93,7 +93,7 @@ struct StripEditor: View {
             }
             .sheetTitle("Your Strip", drawn: false)
             .toolbar {
-                InkSheetToolbar(confirm: "Done", onCancel: { dismiss() }, onConfirm: {
+                InkSheetToolbar(confirm: "Done", hasWork: ink.canUndo, onCancel: { dismiss() }, onConfirm: {
                     HapticsEngine.lightTap()
                     // Kept at the canvas width, so the strip draws it at any size.
                     let k = canvas.width > 0 ? StripDecor.canvasWidth / canvas.width : 1
@@ -141,14 +141,15 @@ struct StripEditor: View {
                                 guard frames.count < PhotoStrip.most else { HapticsEngine.warning(); return }
                                 next.remove(frame.id)
                             }
-                            HapticsEngine.lightTap()
+                            // Choosing is a tick, as the crew picker's is.
+                            HapticsEngine.tick()
                             draft = next
                         } label: {
                             Image(uiImage: frame.picture)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: 52, height: 52)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 52), style: .continuous))
                                 .opacity(on ? 1 : 0.35)
                                 .overlay(alignment: .topTrailing) {
                                     Image(systemName: on ? "checkmark.circle.fill" : "circle")
@@ -160,7 +161,7 @@ struct StripEditor: View {
                         }
                         .buttonStyle(.press)
                         .accessibilityLabel(frame.title.isEmpty ? "A win" : frame.title)
-                        .accessibilityValue(on ? "On the strip" : "Off the strip")
+                        .accessibilityAddTraits(on ? [.isSelected] : [])
                     }
                 }
             }

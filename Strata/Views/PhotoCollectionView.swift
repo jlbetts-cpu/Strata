@@ -40,7 +40,7 @@ struct PhotoCollectionView: View {
     /// reason `MemoriesMapView` writes down about its own: the view is built
     /// before the store is read, so for that first frame no sections is not an
     /// empty collection, and without this gate every open of a place flashed
-    /// "No photographs here." over a grid about to fill with photographs.
+    /// "No photos here." over a grid about to fill with photographs.
     @State private var hasLoaded = false
     @Namespace private var photoTransition
 
@@ -80,6 +80,9 @@ struct PhotoCollectionView: View {
         // that is allowed a material: it is the system's own chrome, not a
         // card of ours pretending to be a block.
         .toolbarBackground(.visible, for: .navigationBar)
+        // The glass back button the day page beside it on the shelf has
+        // (rule 1 of `docs/ten.md`): this page kept the system's.
+        .glassBackButton()
         .task { load() }
         // Asking is a network call and it is allowed to fail. The screen is
         // already correct without it; the name is something it gains.
@@ -151,7 +154,7 @@ struct PhotoCollectionView: View {
     /// levels. Neither was failing. What was failing is that the page's one
     /// sentence was its quietest object.
     private var emptyLine: some View {
-        Text("No photographs here.")
+        Text("No photos here.")
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
             .padding(.horizontal, GridConstants.horizontalPadding)

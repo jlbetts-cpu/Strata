@@ -101,7 +101,7 @@ nonisolated enum YourThree {
         static let ownPrompt = "Or write your own"
         static let onboardingTitle = "Three you can always do"
         static let onboardingLine = pickerLine
-        static let onboardingKeep = "Keep these"
+        static let onboardingKeep = "Keep These"
         static let onboardingSkip = "Skip"
         static let onboardingWaiting = "Not yet. Pick one, or skip."
 
@@ -246,7 +246,7 @@ struct GoalCrest: View {
 
     var body: some View {
         VStack(spacing: GridConstants.spacing) {
-            Button { openDay() } label: {
+            Button { HapticsEngine.lightTap(); openDay() } label: {
                 ZStack {
                     GoalRingStroke(wins: shown, goal: goal, line: Self.line)
                         .padding(Self.line / 2 + 2)
@@ -285,7 +285,7 @@ struct GoalCrest: View {
             }
             .buttonStyle(.press)
             .zIndex(1)
-            Button { openDay() } label: {
+            Button { HapticsEngine.lightTap(); openDay() } label: {
                 CrestCaption(text: "\(shown)/\(goal)")
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
@@ -320,7 +320,7 @@ struct GoalCrest: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(wins == 1 ? "1 win today" : "\(wins) wins today")
         .accessibilityValue("Goal \(goal)")
-        .accessibilityHint("Opens your day")
+        .accessibilityHint("Opens your day.")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { openDay() }
     }

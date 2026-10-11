@@ -127,9 +127,12 @@ struct CrewChatSheet: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     Group {
                         if messages.isEmpty {
+                            // The page's one sentence in the type and ink
+                            // every other empty page uses (`PhotoCollection
+                            // View.emptyLine`); it was the quietest thing on it.
                             Text("Quiet here. Yet.")
-                                .font(Typography.bodyLarge)
-                                .foregroundStyle(AppColors.inkTertiary)
+                                .font(Typography.headerMedium)
+                                .foregroundStyle(AppColors.inkPrimary)
                                 .frame(maxWidth: .infinity, minHeight: geo.size.height)
                         } else {
                             LazyVStack(spacing: GridConstants.spacing) {
@@ -247,7 +250,7 @@ struct CrewChatSheet: View {
                     onOpenWin(quote.winID)
                 } label: { face }
                     .buttonStyle(.pressSurface)
-                    .accessibilityHint("Opens the win")
+                    .accessibilityHint("Opens the win.")
             } else {
                 face
             }

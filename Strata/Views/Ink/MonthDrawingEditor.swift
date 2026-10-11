@@ -64,7 +64,7 @@ struct MonthDrawingEditor: View {
                 InkCanvas(controller: ink, aspectRatio: Self.aspect)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fit(width: $0) }
                     .frame(maxHeight: .infinity)
-                TextField("Add a line", text: $line)
+                TextField("Add a few words", text: $line)
                     .font(DrawingLine.font)
                     .tracking(DrawingLine.tracking)
                     .foregroundStyle(AppColors.inkPrimary)
@@ -86,7 +86,7 @@ struct MonthDrawingEditor: View {
             .padding(.vertical, GridConstants.gapItem)
             .sheetTitle(monthName, drawn: false)
             .toolbar {
-                InkSheetToolbar(confirm: "Done",
+                InkSheetToolbar(confirm: "Done", hasWork: ink.canUndo,
                                 onCancel: { dismiss() },
                                 onConfirm: done)
             }

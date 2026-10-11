@@ -653,7 +653,7 @@ struct DrawingLine: View {
     /// As long as a line under a drawing should be: one breath, two lines
     /// at most on the smallest phone.
     static let maxLength = 48
-    static let font = Font.system(.subheadline, design: .default, weight: .semibold)
+    static let font = Typography.headerSmall
     static let tracking: CGFloat = 0.2
 
     var body: some View {

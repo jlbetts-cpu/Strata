@@ -583,7 +583,7 @@ struct MainAppView: View {
             } message: {
                 Text("\(AppName.display) could not reset your data, so every win and photo is still here. Try again.")
             }
-            .alert("Couldn't save that win", isPresented: $winSaveFailed) {
+            .alert("Couldn't add that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Nothing was added. Try again.")
@@ -2375,8 +2375,23 @@ struct MainAppView: View {
                 CrewSync.post(log, to: [crew])
             }
             scheduleRefresh()
+            // **Undo here too** (rule 3 of `docs/ten.md`, 2026-10-11). The
+            // Wins slot has offered it since 2026-10-06, for a win drawn by
+            // accident; the same held press on a crew's slot sent a win to
+            // friends with no way back but finding it and deleting it.
+            // Taking it back is that same delete, which takes it off the
+            // crew as any deleted win is.
+            let habit = win.habit
+            UndoLine.shared.show("Win added", undo: {
+                guard let pending = try? WinDeletion.delete(habit, in: modelContext) else { return }
+                pending.finish()
+                scheduleRefresh()
+            })
         } catch {
+            // Said, as the Wins slot says it: it was a haptic and nothing
+            // else, and the win simply was not there (rule 8).
             HapticsEngine.warning()
+            winSaveFailed = true
         }
     }
 

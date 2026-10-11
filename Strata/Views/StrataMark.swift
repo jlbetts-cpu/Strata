@@ -272,23 +272,20 @@ struct StrataMark: View {
     /// camera"), `BrandCamera`: 594 wide to 550 tall.
     private static let aspect: CGFloat = 594.0 / 550.0
 
+    /// **The drawing itself, in ink on the page** (the owner, 2026-10-11:
+    /// "for the logo in the settings could you just have it be normal, I
+    /// don't want it in the reverse color look, I just want it clean"). It
+    /// was the app icon's tile: a warm-black block with the camera in white,
+    /// the one dark tile on a light page and a white one's twin in dark. The
+    /// camera is his line drawing, so it is shown as every drawing of his
+    /// is, in the drawing's ink, with nothing behind it.
     var body: some View {
-        BlockSurface(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: side),
-            scale: side / GridConstants.blockReferenceCell
-        ) {
-            AppColors.warmBlack
-        }
-        .frame(width: side, height: side)
-        .overlay {
-            Image("BrandCamera")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: side * Self.capRatio * Self.aspect,
-                       height: side * Self.capRatio)
-                .foregroundStyle(.white)
-        }
+        Image("BrandCamera")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: side, height: side / Self.aspect)
+            .foregroundStyle(AppColors.drawingInk)
         .accessibilityElement()
         .accessibilityLabel("Some Wins")
     }

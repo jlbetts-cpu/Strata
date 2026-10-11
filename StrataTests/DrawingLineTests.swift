@@ -54,7 +54,9 @@ struct DrawingLineTests {
         let illustration = SourceSweep.code(try SourceSweep.read("Strata/Views/Illustration.swift"))
         #expect(illustration.contains("if let line { DrawingLine(text: line) }"))
         let editor = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/MonthDrawingEditor.swift"))
-        #expect(editor.contains("TextField(\"Add a line\", text: $line)"))
+        // "Words", since "line" is the plan's word (2026-10-11, rule 4 of
+        // `docs/ten.md`); the field and what it saves are unchanged.
+        #expect(editor.contains("TextField(\"Add a few words\", text: $line)"))
         #expect(editor.contains("line: line, for: month)"))
         // A line changed on its own is a change: Done saves it.
         #expect(editor.contains("$0.line == DrawingLine.kept(line)"))
@@ -73,7 +75,7 @@ struct DrawingLineTests {
         #expect(lines.line(for: "2026-10") == nil, "an empty line is the original again")
         let memories = SourceSweep.code(try SourceSweep.read("Strata/Views/MemoriesView.swift"))
         #expect(memories.contains("MonthLines.shared.line(for: key) ?? Self.monthLine[month]"))
-        #expect(memories.contains("Button(\"Change Line\""))
+        #expect(memories.contains("Button(\"Change Words\""))
     }
 
     /// "can we also turn the scarecrows frown into a smile when the bird

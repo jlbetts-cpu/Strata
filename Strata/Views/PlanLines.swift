@@ -63,6 +63,9 @@ struct PlanLines: View {
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
     @State private var detail: PlanItem?
+    /// Lines deleted a moment ago and not yet gone: off the page while Undo
+    /// is offered (`delete`), then removed for good.
+    @State private var removed: Set<UUID> = []
     /// The line whose Delete is showing, if one is. One at a time, as Mail
     /// and Reminders do: opening another closes it.
     @State private var swiped: UUID?
@@ -96,7 +99,7 @@ struct PlanLines: View {
     /// sat at 15 while every other page margin in the app is 16. The comment on
     /// the row already claimed it "stays exactly where it was on the page"; now
     /// it does.
-    private static let bulletInset: CGFloat = (tapTarget - bulletSide) / 2
+    static let bulletInset: CGFloat = (tapTarget - bulletSide) / 2
     /// Where a line's text starts, and therefore where a separator does. Comes
     /// out at 54, which is what the separator's hand-written sum said.
     private static let textLeading: CGFloat =
@@ -128,12 +131,12 @@ struct PlanLines: View {
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
         _ = skipsChanged
-        return scope.lines(allItems, calendar: calendar)
+        return scope.lines(allItems, calendar: calendar).filter { !removed.contains($0.id) }
     }
 
     /// One-offs whose day went by, under today's lines (`PlanItem.isEarlier`).
     private var earlier: [PlanItem] {
-        scope == .day(0) ? PlanScope.earlier(allItems) : []
+        scope == .day(0) ? PlanScope.earlier(allItems).filter { !removed.contains($0.id) } : []
     }
 
     var body: some View {
@@ -312,7 +315,7 @@ struct PlanLines: View {
 
     /// The empty plan's one line, for the day on the page.
     private var ghostWords: String {
-        scope == .repeating ? "Plan something that comes back, like a morning walk"
+        scope == .repeating ? "Plan something that repeats, like a morning walk"
             : "Plan a few small things \(scope.spoken(calendar: calendar))"
     }
 
@@ -522,7 +525,7 @@ struct PlanLines: View {
         // line first.
         .contextMenu {
             Button { detail = item } label: {
-                Label("Options", systemImage: "info.circle")
+                Label("Edit", systemImage: "pencil")
             }
             // Skipped for today from the tower: back on it from here.
             if PlanSkips.isSkipped(item, on: Date()) {
@@ -536,6 +539,16 @@ struct PlanLines: View {
             }
             Button(role: .destructive) { delete(item) } label: {
                 Label("Delete", systemImage: "trash")
+            }
+        }
+        // What the hold offers, offered to VoiceOver by name (rule 9 of
+        // `docs/ten.md`): putting a skipped line back had no other route.
+        .accessibilityActions {
+            if PlanSkips.isSkipped(item, on: Date()) {
+                Button("Put Back on Today") {
+                    PlanSkips.unskip(item.id, on: Date())
+                    skipsChanged += 1
+                }
             }
         }
     }
@@ -628,11 +641,24 @@ struct PlanLines: View {
         focused = previous?.id
     }
 
+    /// **Deleted, with Undo** (rule 3 of `docs/ten.md`, 2026-10-11). A swipe
+    /// or the menu's Delete took a line at once, with no question and no way
+    /// back, while the same Delete in the line's own sheet asks first. The
+    /// line leaves the page now and is removed when the undo line goes, so
+    /// nothing has to be rebuilt to bring it back.
     private func delete(_ item: PlanItem) {
-        HapticsEngine.tick()
+        HapticsEngine.lightTap()
         if focused == item.id { focused = nil }
         if swiped == item.id { swiped = nil }
-        PlanItem.remove(item, context: modelContext)
+        let id = item.id
+        let context = modelContext
+        withAnimation(GridConstants.motionSnappy) { _ = removed.insert(id) }
+        UndoLine.shared.show("Line deleted", undo: {
+            withAnimation(GridConstants.motionSnappy) { _ = removed.remove(id) }
+        }, expire: {
+            guard !item.isDeleted, item.modelContext != nil else { return }
+            PlanItem.remove(item, context: context)
+        })
     }
 
     /// Drops blank lines. An empty bullet you walked away from was never an

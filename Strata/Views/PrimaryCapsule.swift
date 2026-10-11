@@ -55,7 +55,7 @@ import SwiftUI
 /// said the label was `inkTertiary` "at 4.8:1" and the ring `inkQuiet` at
 /// "3.1:1", which is what those two inks measure when they are drawn. They
 /// were not being drawn. Sampled off page 2 of the 2026-10-01 screenshots,
-/// where "What else" waits for you to draw a block:
+/// where "What Else" waits for you to draw a block:
 ///
 ///     ring, declared inkQuiet 0.45     rendered 188 on 243   1.71:1
 ///     label, declared inkTertiary 0.55 rendered 176 on 243   1.96:1
@@ -189,7 +189,7 @@ struct PrimaryCapsule: View {
             // `HapticsEngine.tick()`, which is `selectionChanged`, the
             // feedback for a value moving inside a picker. Both pills it was
             // extracted from were `lightTap()` beforehand, and so is
-            // `GlassIconButton`. Pressing "Restore" or "Go on" is not a
+            // `GlassIconButton`. Pressing "Restore" or "Go On" is not a
             // selection changing, and this is the regression the walkthrough
             // would have inherited by adopting this type as written.
             HapticsEngine.lightTap()

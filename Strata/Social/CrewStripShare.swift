@@ -101,7 +101,7 @@ final class CrewStripActivity: UIActivity {
                 photo.draw(in: CGRect(x: (side - size.width) / 2, y: (side - size.height) / 2,
                                       width: size.width, height: size.height))
             } else {
-                UIColor.systemBackground.setFill()
+                UIColor(WarmBackground.top).setFill()
                 context.fill(rect)
                 let glyph = UIImage(systemName: "person.2.fill",
                                     withConfiguration: UIImage.SymbolConfiguration(pointSize: 44, weight: .semibold))?

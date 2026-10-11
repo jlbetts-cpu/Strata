@@ -552,8 +552,13 @@ struct CrewTowerView: View {
                             : (parking.parked.count == 1 ? "1 head in the bubble" : "\(parking.parked.count) heads in the bubble"))
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { tapBubble() }
+                        .accessibilityActions {
+                            if !parking.parked.isEmpty {
+                                Button("Let Everyone Out") { parking.releaseAll() }
+                            }
+                        }
                         .zIndex(1)
-                    Button { showsInfo = true } label: {
+                    Button { HapticsEngine.lightTap(); showsInfo = true } label: {
                         // The caption the Wins tower's goal uses too
                         // (`CrestCaption`), so the two middles are one object.
                         CrestCaption(text: crew.displayName(excluding: store.me), chevron: true)
@@ -607,9 +612,7 @@ struct CrewTowerView: View {
         }
         .overlay(alignment: .topTrailing) {
             if unread {
-                Circle()
-                    .fill(AppColors.inkPrimary)
-                    .frame(width: Self.dotSide, height: Self.dotSide)
+                NewsDot()
                     .offset(x: -Self.dotInset, y: Self.dotInset)
                     .transition(.scale.combined(with: .opacity))
                     .allowsHitTesting(false)
@@ -621,13 +624,13 @@ struct CrewTowerView: View {
     }
 
     /// The unread dot: small, in ink, inside the glass circle's corner.
-    private static let dotSide: CGFloat = 8
     private static let dotInset: CGFloat = 8
 
     /// Empty, the bubble is the crew: its details. With heads in it, a tap
     /// fans them out to choose from.
     private func tapBubble() {
         if parking.parked.isEmpty || !store.showsHeads(crewID) {
+            HapticsEngine.lightTap()
             showsInfo = true
         } else {
             HapticsEngine.tick()

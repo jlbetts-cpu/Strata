@@ -66,20 +66,13 @@ struct OnboardingFilm: View {
             // **A word, not a control** (the owner, 2026-10-08: "the skip
             // button i would prefer if it were cleaner"). Quiet ink on the
             // page, a 44pt target around it, no capsule.
-            Button("Skip") { finish(skipped: true) }
-                .font(Typography.headerSmall)
-                .foregroundStyle(AppColors.inkTertiary)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            QuietWord("Skip", font: Typography.headerSmall, ink: AppColors.inkTertiary) { finish(skipped: true) }
                 .padding(.trailing, GridConstants.horizontalPadding)
-                .accessibilityHint("Goes straight to trying it")
+                .accessibilityHint("Goes straight to trying it.")
         }
         .overlay(alignment: .bottom) {
             if reduceMotion && !playing {
-                Button("Continue") { finish(skipped: true) }
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .frame(minHeight: 44)
+                QuietWord("Continue") { finish(skipped: true) }
                     .padding(.bottom, GridConstants.gapWide)
             }
         }

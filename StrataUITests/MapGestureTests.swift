@@ -170,8 +170,8 @@ final class MapGestureTests: XCTestCase {
         // exist yet, and the waiting label is on screen in its place". Both
         // halves can fail. If the pill ever becomes pressable before a block
         // is drawn, the first assertion catches it.
-        let next = app.buttons["What else"]
-        let waiting = app.staticTexts["What else"]
+        let next = app.buttons["What Else"]
+        let waiting = app.staticTexts["What Else"]
         XCTAssertTrue(waiting.waitForExistence(timeout: 40), "the tutorial page never appeared")
         Thread.sleep(forTimeInterval: 3)
         XCTAssertFalse(next.exists, "the page let you past before you drew anything")
@@ -227,28 +227,28 @@ final class MapGestureTests: XCTestCase {
         start.press(forDuration: 0.5, thenDragTo: start.withOffset(CGVector(dx: 160, dy: 0)))
         Thread.sleep(forTimeInterval: 2)
 
-        XCTAssertTrue(app.buttons["What else"].waitForExistence(timeout: 15), "no What else button")
-        app.buttons["What else"].tap()
+        XCTAssertTrue(app.buttons["What Else"].waitForExistence(timeout: 15), "no What else button")
+        app.buttons["What Else"].tap()
         Thread.sleep(forTimeInterval: 2)
 
         // The head page. Its primary opens the head maker, which needs a front
-        // camera and cannot run here; "Not now" moves on without one. A
+        // camera and cannot run here; "Not Now" moves on without one. A
         // simulator that already holds a head (an earlier test made one) shows
-        // "One more thing" instead, since there is nothing to offer.
+        // "One More Thing" instead, since there is nothing to offer.
         let onFromHead = app.buttons.matching(NSPredicate(
-            format: "label == %@ OR label == %@", "Not now", "One more thing")).firstMatch
+            format: "label == %@ OR label == %@", "Not Now", "One More Thing")).firstMatch
         XCTAssertTrue(onFromHead.waitForExistence(timeout: 15),
                       "no head page. On screen: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label))")
         onFromHead.tap()
         Thread.sleep(forTimeInterval: 2)
 
-        XCTAssertTrue(app.buttons["One more thing"].waitForExistence(timeout: 15), "no thank-you page")
-        app.buttons["One more thing"].tap()
+        XCTAssertTrue(app.buttons["One More Thing"].waitForExistence(timeout: 15), "no thank-you page")
+        app.buttons["One More Thing"].tap()
         Thread.sleep(forTimeInterval: 2)
 
         // The day's goal, its number left at the default. The last page.
-        XCTAssertTrue(app.buttons["Set my goal"].waitForExistence(timeout: 15), "no goal page")
-        app.buttons["Set my goal"].tap()
+        XCTAssertTrue(app.buttons["Set My Goal"].waitForExistence(timeout: 15), "no goal page")
+        app.buttons["Set My Goal"].tap()
         dismissSystemAlerts(app)
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
         // tower. A shorter wait catches the loading skeleton.

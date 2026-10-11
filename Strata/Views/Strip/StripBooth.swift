@@ -90,6 +90,7 @@ struct StripBooth: View {
     /// The editor, opened on its pen or its stickers.
     @State private var editing: StripEditor.Opening?
     @State private var saved = false
+    @State private var saveFailed = false
     /// The pose-and-share screen is up (`StripStoryComposer`).
     @State private var telling = false
     /// **Looking closer** (2026-10-07: "a way to zoom in to it"). Once it
@@ -590,10 +591,14 @@ struct StripBooth: View {
                         if await PhotoLibrarySaver.savePNG(data) {
                             HapticsEngine.success()
                             saved = true
+                        } else {
+                            HapticsEngine.warning()
+                            saveFailed = true
                         }
                     }
                 }
                 .disabled(saved)
+                .photoSaveFailed($saveFailed)
             }
         }
     }

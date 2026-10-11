@@ -305,6 +305,8 @@ struct CrewReactionsPanel: View {
     @State private var replying = false
     @State private var draft = ""
     @State private var refused = false
+    @State private var atDailyLimit = false
+    @State private var notSent = false
     @State private var doodling = false
     @State private var doodleRefused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -384,7 +386,7 @@ struct CrewReactionsPanel: View {
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
         .alert("Reply to \(owner)", isPresented: $replying) {
-            TextField("A few words", text: Binding(get: { draft }, set: {
+            TextField("Message", text: Binding(get: { draft }, set: {
                 draft = $0
                 CrewDrafts.keepReply($0, for: crewID, to: winID)
             }))
@@ -396,12 +398,27 @@ struct CrewReactionsPanel: View {
                     // Reply again after "Try other words" opens on them.
                     if outcome == .sent { CrewDrafts.clearReply(crewID, to: winID, ifStill: text) }
                     if outcome == .refusedWords { refused = true }
+                    // The other ways a reply does not go are said too, in
+                    // the chat's own words (rule 8 of `docs/ten.md`): the
+                    // alert closed and the reply simply never arrived.
+                    if outcome == .dailyLimit { atDailyLimit = true }
+                    if outcome == .notAllowed || outcome == .throttled { notSent = true }
                 }
                 withAnimation(motion) { open = false }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Your reply goes to the crew's chat. It clears when the day ends.")
+        }
+        .alert("That's plenty for today", isPresented: $atDailyLimit) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The chat takes more from you when the crew's day starts again.")
+        }
+        .alert("The reply didn't send", isPresented: $notSent) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your words are kept. Try again in a moment.")
         }
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}

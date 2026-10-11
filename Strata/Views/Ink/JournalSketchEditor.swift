@@ -43,7 +43,7 @@ struct JournalSketchEditor: View {
                 .padding(.vertical, GridConstants.gapItem)
                 .sheetTitle(title, drawn: false)
                 .toolbar {
-                    InkSheetToolbar(confirm: "Done",
+                    InkSheetToolbar(confirm: "Done", hasWork: ink.canUndo,
                                     onCancel: { dismiss() },
                                     onConfirm: done)
                 }

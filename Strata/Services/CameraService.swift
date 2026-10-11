@@ -122,7 +122,7 @@ final class CameraService: NSObject {
     /// camera and added its frame output on the main thread at once. A
     /// `startRunning` that landed between that `beginConfiguration` and its
     /// commit is an NSGenericException: on a real phone, every so often,
-    /// the app died on "Make my head". The simulator has no camera and never
+    /// the app died on "Make My Head". The simulator has no camera and never
     /// got there.
     func run() async {
         let session = session

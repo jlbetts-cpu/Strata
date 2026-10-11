@@ -40,7 +40,7 @@ struct DoodleSheet: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .sheetTitle("Doodle", drawn: false)
             .toolbar {
-                InkSheetToolbar(confirm: "Send", confirmDisabled: ink.isEmpty,
+                InkSheetToolbar(confirm: "Send", confirmDisabled: ink.isEmpty, hasWork: ink.canUndo,
                                 onCancel: { dismiss() },
                                 onConfirm: {
                                     HapticsEngine.lightTap()

@@ -622,7 +622,7 @@ struct AddWinSheet: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.press)
-                    .accessibilityHint("Names the win")
+                    .accessibilityHint("Names the win.")
                 }
             }
             .padding(.horizontal, GridConstants.gapTight)
@@ -1132,7 +1132,7 @@ struct AddWinSheet: View {
         // at the size control, which was not what had been pressed. As a
         // popover the cancel answer is a tap outside; Keep Editing is what
         // VoiceOver and the action-sheet form read.
-        .confirmationDialog(isEditing ? "Discard your changes?" : "Discard this win?",
+        .confirmationDialog(isEditing ? "Discard your changes?" : isPlanning ? "Discard what you typed?" : "Discard this win?",
                             isPresented: $confirmingDiscard,
                             titleVisibility: .visible) {
             Button("Discard", role: .destructive) { dismiss() }

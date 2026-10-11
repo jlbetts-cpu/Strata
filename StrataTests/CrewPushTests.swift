@@ -172,9 +172,9 @@ struct CrewPushTests {
     }
 
     @Test func joiningAndMilestonesAreSaidWarmly() throws {
-        #expect(cache.joinedWords(crew: "crew-1", sender: "new", name: "Priya") == ("Roommates", "Priya joined."))
-        #expect(cache.joinedWords(crew: "crew-1", sender: "sam", name: nil) == ("Roommates", "Sam joined."))
-        #expect(cache.joinedWords(crew: "crew-1", sender: "new", name: " ") == ("Roommates", "Someone new joined."))
+        #expect(cache.joinedWords(crew: "crew-1", sender: "new", name: "Priya") == ("Roommates", "Priya joined"))
+        #expect(cache.joinedWords(crew: "crew-1", sender: "sam", name: nil) == ("Roommates", "Sam joined"))
+        #expect(cache.joinedWords(crew: "crew-1", sender: "new", name: " ") == ("Roommates", "Someone new joined"))
         let seven = try #require(cache.milestoneWords(crew: "crew-1", days: "7"))
         #expect(seven == ("Roommates", "Look what your crew is building. 7 days."))
         #expect(cache.milestoneWords(crew: "crew-1", days: "x") == nil)

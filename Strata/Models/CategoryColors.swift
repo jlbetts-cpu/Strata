@@ -268,6 +268,12 @@ enum AppColors {
     /// A quiet surface: a well, an empty cell, a hairline's fill. Not text,
     /// and not held to a text ratio (1.14:1 light, 1.19:1 dark) — it is there
     /// to be a shape rather than to be read.
+    /// **A chosen chip's fill**: your own reaction in the chat, a chosen
+    /// weekday. A tint of the page's ink, so it is dark on dark and light on
+    /// light. It was written as `inkPrimary.opacity(0.16)` in both places
+    /// (rule 7 of `docs/ten.md`, 2026-10-11).
+    static let chosenFill = inkPrimary.opacity(0.16)
+
     static let quietFill = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(white: 1, alpha: 0.06)

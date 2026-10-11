@@ -63,11 +63,11 @@ struct SettingsView: View {
         let used = await Task.detached(priority: .utility) {
             ImageManager.shared.storageUsed()
         }.value
-        guard used.count > 0 else { storageLine = "No photographs stored yet."; return }
+        guard used.count > 0 else { storageLine = "No photos stored yet."; return }
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         let size = formatter.string(fromByteCount: used.bytes)
-        storageLine = "\(used.count) photograph\(used.count == 1 ? "" : "s"), \(size)."
+        storageLine = "\(used.count) photo\(used.count == 1 ? "" : "s"), \(size)."
     }
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
@@ -147,7 +147,7 @@ struct SettingsView: View {
                     // — the styling the tower left behind. `StrataMark` is
                     // drawn from `BlockSurface`, so it is the same object the
                     // rest of the app is made of and cannot drift again.
-                    StrataMark(side: 72)
+                    StrataMark(side: 60)
 
                     // **NO WORDMARK, HERE OR ANYWHERE** (2026-09-30). The
                     // owner: "keep it off everywhere for now, since we are
@@ -479,7 +479,7 @@ struct SettingsView: View {
             } footer: {
                 Text(storageLine)
                     .formFooter()
-                    .accessibilityLabel("Photographs use \(storageLine)")
+                    .accessibilityLabel("Photos use \(storageLine)")
 
                 // **The working case says nothing here now** (cut 10,
                 // `docs/copy-audit.md`). This footer carried "Photographs you
@@ -498,7 +498,7 @@ struct SettingsView: View {
                 // be discovered". The `gapTight` moved off the line above and
                 // onto this one, so the air exists only when the line does.
                 if location.isDenied {
-                    Text("Location is off for Some Wins in the Settings app, so photographs can't be placed on your map.")
+                    Text("Places are off for Some Wins in Settings, so photos can't land on your map.")
                         .formFooter()
                         .padding(.top, GridConstants.gapTight)
                 }
@@ -695,7 +695,7 @@ struct SettingsView: View {
                         Text("iCloud is full, so new wins and photos are saved on this iPhone only.")
                             .formFooter()
                     }
-                    Text("A backup is one zip file with your wins, photographs, drawings and stickers in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
+                    Text("A backup is one zip file with your wins, photos, drawings and stickers in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
                         .formFooter()
                 }
             }

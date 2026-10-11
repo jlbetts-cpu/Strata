@@ -75,7 +75,7 @@ struct ChatReactionChips: View {
                     .frame(minHeight: Self.chipHeight)
                     .background {
                         RoundedRectangle(cornerRadius: Self.chipHeight / 2, style: .continuous)
-                            .fill(chip.mine ? AppColors.inkPrimary.opacity(0.16) : AppColors.quietFill)
+                            .fill(chip.mine ? AppColors.chosenFill : AppColors.quietFill)
                     }
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }

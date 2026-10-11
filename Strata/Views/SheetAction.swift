@@ -135,3 +135,88 @@ extension View {
         modifier(SheetActionStyle(role: role, mark: mark))
     }
 }
+
+// MARK: - A sheet's word, bare
+
+/// **A toolbar item with no glass of the system's behind it** (rule 1 of
+/// `docs/ten.md`, 2026-10-11). iOS 26 puts a glass capsule behind every
+/// toolbar item. Day, Chat, Profile, Add and the editors strip it, each in
+/// its own toolbar; Crew details, Start a Crew, Your Day and Your Three did
+/// not, so Done was a bare word on one sheet and a word in a pill on the
+/// next. One item, for every sheet's Cancel and Done.
+struct BareToolbarItem<Content: View>: ToolbarContent {
+    let placement: ToolbarItemPlacement
+    @ViewBuilder let content: () -> Content
+
+    @ToolbarContentBuilder
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: placement, content: content)
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: placement, content: content)
+        }
+    }
+}
+
+// MARK: - The quiet second word
+
+/// **"Not Now", "Skip", "Continue"**: the word under or beside a main
+/// action that declines it. It was written out four times, each with the
+/// system's press, its 44 points on the outside of the label where they do
+/// not count, and no haptic (rule 1 and rule 5 of `docs/ten.md`).
+struct QuietWord: View {
+    let title: String
+    var font: Font = Typography.bodyLarge
+    var ink: Color = AppColors.inkSecondary
+    /// Across the page, under a full-width action.
+    var fills = false
+    let action: () -> Void
+
+    init(_ title: String, font: Font = Typography.bodyLarge, ink: Color = AppColors.inkSecondary,
+         fills: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.font = font
+        self.ink = ink
+        self.fills = fills
+        self.action = action
+    }
+
+    var body: some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            Text(title)
+                .font(font)
+                .foregroundStyle(ink)
+                .frame(minWidth: 44, maxWidth: fills ? .infinity : nil, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+    }
+}
+
+// MARK: - Could not save to Photos
+
+/// **One way of saying a save to Photos did not happen** (rule 8 of
+/// `docs/ten.md`). The replay said "Couldn't save"; the photo viewer and
+/// both strip screens said nothing, and the button simply stayed as it was.
+struct PhotoSaveFailed: ViewModifier {
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        content.alert("Couldn't save to Photos", isPresented: $isPresented) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Some Wins may not be allowed to add to your photos. You can change that in Settings.")
+        }
+    }
+}
+
+extension View {
+    func photoSaveFailed(_ isPresented: Binding<Bool>) -> some View { modifier(PhotoSaveFailed(isPresented: isPresented)) }
+}

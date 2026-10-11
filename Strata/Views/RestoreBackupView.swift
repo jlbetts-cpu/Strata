@@ -144,7 +144,7 @@ struct RestoreBackupView: View {
                 fact("Not marked done", value: "\(summary.otherEntries)")
             }
             fact("Days", value: "\(summary.days)")
-            fact("Photographs", value: photographLine(summary))
+            fact("Photos", value: photographLine(summary))
             // **"None", not a dash.** These were a long dash, which is the one
             // punctuation mark this app's copy is not allowed anywhere, and a
             // dash is not a word: a person reading "From, long dash" learns
@@ -182,8 +182,8 @@ struct RestoreBackupView: View {
             }
             if !plan.photographsForExistingWins.isEmpty {
                 Text(plan.photographsForExistingWins.count == 1
-                     ? "1 win already here will get its photograph back."
-                     : "\(plan.photographsForExistingWins.count) wins already here will get their photographs back.")
+                     ? "1 win already here will get its photo back."
+                     : "\(plan.photographsForExistingWins.count) wins already here will get their photos back.")
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
@@ -250,7 +250,7 @@ struct RestoreBackupView: View {
             // A backup with only journal days left to add still has an action,
             // and "Add 0 wins" would be a button saying it does nothing.
             primaryButton(plan.winsToAdd == 0 ? (plan.notesToAdd.isEmpty ? "Add to Plan" : "Add Journal")
-                          : plan.winsToAdd == 1 ? "Add 1 win" : "Add \(plan.winsToAdd) wins") {
+                          : plan.winsToAdd == 1 ? "Add 1 Win" : "Add \(plan.winsToAdd) Wins") {
                 await restore(plan)
             }
         }
@@ -294,7 +294,7 @@ struct RestoreBackupView: View {
 
             VStack(spacing: 0) {
                 fact("Days", value: "\(report.daysAdded)")
-                fact("Photographs", value: "\(report.photographsRestored)")
+                fact("Photos", value: "\(report.photographsRestored)")
                 if report.photographsAlreadyHere > 0 {
                     fact("Already on this phone", value: "\(report.photographsAlreadyHere)")
                 }
@@ -326,7 +326,9 @@ struct RestoreBackupView: View {
         Text(message)
             .font(Typography.bodyLarge)
             .foregroundStyle(AppColors.inkSecondary)
-        primaryButton("Close") { onClose() }
+        // "Done", the word the other two endings of this sheet use: three
+        // ways out said Done, Close and Cancel (rule 3 of `docs/ten.md`).
+        primaryButton("Done") { onClose() }
     }
 
     // MARK: - Pieces

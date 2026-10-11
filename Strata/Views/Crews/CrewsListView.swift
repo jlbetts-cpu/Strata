@@ -41,7 +41,7 @@ struct CrewsListView: View {
             } else {
                 List {
                     ForEach(store.crews) { crew in
-                        Button { open(crew.id) } label: { row(store.visible(crew.id) ?? crew) }
+                        Button { HapticsEngine.lightTap(); open(crew.id) } label: { row(store.visible(crew.id) ?? crew) }
                             .buttonStyle(.pressSurface)
                             .listRowBackground(Color.clear)
                             // Space between crews, never a rule: the app
@@ -49,6 +49,14 @@ struct CrewsListView: View {
                             // 2026-10-03: "we dont use lines we use space").
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 16))
+                            .contextMenu {
+                                Button(store.isMuted(crew.id) ? "Unmute" : "Mute",
+                                       systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash") {
+                                    store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
+                                }
+                                Button(crew.isOwner(store.me) ? "End Crew" : "Leave Crew",
+                                       systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { leaving = crew }
+                            }
                             .swipeActions(edge: .trailing) {
                                 Button(crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
                                 Button {
@@ -92,7 +100,7 @@ struct CrewsListView: View {
                 } label: {
                     Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
                 }
-                .accessibilityLabel("New Crew")
+                .accessibilityLabel("Start a Crew")
             } }
         }
         .task { await store.refresh() }
@@ -180,10 +188,7 @@ struct CrewsListView: View {
         let unread = newWins || newChat
         let latest = store.latest(in: crew.id)
         return HStack(spacing: 12) {
-            Circle()
-                .fill(unread ? AppColors.inkPrimary : .clear)
-                .frame(width: 9, height: 9)
-                .accessibilityHidden(true)
+            NewsDot().opacity(unread ? 1 : 0)
             CrewFaces(crew: crew, me: store.me, side: 56)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -246,7 +251,7 @@ struct CrewsListView: View {
     static func preview(_ win: SharedWin?, in crew: Crew, me: UUID) -> String {
         guard let win else {
             let count = crew.members.count
-            return count <= 1 ? "Waiting for people to join" : "\(count) people. No wins yet today."
+            return count <= 1 ? "Waiting for people to join." : "\(count) people. No wins yet today."
         }
         let who = win.senderProfileID == me ? "You"
             : (crew.member(win.senderProfileID)?.shortName).flatMap { $0.isEmpty ? nil : $0 } ?? "A friend"
@@ -351,7 +356,7 @@ struct CrewsListView: View {
             }
             Spacer()
             if !signedOut {
-                PrimaryCapsule(title: "New Crew") { startsCrew = true }
+                PrimaryCapsule(title: "Start a Crew") { startsCrew = true }
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.bottom, GridConstants.gapWide)
             }
@@ -416,11 +421,12 @@ struct NewCrewSheet: View {
             }
             .padding(GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapTight)
-            .navigationTitle("New Crew")
+            .navigationTitle("Start a Crew")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                BareToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
+                        .buttonStyle(.pressWord)
                 }
             }
             .onChange(of: photoItem) { _, item in
@@ -504,13 +510,9 @@ struct CrewsButton: View {
         }
             .overlay(alignment: .topTrailing) {
                 if hasNews {
-                    Circle()
-                        .fill(AppColors.inkPrimary)
-                        .frame(width: 10, height: 10)
-                        .overlay(Circle().strokeBorder(WarmBackground.top, lineWidth: 1.5))
+                    NewsDot(ringed: true)
                         .offset(x: 1, y: -1)
                         .transition(.scale.combined(with: .opacity))
-                        .accessibilityHidden(true)
                 }
             }
             .animation(GridConstants.motionSnappy, value: hasNews)

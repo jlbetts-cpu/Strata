@@ -318,7 +318,7 @@ struct ProfileView: View {
         // with a face in it is nearer a glyph than a card, and a scale alone is
         // invisible on something that round.
         .buttonStyle(.press)
-        .accessibilityLabel("Change profile picture")
+        .accessibilityLabel("Change profile photo")
     }
 
     /// Behind a head or initials. A photograph covers the whole circle.

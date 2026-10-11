@@ -246,7 +246,7 @@ struct OnboardingView: View {
         // presented as a cover from Settings. Same shape as `ProfileView`.
         .environment(\.headsAwake, coveringHeadsAwake && !showsHeadMaker)
         // A made head moves you on. Closing the maker without one leaves you
-        // here, where "Not now" is one press away.
+        // here, where "Not Now" is one press away.
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
             guard heads.head != nil, step == Self.headStep else { return }
             // The head page is left from here, not from `advance`, so its
@@ -1165,7 +1165,7 @@ struct OnboardingView: View {
         switch step {
         // The first page now, after the film: the film's own line.
         case 1: return "Every win is a block."
-        case 2: return "A win can be a photograph"
+        case 2: return "A win can be a photo"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         case Self.goalStep: return "A goal for each day"
@@ -1194,7 +1194,7 @@ struct OnboardingView: View {
     /// **Page 4 keeps its line, and this is the page the cut would have cost
     /// something.** The same entry flags "Your wins land on the map where you took
     /// them." on the same grounds, and the grounds do not hold here: page 4's
-    /// button says "Turn on places" and `advance()` calls
+    /// button says "Turn On Places" and `advance()` calls
     /// `location.requestAccess()`, so this is the walkthrough's permission prime
     /// and the only one in it. The file's own note on `advance()` cites Apple's
     /// guidance — ask where the answer is obvious — and this sentence is what
@@ -1221,7 +1221,7 @@ struct OnboardingView: View {
         case 2: return nil
         case 3: return "Your wins land on the map where you took them."
         case Self.headStep: return heads.head == nil
-            ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."
+            ? "Fifteen seconds with the front camera. Use it as your profile photo or add it to your photos, if you like."
             // Not "it stays on this phone" (the owner, 2026-10-08): your crews
             // see it whenever it shows anywhere (`HeadStore.headForCrews`).
             : "Find it in Profile and on your photos. Your crews see it too."
@@ -1263,7 +1263,7 @@ struct OnboardingView: View {
             // six-page walkthrough offered six times, under a button that
             // already says what happens next. It declines the head here, not
             // the tour: the thank you is still to come.
-            if offersHead { decline("Not now") }
+            if offersHead { decline("Not Now") }
             // Your three are asked for, never required (the owner's pick:
             // "skippable"), so this page has the head's way out too.
             if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }
@@ -1276,7 +1276,7 @@ struct OnboardingView: View {
         .animation(GridConstants.motionSnappy, value: canAdvance)
     }
 
-    /// **"Not now", with a target you can actually hit.**
+    /// **"Not Now", with a target you can actually hit.**
     ///
     /// The label is `bodySmall` and carried no frame, so the Button's hit area
     /// was the text's own line box: **18pt tall**, against the 44 the HIG asks
@@ -1391,14 +1391,14 @@ struct OnboardingView: View {
 
     private var actionTitle: String {
         switch step {
-        case 1: return "What else"
-        case 2: return "Go on"
-        case 3: return location.canAsk ? "Turn on places" : "One more thing"
-        case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
+        case 1: return "What Else"
+        case 2: return "Go On"
+        case 3: return location.canAsk ? "Turn On Places" : "One More Thing"
+        case Self.headStep: return heads.head == nil ? "Make My Head" : "One More Thing"
         // The last page now (2026-10-08): it sets the goal and opens the app.
-        case Self.goalStep: return "Set my goal"
+        case Self.goalStep: return "Set My Goal"
         // Not the last page any more when the goal follows it.
-        case Self.thanksStep where step < lastStep: return "One more thing"
+        case Self.thanksStep where step < lastStep: return "One More Thing"
         case Self.threeStep: return YourThree.Copy.onboardingKeep
         default: return "Start"
         }

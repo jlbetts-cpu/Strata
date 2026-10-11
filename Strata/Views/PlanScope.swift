@@ -47,7 +47,7 @@ enum PlanScope: Hashable {
     /// The same, in a sentence: "for today", "for tomorrow", "for Monday".
     func spoken(from today: Date = Date(), calendar: Calendar = .current) -> String {
         switch self {
-        case .repeating: return "that come back"
+        case .repeating: return "that repeat"
         case .day(0): return "for today"
         case .day(1): return "for tomorrow"
         case .day:
@@ -235,7 +235,7 @@ struct WeekdayChips: View {
                 // through one. The plan's sheet is not that colour: the off
                 // days stood out as white keys, brighter than the chosen
                 // ones, which is the wrong way round (seen 2026-10-11).
-                .background { Self.shape.fill(on ? (tint ?? AppColors.inkPrimary.opacity(0.16)) : .clear) }
+                .background { Self.shape.fill(on ? (tint ?? AppColors.chosenFill) : .clear) }
                 .overlay {
                     Self.shape.strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: GridConstants.strokeThin)
                 }
@@ -289,7 +289,8 @@ struct WhenRow: View {
                 .transition(.opacity)
             } else {
                 Button {
-                    HapticsEngine.tick()
+                    // Opening the row is a light tap; choosing on it ticks.
+                    HapticsEngine.lightTap()
                     withAnimation(GridConstants.crossFade) { open = true }
                 } label: {
                     HStack(spacing: 4) {
@@ -363,7 +364,7 @@ struct PlannedHereList: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.leading, -10)
+                .padding(.leading, -PlanLines.bulletInset)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }

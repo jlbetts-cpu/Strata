@@ -33,7 +33,7 @@ struct CrewRulesSheet: View {
             // objectionable content, a way to report with a response within
             // a day, a way to block), split into a title and its detail.
             FeatureList(rows: [
-                ("MarkCheck", "Your own wins", "Post your own wins and your own photos."),
+                ("MarkCheck", "Your own wins", "Send your own wins and your own photos."),
                 ("MarkSlash", "Nothing hurtful", "Nothing hateful, sexual, violent or cruel. Ever."),
                 ("MarkAlert", "Report it", "Every report is looked at within a day, and whatever or whoever broke these rules is removed."),
                 ("MarkLock", "Block anyone", "Any time. They are not told."),
@@ -48,10 +48,7 @@ struct CrewRulesSheet: View {
                     onAgree()
                 }
 
-                Button("Not Now") { onNotNow() }
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                QuietWord("Not Now", fills: true) { onNotNow() }
             }
         }
         .padding(.horizontal, GridConstants.horizontalPadding)

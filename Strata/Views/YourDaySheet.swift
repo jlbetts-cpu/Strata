@@ -112,8 +112,9 @@ struct YourDaySheet: View {
             .scrollContentBackground(.hidden)
             .background(WarmBackground().ignoresSafeArea())
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                BareToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: { Text("Done").sheetAction(.confirm) }
+                        .buttonStyle(.pressWord)
                 }
             }
         }
@@ -145,6 +146,7 @@ struct YourDaySheet: View {
             HStack(alignment: .bottom, spacing: GridConstants.gapItem) {
                 ForEach(printed) { past in
                     Button {
+                        HapticsEngine.lightTap()
                         dismiss()
                         openStrip(past.day == today ? nil : past.day)
                     } label: {
@@ -182,7 +184,7 @@ struct YourDaySheet: View {
         let done = YourThree.done(three, titlesToday: titlesToday)
         return Section {
             if three.isEmpty {
-                Button { choosingThree = true } label: {
+                Button { HapticsEngine.lightTap(); choosingThree = true } label: {
                     HStack(spacing: GridConstants.gapLabel) {
                         Text(YourThree.Copy.empty)
                             .font(Typography.bodyLarge)
@@ -197,7 +199,7 @@ struct YourDaySheet: View {
             } else {
                 ForEach(three) { item in
                     let isDone = done.contains(item.id)
-                    Button { choosingThree = true } label: {
+                    Button { HapticsEngine.lightTap(); choosingThree = true } label: {
                         HStack(spacing: GridConstants.gapLabel) {
                             Text(item.title)
                                 .font(Typography.bodyLarge)
@@ -214,7 +216,7 @@ struct YourDaySheet: View {
                     }
                     .buttonStyle(.press)
                     .accessibilityLabel(isDone ? "\(item.title), done today" : item.title)
-                    .accessibilityHint("Changes your three")
+                    .accessibilityHint("Changes your three.")
                 }
             }
         } header: {

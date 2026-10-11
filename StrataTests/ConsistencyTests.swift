@@ -243,6 +243,10 @@ enum ConsistencySweep {
     static let glassBacked: [String: Int] = [
         // The goal's caption, `CrestCaption`: the crew name's glass capsule.
         "Strata/Views/GoalRing.swift": 1,
+        // The Make Your Head pill, `glassCapsule(onPage:)`: interactive
+        // glass answers the finger, and a scaling press on it is the pairing
+        // that cancelled taps on a phone (2026-10-11, `docs/ten.md` rule 5).
+        "Strata/Views/Crews/MakeYourHead.swift": 1,
         // The zoom pill, which is `glassCapsule()`.
         "Strata/Views/CameraView.swift": 1,
         // The component itself: its label IS `GlassIconLabel`.

@@ -43,7 +43,7 @@ struct BlockDoodleSheet: View {
             .padding(.vertical, GridConstants.gapItem)
             .sheetTitle("Doodle", drawn: false)
             .toolbar {
-                InkSheetToolbar(confirm: "Done", onCancel: { dismiss() }, onConfirm: {
+                InkSheetToolbar(confirm: "Done", hasWork: ink.canUndo, onCancel: { dismiss() }, onConfirm: {
                     HapticsEngine.lightTap()
                     if !ink.drawing.strokes.isEmpty || !ink.stickers.isEmpty {
                         Analytics.shared.signal(.doodleDrawn)

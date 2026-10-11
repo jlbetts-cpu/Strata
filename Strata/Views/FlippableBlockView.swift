@@ -349,7 +349,7 @@ struct ReactionBadge: View {
                     .font(Typography.screenSubtitle)
                     .padding(2)
                     .background {
-                        if mine { Circle().fill(Color.white.opacity(0.55)) }
+                        if mine { Circle().fill(AppColors.onDarkQuiet) }
                     }
             }
             if count > 1 {

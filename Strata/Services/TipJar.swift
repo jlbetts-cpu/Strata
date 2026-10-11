@@ -163,6 +163,6 @@ final class TipJar {
         static let thanks = "Thank you, genuinely."
         static let askTitle = "A small thank you"
         static let askLine = "Some Wins is made by one person, and it's free. If it's been good to you, you can leave a tip."
-        static let notNow = "Not now"
+        static let notNow = "Not Now"
     }
 }

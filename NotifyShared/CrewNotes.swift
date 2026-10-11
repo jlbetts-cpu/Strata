@@ -138,7 +138,7 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
         let known = crew?.members[sender].flatMap { $0.name.isEmpty ? nil : $0.name }
         let name = (read ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let who = !name.isEmpty ? name : known
-        return (crew?.title ?? "Some Wins", who.map { "\($0) joined." } ?? "Someone new joined.")
+        return (crew?.title ?? "Some Wins", who.map { "\($0) joined" } ?? "Someone new joined")
     }
 
     /// **A streak milestone**, in the words the crew's own page uses

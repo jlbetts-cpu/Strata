@@ -478,7 +478,7 @@ final class FeedbackShots: XCTestCase {
             app.buttons[word].tap(); break
         }
         wait(4); snap("crews-empty")
-        if app.buttons["New Crew"].exists { app.buttons["New Crew"].tap(); wait(2); snap("crews-new") }
+        if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
     func testMemoriesOneMonth() {

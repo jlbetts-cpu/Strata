@@ -78,7 +78,9 @@ struct YourDayTests {
     @Test("the crest's head and fraction both open it, as a crew's middle opens its details")
     func wired() throws {
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
-        #expect(ring.components(separatedBy: "Button { openDay() }").count - 1 == 2)
+        // Each gives the light tap an open gives (2026-10-11, rule 5 of
+        // `docs/ten.md`); still two ways in, to one place.
+        #expect(ring.components(separatedBy: "Button { HapticsEngine.lightTap(); openDay() }").count - 1 == 2)
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         #expect(main.contains("YourDaySheet(goal: $dailyGoal)"))
     }

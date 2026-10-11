@@ -15,14 +15,15 @@ struct MakeYourHeadPill: View {
 
     var body: some View {
         Button {
-            HapticsEngine.tick()
+            // Opening is a light tap; a tick is for choosing (rule 5).
+            HapticsEngine.lightTap()
             making = true
         } label: {
             HStack(spacing: 10) {
                 HStack(spacing: -8) {
                     ForEach(Array(crew.others(than: me).prefix(3))) { member in
                         CrewFace(member: member, crew: crew.id, me: me, side: 28)
-                            .overlay(Circle().strokeBorder(AppColors.quietFill, lineWidth: 1.5))
+                            .overlay(Circle().strokeBorder(AppColors.quietFill, lineWidth: GridConstants.strokeDefault))
                     }
                     Image(systemName: "plus")
                         .font(Typography.headerSmall)
@@ -30,7 +31,7 @@ struct MakeYourHeadPill: View {
                         .foregroundStyle(AppColors.inkSecondary)
                         .frame(width: 28, height: 28)
                         .background(Circle().strokeBorder(AppColors.inkTertiary,
-                                                          style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
+                                                          style: StrokeStyle(lineWidth: GridConstants.strokeDefault, dash: [3, 3])))
                 }
                 Text("Make Your Head")
                     .font(Typography.headerSmall)
@@ -41,7 +42,9 @@ struct MakeYourHeadPill: View {
             .frame(minHeight: 44)
             .glassCapsule(onPage: true)
         }
-        .buttonStyle(.pressSurface)
+        // `.plain`: a scaling press on interactive glass cancels the tap on
+        // a phone (`CrewReactions`, found 2026-10-06); the glass answers.
+        .buttonStyle(.plain)
         .accessibilityLabel("Make your head")
         .accessibilityHint("Your crew sees it on their tower.")
         .fullScreenCover(isPresented: $making) { HeadMakerView() }
