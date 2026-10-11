@@ -125,10 +125,19 @@ final class FakeCrewCloud: CrewCloud {
         return id
     }
 
+    /// Crews this phone is in that a test says cannot be read just now:
+    /// left out of `fetchCrews`, still in `heldCrews`, as the real cloud
+    /// does with a crew whose key it holds and whose records did not come.
+    var unreadable: Set<CrewID> = []
+
+    func heldCrews() -> Set<CrewID>? {
+        Set(world.zones.filter { $0.value.participants.contains(myProfileID) }.keys)
+    }
+
     func fetchCrews() async throws -> [Crew] {
         try touch()
         return world.zones.compactMap { id, zone -> Crew? in
-            guard zone.participants.contains(myProfileID),
+            guard !unreadable.contains(id), zone.participants.contains(myProfileID),
                   let fields = zone.records["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"]
             else { return nil }
             let members = world.records(of: .member, in: id).values

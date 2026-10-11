@@ -76,11 +76,17 @@ final class PublicCrewCloud: CrewCloud {
     /// server's index are not instant.
     static let overlap: TimeInterval = 120
 
-    init(containerID: String? = nil, me: UUID? = nil, directory: URL? = nil, keys: CrewKeyStore = CrewKeyStore()) {
+    /// The copy of this account's crew keys and identity that outlives the
+    /// app on the phone (`CrewVault`).
+    private let vault: CrewVault
+
+    init(containerID: String? = nil, me: UUID? = nil, directory: URL? = nil, keys: CrewKeyStore = CrewKeyStore(),
+         vault: CrewVault = .keychain) {
         container = CKContainer(identifier: containerID ?? SharedModelContainer.cloudKitContainerID)
         myProfileID = me ?? ProfileStore.profileID
         self.directory = directory ?? SocialStore.defaultDirectory
         self.keys = keys
+        self.vault = vault
         loadCache()
     }
 
@@ -110,25 +116,87 @@ final class PublicCrewCloud: CrewCloud {
         return name == CKCurrentUserDefaultName ? (meRecordName ?? name) : name
     }
 
-    /// The identity record that makes two phones on one iCloud account one
-    /// person, kept in the private database where it always was (a few
-    /// bytes), and the crew keys' backup beside it.
+    /// **Who this account is in its crews**, settled before anything else:
+    /// the one profile id that makes two phones on one iCloud account, or
+    /// the same phone after the app was deleted, the same person.
+    ///
+    /// Kept in two places. The private database's record is the one every
+    /// phone of yours has always read. The Keychain's (`CrewVault`) is new
+    /// (2026-10-10): the private record needs iCloud storage, and with a
+    /// full iCloud it was never written, so a reinstall made you a stranger
+    /// to your own crews. That failure also stopped everything after it,
+    /// every launch; now it is one line in the log.
     func prepare() async {
         guard !prepared else { return }
         do {
             guard try await container.accountStatus() == .available else { return }
+            let account = try await me()
+            func adopt(_ who: UUID) {
+                guard who != myProfileID else { return }
+                UserDefaults.standard.set(who.uuidString, forKey: ProfileStore.profileIDKey)
+                myProfileID = who
+            }
             let id = CKRecord.ID(recordName: "sturdy-identity")
             let db = container.privateCloudDatabase
-            if let record = try? await db.record(for: id),
-               let raw = record["profileID"] as? String, let theirs = UUID(uuidString: raw) {
-                if theirs != myProfileID {
-                    UserDefaults.standard.set(theirs.uuidString, forKey: ProfileStore.profileIDKey)
-                    myProfileID = theirs
-                }
-            } else {
+            var theirs: UUID?
+            var absent = false
+            do {
+                let record = try await db.record(for: id)
+                theirs = (record["profileID"] as? String).flatMap(UUID.init(uuidString:))
+            } catch let error as CKError where error.code == .unknownItem {
+                absent = true
+            } catch {
+                Self.log.notice("identity not read from iCloud: \(error)")
+            }
+            // **A phone that has already been someone stays that someone**
+            // (found by review, 2026-10-10). The Keychain's word is taken
+            // only by a phone that has not yet acted under its own id: with
+            // a full iCloud two phones of one account had each joined as
+            // their own person, and one adopting the other's id now would
+            // leave its old self behind in every crew as a second you.
+            // Private iCloud's word is taken as it always was.
+            let kept = vault.identity(for: account)
+            if let theirs {
+                adopt(theirs)
+            } else if let kept, !hasActed {
+                adopt(kept)
+            } else if kept == nil, !absent {
+                // Not read, and nothing kept here: another phone of yours
+                // may already be someone. Never settled blind.
+                return
+            }
+            var saved = false
+            if theirs == nil {
+                // Best effort: `.ifServerRecordUnchanged` on a new record
+                // never writes over one that is there.
                 let record = CKRecord(recordType: "Identity", recordID: id)
                 record["profileID"] = myProfileID.uuidString as NSString
-                _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged)
+                do {
+                    let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged)
+                    if case .failure(let error)? = result.saveResults[id] { throw error }
+                    saved = true
+                } catch let error as CKError where error.code == .quotaExceeded {
+                    // A full iCloud: the Keychain is where it is kept, once
+                    // this phone is known to be you (below).
+                    Self.log.notice("identity not saved to iCloud: it is full")
+                } catch let error as CKError where error.code == .serverRecordChanged {
+                    // Another phone of yours was first, a moment ago. Read
+                    // again next time and be who it says.
+                    Self.log.notice("identity settled elsewhere first")
+                    return
+                } catch {
+                    Self.log.notice("identity not saved to iCloud yet: \(error)")
+                }
+            }
+            // **Into the Keychain only when it is known to be you**: said by
+            // private iCloud, saved there just now, or already yours in a
+            // crew. An id made a moment ago on a phone that holds nothing is
+            // not written (found by review): it travels to your other
+            // phones, and one of them could have taken it for who you are.
+            // Such a phone learns who it is from its crews
+            // (`settleIdentityFromCrews`), or becomes someone by joining one.
+            if theirs != nil || (kept == nil && (saved || hasActed)) {
+                vault.setIdentity(myProfileID, for: account)
             }
             prepared = true
             await syncKeys()
@@ -138,7 +206,43 @@ final class PublicCrewCloud: CrewCloud {
         }
     }
 
+    /// Whether this phone has been its own person in a crew: a member
+    /// record under its id is in what it has read.
+    private var hasActed: Bool {
+        let mine = "\(CrewRecordType.member.rawValue)/\(myProfileID.uuidString)"
+        return cache.values.contains { $0[mine] != nil }
+    }
+
+    /// **Who this account already is in its crews**, when this phone is
+    /// nobody yet: the profile its own member records are filed under. A
+    /// second phone whose Keychain had not caught up, or a reinstall with
+    /// nothing kept, reads its crews, finds itself in them, and is that
+    /// person, before anything can write it in as a second one
+    /// (`SocialStore.repairMissingMembership`).
+    private func settleIdentityFromCrews() {
+        guard let account = meRecordName, !hasActed else { return }
+        let prefix = CrewRecordType.member.rawValue + "/"
+        var count: [UUID: Int] = [:]
+        for (crew, records) in cache where keys.key(for: crew) != nil {
+            for (key, fields) in records where key.hasPrefix(prefix) && fields[Self.creatorKey]?.string == account {
+                if let id = UUID(uuidString: String(key.dropFirst(prefix.count))) { count[id, default: 0] += 1 }
+            }
+        }
+        // The one in the most crews; the same answer on every phone.
+        guard let who = count.max(by: { ($0.value, $1.key.uuidString) < ($1.value, $0.key.uuidString) })?.key,
+              who != myProfileID else { return }
+        UserDefaults.standard.set(who.uuidString, forKey: ProfileStore.profileIDKey)
+        myProfileID = who
+        if vault.identity(for: account) == nil { vault.setIdentity(who, for: account) }
+        Self.log.notice("identity taken from this account's own member records")
+    }
+
+    /// Bumped by `reset`, so work that was waiting on iCloud when the
+    /// account changed does not finish for the account that left.
+    private var epoch = 0
+
     func reset() {
+        epoch += 1
         cache.removeAll()
         since.removeAll()
         listedAt = .distantPast
@@ -194,8 +298,9 @@ final class PublicCrewCloud: CrewCloud {
     /// **This account's crew keys, merged with its other phones'**
     /// (`CrewKeyBackup`): keys they hold are taken, crews left anywhere are
     /// dropped here, and what is written back is sealed with a key from the
-    /// iCloud Keychain (`CrewKeyWrap`), never the keys in the clear. Best
-    /// effort: a full iCloud refuses the write, and the keys stay here.
+    /// iCloud Keychain (`CrewKeyWrap`), never the keys in the clear. A full
+    /// iCloud refuses that write, so the same text is kept in the Keychain
+    /// itself (`CrewVault`), and the two copies are read as one.
     private func syncKeys() async {
         guard !syncingKeys else { keysChangedMeanwhile = true; return }
         syncingKeys = true
@@ -210,43 +315,58 @@ final class PublicCrewCloud: CrewCloud {
         // crew it is about to drop can only be named with it (the fourth
         // read: on a cold launch it was not known yet, and nothing was
         // deleted).
-        _ = try? await me()
+        let started = epoch
+        let account = try? await me()
         let id = CKRecord.ID(recordName: Self.keysRecordName)
         let db = container.privateCloudDatabase
-        let record: CKRecord
+        // **The copy in your private iCloud**, when it can be read. Nil
+        // means it said nothing this time (no signal, or sealed by another
+        // phone whose key has not reached this one): then it is not written
+        // over blind either.
+        var record: CKRecord?
+        var stored = ""
+        var cloud: String?
         do {
-            record = try await db.record(for: id)
+            let found = try await db.record(for: id)
+            record = found
+            stored = found["keys"] as? String ?? ""
+            cloud = CrewKeyWrap.open(stored)
+            if cloud == nil {
+                // Sealed by another phone whose key has not reached this
+                // one: left as it is, for a week. A key that never comes
+                // (iCloud Keychain off, or lost) must not stop backups for
+                // ever, so after that this phone's own keys replace it.
+                let defaults = UserDefaults.standard
+                let first = defaults.double(forKey: Self.unreadableSinceKey)
+                let now = Date().timeIntervalSince1970
+                if first == 0 { defaults.set(now, forKey: Self.unreadableSinceKey) }
+                if first > 0, now - first > Self.unreadableFor { cloud = "" }
+            }
+            if cloud != nil { UserDefaults.standard.removeObject(forKey: Self.unreadableSinceKey) }
         } catch let error as CKError where error.code == .unknownItem {
             record = CKRecord(recordType: "CrewKeys", recordID: id)
+            cloud = ""
         } catch {
-            // Not read (no signal): never written over blind.
-            Self.log.notice("crew keys not read: \(error)")
-            return
+            Self.log.notice("crew keys not read from iCloud: \(error)")
         }
-        let stored = record["keys"] as? String ?? ""
-        var plain = CrewKeyWrap.open(stored)
-        if plain == nil {
-            // Sealed by another phone whose key has not reached this one:
-            // left as it is, for a week. A key that never comes (iCloud
-            // Keychain off, or lost) must not stop backups for ever, so
-            // after that this phone's own keys replace it.
-            let defaults = UserDefaults.standard
-            let first = defaults.double(forKey: Self.unreadableSinceKey)
-            let now = Date().timeIntervalSince1970
-            if first == 0 { defaults.set(now, forKey: Self.unreadableSinceKey) }
-            guard first > 0, now - first > Self.unreadableFor else { return }
-            plain = ""
-        }
-        UserDefaults.standard.removeObject(forKey: Self.unreadableSinceKey)
-        guard let plain else { return }
+        // **And the copy in the Keychain** (`CrewVault`, 2026-10-10), which
+        // needs no iCloud storage and outlives the app on the phone. It was
+        // the iCloud copy alone, and when that could not be read or written
+        // (a full iCloud never takes it) a reinstall had nothing to restore.
+        // **Signed out while that was waiting** (found by review): the
+        // private read fails, and this used to stop there. Going on with
+        // the Keychain's copy would have put the keys just cleared straight
+        // back, for whoever signs in next.
+        guard epoch == started else { return }
+        let kept = account.flatMap { vault.keys(for: $0) }
+        guard cloud != nil || account != nil else { return }
         // **A crew being joined is not this sync's to judge or to back up**
         // (the fourth read): its key went into the backup mid-join, and a
         // join then turned away came back from there on the next sync.
         let held = times(Self.keyedAtKey)
         var local = CrewKeyBackup.Local(keyedAt: held, leftAt: times(Self.leftAtKey))
         for (crew, key) in keys.all where !joining.contains(crew) { local.keys[crew.rawValue] = key.linkText }
-        let merged = CrewKeyBackup.merge(local: local, remote: CrewKeyBackup.parse(plain),
-                                         now: Date().timeIntervalSince1970)
+        let merged = CrewKeyBackup.plan(local: local, cloud: cloud, vault: kept, now: Date().timeIntervalSince1970)
         // **Everything this decides is written before anything else is
         // awaited** (the third read): the times were written back wholesale
         // after a delete had been awaited, so a join that finished in that
@@ -288,6 +408,10 @@ final class PublicCrewCloud: CrewCloud {
             _ = try? await database.modifyRecords(saving: [], deleting: chunk)
         }
         let text = CrewKeyBackup.text(merged.out)
+        // The Keychain first: it cannot be refused for want of storage.
+        if let account, text != (kept ?? "") { vault.setKeys(text, for: account) }
+        // Then your private iCloud, only when it was read.
+        guard let record, let plain = cloud else { return }
         guard text != plain || !stored.hasPrefix(CrewKeyWrap.prefix) else { return }
         // Nothing to say and nothing there: no record is made for it.
         guard !(text.isEmpty && stored.isEmpty) else { return }
@@ -482,6 +606,7 @@ final class PublicCrewCloud: CrewCloud {
             Self.log.error("crews sync failed: \(error)")
         }
         await subscribe(to: mine)
+        settleIdentityFromCrews()
         var crews: [Crew] = []
         for crew in mine {
             if isEnded(crew) || isRemoved(myProfileID, from: crew) {
@@ -496,11 +621,23 @@ final class PublicCrewCloud: CrewCloud {
             // above, never before (a member record written into a crew
             // being left would have read as joining it again).
             if !joining.contains(crew) { await keepUp(crew) }
-            if let found = cachedCrew(crew) { crews.append(found) }
+            if let found = cachedCrew(crew) {
+                crews.append(found)
+            } else {
+                // **Held and not read: read whole next time** (found by
+                // review). A crew whose own record fell out of what this
+                // phone holds was never asked for again, since only changes
+                // are, and it stayed missing for good.
+                since[crew] = nil
+            }
         }
         saveCache()
         return crews.sorted { $0.createdAt < $1.createdAt }
     }
+
+    /// The crews this phone still holds a key to, whether or not they
+    /// could be read this time (`SocialStore.refreshOnce`).
+    func heldCrews() -> Set<CrewID>? { Set(keys.all.keys) }
 
     func fetchCrew(_ crew: CrewID) async throws -> Crew? {
         guard keys.key(for: crew) != nil, !isEnded(crew) else { return nil }
@@ -1562,7 +1699,15 @@ final class PublicCrewCloud: CrewCloud {
         let now = Date()
         writtenAt = writtenAt.filter { now.timeIntervalSince($0.value) < Self.settle }
         for crew in crews {
-            let present = seen[crew] ?? []
+            // **A crew this phone is in always has something on the server**
+            // (its own record, your member record). A listing that shows
+            // nothing at all for it is a listing that went wrong, or the
+            // wrong database, never a crew emptied: nothing is dropped, and
+            // the crew is read whole again (2026-10-10).
+            guard let present = seen[crew], !present.isEmpty else {
+                since[crew] = nil
+                continue
+            }
             for (key, fields) in cache[crew] ?? [:] where !present.contains(key) {
                 if writtenAt["\(crew.rawValue)|\(key)"] != nil { continue }
                 for asset in fields.values.compactMap(\.asset) { try? FileManager.default.removeItem(at: asset) }

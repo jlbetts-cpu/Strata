@@ -86,6 +86,33 @@ nonisolated enum CrewKeyBackup {
             .sorted().joined(separator: ",")
     }
 
+    /// **Two copies read as one** (2026-10-10): the one in your private
+    /// iCloud and the one in the Keychain (`CrewVault`). For each crew the
+    /// key joined later, and the latest leaving either knows of. `merge`
+    /// then decides between a key and a leaving, as it always did.
+    static func combine(_ a: Remote, _ b: Remote) -> Remote {
+        var out = a
+        for (crew, key) in b.keys {
+            let theirs = b.keyedAt[crew] ?? 0
+            let ours = out.keyedAt[crew] ?? 0
+            // Joined at the same moment under two keys cannot happen by any
+            // honest route; the same one is chosen whichever copy is read
+            // first, so two phones never disagree.
+            if out.keys[crew] == nil || theirs > ours || (theirs == ours && key < (out.keys[crew] ?? "")) {
+                out.keys[crew] = key
+                out.keyedAt[crew] = theirs
+            }
+        }
+        for (crew, when) in b.left { out.left[crew] = max(out.left[crew] ?? 0, when) }
+        return out
+    }
+
+    /// What this phone should do given what it holds and every copy it
+    /// could read. A copy that could not be read is nil, and says nothing.
+    static func plan(local: Local, cloud: String?, vault: String?, now: Double) -> Merged {
+        merge(local: local, remote: combine(parse(cloud ?? ""), parse(vault ?? "")), now: now)
+    }
+
     static func merge(local: Local, remote: Remote, now: Double) -> Merged {
         var merged = Merged()
         func leftAt(_ crew: String) -> Double { max(local.leftAt[crew] ?? 0, remote.left[crew] ?? 0) }

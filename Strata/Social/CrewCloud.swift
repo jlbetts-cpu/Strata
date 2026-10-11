@@ -41,6 +41,10 @@ protocol CrewCloud: AnyObject {
     func accept(_ invite: CrewInvite) async throws -> CrewID
     /// Every crew this phone is in, with its members.
     func fetchCrews() async throws -> [Crew]
+    /// The crews this phone still belongs to, whether or not `fetchCrews`
+    /// could read them this time. Nil when the cloud cannot tell the two
+    /// apart, and then a crew missing from `fetchCrews` is gone.
+    func heldCrews() -> Set<CrewID>?
     /// One crew, with its members, as last synced: what a live sync reads
     /// after `syncOnly` brought its zone up to date. Nil when it is gone.
     func fetchCrew(_ crew: CrewID) async throws -> Crew?
@@ -127,5 +131,6 @@ extension CrewCloud {
         return true
     }
     func settle(_ crew: CrewID) async {}
+    func heldCrews() -> Set<CrewID>? { nil }
     func willLeave(_ crew: CrewID) async throws {}
 }

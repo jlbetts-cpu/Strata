@@ -1718,10 +1718,27 @@ final class SocialStore {
             // A crew made in the last minute may not be in a fetch that began
             // before it existed: never forget one of those.
             let fresh = Set(crews.filter { now().timeIntervalSince($0.createdAt) < 60 }.map(\.id))
-            let known = Set(fetched.map(\.id)).union(fresh)
+            // **A crew that could not be read is not a crew that is gone**
+            // (2026-10-10, the owner: crews "disappear" with a new build).
+            // The cloud returns the crews it could build this time. One it
+            // still holds the key to but could not read (no signal on a
+            // cold start, a cache that would not open) was missing from
+            // that list, and this forgot it: its photos, its place in the
+            // list and the streak this phone had counted for it, which is
+            // kept nowhere else. Now only a crew the cloud has let go of is
+            // forgotten, and one it could not read stays as it was.
+            let fetchedIDs = Set(fetched.map(\.id))
+            let unread = (cloud.heldCrews() ?? []).subtracting(fetchedIDs)
+            let known = fetchedIDs.union(fresh).union(unread)
             for gone in Set(outbox.entries.map(\.crew)).subtracting(known) { outbox.drop(crew: gone) }
             for gone in Set(crews.map(\.id)).subtracting(known) { forget(gone) }
-            let merged = fetched.map(withEdits)
+            for crew in crews where unread.contains(crew.id) {
+                wins[crew.id] = winsByCrew[crew.id] ?? []
+                reactions[crew.id] = reactionsByCrew[crew.id]
+                messages[crew.id] = messagesByCrew[crew.id]
+            }
+            let merged = (fetched.map(withEdits) + crews.filter { unread.contains($0.id) })
+                .sorted { $0.createdAt < $1.createdAt }
             if crews != merged { crews = merged }
             await repairMissingMembership(in: fetched)
             if winsByCrew != wins { winsByCrew = wins }
