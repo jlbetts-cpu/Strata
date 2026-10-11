@@ -301,6 +301,38 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("plan-add-4-tower")
     }
 
+    /// Monday, Wednesday and Friday, chosen where the line is written (the
+    /// owner, 2026-10-11): in the add sheet, then as the plan shows it.
+    func testRepeatingOnSomeDays() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
+        wait(7)
+        app.buttons["When: now"].firstMatch.tap()
+        wait(1)
+        app.buttons["Repeating"].firstMatch.tap()
+        wait(1); snap("days-0-every")
+        for off in ["Every Tuesday", "Every Thursday", "Every Saturday", "Every Sunday"] {
+            app.buttons[off].firstMatch.tap()
+        }
+        wait(1)
+        app.typeText("Gym\n")
+        app.typeText("Read for class")
+        wait(1); snap("days-1-chosen")
+        app.buttons["Plan"].firstMatch.tap()
+        wait(3); snap("days-2-tower")
+    }
+
+    /// The same chips on the plan's own Repeating page.
+    func testRepeatingPageHasTheDays() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlanAhead", "1",
+                          "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-strataPlanScope", "repeating"])
+        wait(8); snap("days-plan-0")
+        for off in ["Every Tuesday", "Every Thursday", "Every Saturday", "Every Sunday"] {
+            let chip = app.buttons[off].firstMatch
+            if chip.waitForExistence(timeout: 3) { chip.tap() }
+        }
+        wait(1); snap("days-plan-1")
+    }
+
     /// The add sheet's strip with the pen tile gone: today's photographs
     /// straight after the block, and Doodle in the block's own menu (the
     /// owner, 2026-10-10).

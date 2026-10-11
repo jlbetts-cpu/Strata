@@ -65,8 +65,11 @@ struct AddWinSheet: View {
     /// lines instead: a name a line, no colour, size or photo, because a
     /// planned win is an empty Quick outline until it is done.
     @State private var planFor: PlanScope?
+    /// The days a line planned under Repeating comes back on
+    /// (`WeekdayChips`): every day until some are pressed off.
+    @State private var planDays: Set<Int> = PlanScope.everyDay
     /// The lines planned in this sitting, shown under the name as they go.
-    @State private var plannedHere: [(scope: PlanScope, text: String)] = []
+    @State private var plannedHere: [(scope: PlanScope, text: String, days: String?)] = []
     private var isPlanning: Bool { planFor != nil }
     /// Offered on a fresh win only: not while editing one, and not for a
     /// win already under way (a photo just taken, a plan line being done).
@@ -327,11 +330,17 @@ struct AddWinSheet: View {
                             WhenRow(when: $planFor)
                                 .padding(.top, GridConstants.gapTight)
                         }
+                        if planFor == .repeating {
+                            WeekdayChips(days: $planDays)
+                                .padding(.top, GridConstants.gapTight)
+                                .transition(.opacity)
+                        }
                         if isPlanning {
                             // The day on the row, and only its lines: what
                             // was written for tomorrow is not listed under
                             // today.
-                            PlannedHereList(lines: plannedHere.filter { $0.scope == planFor }.map(\.text))
+                            PlannedHereList(lines: plannedHere.filter { $0.scope == planFor }.map(\.text),
+                                            notes: plannedHere.filter { $0.scope == planFor }.map(\.days))
                                 .padding(.top, GridConstants.gapItem)
                         }
                         // What a win is made of, and none of it a plan's.
@@ -1150,10 +1159,10 @@ struct AddWinSheet: View {
         let habits = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
         let made = DayComposing.addPlanLines(title, after: all, habits: habits, context: modelContext,
                                              day: scope.date() ?? Date(),
-                                             repeatDays: scope == .repeating ? PlanScope.everyDay : [])
+                                             repeatDays: scope == .repeating ? planDays : [])
         guard !made.isEmpty else { return false }
         HapticsEngine.tick()
-        withAnimation(GridConstants.motionSnappy) { plannedHere += made.map { (scope, $0.text) } }
+        withAnimation(GridConstants.motionSnappy) { plannedHere += made.map { (scope, $0.text, $0.repeatSummary(calendar: .current)) } }
         title = ""
         return true
     }

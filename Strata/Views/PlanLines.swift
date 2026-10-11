@@ -49,6 +49,9 @@ struct PlanLines: View {
     /// Which day's lines, or the repeating ones (`PlanScope`). Today unless
     /// the sheet says otherwise.
     var scope: PlanScope = .day(0)
+    /// The days a line started under Repeating comes back on: what the
+    /// sheet's `WeekdayChips` has chosen.
+    var repeatDays: Set<Int> = PlanScope.everyDay
 
     /// **Your three, pinned at the top of every day's plan** (the owner,
     /// 2026-10-07: "why don't they go into the plan everyday"; his pick:
@@ -605,7 +608,7 @@ struct PlanLines: View {
         // For the day on the page, or coming back every day under Repeating.
         let line = PlanItem(text: "", order: position, category: colour,
                             day: scope.date().map(DateUtils.dateString(from:)))
-        if scope == .repeating { line.repeatDays = PlanScope.everyDay }
+        if scope == .repeating { line.repeatDays = repeatDays.isEmpty ? PlanScope.everyDay : repeatDays }
         modelContext.insert(line)
         try? modelContext.save()
         focused = line.id

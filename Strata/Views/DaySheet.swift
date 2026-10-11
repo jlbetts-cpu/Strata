@@ -261,6 +261,10 @@ struct DaySheet: View {
     @State private var planComposerID = UUID()
     /// Which day of the plan is on the page, or the repeating lines.
     @State private var planScope: PlanScope = DaySheet.openingScope
+    /// The days a new repeating line comes back on (`WeekdayChips`). Kept
+    /// while the sheet is up, so several lines for the same days are set
+    /// once; every day again the next time it opens.
+    @State private var repeatDays: Set<Int> = PlanScope.everyDay
 
     /// Today, or in a debug run the day `-strataPlanScope <n>|repeating`
     /// names, so each can be photographed.
@@ -491,8 +495,15 @@ struct DaySheet: View {
                     scope != .repeating && scope != .day(0)
                         && scope.lines(allItems).contains { $0.completedAt == nil && !$0.text.isEmpty && !$0.repeats }
                 }
+                if planScope == .repeating {
+                    WeekdayChips(days: $repeatDays)
+                        .padding(.horizontal, GridConstants.horizontalPadding)
+                        .padding(.top, GridConstants.gapTight)
+                        .transition(.opacity)
+                }
                 PlanLines(focused: $planFocus, onComplete: onComplete,
-                          onStart: { planFocus = planComposerID }, onThree: onThree, scope: planScope)
+                          onStart: { planFocus = planComposerID }, onThree: onThree, scope: planScope,
+                          repeatDays: repeatDays)
                     .frame(maxWidth: .infinity, alignment: .top)
             }
         }
@@ -548,7 +559,7 @@ struct DaySheet: View {
         withAnimation(motion) {
             _ = DayComposing.addPlanLines(words, after: allItems, habits: habits, context: modelContext,
                                           day: planScope.date() ?? Date(),
-                                          repeatDays: planScope == .repeating ? PlanScope.everyDay : [])
+                                          repeatDays: planScope == .repeating ? repeatDays : [])
         }
     }
 

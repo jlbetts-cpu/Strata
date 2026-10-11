@@ -189,6 +189,46 @@ struct PlanningAheadTests {
         #expect(PlanScope.day(0).lines(all, today: today, calendar: calendar).map(\.text) == ["Morning walk"])
     }
 
+    /// The owner, 2026-10-11: "what if you want to select something that
+    /// repeats on monday wednesday friday there is no option for that".
+    @Test("a line planned for Monday, Wednesday and Friday is due on those days and no other")
+    func someDays() throws {
+        let container = try ModelContainer(for: PlanItem.self, Habit.self, HabitLog.self,
+                                           configurations: .init(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let made = DayComposing.addPlanLines("Gym", after: [], habits: [], context: context, repeatDays: [2, 4, 6])
+        let gym = try #require(made.first)
+        #expect(gym.repeats && gym.day == nil)
+        #expect(gym.repeatSummary(calendar: calendar) == "Mon Wed Fri")
+        #expect(PlanScope.repeating.lines(made, today: today, calendar: calendar).map(\.text) == ["Gym"])
+        // A whole week from today: on the page, and on the tower, on those
+        // three days alone.
+        for offset in 0..<7 {
+            let date = day(offset)
+            let due = [2, 4, 6].contains(calendar.component(.weekday, from: date))
+            #expect(gym.belongs(on: date, calendar: calendar, today: today) == due)
+            #expect(PlannedSlots.open(made, on: date, calendar: calendar).isEmpty == !due)
+        }
+    }
+
+    /// The chips are where the line is written, and what they hold is what
+    /// the line gets, in all three places a repeating line is made.
+    @Test("the days chosen under Repeating reach the line, wherever it is written")
+    func chosenDaysReachTheLine() throws {
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
+        #expect(sheet.contains("WeekdayChips(days: $repeatDays)"))
+        #expect(sheet.contains("repeatDays: planScope == .repeating ? repeatDays : []"))
+        #expect(sheet.contains("repeatDays: repeatDays)"), "the plan's own lines are told the days")
+        let lines = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanLines.swift"))
+        #expect(lines.contains("line.repeatDays = repeatDays.isEmpty ? PlanScope.everyDay : repeatDays"))
+        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        #expect(add.contains("WeekdayChips(days: $planDays)"))
+        #expect(add.contains("repeatDays: scope == .repeating ? planDays : []"))
+        // Never no day at all: the last one on cannot be pressed off.
+        let chips = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanScope.swift"))
+        #expect(chips.contains("if on, days.count == 1"))
+    }
+
     @Test("a line's own sheet can move it to another day")
     func dayFromTheLine() {
         #expect(PlanScope.of(day: name(0), today: today, calendar: calendar) == .day(0))

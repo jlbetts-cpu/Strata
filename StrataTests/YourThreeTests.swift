@@ -128,7 +128,10 @@ struct YourThreeTests {
                 "the tick is today's wins, so midnight resets it with no sweep")
         #expect(!lines.contains("PlanItem(text: item.title"), "never written into the plan as lines")
         let day = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
-        #expect(day.contains("onThree: onThree, scope: planScope)"))
+        // The call gained the days a repeating line comes back on
+        // (2026-10-11), after the scope; what is pinned is unchanged: the
+        // plan is handed your three and the day on the page.
+        #expect(day.contains("onThree: onThree, scope: planScope,"))
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         #expect(main.contains("pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)"),
                 "a press opens Add with it written, as a plan line does")

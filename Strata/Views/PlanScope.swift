@@ -57,7 +57,7 @@ enum PlanScope: Hashable {
     }
 
     /// The weekdays a line written under Repeating comes back on: all of
-    /// them. Fewer is one press away, on the line (`PlanItemDetailSheet`).
+    /// them. Fewer is chosen where the line is written (`WeekdayChips`).
     static let everyDay: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
 
     /// The days alone, for choosing a line's day.
@@ -114,6 +114,11 @@ struct PlanScopeRow: View {
                 .padding(.horizontal, margin)
             }
             .moreToTheRight()
+            // **Opened on the chosen day.** A line set for Saturday opened
+            // its sheet with the row at Today and nothing on it in ink: the
+            // chosen word was off the right edge (found 2026-10-11, in a
+            // screenshot of the plan opened on Repeating).
+            .onAppear { proxy.scrollTo(scope, anchor: .center) }
             .onChange(of: scope) { _, now in
                 withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
             }
@@ -148,6 +153,78 @@ struct PlanScopeRow: View {
         .accessibilityValue(planned(item) ? "Has plans" : "")
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
         .animation(GridConstants.crossFade, value: chosen)
+    }
+}
+
+// MARK: - Which days a repeating line comes back on
+
+/// **The days, where the line is written** (the owner, 2026-10-11: "what if
+/// you want to select something that repeats on monday wednesday friday
+/// there is no option for that"). There was one, three presses deep: write
+/// the line, open its sheet, switch Repeats on, then the days. Under
+/// Repeating every new line simply came back every day.
+///
+/// Seven letters under the row of days, whenever Repeating is chosen, in the
+/// plan and in the add sheet. All on to begin with (every day); press the
+/// ones it is not for. What is chosen stays for the next line, so three
+/// lines for Monday, Wednesday and Friday are set once.
+///
+/// **Quiet, in both appearances.** A line has no colour of its own when it
+/// is written, so the chip cannot take one as the line's own sheet does.
+/// The first build filled a chosen day in solid ink: seven black squares
+/// under the name in light, and seven WHITE ones in dark, against the
+/// owner's "light on light, dark on dark" (only the primary button is white
+/// in dark mode). A chosen day is the chat's chosen reaction instead
+/// (`ChatReactions`): a tint of the page's ink with the letter in ink. A day
+/// that is off has no fill, a hairline, and the letter in grey.
+struct WeekdayChips: View {
+    @Binding var days: Set<Int>
+    private let calendar = Calendar.current
+    /// Monday first, as the line's sheet has them.
+    private let order = [2, 3, 4, 5, 6, 7, 1]
+
+    private static let side: CGFloat = 44
+    private static let shape = RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 44), style: .continuous)
+
+    var body: some View {
+        HStack(spacing: GridConstants.spacing) {
+            ForEach(order, id: \.self) { day in chip(day) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Which days")
+        .accessibilityValue(PlanItem.repeatSummary(days, calendar: calendar) ?? "")
+    }
+
+    private func chip(_ day: Int) -> some View {
+        let on = days.contains(day)
+        return Button {
+            // Never none: a line that repeats on no day is not a line.
+            if on, days.count == 1 {
+                HapticsEngine.warning()
+                return
+            }
+            HapticsEngine.lightTap()
+            withAnimation(GridConstants.motionSnappy) {
+                if on { days.remove(day) } else { days.insert(day) }
+            }
+        } label: {
+            Text(calendar.veryShortWeekdaySymbols[day - 1])
+                .font(Typography.sectionLabel)
+                .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
+                .frame(maxWidth: Self.side)
+                .frame(height: Self.side)
+                .background { Self.shape.fill(on ? AppColors.inkPrimary.opacity(0.16) : .clear) }
+                .overlay {
+                    Self.shape.strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: GridConstants.strokeThin)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        // "Every Monday": the row of days above has a plain "Monday" of its
+        // own, and the two must not be one name.
+        .accessibilityLabel("Every \(calendar.weekdaySymbols[day - 1])")
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -241,17 +318,28 @@ struct WhenRow: View {
 /// them: the empty box and the words.
 struct PlannedHereList: View {
     let lines: [String]
+    /// When each comes back ("Mon Wed Fri"), for a repeating line: the
+    /// chips can change between one line and the next, and each line says
+    /// what it was given, as it does in the plan.
+    var notes: [String?] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                 HStack(spacing: GridConstants.spacing) {
                     PlanBullet(category: .unlabeled, isDone: false)
                         .frame(width: 44, height: 44)
-                    Text(line)
-                        .font(Typography.bodyLarge)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(line)
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if notes.indices.contains(index), let note = notes[index] {
+                            Text(note)
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkTertiary)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, -10)
@@ -259,7 +347,9 @@ struct PlannedHereList: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Planned: " + lines.joined(separator: ", "))
+        .accessibilityLabel("Planned: " + lines.enumerated().map { index, line in
+            notes.indices.contains(index) ? [line, notes[index]].compactMap { $0 }.joined(separator: " ") : line
+        }.joined(separator: ", "))
         .accessibilityHidden(lines.isEmpty)
     }
 }
