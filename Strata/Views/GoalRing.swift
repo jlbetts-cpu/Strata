@@ -251,8 +251,28 @@ struct GoalCrest: View {
                 }
                 .frame(width: side, height: side)
                 .stillGlassCircle()
+                // His drawn check over it, where it sits, when a win lands
+                // and nothing may travel (Reduce Motion, `RingMoment`).
+                .overlay {
+                    if RingMoment.shared.checkInPlace {
+                        Image("MarkCheck")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .padding(side * 0.26)
+                            .background(Circle().fill(WarmBackground.top))
+                            .transition(.opacity)
+                    }
+                }
                 .scaleEffect(swell && !reduceMotion ? 1.1 : 1)
                 .contentShape(Circle())
+                // Where it is, for the trip it makes when a win lands, and
+                // out of sight while it is away on it.
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    RingMoment.shared.crestFrame = $0
+                }
+                .opacity(RingMoment.shared.lifted ? 0 : 1)
             }
             .buttonStyle(.press)
             .zIndex(1)
@@ -261,6 +281,9 @@ struct GoalCrest: View {
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
                     .contentShape(Rectangle())
+                    // Away with the ring while it is out (`RingMoment`):
+                    // the count is under it there, counting up.
+                    .opacity(RingMoment.shared.lifted ? 0 : 1)
             }
             // `.plain`: a scaling press on interactive glass cancels the tap
             // on a phone (`CrewReactions`); the crew's caption is the same.

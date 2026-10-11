@@ -198,6 +198,18 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("shelf-2")
     }
 
+    /// The ring coming forward for a win (`RingMoment`): a win is logged
+    /// from the slot and the screen is left alone, for a recording.
+    func testRingMoment() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2"])
+        wait(8)
+        app.descendants(matching: .any)["Log a win"].firstMatch.press(forDuration: 0.6)
+        wait(1.1); snap("ring-1")
+        wait(0.5); snap("ring-2")
+        wait(0.6); snap("ring-3")
+        wait(2.5); snap("ring-4-home")
+    }
+
     /// **The test the owner set**: "a user should be able to plan their
     /// entire next day in under 15 seconds: open it, type a few bullet-point
     /// wins, done". Timed from the press on the slot to the tower again,

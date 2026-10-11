@@ -922,6 +922,8 @@ struct MainAppView: View {
         .statusBarHidden(selectedTab == .camera)
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
+        // The ring coming forward to take a win (`RingMoment`).
+        .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
         .overlay {
             if let handoffLogs {
                 DayHandoffLayer(logs: handoffLogs, modelContext: modelContext) {
@@ -2072,6 +2074,13 @@ struct MainAppView: View {
     /// The last day today's reminder was taken back, so a refresh that finds
     /// the same win again does not ask the notification centre again.
     @State private var reminderSkippedDay = ""
+
+    /// Wins is in front with nothing over it: where the ring's moment may
+    /// play (`GoalRingMomentWatch`).
+    private var ringIsClear: Bool {
+        selectedTab == .tower && handoffLogs == nil && winDraft == nil && !isPlanning
+            && editingHabit == nil && capturingPlan == nil
+    }
 
     private var blocksToday: Int {
         let today = DateUtils.dateString(from: Date())

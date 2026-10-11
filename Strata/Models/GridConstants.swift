@@ -418,6 +418,28 @@ enum GridConstants {
     static let crossFade = Animation.easeInOut(duration: 0.2)
     /// **A line arriving, and leaving** (`WinCue`, the sticker lift): in on a
     /// little bounce as a message lands, out on a plain ease.
+    // MARK: The ring's moment (`GoalRingMoment`, 2026-10-10)
+    //
+    // A win lands, and the ring comes forward to take it: out of its place
+    // and up to size, the new segment drawn round, held a beat, and home.
+    // Calm on purpose. It happens for every win, where the goal's dance and
+    // confetti happen once a day, so it has no bounce to tire of.
+    /// The crest lifting out of its place and growing.
+    static var ringLift: Animation { calm(Animation.spring(response: 0.5, dampingFraction: 0.86)) }
+    /// The new segment drawn round: a pen stroke, eased out.
+    static let ringSweep = Animation.easeOut(duration: 0.5)
+    /// The check landing in the middle as the segment closes.
+    static var ringCheck: Animation { calm(Animation.spring(response: 0.3, dampingFraction: 0.7)) }
+    /// Home again: quicker than it came, with no overshoot.
+    static var ringReturn: Animation { calm(Animation.spring(response: 0.42, dampingFraction: 0.95)) }
+    /// How long after a win before the ring lifts: the block's own fall,
+    /// measured on a recording at about 0.75s from the press to the
+    /// landing. At 0.55 the ring grew while the block was still in the air
+    /// and the block passed behind it.
+    static let ringWaitsForBlock: Double = 0.9
+    /// How long the filled ring is held before it goes home.
+    static let ringHold: Double = 0.6
+
     static let cueIn = Animation.spring(duration: 0.45, bounce: 0.3)
     static let cueOut = Animation.easeIn(duration: 0.22)
     /// The dark page rising over the onboarding film's last frame, in dark
