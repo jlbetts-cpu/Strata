@@ -189,3 +189,167 @@ fix, all corrected:
   no hard cap, no warning.
 - Not found in any source: that planning the night before raises
   follow-through (the one study is about falling asleep faster).
+
+### What was built
+
+**A plan line has a day.** Today, tomorrow, any of the next six days, or it
+repeats. No times, no durations, no priorities: a day and some words.
+
+**Today's plan stands on the tower.** Each open line is a clear glass
+outline behind the slot: one Quick cell, no colour, its words and the plan's
+empty box. Repeating lines appear on their days by themselves.
+- Press one: the camera opens. The shot goes on a win already named and
+  coloured as the line was; Add is one press, and the size can still change.
+- Hold one: Take Photo, Log Without a Photo, Edit, Not Today (a one-off
+  goes to tomorrow; a repeating line is skipped for the day).
+- The slot is unchanged and comes first, so an unplanned win is as fast as
+  it was and lands where the slot is. Outlines are never counted: the ring
+  counts wins.
+- At most eight outlines (two rows). A longer plan is all in the plan and
+  the queue moves up.
+
+**The plan sheet has days.** One row of words: Today, Tomorrow, the week,
+Repeating. The bar adds to whichever is chosen, a line a Return, and a list
+pasted in becomes a line each. Repeating is where a routine is set up: a
+line added there comes back every day, and its days are one press away.
+
+**The add sheet has one new word, Now.** Under the name, quiet. Pressed, it
+is the same row of days with Now first. Choose a day and the sheet writes
+plans instead: "What do you mean to do?", a line a Return, no colour, size
+or photo. Choose Now and it adds a win as before. A fresh Add is otherwise
+untouched.
+
+**Nothing is ever "missed".** A one-off whose day went by is not on the next
+day's tower or list. It waits in the plan under Earlier, where one word
+moves them all to today and a swipe lets one go. No mark, no count, no
+colour, and nothing is deleted for you.
+
+### Your test
+
+"Plan their entire next day in under 15 seconds." Timed on the simulator,
+from pressing the slot to the plan made, three lines typed at a thumb's
+pace (four characters a second): **13.0 seconds**. Through the plan sheet it
+is one press shorter. The test is kept (`testPlanningTomorrowIsQuick`) and
+fails if it ever goes over 15.
+
+### Decisions you may want to undo. REVIEW
+
+- **Outlines reverse an earlier removal.** The tower once drew unfinished
+  habits as faded blocks and stopped, because they made it busy. These are
+  not blocks (glass, clear, small, uncounted), and it is what you asked
+  for, but it is the one place this pass goes against the app's own notes.
+- **Leftovers do not roll over.** The research is firm that auto-rollover
+  grows a backlog and that "missed" marks hurt, so yesterday's undone line
+  goes to Earlier rather than onto today's tower. Before this, a one-off
+  stayed on today's plan every day until done. If you would rather they
+  carry over, it is one rule (`PlanItem.belongs`).
+- **Your existing plan lines get today's date** the first time this build
+  runs, so tomorrow they will be under Earlier, not in today's list.
+- **No typed dates.** "tomorrow" or "every weekday" typed into a line is not
+  read. The row of days is one press and cannot mangle a title. Reminders
+  does read them; say if you want it.
+- **No "Teemo".** I could not find a planner by that name (teemo.app is a
+  parked domain) and read it as Tiimo. If you meant another app, tell me.
+- **No reorder.** There has never been a way to reorder plan lines; the
+  tower's queue follows the order they were written in.
+- **The day is stored in an existing field**, so nothing has to be deployed
+  in the CloudKit console. A proper field would be cleaner and needs that
+  deploy from you.
+- Pressing an outline opens the camera, as you asked. On the simulator the
+  camera has no permission, so I saw the camera screen open but never took
+  a photo through it; the hand-off after the shot is the same one the plan's
+  tick has always used.
+- The plan sheet's own bar could not be typed into by a script (a simulator
+  keyboard problem with that field, not the app's). I timed the add sheet's
+  door and checked the bar's lines by reading them back.
+
+### The independent review, and what it changed
+
+Thirteen findings. The ones that would have reached you:
+
+- **A dated line was invisible on a phone still on an older build**, and my
+  own test claimed the opposite. Fixed: the day is written so an older
+  build shows the line on its day.
+- **Your existing plan would have been deleted two weeks after updating.**
+  I had added a quiet two-week expiry for Earlier lines, and the update
+  gives every old line a day. Removed: nothing unfinished is ever deleted
+  for you.
+- **A repeating line done today showed as done tomorrow**, and pressing it
+  on tomorrow's page took today's tick off. Only today's page ticks now; on
+  another day a line's box opens the line.
+- **The photograph could be lost between the camera and the add sheet**
+  (the sheet was asked for while the camera was still leaving). It waits
+  for the camera to go.
+- **Typing in the plan re-drew the whole main screen on every letter.** The
+  plan's data is read by the small layer that draws the outlines now.
+- Smaller: an outline whose win already exists ticks instead of logging it
+  twice; suggestions only on today's page; Skip Today can be put back from
+  the line's menu; a photo chosen before switching the add sheet to
+  planning is not thrown away without asking.
+
+**Left as found, for you to know**
+- Deleting an old win made from a repeating line also unticks today's. It
+  did before this pass.
+- A line edited on an older build's detail sheet may be read there as a
+  weekly repeat. It stops once that phone updates.
+
+---
+
+## 4. The ring comes forward to take a win
+
+- When a win lands, the crest itself (your face in the ring, not a copy)
+  lifts out of the header, grows to the middle of the screen, the segment
+  the win earned is drawn round, your face gives way to your drawn check
+  for a beat, the fraction counts up, and it goes home.
+- About two seconds, starting once the block has landed. Touches pass
+  through it and nothing has to be dismissed.
+- A win saved from the add sheet plays it once the tower is back in view.
+  Taking a win off, the first count after launch, and a second win during
+  the moment play nothing.
+- With Reduce Motion nothing travels: the check fades in where the crest
+  sits, and out.
+- The goal's dance and confetti are untouched and still follow when the win
+  was the one that reached the goal.
+- **Looked at frame by frame on a recording.** The first version lifted
+  while the block was still falling and the block passed behind the ring;
+  it now waits for the landing (0.9 seconds from the press).
+
+**REVIEW**
+- It plays for every win, about three seconds from press to home. That is
+  your brief ("when a win is completed"), and I kept it calm, with no
+  bounce, so it does not tire. If it is too much on a ten-win day, the
+  natural cut is to play it only for the first win and the goal.
+- The check is your `MarkCheck` drawing. With no head made, the middle is
+  the plain person glyph, as in the header.
+- My rating: 8.5. It reads at once and it is quiet. What would make it a
+  10 is your eye on a real phone, where the glass has something to refract.
+
+---
+
+## The suites, and the build
+
+- **Unit: 1,359 tests, passed**, no crash. 46 of them are new in this
+  pass (crews 11, planning 18, the ring 6, and the gates they touched).
+- **Full suite (unit and UI, 75 UI tests): passed**, no failure, no crash.
+  The screenshot tests, mine among them, only run when asked for; each was
+  run by hand and looked at.
+- A release build was compiled before shipping (the last ship failed on a
+  debug-only helper; this one was checked first).
+- Three independent reviews in this pass (crews, planning) found 30 things
+  between them. Every one that could reach a person is fixed or written
+  above under REVIEW.
+- **Build 117 is in TestFlight for you only.** I did not add it to the
+  Friends group or send it for review: you were away, and that is yours to
+  say. Until friends have it, their crews are not yet in the Keychain.
+
+## For you, when you are back
+
+1. Push: `cd ~/Desktop/Strata && git push origin main`.
+2. Install 117 and open it once. That is the moment your crews are first
+   kept in the Keychain.
+3. Plan tomorrow with a stopwatch. Press an outline and finish it with a
+   photo (the one path I could not walk on the simulator).
+4. Log a win and watch the ring. Tell me if every win is too often.
+5. Say whether 117 goes to friends.
+6. Still open from before: the domain's DNS and GitHub Pages setting, then
+   I switch the invite link to somewins.xyz and add the direct open.
