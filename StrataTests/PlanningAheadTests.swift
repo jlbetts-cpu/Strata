@@ -225,6 +225,33 @@ struct PlanningAheadTests {
         #expect(walk.completedAt == nil)
     }
 
+    // MARK: The day's one cue
+
+    /// One cue a day stays the rule. The one that was going anyway says
+    /// what the day's plan is, in names, never a number.
+    @Test("the day's reminder carries the day's plan")
+    func reminderKnowsThePlan() {
+        #expect(DailyReminder.body(planned: []) == DailyReminder.body)
+        #expect(DailyReminder.body(planned: ["Morning walk", " Laundry "]) == "Today: Morning walk, Laundry")
+        let many = DailyReminder.body(planned: ["A", "B", "C", "D", "E"])
+        #expect(many == "Today: A, B, C", "the first three, and no count of the rest")
+        for word in ["miss", "forgot", "overdue", "only", "streak", "\u{2014}"] {
+            #expect(!many.lowercased().contains(word))
+        }
+        let hasNumber = many.contains { $0.isNumber }
+        #expect(!hasNumber)
+
+        let walk = PlanItem(text: "Morning walk", order: 0); walk.repeatDays = PlanScope.everyDay
+        walk.completedAt = today   // done today: not in today's cue, back tomorrow
+        let email = PlanItem(text: "Email the professor", order: 1, day: name(1))
+        let earlier = PlanItem(text: "Return the book", order: 2, day: name(-1))
+        let planned = DailyReminder.plannedByDay([email, walk, earlier], from: today, calendar: calendar)
+        #expect(planned[name(0)] == nil, "nothing open today")
+        #expect(planned[name(1)] == ["Morning walk", "Email the professor"])
+        #expect(planned[name(2)] == ["Morning walk"])
+        #expect(planned.values.allSatisfy { !$0.contains("Return the book") }, "what went by is not brought up")
+    }
+
     // MARK: In a backup
 
     /// The plan was never in a backup. With routines living in it, a lost

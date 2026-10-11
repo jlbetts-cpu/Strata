@@ -83,7 +83,36 @@ nonisolated enum DailyReminder {
     }
 
     /// Replaces whatever is pending with the next fortnight.
-    static func schedule(hour: Int, minute: Int, loggedToday: Bool) async {
+    /// **The day's cue knows the day's plan** (2026-10-10, planning ahead).
+    /// The reminder said the same thing every day. When there is a plan for
+    /// the day it now carries it under the title: "Today: Morning walk,
+    /// Laundry". Up to three lines, never a count, and still the one cue a
+    /// day: nothing new is sent, the one that was going anyway says more.
+    /// What you planned last night is what greets you.
+    static func body(planned names: [String]) -> String {
+        let shown = names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.prefix(3)
+        guard !shown.isEmpty else { return body }
+        return "Today: " + shown.joined(separator: ", ")
+    }
+
+    /// What is planned for each of the days the reminders reach, by day
+    /// (`yyyy-MM-dd`), read from the plan as it stands now.
+    @MainActor
+    static func plannedByDay(_ lines: [PlanItem], from now: Date = Date(), calendar: Calendar = .current) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        let start = calendar.startOfDay(for: now)
+        for offset in 0..<horizon {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let names = lines
+                .filter { $0.isOpen(on: day, calendar: calendar, today: now) && !PlanSkips.isSkipped($0.id, on: day) }
+                .sorted { $0.order < $1.order }
+                .map(\.text)
+            if !names.isEmpty { out[DateUtils.dateString(from: day)] = names }
+        }
+        return out
+    }
+
+    static func schedule(hour: Int, minute: Int, loggedToday: Bool, planned: [String: [String]] = [:]) async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized
@@ -92,7 +121,7 @@ nonisolated enum DailyReminder {
         for at in days(from: Date(), hour: hour, minute: minute, loggedToday: loggedToday) {
             let content = UNMutableNotificationContent()
             content.title = title
-            content.body = body
+            content.body = body(planned: planned[DateUtils.dateString(from: at)] ?? [])
             content.sound = .default
             content.threadIdentifier = NotificationRoute.Thread.daily
             content.categoryIdentifier = category

@@ -1170,8 +1170,10 @@ struct SettingsView: View {
     private func scheduleReminder() {
         let today = DateUtils.dateString(from: Date())
         let loggedToday = logs.contains { $0.dateString == today && $0.completed }
+        let lines = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+        let planned = DailyReminder.plannedByDay(lines)
         Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
-                                            loggedToday: loggedToday) }
+                                            loggedToday: loggedToday, planned: planned) }
     }
 
     private func checkNotificationStatus() async {

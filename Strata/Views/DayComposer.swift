@@ -78,7 +78,10 @@ enum DayComposing {
         guard !words.isEmpty else { return nil }
         let all = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
         if let already = onPlan(words, in: all) { return already }
-        let line = PlanItem(text: words, order: (all.map(\.order).max() ?? -1) + 1, category: colour)
+        // Today's: seeing what a friend did turns into doing it today, and
+        // it stands on your tower as an outline at once.
+        let line = PlanItem(text: words, order: (all.map(\.order).max() ?? -1) + 1, category: colour,
+                            day: DateUtils.dateString(from: Date()))
         line.sizeRaw = size.rawValue
         context.insert(line)
         try? context.save()

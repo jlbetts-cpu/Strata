@@ -546,10 +546,7 @@ struct MainAppView: View {
                     focusFilterService.refresh()
                     SpotlightIndexer.reindex(container: SharedModelContainer.shared)
                     // Keep a fortnight of reminders ahead. See `DailyReminder`.
-                    if reminderOn {
-                        Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
-                                                            loggedToday: blocksToday > 0) }
-                    }
+                    scheduleReminder()
                     refreshReplayWindow()
                 } else {
                     // **Leaving the app is the moment before the home screen
@@ -620,6 +617,8 @@ struct MainAppView: View {
         // closure that closes it. Asking UIKit to present a sheet while
         // another is still dismissing drops the second one silently.
         .sheet(isPresented: $isPlanning, onDismiss: {
+            // What was planned in there is what tomorrow's cue should say.
+            scheduleReminder()
             if let pending = pendingDraft {
                 winDraft = pending
                 pendingDraft = nil
@@ -2088,6 +2087,17 @@ struct MainAppView: View {
     /// The last day today's reminder was taken back, so a refresh that finds
     /// the same win again does not ask the notification centre again.
     @State private var reminderSkippedDay = ""
+
+    /// A fortnight of the day's one reminder, each carrying what is planned
+    /// for its day (`DailyReminder.body(planned:)`). Asked again whenever
+    /// the plan may have changed: the app coming forward, the plan closing.
+    private func scheduleReminder() {
+        guard reminderOn else { return }
+        let lines = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+        let planned = DailyReminder.plannedByDay(lines)
+        let hour = reminderHour, minute = reminderMinute, logged = blocksToday > 0
+        Task { await DailyReminder.schedule(hour: hour, minute: minute, loggedToday: logged, planned: planned) }
+    }
 
     /// Wins is in front with nothing over it: where the ring's moment may
     /// play (`GoalRingMomentWatch`).
