@@ -76,6 +76,7 @@ struct PlannedOutline: View {
     let title: String
     let cornerRadius: CGFloat
     let side: CGFloat
+    @Environment(\.colorScheme) private var scheme
 
     /// The plan's own bullet, at the size it is in the plan, so the box in
     /// the tower is the box you will see ticked there.
@@ -89,14 +90,22 @@ struct PlannedOutline: View {
                     .strokeBorder(PlanBullet.outlineInk, lineWidth: PlanBullet.outlineWidth(forSide: box))
                     .frame(width: box, height: box)
                 Spacer(minLength: 2)
-                // A block's own title type and place (`BlockContentOverlay`),
-                // in ink where a block's is white: the same family, quieter.
+                // A block's own title type and place (`BlockContentOverlay`).
+                // **And its own strength** (the owner, 2026-10-11: "the
+                // checkmark block font and weight should be the same as the
+                // other blocks"). The face was already the block's; the ink
+                // was the secondary grey, and the whole outline was drawn at
+                // 82%, so the same Medium read a weight lighter than the
+                // white on a block beside it. The title ink, at full
+                // strength: dark on the light pane, white on the dark one,
+                // as a block's title is white on its colour.
                 // Two lines, since the words are all an outline has, and
                 // never shrunk: three outlines at three sizes is a ransom
                 // note (seen 2026-10-10 with one long line among short ones).
                 Text(title)
                     .font(BlockContentOverlay.titleFont)
-                    .foregroundStyle(AppColors.inkSecondary)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
             }
@@ -105,10 +114,13 @@ struct PlannedOutline: View {
             .padding(.vertical, 12)
         }
         .frame(width: side, height: side)
+        // The slot's own edge (`SlotPane`): one pane, whether it holds a
+        // `+` or a box.
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(AppColors.slotInk.opacity(SlotPane.edge(scheme)), lineWidth: GridConstants.strokeThin)
+        }
         .glassSlot(cornerRadius: cornerRadius)
-        // Quieter than the slot it follows: the slot is where to press to
-        // add anything; these wait.
-        .opacity(0.82)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }

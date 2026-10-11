@@ -528,3 +528,34 @@ compiles.
 - Everything since Build 117 is waiting for `cd ~/Desktop/Strata && git push origin main`.
 - somewins.xyz still points at the registrar's parking page, so invite
   links still say github.
+
+
+## 7. One pane, one chip, one lettering (2026-10-11, morning)
+
+You, on build 119: the M to S chips looked round in the pop-up sheet and
+square elsewhere; the + block "feels out of place next to the check mark
+block when they should look the same"; and "the checkmark block font and
+weight should be the same as the other blocks, decide which one is better".
+
+- **The chips.** A line's own sheet drew its seven days itself, from a copy
+  of the numbers: narrower in its form row and on a filled well, so it read
+  rounder. All three places draw one component now (`WeekdayChips`), always
+  square, with a block's corner at its size. In a line's sheet the chosen
+  days still wear the line's colour, since that sheet is where its colour
+  is picked. REVIEW: say so if you want those in the quiet grey as well.
+- **The + block.** Both were the same glass already; the + drew a grey
+  recess and a heavy hairline on top (set when it stood alone on a flat
+  page), and the planned wins were dimmed to 82% behind it. Now one pane
+  for both: no recess at rest, one shared edge (`SlotPane`), quiet in
+  light where the glass lifts off the page by itself and stronger in dark
+  where it does not. The + still deepens and darkens its edge under your
+  finger. Onboarding and a crew's tower use the same slot and follow.
+- **The lettering.** The face and weight were already the block's
+  (footnote, Medium). What made it read lighter was the ink: secondary
+  grey, under the 82% dim. **I chose the block's**: full-strength title
+  ink, dark on the light pane and white on the dark one, as a block's title
+  is white on its colour.
+- **Left as it was:** a planned win's name may run to two lines (a Quick
+  block's is one line and cut with an ellipsis). The words are all an
+  outline has. The replay's dashed waiting slot is a different thing and
+  was not touched.

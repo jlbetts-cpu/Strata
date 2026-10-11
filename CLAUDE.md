@@ -1846,6 +1846,12 @@ placeholder ... a user should be able to plan their entire next day in under
   chosen day is the chat's chosen-reaction tint, **not solid ink**: seven
   filled chips were white in dark mode. The last day cannot be pressed off,
   there or in the line's own sheet.
+- **The `+` slot and a planned outline are one pane** (`SlotPane`,
+  2026-10-11, the owner: "they should look the same"): the slot's glass,
+  one shared edge, no recess at rest, nothing dimmed. An outline's title is
+  the block's face in `inkPrimary` at full strength. Do not give either a
+  look the other lacks. The seven weekday chips are one component in all
+  three places, square; a line's own sheet passes its colour as `tint`.
 - **A win ticks the line open TODAY** (`DayComposing.onPlan`), in the
   plan's order, then one whose day went by; never a later day's line with
   the same words. A win made from a line (`AddWinSheet.plannedLine`) ticks

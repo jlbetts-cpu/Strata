@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 import Testing
 @testable import Strata
 
@@ -367,10 +368,30 @@ struct PlanningAheadTests {
         let sweep = try #require(main.range(of: "PlanItem.sweep(context: modelContext)"))
         #expect(settle.lowerBound < sweep.lowerBound, "before the sweep reads the tick as done")
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanItemDetailSheet.swift"))
-        #expect(sheet.contains("if on, set.count == 1"), "the last day cannot be pressed off")
+        // The line's sheet draws the app's one weekday chip, which is where
+        // the last day is refused (2026-10-11, one chip in three places).
+        #expect(sheet.contains("WeekdayChips(days: Binding(get: { item.repeatDays }, set: { item.repeatDays = $0 }),"))
+        #expect(!sheet.contains("veryShortWeekdaySymbols"), "no second drawing of the seven days")
         #expect(sheet.contains("item.repeatDays = [calendar.component(.weekday, from: date)]"),
                 "Repeats on keeps the line on the day it had")
         #expect(!sheet.contains("on ? [2, 3, 4, 5, 6] : []"))
+    }
+
+    /// The owner, 2026-10-11: the `+` block "feels out of place next to the
+    /// check mark block when they should look the same", and "the checkmark
+    /// block font and weight should be the same as the other blocks".
+    @Test("the slot and a planned win are one pane, and an outline's words are a block's")
+    func onePane() throws {
+        #expect(SlotPane.edge(.dark) > SlotPane.edge(.light), "the dark pane needs more of an edge to be found")
+        let slot = SourceSweep.code(try SourceSweep.read("Strata/Views/NextSlotButton.swift"))
+        #expect(slot.contains("let base = SlotPane.edge(scheme)"))
+        #expect(slot.contains("AppColors.slotInk.opacity(isDown ? base * 2 : 0)"), "no recess at rest; it answers a press")
+        let outline = SourceSweep.code(try SourceSweep.read("Strata/Views/PlannedBlocks.swift"))
+        #expect(outline.contains("AppColors.slotInk.opacity(SlotPane.edge(scheme))"))
+        #expect(!outline.contains(".opacity(0.82)"), "not dimmed behind the slot")
+        let words = try #require(outline.range(of: ".font(BlockContentOverlay.titleFont)"))
+        #expect(outline[words.upperBound...].hasPrefix("\n                    .foregroundStyle(AppColors.inkPrimary)"),
+                "the block's face at full strength, not the secondary grey")
     }
 
     @Test("a line's own sheet can move it to another day")

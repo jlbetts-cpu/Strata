@@ -90,6 +90,25 @@ extension GlassRecipe {
     static var slot: Glass { slot(thickness: 0) }
 }
 
+/// **The slot and a planned win are one pane** (the owner, 2026-10-11: "can
+/// we make the + block also liquid glass, right now it feels out of place
+/// next to the check mark block when they should look the same").
+///
+/// They were the same glass under two different drawings. The slot carried
+/// an ink recess and a hairline at 0.80, set when it stood alone on a flat
+/// page and had to be found; the outlines beside it carried neither, and
+/// were dimmed to 0.82 to stay behind it. Side by side that was a grey
+/// wireframe box next to three lit tiles in light, and one bright outline
+/// next to three tiles that could barely be seen in dark.
+///
+/// One edge for both, at rest: quiet on the light page, where the glass
+/// already stands off the ground, and stronger on the dark one, where it
+/// does not. The slot is still first, still holds the `+`, and still
+/// answers a press (its recess and edge deepen under the finger).
+enum SlotPane {
+    static func edge(_ scheme: ColorScheme) -> Double { scheme == .dark ? 0.38 : 0.20 }
+}
+
 extension View {
     /// Liquid Glass in a block-shaped rectangle, for the tower's empty slot.
     ///

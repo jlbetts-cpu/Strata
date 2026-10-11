@@ -179,8 +179,14 @@ struct NextSlotButton: View {
         // full strength at 3x: measured, 0.26 there renders rgb(191) where the
         // same alpha here renders rgb(212). What the two share is the ratio
         // they are held to, not the number that gets them there.
-        let base = scheme == .dark ? 0.70 : 0.80
-        return AppColors.slotInk.opacity(min((isDown ? base + 0.10 : base) + lift, 1))
+        //
+        // **And it came down again on 2026-10-11, to the edge a planned win
+        // wears beside it** (`SlotPane`, the owner: "they should look the
+        // same"). What 0.80 was answering has changed twice since: the slot
+        // is `.regular` glass over the day's ground now, a lit tile rather
+        // than a line on a flat page, and it holds a `+` at 3.2:1.
+        let base = SlotPane.edge(scheme)
+        return AppColors.slotInk.opacity(min((isDown ? base + 0.30 : base) + lift, 1))
     }
 
     /// A shallow recess, so the slot reads as somewhere a block goes.
@@ -196,8 +202,11 @@ struct NextSlotButton: View {
     /// real one at rest, and a glass pane over a 4% ink socket is still a 4% ink
     /// socket. Only the edge and the material differ between the two now.
     private var recess: Color {
+        // **Only under the finger, since 2026-10-11.** At rest the slot is
+        // the same clear pane as the planned wins beside it (`SlotPane`); the
+        // socket is the answer to a press, as it always deepened for one.
         let base = scheme == .dark ? 0.075 : 0.038
-        return AppColors.slotInk.opacity(isDown ? base * 2 : base)
+        return AppColors.slotInk.opacity(isDown ? base * 2 : 0)
     }
 
     var body: some View {

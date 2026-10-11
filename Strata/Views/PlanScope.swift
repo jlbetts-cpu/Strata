@@ -177,8 +177,21 @@ struct PlanScopeRow: View {
 /// in dark mode). A chosen day is the chat's chosen reaction instead
 /// (`ChatReactions`): a tint of the page's ink with the letter in ink. A day
 /// that is off has no fill, a hairline, and the letter in grey.
+///
+/// **One chip, in all three places** (the owner, 2026-10-11: "make sure
+/// that's consistent ... in the pop up sheet the M-S looks circle while it
+/// looks square"). A line's own sheet drew its seven days itself, from a
+/// copy of these numbers: narrower in its form row, on a filled well, and so
+/// rounder to the eye than the ones under the name. It draws these now. The
+/// chip is SQUARE, with a block's own corner at its size, as the plan's box
+/// is: what stands for a block is block-shaped.
+///
+/// There a line has a colour, and the chosen days wear it (`tint`): the
+/// colour pressed above is the colour of what comes back.
 struct WeekdayChips: View {
     @Binding var days: Set<Int>
+    /// The line's own colour, where it has one. Nil is the page's ink.
+    var tint: Color? = nil
     private let calendar = Calendar.current
     /// Monday first, as the line's sheet has them.
     private let order = [2, 3, 4, 5, 6, 7, 1]
@@ -211,16 +224,18 @@ struct WeekdayChips: View {
         } label: {
             Text(calendar.veryShortWeekdaySymbols[day - 1])
                 .font(Typography.sectionLabel)
-                .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
-                .frame(maxWidth: Self.side)
-                .frame(height: Self.side)
+                .foregroundStyle(on ? (tint == nil ? AppColors.inkPrimary : .white) : AppColors.inkTertiary)
+                // Square at every width: 44 where there is room, and the
+                // same share of a narrower row both ways, never 41 by 44.
+                .frame(maxWidth: Self.side, maxHeight: Self.side)
+                .aspectRatio(1, contentMode: .fit)
                 // **No ground of its own under a day that is off.** For an
                 // hour each chip was backed with the page's colour, so a
                 // long list scrolling behind the plan's bar could not show
                 // through one. The plan's sheet is not that colour: the off
                 // days stood out as white keys, brighter than the chosen
                 // ones, which is the wrong way round (seen 2026-10-11).
-                .background { Self.shape.fill(on ? AppColors.inkPrimary.opacity(0.16) : .clear) }
+                .background { Self.shape.fill(on ? (tint ?? AppColors.inkPrimary.opacity(0.16)) : .clear) }
                 .overlay {
                     Self.shape.strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: GridConstants.strokeThin)
                 }

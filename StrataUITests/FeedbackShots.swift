@@ -320,6 +320,20 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("plan-add-4-tower")
     }
 
+    /// The `+` slot beside planned wins, and alone on an empty tower (the
+    /// owner, 2026-10-11: "they should look the same").
+    func testSlotBesideOutlines() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                          "-strataPlanOnTower", "1"])
+        wait(8); snap("pane-0-with-plan")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "0"])
+        wait(7); snap("pane-1-empty")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "14", "-strataSeedPlan", "5", "-strataPlanOnTower", "1"])
+        wait(8); snap("pane-2-full")
+    }
+
     /// Monday, Wednesday and Friday, chosen where the line is written (the
     /// owner, 2026-10-11): in the add sheet, then as the plan shows it.
     func testRepeatingOnSomeDays() {

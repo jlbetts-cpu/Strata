@@ -34,7 +34,6 @@ struct PlanItemDetailSheet: View {
     @State private var dayBefore: String?
 
     /// Monday-first, matching the week the rest of the app groups by.
-    private var weekdayOrder: [Int] { [2, 3, 4, 5, 6, 7, 1] }
 
     var body: some View {
         NavigationStack {
@@ -262,72 +261,12 @@ struct PlanItemDetailSheet: View {
     /// below, which is the sheet saying out loud that a repeat is a block of that
     /// colour coming back.
     private var days: some View {
-        HStack(spacing: GridConstants.spacing) {
-            ForEach(weekdayOrder, id: \.self) { day in
-                let on = item.repeatDays.contains(day)
-                Button {
-                    var set = item.repeatDays
-                    // Never none (as `WeekdayChips`): the last day pressed
-                    // off quietly made the line a one-off for today. The
-                    // switch above is how a repeat is turned off.
-                    if on, set.count == 1 {
-                        HapticsEngine.warning()
-                        return
-                    }
-                    if on { set.remove(day) } else { set.insert(day) }
-                    item.repeatDays = set
-                    HapticsEngine.lightTap()
-                } label: {
-                    Text(letter(for: day))
-                        // `sectionLabel` is the token, not a weight bolted on to
-                        // the body rung: section 2 of
-                        // `docs/design-system-future.md` names this style for
-                        // "section headings and index labels", and a weekday
-                        // initial in a chip is an index label. Not uppercased or
-                        // kerned here, because the locale already gives the
-                        // initial and one letter has nothing to kern.
-                        //
-                        // It moved 13 -> 15 with the token on 2026-10-01. The
-                        // chip is 44pt and a single letter is about 10pt wide at
-                        // 15, so the seven of them still fit across the page.
-                        .font(Typography.sectionLabel)
-                        .foregroundStyle(on ? .white : AppColors.inkTertiary)
-                        // 44, not 38: seven of them still fit across the
-                        // page, and a day you have to aim at is a day you set
-                        // by accident.
-                        // **At most 44 wide, not exactly 44** (design review,
-                        // 2026-10-02). Seven fixed 44s and six 4pt gutters are
-                        // 332pt, and a grouped Form row on a 402pt phone offers
-                        // 334: two points of room, and on a 375pt SE about 307,
-                        // so the row ran 25pt past its card. Capped rather than
-                        // fixed, every chip is still 44 on this phone and they
-                        // share what there is on a smaller one, keeping the
-                        // 44pt height that makes them a target.
-                        .frame(maxWidth: Self.tapTarget)
-                        .frame(height: Self.tapTarget)
-                        .background {
-                            Self.dayShape
-                                .fill(on ? item.category.style.baseColor : GridConstants.fillWell)
-                        }
-                        .overlay {
-                            Self.dayShape
-                                .strokeBorder(on ? .clear : GridConstants.fillHairline,
-                                              lineWidth: GridConstants.strokeThin)
-                        }
-                        .contentShape(Rectangle())
-                }
-                // The app's press. `PressResponse.press` had zero call sites
-                // and this is one of the controls its own doc argues for: a chip
-                // with no background to shift under it, where the dim is the
-                // answer and the scale is what sells it.
-                .buttonStyle(.press)
-                .accessibilityLabel(calendar.weekdaySymbols[day - 1])
-                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        .animation(GridConstants.motionSnappy, value: item.repeatDaysRaw)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, GridConstants.spacing)
+        // The app's one weekday chip (`WeekdayChips`), in the line's colour.
+        // It was drawn here by hand from the same numbers, and came out a
+        // different shape from the one under the add sheet's name.
+        WeekdayChips(days: Binding(get: { item.repeatDays }, set: { item.repeatDays = $0 }),
+                     tint: item.category.style.baseColor)
+            .padding(.vertical, GridConstants.spacing)
     }
 
     /// The HIG's minimum target, measured not declared. Every control on this
@@ -342,22 +281,6 @@ struct PlanItemDetailSheet: View {
     /// called "really easy to miss click". The fix was applied there and never
     /// here.
     private static let tapTarget: CGFloat = 44
-
-    /// One shape for a day chip's fill and its edge, off the block ladder, since
-    /// a chip that can hold a block's colour is drawn with a block's corner. It
-    /// was written out twice with the same arguments, which is how two copies of
-    /// one radius start to disagree.
-    private static var dayShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: tapTarget),
-                         style: .continuous)
-    }
-
-    /// The weekday's own initial, from the locale rather than a hard-coded
-    /// "MTWTFSS" — which is wrong in most languages and ambiguous in English.
-    private func letter(for day: Int) -> String {
-        let symbols = calendar.veryShortWeekdaySymbols
-        return symbols.indices.contains(day - 1) ? symbols[day - 1] : "?"
-    }
 
     /// See the Toolbars note in `MainAppView` — iOS 26's glass capsule behind every
     /// toolbar item, stripped so these read as bare glyphs like the rest of
