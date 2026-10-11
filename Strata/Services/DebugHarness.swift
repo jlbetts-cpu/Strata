@@ -1213,8 +1213,11 @@ enum DebugHarness {
                 func day(_ offset: Int) -> String {
                     DateUtils.dateString(from: cal.date(byAdding: .day, value: offset, to: Date()) ?? Date())
                 }
+                // The last is long on purpose: an outline has room for two
+                // lines, and what a long line does there has to be seen.
                 let ahead: [(String, Int?)] = [("Email the professor", 1), ("Laundry", 1), ("Gym with Sam", 2),
-                                               ("Morning walk", nil), ("Return the library book", -1)]
+                                               ("Morning walk", nil), ("Return the library book", -1),
+                                               ("Finish the statistics problem set", 0)]
                 for (k, entry) in ahead.enumerated() {
                     let item = PlanItem(text: entry.0, order: 100 + k,
                                         category: HabitCategory.selectable[k % HabitCategory.selectable.count],

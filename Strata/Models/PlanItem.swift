@@ -210,7 +210,13 @@ final class PlanItem {
     /// A tick on the plan means "this turned into a block". Deleting the block
     /// has to be able to undo it, or the plan quietly keeps a claim the tower
     /// no longer supports. Called from every path that deletes a win.
-    static func untick(planItemID id: UUID?, context: ModelContext) {
+    ///
+    /// **Only the tick that win made** (`madeOn`, 2026-10-10). A repeating
+    /// line is ticked afresh each day, by a different win each time. Deleting
+    /// last week's win used to clear whatever tick the line had, which now
+    /// would put today's finished outline back on the tower.
+    static func untick(planItemID id: UUID?, madeOn: Date? = nil, context: ModelContext,
+                       calendar: Calendar = .current) {
         guard let id else { return }
         let descriptor = FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })
         let item: PlanItem?
@@ -222,6 +228,7 @@ final class PlanItem {
             NSLog("[strata-plan] could not find the plan line to untick: \(error)")
             return
         }
+        if let madeOn, let done = item?.completedAt, !calendar.isDate(done, inSameDayAs: madeOn) { return }
         item?.completedAt = nil
     }
 

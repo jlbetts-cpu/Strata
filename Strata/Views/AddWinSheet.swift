@@ -70,7 +70,12 @@ struct AddWinSheet: View {
     private var isPlanning: Bool { planFor != nil }
     /// Offered on a fresh win only: not while editing one, and not for a
     /// win already under way (a photo just taken, a plan line being done).
-    private var offersPlanning: Bool { !isEditing && initialPhoto == nil && initialTitle == nil }
+    /// **And never from a crew's tower** (the owner: planning "is Wins-screen
+    /// only and has nothing to do with the crew tower; keep them fully
+    /// separate"): the sheet opened there is for a win going to that crew.
+    private var offersPlanning: Bool {
+        !isEditing && initialPhoto == nil && initialTitle == nil && initialCrews == nil
+    }
     /// What the row over the keyboard is chosen from (`WinIdeas`), read once
     /// when the sheet opens.
     @State private var ideaSource: (three: [WinIdea], plan: [WinIdea], logged: [WinIdeas.Logged], today: String)?

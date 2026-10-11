@@ -209,6 +209,58 @@ struct PlanningAheadTests {
         #expect(WhenRow.title(nil) == "Now" && WhenRow.title(.day(0)) == "Later")
     }
 
+    @Test("deleting an old win does not untick today's")
+    func untickOnlyItsOwnDay() throws {
+        let container = try ModelContainer(for: PlanItem.self, configurations: .init(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let walk = PlanItem(text: "Walk"); walk.repeatDays = PlanScope.everyDay
+        walk.completedAt = today
+        context.insert(walk)
+        try context.save()
+        // Last week's win from the same line is deleted.
+        PlanItem.untick(planItemID: walk.id, madeOn: day(-7), context: context, calendar: calendar)
+        #expect(walk.completedAt != nil, "today's tick is today's win's")
+        // Today's own win is deleted: the tick goes with it.
+        PlanItem.untick(planItemID: walk.id, madeOn: today.addingTimeInterval(60), context: context, calendar: calendar)
+        #expect(walk.completedAt == nil)
+    }
+
+    // MARK: In a backup
+
+    /// The plan was never in a backup. With routines living in it, a lost
+    /// phone lost every one.
+    @Test("the plan goes into a backup and comes back once")
+    func backupRoundTrip() throws {
+        let open = PlanItem(text: "Email the professor", order: 1, category: .work, day: name(1))
+        let routine = PlanItem(text: "Morning walk", order: 0, category: .health)
+        routine.repeatDays = PlanScope.everyDay
+        routine.completedAt = today   // done today, and still a routine
+        let finished = PlanItem(text: "Done and gone", order: 2, day: name(0)); finished.completedAt = today
+        let blank = PlanItem(text: "  ", order: 3, day: name(0))
+        let exported = BackupExport.planLines([open, routine, finished, blank])
+        #expect(exported.map(\.text) == ["Morning walk", "Email the professor"], "in the plan's order, nothing finished or blank")
+        #expect(exported[0].when == routine.repeatDaysRaw && exported[1].when == open.repeatDaysRaw)
+
+        // Through the file's own coding.
+        let data = try JSONEncoder().encode(exported)
+        let read = try JSONDecoder().decode([BackupArchive.ExportPlanLine].self, from: data)
+        #expect(read == exported)
+
+        // Onto a phone with nothing: both. Onto one that has them: none.
+        #expect(BackupRestore.planLinesMissing(read, from: []).count == 2)
+        #expect(BackupRestore.planLinesMissing(read, from: [open, routine]).isEmpty)
+        // Typed again on the new phone, a different id: still not doubled.
+        let retyped = PlanItem(text: "morning walk"); retyped.repeatDays = PlanScope.everyDay
+        #expect(BackupRestore.planLinesMissing(read, from: [retyped]).map(\.text) == ["Email the professor"])
+        // The same line twice in a file is one line.
+        #expect(BackupRestore.planLinesMissing(read + read, from: []).count == 2)
+
+        // A backup from before the plan was in it still opens.
+        let old = Data(#"{"exportDate":0,"appVersion":"1","habits":[],"logs":[]}"#.utf8)
+        let document = try JSONDecoder().decode(BackupArchive.Document.self, from: old)
+        #expect(document.plan == nil)
+    }
+
     // MARK: Outlines on the tower
 
     @Test("outlines queue behind the slot, a cell each, in the plan's order")

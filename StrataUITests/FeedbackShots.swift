@@ -201,13 +201,25 @@ final class FeedbackShots: XCTestCase {
     /// The ring coming forward for a win (`RingMoment`): a win is logged
     /// from the slot and the screen is left alone, for a recording.
     func testRingMoment() {
-        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2"])
+        // `-goalDanceDay none`: the goal has not danced today, so what
+        // follows the ring when this win reaches it can be seen.
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-goalDanceDay", "none"])
         wait(8)
         app.descendants(matching: .any)["Log a win"].firstMatch.press(forDuration: 0.6)
         wait(1.1); snap("ring-1")
         wait(0.5); snap("ring-2")
         wait(0.6); snap("ring-3")
         wait(2.5); snap("ring-4-home")
+        // And what follows when this win was the one that reached the goal.
+        wait(7); snap("ring-5-after")
+    }
+
+    /// The same for an everyday win, well short of the goal.
+    func testRingMomentEveryday() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "1", "-dailyGoal", "8"])
+        wait(8)
+        app.descendants(matching: .any)["Log a win"].firstMatch.press(forDuration: 0.6)
+        wait(6); snap("ring-everyday")
     }
 
     /// **The test the owner set**: "a user should be able to plan their

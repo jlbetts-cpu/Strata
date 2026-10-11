@@ -117,7 +117,18 @@ enum BackupExport {
     /// restored sketch can still be opened and drawn on (`JournalSketches`).
     /// Only the ones a note names: the ink folder also holds month drawings,
     /// which are not the day's journal.
-    static func makeZip(habits: [Habit], logs: [HabitLog], notes: [MoodLog] = [], appVersion: String,
+    /// The plan as a backup carries it: lines not yet done, and every line
+    /// that repeats (done today or not: it is a routine). Blank lines and
+    /// finished one-offs are not a plan any more.
+    static func planLines(_ plan: [PlanItem]) -> [BackupArchive.ExportPlanLine] {
+        plan.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && ($0.repeats || $0.completedAt == nil) }
+            .sorted { $0.order < $1.order }
+            .map { BackupArchive.ExportPlanLine(id: $0.id, text: $0.text, order: $0.order, category: $0.categoryRaw,
+                                                when: $0.repeatDaysRaw, size: $0.sizeRaw) }
+    }
+
+    static func makeZip(habits: [Habit], logs: [HabitLog], notes: [MoodLog] = [], plan: [PlanItem] = [],
+                        appVersion: String,
                         now: Date = Date(),
                         photographs: [URL]? = nil,
                         ink: InkFiles = .shared,
@@ -129,6 +140,8 @@ enum BackupExport {
         doc.strips = BackupKeepsakes.strips(in: keepsakeDefaults)
         doc.stickers = stickers.names
         doc.stripPaper = keepsakeDefaults.string(forKey: "strip.paper.chosen")
+        let lines = planLines(plan)
+        doc.plan = lines.isEmpty ? nil : lines
         return try BackupArchive.writeZip(
             document: doc,
             photographs: photographs ?? Self.photographs(),

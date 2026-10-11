@@ -67,6 +67,11 @@ nonisolated enum BackupArchive {
         var stickers: [String]? = nil
         /// The strip paper you chose, if you chose one.
         var stripPaper: String? = nil
+        /// **The plan** (2026-10-10): what you mean to do and have not yet,
+        /// and the lines that repeat. It was never in a backup; with routines
+        /// living in the plan, losing a phone lost every one of them.
+        /// Optional, so no bump.
+        var plan: [ExportPlanLine]? = nil
 
         var version: Int { formatVersion ?? 1 }
     }
@@ -83,6 +88,17 @@ nonisolated enum BackupArchive {
     /// the emoji and the sketch: all three are the person's own, so they
     /// travel. `mood` and `motivation` are not written, because the journal
     /// never asks for them.
+    /// One line of the plan, as `PlanItem` holds it. `when` is its
+    /// `repeatDaysRaw`: the weekdays it comes back on, or the day it is for.
+    struct ExportPlanLine: Codable, Sendable, Equatable {
+        var id: UUID?
+        let text: String
+        var order: Int?
+        var category: String?
+        var when: String?
+        var size: String?
+    }
+
     struct ExportNote: Codable, Sendable {
         let dateString: String
         var id: UUID?

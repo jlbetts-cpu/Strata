@@ -114,6 +114,8 @@ enum BackupRestore {
         var unattachablePhotographs: [String] = []
         /// Journal days in the file with no note here yet.
         var notesToAdd: [BackupArchive.ExportNote] = []
+        /// Plan lines in the file that this phone does not have.
+        var planLinesToAdd: [BackupArchive.ExportPlanLine] = []
         /// Journal days that already have a note here. Left untouched.
         var notesAlreadyHere: Int = 0
 
@@ -121,6 +123,7 @@ enum BackupRestore {
         var isEmptyOfWork: Bool {
             logsToAdd.isEmpty && habitsToAdd.isEmpty && photographsForExistingWins.isEmpty
                 && notesToAdd.isEmpty
+                && planLinesToAdd.isEmpty
         }
 
         /// The things a person should read BEFORE confirming, not after.
@@ -151,6 +154,8 @@ enum BackupRestore {
         var photographsReattached = 0
         /// Journal days put back.
         var notesAdded = 0
+        /// Plan lines put back.
+        var planLinesAdded = 0
         /// Named, individually. A count of failures is not something anybody can
         /// act on.
         var problems: [String] = []
@@ -286,6 +291,10 @@ enum BackupRestore {
             }
         }
 
+        // The plan's lines this phone does not have.
+        let localPlan = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
+        plan.planLinesToAdd = planLinesMissing(document.plan ?? [], from: localPlan)
+
         return plan
     }
 
@@ -312,6 +321,28 @@ enum BackupRestore {
     // MARK: - Applying
 
     /// Does the plan. The only function here that writes anything.
+    /// The plan lines of a backup this phone lacks: matched by the words and
+    /// when they are for, so restoring twice adds nothing twice, and a line
+    /// already here (kept by iCloud, or typed again) is left as it is.
+    static func planLinesMissing(_ exported: [BackupArchive.ExportPlanLine], from local: [PlanItem])
+        -> [BackupArchive.ExportPlanLine] {
+        func key(_ text: String, _ when: String) -> String {
+            text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() + "|" + when
+        }
+        var have = Set(local.map { key($0.text, $0.repeatDaysRaw) })
+        var ids = Set(local.map(\.id))
+        var out: [BackupArchive.ExportPlanLine] = []
+        for line in exported {
+            let k = key(line.text, line.when ?? "")
+            guard !line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !have.contains(k), !(line.id.map(ids.contains) ?? false) else { continue }
+            have.insert(k)
+            if let id = line.id { ids.insert(id) }
+            out.append(line)
+        }
+        return out
+    }
+
     static func apply(_ plan: Plan, contents: BackupArchive.Contents,
                       context: ModelContext,
                       photographs: PhotoOutcome? = nil,
@@ -405,6 +436,22 @@ enum BackupRestore {
                 entry.sketchFileName = sketch
             }
             report.notesAdded += 1
+        }
+
+        // The plan: lines this phone lacks, after the ones it has.
+        if !plan.planLinesToAdd.isEmpty {
+            let local = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
+            var order = (local.map(\.order).max() ?? -1) + 1
+            for line in planLinesMissing(plan.planLinesToAdd, from: local) {
+                let item = PlanItem(text: line.text, order: order,
+                                    category: line.category.flatMap(HabitCategory.init(rawValue:)) ?? .unlabeled)
+                if let id = line.id { item.id = id }
+                item.repeatDaysRaw = line.when ?? ""
+                if let size = line.size.flatMap(BlockSize.init(rawValue:)) { item.size = size }
+                context.insert(item)
+                order += 1
+                report.planLinesAdded += 1
+            }
         }
 
         // The one write to a row that already exists: a photograph onto a win

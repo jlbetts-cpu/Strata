@@ -79,8 +79,7 @@ struct PlannedOutline: View {
 
     /// The plan's own bullet, at the size it is in the plan, so the box in
     /// the tower is the box you will see ticked there.
-    private var box: CGFloat { min(20, side * 0.24) }
-    private var inset: CGFloat { max(8, side * 0.11) }
+    private var box: CGFloat { min(18, side * 0.22) }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -90,14 +89,20 @@ struct PlannedOutline: View {
                     .strokeBorder(PlanBullet.outlineInk, lineWidth: PlanBullet.outlineWidth(forSide: box))
                     .frame(width: box, height: box)
                 Spacer(minLength: 2)
+                // A block's own title type and place (`BlockContentOverlay`),
+                // in ink where a block's is white: the same family, quieter.
+                // Two lines, since the words are all an outline has, and
+                // never shrunk: three outlines at three sizes is a ransom
+                // note (seen 2026-10-10 with one long line among short ones).
                 Text(title)
-                    .font(Typography.headerSmall)
+                    .font(BlockContentOverlay.titleFont)
                     .foregroundStyle(AppColors.inkSecondary)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.leading)
             }
-            .padding(inset)
+            .padding(.leading, 12)
+            .padding(.trailing, 8)
+            .padding(.vertical, 12)
         }
         .frame(width: side, height: side)
         .glassSlot(cornerRadius: cornerRadius)

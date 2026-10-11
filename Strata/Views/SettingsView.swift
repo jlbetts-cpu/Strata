@@ -1203,7 +1203,9 @@ struct SettingsView: View {
         do {
             // The day's journal goes in the backup too: see `BackupExport.document`.
             let notes = (try? modelContext.fetch(FetchDescriptor<MoodLog>())) ?? []
-            exportURL = try BackupExport.makeZip(habits: habits, logs: logs, notes: notes,
+            // And the plan: what is still to do, and the routines.
+            let plan = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+            exportURL = try BackupExport.makeZip(habits: habits, logs: logs, notes: notes, plan: plan,
                                                  appVersion: appVersion)
             showExportShare = true
         } catch let failure as BackupArchive.WriteFailure {

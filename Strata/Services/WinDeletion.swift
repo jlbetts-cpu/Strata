@@ -30,7 +30,7 @@ enum WinDeletion {
         do {
             try context.transaction {
                 for log in habit.logs ?? [] { context.delete(log) }
-                PlanItem.untick(planItemID: habit.planItemID, context: context)
+                PlanItem.untick(planItemID: habit.planItemID, madeOn: habit.createdAt, context: context)
                 context.delete(habit)
             }
         } catch {

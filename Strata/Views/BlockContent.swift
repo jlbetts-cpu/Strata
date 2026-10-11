@@ -54,6 +54,11 @@ private struct TitleShadow: ViewModifier {
 }
 
 struct BlockContentOverlay: View {
+    /// The type a block's title is set in. Named so a planned win's outline
+    /// on the tower wears the same words at the same size
+    /// (`PlannedOutline`): what stands in the tower reads as one family.
+    static let titleFont = Font.system(.footnote, design: .default, weight: .medium)
+
     let title: String
     /// No `category`. It was threaded back in for an hour while a block's
     /// title was written in `category.style.text`, and it went out again with
@@ -150,9 +155,11 @@ struct BlockContentOverlay: View {
                     // **It is MEDIUM, which is what the instruction was really
                     // about**, and it already was. Spelled out here rather than
                     // taken from a token, because there is no 13pt token any
-                    // more and there must not be one: this is the only site.
+                    // more and there must not be one: this is the tower
+                    // cell's size and nothing else's (`titleFont`, which a
+                    // planned win's outline in the same cell also wears).
                     // If this is reopened, the lever is the CELL, not the type.
-                    .font(.system(.footnote, design: .default, weight: .medium))
+                    .font(Self.titleFont)
                     // **White, and the owner chose it over a measured
                     // alternative.** A dark ink was built, rendered on the
                     // real tower and put in front of him, because white here
