@@ -40,7 +40,7 @@ enum PlannedSlots {
         lines.filter {
             !$0.text.trimmingCharacters(in: .whitespaces).isEmpty
                 && $0.isOpen(on: date, calendar: calendar, today: date)
-                && !PlanSkips.isSkipped($0.id, on: date)
+                && !PlanSkips.isSkipped($0, on: date)
         }
             .sorted { ($0.order, $0.createdAt) < ($1.order, $1.createdAt) }
     }

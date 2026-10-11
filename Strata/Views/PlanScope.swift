@@ -78,7 +78,7 @@ enum PlanScope: Hashable {
             guard let date = date(from: today, calendar: calendar) else { return [] }
             return all.filter {
                 $0.belongs(on: date, calendar: calendar, today: today)
-                    && !(offset == 0 && PlanSkips.isSkipped($0.id, on: date) && $0.completedAt == nil)
+                    && !(offset == 0 && PlanSkips.isSkipped($0, on: date) && $0.completedAt == nil)
             }
         }
     }
@@ -214,6 +214,12 @@ struct WeekdayChips: View {
                 .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
                 .frame(maxWidth: Self.side)
                 .frame(height: Self.side)
+                // **No ground of its own under a day that is off.** For an
+                // hour each chip was backed with the page's colour, so a
+                // long list scrolling behind the plan's bar could not show
+                // through one. The plan's sheet is not that colour: the off
+                // days stood out as white keys, brighter than the chosen
+                // ones, which is the wrong way round (seen 2026-10-11).
                 .background { Self.shape.fill(on ? AppColors.inkPrimary.opacity(0.16) : .clear) }
                 .overlay {
                     Self.shape.strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: GridConstants.strokeThin)

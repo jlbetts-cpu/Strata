@@ -649,6 +649,7 @@ struct MainAppView: View {
                 pendingDraft = WinDraft(title: item.text, size: item.size, colour: item.category,
                                         planItemID: item.id)
                 tickAwaitingWin = item.id
+                PlanTickPending.hold(item.id)
                 returnsToPlan = true
                 isPlanning = false
             }
@@ -662,9 +663,12 @@ struct MainAppView: View {
             let saved = tickAwaitingWin == nil
             // Closed without saving: put the line back the way it was.
             if let id = tickAwaitingWin {
-                setPlanItemDone(id, false)
+                // Its win may be there all the same: saved, its photograph
+                // failed, and the sheet swiped away. Then the tick is earned.
+                if !hasWinToday(for: id) { setPlanItemDone(id, false) }
                 tickAwaitingWin = nil
             }
+            PlanTickPending.clear()
             // **Back to the plan it came from** (the owner, 2026-10-06).
             // Ticking three lines was three trips: tick, Add, open the plan
             // again. A saved win gets a moment to drop onto the tower first;
@@ -691,6 +695,7 @@ struct MainAppView: View {
                 initialCrop: draft.crop,
                 initialColour: draft.colour,
                 initialCrews: draft.crews,
+                plannedLine: draft.planItemID,
                 onSaved: { habit in
                     if let id = draft.planItemID {
                         // The win remembers the line, so deleting it later can
@@ -700,6 +705,7 @@ struct MainAppView: View {
                         // Saved, so the tick is earned and must not be undone
                         // by the dismissal that follows.
                         tickAwaitingWin = nil
+                        PlanTickPending.clear()
                     }
                     scheduleRefresh()
                 }
@@ -744,16 +750,26 @@ struct MainAppView: View {
 
     /// The same, with no photo: the sheet a plan line's tick always opened.
     private func logPlanned(_ item: PlanItem) {
-        guard stillThere(item) else { return }
-        // **Its win is already there** (unticked in the plan after it was
-        // done): the tick goes back and nothing is logged twice, as the
-        // plan's own box does (`PlanLines.complete`).
-        if habits.contains(where: { $0.planItemID == item.id && Calendar.current.isDateInToday($0.createdAt) }) {
-            HapticsEngine.lightTap()
-            setPlanItemDone(item.id, true)
-            return
-        }
-        winDraft = WinDraft(title: item.text, size: .small, colour: item.category, planItemID: item.id)
+        guard stillThere(item), !alreadyWon(item) else { return }
+        // At the line's own size, as its box in the plan logs it.
+        winDraft = WinDraft(title: item.text, size: item.size, colour: item.category, planItemID: item.id)
+    }
+
+    /// **Its win is already there** (unticked in the plan after it was
+    /// done): the tick goes back and nothing is logged twice, as the plan's
+    /// own box does (`PlanLines.complete`). True when that is what happened.
+    /// Asked before the camera too (found by review, 2026-10-11): a tap on
+    /// the outline photographed and logged the same win a second time.
+    private func alreadyWon(_ item: PlanItem) -> Bool {
+        guard hasWinToday(for: item.id) else { return false }
+        HapticsEngine.lightTap()
+        setPlanItemDone(item.id, true)
+        return true
+    }
+
+    /// A win made today that names this plan line.
+    private func hasWinToday(for line: UUID) -> Bool {
+        habits.contains { $0.planItemID == line && Calendar.current.isDateInToday($0.createdAt) }
     }
 
     /// A line taken off the plan somewhere else (another phone, the plan
@@ -2553,6 +2569,8 @@ struct MainAppView: View {
         // `updatedAt` existed their real dates, and every later save would
         // otherwise stamp them with today.
         SocialFieldsBackfill.runIfNeeded(context: modelContext)
+        // Before the sweep: a tick that never got its win is not a line done.
+        PlanTickPending.settle(context: modelContext)
         PlanItem.sweep(context: modelContext)
 
         // **After the tower exists, not before.** This was a `.task` on the
@@ -3677,7 +3695,7 @@ struct MainAppView: View {
         PlannedLayer(grid: towerVM.currentGrid, slot: slotPos, slotSize: drawingSize, cellSize: colW,
                      gridHeight: gridH, cornerRadius: cornerRadius, nudge: plannedNudge,
                      rowsNeeded: $plannedRows,
-                     onCamera: { capturingPlan = $0 },
+                     onCamera: { if stillThere($0), !alreadyWon($0) { capturingPlan = $0 } },
                      onLog: { logPlanned($0) },
                      onEdit: { editingPlan = $0 },
                      onNotToday: { notToday($0) })

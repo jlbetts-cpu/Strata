@@ -425,3 +425,106 @@ What I found by looking, by a fourth independent review, and fixed:
 full suite (76 UI tests) passes with no failure and no crash. **Build 118 is
 in TestFlight for you only.** Friends have 117, waiting on Apple's beta
 review; say the word and 118 goes to them too.
+
+
+## 6. The night of 2026-10-11: days for a repeat, and the check you asked for
+
+You said two things before bed: a repeating plan could not be set for
+Monday, Wednesday and Friday, and "double check everything is up to date,
+working update to update and page to page".
+
+### Days for a repeating plan
+
+Under Repeating, a new line came back every day. Choosing days took writing
+the line, opening its sheet, switching Repeats on, then the days.
+
+- Seven letters now stand with the field the line is typed in: under the
+  add sheet's row of days, and directly above the plan's bar on its
+  Repeating page. All on is every day; press off the ones it is not for.
+  They stay as set for the next line, and each line says its days under its
+  name ("Mon Wed Fri").
+- **Changed after looking at it.** My first version filled a chosen day in
+  solid ink. In dark mode that was seven white squares, against your "light
+  on light, dark on dark". A chosen day is now the tint the chat uses for
+  your own reaction, with the letter in ink; a day that is off is a
+  hairline and a grey letter.
+- **Changed after the review.** I first put the plan page's chips under the
+  row of days, above the list. The reviewer said they read as the existing
+  lines' days. They are above the bar now.
+
+### Update to update
+
+Built build 113 (what friends had before 116) from its commit, installed
+it clean on the simulator, seeded it, then installed tonight's build over
+it and opened it three times.
+
+| | Wins | Win logs | Plan lines | Journal | Tower |
+|---|---|---|---|---|---|
+| Build 113 | 41 | 41 | 5 | 1 | 1 |
+| Tonight's build, first open | 41 | 41 | 5 | 1 | 1 |
+| Third open | 41 | 41 | 5 | 1 | 1 |
+
+The three old undated plan lines were given today's date and stand on the
+tower as outlines; the weekday repeat was left as it was. No stored field
+changed between 113 and now, so there is nothing for iCloud to migrate.
+**Not covered:** crews across an update (the simulator has no iCloud), and
+a phone that was signed in to iCloud while updating.
+
+### Page to page
+
+Every main screen photographed in light and dark and looked at: tower,
+add, edit, plan (today, tomorrow, repeating), profile, settings, crews
+list, a crew, its chat, a day, the month, the map, a replay. Nothing was
+out of place. Two things were wrong with my own test set-up, not the app:
+the tour's crew flags seeded no crew, and a camera permission prompt left
+standing covered the first dark set.
+
+### What an independent read found in the planner, and what I did
+
+I had a second agent read the planner end to end, then a third try to
+break my fixes. Both found real defects. All were in how a win and a plan
+line meet.
+
+| Found | Now |
+|---|---|
+| Logging "Study" today ticked Thursday's "Study", which was then cleared off the plan overnight | A win ticks the line open today, in the plan's order; never a later day's |
+| Closing the app from the add sheet left a plan line ticked with no win; it was then cleared overnight | The waiting tick is written down and taken back at the next launch |
+| A repeating line ticked days ago (app left open) could not be ticked again by name | Found by "open today", not "never ticked" |
+| Repeats switched on made any line Monday to Friday, so a Saturday line left Saturday | It repeats on the day it was on; switched off, it goes back to that day |
+| Skip Today, then Repeats off, hid the line everywhere until tomorrow | Only a repeating line can be skipped |
+| Pressing off the last day in a line's sheet silently made it a one-off | The last day cannot be pressed off; the switch turns a repeat off |
+| A win that ticked a line by name did not remember it, so deleting the win left the line ticked | It remembers; deleting unticks |
+| Tick, untick, then tap the outline: a second win | The outline checks for the win first, as the plan's box did |
+| Log Without a Photo used Quick, the plan's box used the line's size | Both use the line's size |
+| A photo attached, then a day pressed: Plan threw the photo away | A sheet holding a picture is not offered a day |
+| My own fix could untick a line whose win was saved but whose photo failed | The win is told its line the moment it exists, before the photo |
+| Try Again and Done after a failed photo never ticked the plan | Same fix: the plan hears first |
+| The reminder left out a line that had been skipped and then made a one-off | Uses the same rule as the tower |
+| Do It Too said "on your plan" for a line whose day had gone by, and nothing stood on the tower | It is brought to today |
+
+**Left, and why (REVIEW):** log "Gym" by name, untick it in the plan, log
+"Gym" by name again: two wins name one line, and deleting the first
+unticks the line while the second stands. It needs three deliberate steps
+and loses nothing.
+
+### The suites
+
+After everything above: **1,376 unit tests pass.** The full suite ran with
+no failure and no crash: 79 UI tests listed, 41 run and passed, 38 are the
+screenshot tests that only run when asked for. The Release configuration
+compiles.
+
+**Rated honestly**
+
+| Piece | Rating | What keeps it from higher |
+|---|---|---|
+| Days for a repeat | 9 | Above the plan's bar a very long Repeating list scrolls behind the letters. I tried backing them and it looked worse (the off days stood out white), so it is left. |
+| A win meeting its plan line | 9 | Read three times and tested on rules; the two-wins-one-line case above is left. |
+| Update to update | 8 | Proven for wins, plan, journal on the simulator. Crews across an update cannot be run here. |
+| Page to page | 9 | Looked at in both appearances; not on glass. |
+
+**For you**
+- Build 119 is in TestFlight for you only. Friends are on 117.
+- Six commits are waiting for `cd ~/Desktop/Strata && git push origin main`.
+- somewins.xyz still points at the registrar's parking page, so invite
+  links still say github.

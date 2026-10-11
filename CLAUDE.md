@@ -1838,6 +1838,24 @@ placeholder ... a user should be able to plan their entire next day in under
 - **The plan sheet's days** are `PlanScope` / `PlanScopeRow`; the add
   sheet's "Now" is `WhenRow`. Both add through
   `DayComposing.addPlanLines`, which splits a pasted list.
+- **Which days a repeat comes back on is chosen where the line is written**
+  (`WeekdayChips`, 2026-10-11; the owner: "what if you want ... monday
+  wednesday friday there is no option for that"): seven letters under the
+  add sheet's row, and directly above the plan's bar on its Repeating page
+  (never over the list, where they read as the existing lines' days). A
+  chosen day is the chat's chosen-reaction tint, **not solid ink**: seven
+  filled chips were white in dark mode. The last day cannot be pressed off,
+  there or in the line's own sheet.
+- **A win ticks the line open TODAY** (`DayComposing.onPlan`), in the
+  plan's order, then one whose day went by; never a later day's line with
+  the same words. A win made from a line (`AddWinSheet.plannedLine`) ticks
+  nothing by name. A win that ticks by name remembers the line
+  (`Habit.planItemID`), so deleting it unticks.
+- **The plan's optimistic tick is written down** (`PlanTickPending`) and
+  taken back at launch, before the sweep, if its win was never made.
+- **Only a repeating line can be skipped** (`PlanSkips.isSkipped(_ item:)`).
+  Repeats switched on in a line's sheet keeps the weekday the line is on;
+  off, it returns to the day it had.
 - Simulator: `-strataSeedPlan 5 -strataPlanOnTower 1` (outlines, sheet
   shut), `-strataSeedPlanAhead 1` (lines for other days, a repeat and an
   earlier one), `-strataPlanScope <n>|repeating`. Tests:

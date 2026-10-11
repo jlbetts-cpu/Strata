@@ -110,7 +110,7 @@ nonisolated enum WinIdeas {
             // Open today, and not skipped for it: what the tower's outlines
             // are (`PlannedSlots.open`), so the row over the keyboard and the
             // tower never disagree.
-            .filter { $0.isOpen(on: now, calendar: calendar, today: now) && !PlanSkips.isSkipped($0.id, on: now) }
+            .filter { $0.isOpen(on: now, calendar: calendar, today: now) && !PlanSkips.isSkipped($0, on: now) }
             .map { WinIdea(title: $0.text.trimmingCharacters(in: .whitespacesAndNewlines), category: $0.category) }
         let since = calendar.date(byAdding: .day, value: -lookback, to: now).map(DateUtils.dateString(from:)) ?? today
         var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString >= since })
@@ -135,11 +135,40 @@ nonisolated enum WinIdeas {
 
     /// The open plan line with these words, ticked: the win already exists,
     /// so only the line is marked, never a second win logged.
+    ///
+    /// A win now exists: the plan is told.
+    ///
+    /// - **Made from a line** (its box in the plan, its outline on the
+    ///   tower): the win is told which line, here and not when the sheet
+    ///   closes, so a win whose photograph then fails still names its line.
+    ///   Whoever opened the sheet ticks that line; nothing is ticked by
+    ///   name, or with two lines of the same words today the other one
+    ///   would be ticked as well.
+    /// - **Any other win**: the open line of today's with the same words is
+    ///   ticked, so it does not wait there for a second win.
     @MainActor
-    static func tickPlanLine(named title: String, context: ModelContext, now: Date = Date()) {
+    static func winMade(_ win: Habit, from line: UUID?, named title: String, context: ModelContext,
+                        now: Date = Date()) {
+        if let line {
+            win.planItemID = line
+            try? context.save()
+        } else {
+            tickPlanLine(named: title, context: context, now: now, win: win)
+        }
+    }
+
+    /// **The win remembers the line** (found by review, 2026-10-11), so
+    /// deleting the win later puts the tick back (`WinDeletion`), as it does
+    /// for a win made from the line's own box. Returns the line ticked.
+    @MainActor
+    @discardableResult
+    static func tickPlanLine(named title: String, context: ModelContext, now: Date = Date(),
+                             win: Habit? = nil) -> UUID? {
         let all = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
-        guard let line = DayComposing.onPlan(title, in: all) else { return }
+        guard let line = DayComposing.onPlan(title, in: all, on: now) else { return nil }
         line.completedAt = now
+        if let win, win.planItemID == nil { win.planItemID = line.id }
         try? context.save()
+        return line.id
     }
 }

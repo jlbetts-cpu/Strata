@@ -78,6 +78,8 @@ struct WinIdeasTests {
     func wired() throws {
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
         #expect(sheet.contains("ToolbarItemGroup(placement: .keyboard)"))
-        #expect(sheet.contains("WinIdeas.tickPlanLine(named: title, context: modelContext)"))
+        // The win is handed over too (2026-10-11), so it remembers the line
+        // it ticked; what is pinned is the same: saving ticks the plan.
+        #expect(sheet.contains("WinIdeas.winMade(win.habit, from: plannedLine, named: title, context: modelContext)"))
     }
 }

@@ -104,7 +104,7 @@ nonisolated enum DailyReminder {
         for offset in 0..<horizon {
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
             let names = lines
-                .filter { $0.isOpen(on: day, calendar: calendar, today: now) && !PlanSkips.isSkipped($0.id, on: day) }
+                .filter { $0.isOpen(on: day, calendar: calendar, today: now) && !PlanSkips.isSkipped($0, on: day) }
                 .sorted { $0.order < $1.order }
                 .map(\.text)
             if !names.isEmpty { out[DateUtils.dateString(from: day)] = names }

@@ -29,6 +29,9 @@ struct PlanItemDetailSheet: View {
     @State private var confirmingDelete = false
 
     private let calendar = Calendar.current
+    /// The day a one-off had before Repeats was switched on in this
+    /// sitting, so switching it off again puts the line back where it was.
+    @State private var dayBefore: String?
 
     /// Monday-first, matching the week the rest of the app groups by.
     private var weekdayOrder: [Int] { [2, 3, 4, 5, 6, 7, 1] }
@@ -135,10 +138,28 @@ struct PlanItemDetailSheet: View {
                     Toggle(isOn: Binding(
                         get: { item.repeats },
                         set: { on in
-                            // Turning it on with no days chosen would be a
-                            // repeat that never repeats. Weekdays is the
-                            // commonest answer and the easiest to correct.
-                            item.repeatDays = on ? [2, 3, 4, 5, 6] : []
+                            // **On, it repeats on the day it is already
+                            // on** (found by review, 2026-10-11). It became
+                            // Monday to Friday whatever day it had, so a
+                            // line planned for Saturday left Saturday the
+                            // moment the switch was pressed, and one for
+                            // today left today's tower at a weekend. The
+                            // chips are directly under the switch for more.
+                            // **Off, it goes back to the day it had**, when
+                            // this sheet is what took it off that day and
+                            // the day has not gone by; otherwise today, as
+                            // it always did.
+                            if on {
+                                dayBefore = item.day
+                                let date = item.day.flatMap { DateUtils.date(from: $0) } ?? Date()
+                                item.repeatDays = [calendar.component(.weekday, from: date)]
+                            } else {
+                                item.repeatDays = []
+                                if let dayBefore, dayBefore >= DateUtils.dateString(from: Date()) {
+                                    item.day = dayBefore
+                                }
+                                dayBefore = nil
+                            }
                         }
                     )) {
                         Label {
@@ -194,8 +215,8 @@ struct PlanItemDetailSheet: View {
                 // **The audit's own suggestion was to make the row read
                 // `Repeats` / `Repeats daily`, and that is NOT taken, because
                 // it would be untrue.** Turning the switch on sets
-                // `repeatDays` to [2, 3, 4, 5, 6] — Monday to Friday, not
-                // every day — so "daily" would describe something the control
+                // `repeatDays` to the one weekday the line is on, not every
+                // day, so "daily" would describe something the control
                 // does not do. `Repeats` is true in both states, and what it
                 // repeats on is drawn rather than written.
                 //
@@ -246,6 +267,13 @@ struct PlanItemDetailSheet: View {
                 let on = item.repeatDays.contains(day)
                 Button {
                     var set = item.repeatDays
+                    // Never none (as `WeekdayChips`): the last day pressed
+                    // off quietly made the line a one-off for today. The
+                    // switch above is how a repeat is turned off.
+                    if on, set.count == 1 {
+                        HapticsEngine.warning()
+                        return
+                    }
                     if on { set.remove(day) } else { set.insert(day) }
                     item.repeatDays = set
                     HapticsEngine.lightTap()

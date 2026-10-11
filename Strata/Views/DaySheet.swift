@@ -495,12 +495,6 @@ struct DaySheet: View {
                     scope != .repeating && scope != .day(0)
                         && scope.lines(allItems).contains { $0.completedAt == nil && !$0.text.isEmpty && !$0.repeats }
                 }
-                if planScope == .repeating {
-                    WeekdayChips(days: $repeatDays)
-                        .padding(.horizontal, GridConstants.horizontalPadding)
-                        .padding(.top, GridConstants.gapTight)
-                        .transition(.opacity)
-                }
                 PlanLines(focused: $planFocus, onComplete: onComplete,
                           onStart: { planFocus = planComposerID }, onThree: onThree, scope: planScope,
                           repeatDays: repeatDays)
@@ -520,6 +514,16 @@ struct DaySheet: View {
                         keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
                         unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) },
                         offersWord: planFocus != nil)
+                }
+                // **With the bar that writes the line, not over the list**
+                // (found by review, 2026-10-11). Under the row of days they
+                // stood above the lines already there and read as those
+                // lines' days, or a filter; they are the next line's.
+                if planScope == .repeating {
+                    WeekdayChips(days: $repeatDays)
+                        .padding(.horizontal, GridConstants.horizontalPadding)
+                        .padding(.bottom, GridConstants.gapTight)
+                        .transition(.opacity)
                 }
                 planComposer
             }

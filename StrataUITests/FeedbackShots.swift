@@ -135,6 +135,15 @@ final class FeedbackShots: XCTestCase {
         wait(7); snap("house-tip"); app.terminate()
     }
 
+    /// Answers a system permission prompt left standing over the app (a
+    /// fresh install's camera prompt covers every later screenshot).
+    func testDismissSystemPrompt() {
+        _ = launch(["-strataStartTab", "tower"])
+        let deny = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Don\u{2019}t Allow"].firstMatch
+        if deny.waitForExistence(timeout: 6) { deny.tap() }
+        wait(1); snap("prompt-gone")
+    }
+
     /// Every main screen once, for a look across the whole app.
     func testTour() {
         let screens: [(String, [String], Double)] = [
@@ -144,9 +153,14 @@ final class FeedbackShots: XCTestCase {
             ("tour-plan", ["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataSeedPlan", "5", "-strataOpenSheet", "plan"], 7),
             ("tour-profile", ["-strataStartTab", "tower", "-strataSeedWins", "20", "-strataOpenSheet", "profile"], 7),
             ("tour-settings", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "settings"], 6),
-            ("tour-crews", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrews", "3", "-strataOpenCrews", "1",
+            // `-strataCrews 1 -strataSeedCrew <people>` is what seeds a crew;
+            // without them these two photographed the no-iCloud page and
+            // the plain tower (seen 2026-10-11).
+            ("tour-crews", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                            "-strataSeedCrews", "3", "-strataOpenCrews", "1",
                             "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 8),
-            ("tour-crew", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
+            ("tour-crew", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                           "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
                            "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"], 9),
             ("tour-replay", ["-strataStartTab", "memories", "-strataSeedWins", "14", "-strataOpenReplay", "sampleWeek"], 6),
         ]
@@ -162,7 +176,12 @@ final class FeedbackShots: XCTestCase {
         let screens: [(String, [String], Double)] = [
             ("tour2-today", ["-strataStartTab", "memories", "-strataSeedWins", "8", "-strataSeedRealPhotos", "1", "-strataOpenDay", "0"], 8),
             ("tour2-map", ["-strataStartTab", "memories", "-strataSeedWins", "12", "-strataSeedPlaces", "1", "-strataSeedRealPhotos", "1", "-strataOpenMap", "1"], 9),
-            ("tour2-chat", ["-strataStartTab", "tower", "-strataSeedCrews", "1", "-strataSeedCrewWins", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat"] + crew, 9),
+            ("tour2-chat", ["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "1",
+                            "-strataSeedCrewWins", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat"] + crew, 9),
+            ("tour2-plan-tomorrow", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlanAhead", "1",
+                                     "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-strataPlanScope", "1"], 7),
+            ("tour2-plan-repeating", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                                      "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-strataPlanScope", "repeating"], 7),
             ("tour2-add", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"], 6),
             ("tour2-month", ["-strataStartTab", "memories", "-strataSeedHistory", "60", "-strataSeedRealPhotos", "1"], 8),
         ]
@@ -323,7 +342,7 @@ final class FeedbackShots: XCTestCase {
 
     /// The same chips on the plan's own Repeating page.
     func testRepeatingPageHasTheDays() {
-        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlanAhead", "1",
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
                           "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-strataPlanScope", "repeating"])
         wait(8); snap("days-plan-0")
         for off in ["Every Tuesday", "Every Thursday", "Every Saturday", "Every Sunday"] {
@@ -331,6 +350,9 @@ final class FeedbackShots: XCTestCase {
             if chip.waitForExistence(timeout: 3) { chip.tap() }
         }
         wait(1); snap("days-plan-1")
+        // The seeded weekday line's box: under Repeating it opens the line.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.07, dy: 0.24)).tap()
+        wait(2); snap("days-plan-2-line")
     }
 
     /// The add sheet's strip with the pen tile gone: today's photographs

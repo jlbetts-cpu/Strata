@@ -90,7 +90,15 @@ final class PlanItem {
             // Turning a repeat off leaves a one-off for today; it never
             // wipes the day of a line that had one and was not repeating.
             if newValue.isEmpty {
-                if repeats { day = DateUtils.dateString(from: Date()) }
+                if repeats {
+                    // A tick from a day gone by is that day's: the sweep
+                    // clears it at launch, and in an app open since then it
+                    // was still there. Left on what is now a one-off, the
+                    // line was done on no day, shown nowhere, and cleared
+                    // off the plan overnight (found by review, 2026-10-11).
+                    if let done = completedAt, !Calendar.current.isDateInToday(done) { completedAt = nil }
+                    day = DateUtils.dateString(from: Date())
+                }
                 return
             }
             repeatDaysRaw = newValue.sorted().map(String.init).joined(separator: ",")
@@ -312,5 +320,49 @@ enum PlanSkips {
 
     static func isSkipped(_ id: UUID, on date: Date, defaults: UserDefaults = .standard) -> Bool {
         (defaults.stringArray(forKey: key) ?? []).contains(entry(id, date))
+    }
+
+    /// Whether this line is off the day's tower and list. **Only a line
+    /// that repeats can be** (found by review, 2026-10-11): skipped for
+    /// today and then made a one-off in its own sheet, a line was today's
+    /// and hidden from today, in no list and on no tower until tomorrow.
+    static func isSkipped(_ item: PlanItem, on date: Date, defaults: UserDefaults = .standard) -> Bool {
+        item.repeats && isSkipped(item.id, on: date, defaults: defaults)
+    }
+}
+
+// MARK: - A tick waiting for its win
+
+/// **The plan's box is ticked before the win exists** (`PlanLines.complete`),
+/// so the press has an answer, and the add sheet closing without a win takes
+/// the tick back. That taking back was in memory only: with the app closed
+/// from the add sheet, the line stayed ticked with no win behind it, and a
+/// one-off was then cleared off the plan overnight as done (found by review,
+/// 2026-10-11). The line waiting is written down, and the next launch puts
+/// it back before the sweep reads it.
+enum PlanTickPending {
+    static let key = "plan.tickAwaitingWin"
+
+    static func hold(_ id: UUID, defaults: UserDefaults = .standard) {
+        defaults.set(id.uuidString, forKey: key)
+    }
+
+    static func clear(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: key)
+    }
+
+    /// At launch: a tick still waiting never got its win, unless a win that
+    /// names the line is there after all.
+    @MainActor
+    static func settle(context: ModelContext, defaults: UserDefaults = .standard) {
+        guard let id = defaults.string(forKey: key).flatMap(UUID.init(uuidString:)) else { return }
+        defaults.removeObject(forKey: key)
+        guard let line = try? context.fetch(FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })).first,
+              let done = line.completedAt else { return }
+        let wins = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+        let calendar = Calendar.current
+        guard !wins.contains(where: { $0.planItemID == id && calendar.isDate($0.createdAt, inSameDayAs: done) }) else { return }
+        line.completedAt = nil
+        try? context.save()
     }
 }

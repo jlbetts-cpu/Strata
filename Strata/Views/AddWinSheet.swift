@@ -50,6 +50,9 @@ struct AddWinSheet: View {
     /// remembered as next time's choice: the choice made from a crew is that
     /// crew's.
     var initialCrews: Set<CrewID>? = nil
+    /// The plan line this win is being made from (its box, or its outline
+    /// on the tower). The caller ticks that line; nothing is ticked by name.
+    var plannedLine: UUID? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -78,6 +81,11 @@ struct AddWinSheet: View {
     /// separate"): the sheet opened there is for a win going to that crew.
     private var offersPlanning: Bool {
         !isEditing && initialPhoto == nil && initialTitle == nil && initialCrews == nil
+            // **Not once a photograph or a drawing is on it** (found by
+            // review, 2026-10-11): a picture is of something done. Pressing
+            // a day then hid the picture, and Plan closed the sheet with it
+            // thrown away and nothing said.
+            && (isPlanning || (photo == nil && doodle == nil))
     }
     /// What the row over the keyboard is chosen from (`WinIdeas`), read once
     /// when the sheet opens.
@@ -329,6 +337,16 @@ struct AddWinSheet: View {
                         if offersPlanning {
                             WhenRow(when: $planFor)
                                 .padding(.top, GridConstants.gapTight)
+                                // A photograph chosen a moment before a
+                                // day was pressed can land after it: the
+                                // sheet is a win's again, with the picture
+                                // showing, rather than a plan's with the
+                                // picture hidden and then thrown away.
+                                .onChange(of: photo != nil) { _, has in
+                                    if has, planFor != nil {
+                                        withAnimation(GridConstants.crossFade) { planFor = nil }
+                                    }
+                                }
                         }
                         if planFor == .repeating {
                             WeekdayChips(days: $planDays)
@@ -1771,6 +1789,13 @@ struct AddWinSheet: View {
             fail(.win)
             return
         }
+        // **The plan hears of the win the moment it exists** (`WinIdeas
+        // .winMade`), before the photograph and the doodle. It was the last
+        // thing on this path, so a win whose photo then failed (kept, and
+        // finished by Try Again or Done) never ticked its line and never
+        // learned which line it was: the line stayed open and its outline
+        // logged the same win again (found by review, 2026-10-11).
+        WinIdeas.winMade(win.habit, from: plannedLine, named: title, context: modelContext)
         // The photo is attached to the LOG the service just returned rather
         // than looked up afterwards. Re-deriving it from `habit.logs` is
         // exactly the lookup that intermittently came back empty.
@@ -1798,10 +1823,6 @@ struct AddWinSheet: View {
             if initialCrews == nil { CrewChoice.save(crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
         }
-        // A plan line logged by name (from the row over the keyboard, or
-        // typed) is done on the plan too, so it does not wait there for a
-        // second win (`WinIdeas`).
-        WinIdeas.tickPlanLine(named: title, context: modelContext)
         finish(win.habit)
     }
 

@@ -77,7 +77,15 @@ enum DayComposing {
         let words = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return nil }
         let all = (try? context.fetch(FetchDescriptor<PlanItem>())) ?? []
-        if let already = onPlan(words, in: all) { return already }
+        if let already = onPlan(words, in: all) {
+            // One whose day went by is brought to today: the menu then says
+            // it is on your plan, and it is, on today's tower.
+            if already.isEarlier() {
+                already.day = DateUtils.dateString(from: Date())
+                try? context.save()
+            }
+            return already
+        }
         // Today's: seeing what a friend did turns into doing it today, and
         // it stands on your tower as an outline at once.
         let line = PlanItem(text: words, order: (all.map(\.order).max() ?? -1) + 1, category: colour,
@@ -88,10 +96,29 @@ enum DayComposing {
         return line
     }
 
-    /// The same words already waiting on the plan, not yet done.
-    static func onPlan(_ title: String, in all: [PlanItem]) -> PlanItem? {
+    /// The same words waiting on TODAY's plan, not yet done today.
+    ///
+    /// **Today's, in the plan's order** (found by review, 2026-10-11). It was
+    /// the first line anywhere with the words and no tick, in whatever order
+    /// the store returned them. Since lines got days that was wrong three
+    /// ways: logging "Study" today ticked Thursday's "Study" (which then
+    /// showed done on a day that had not come, and was cleared off the plan
+    /// overnight); a repeating line ticked on an earlier day, in an app that
+    /// had stayed open since, could not be found at all; and Do It Too said
+    /// a friend's win was planned when the line was for another day.
+    ///
+    /// After today's, a one-off whose day went by: doing it now is doing it.
+    /// Never one for a day still to come.
+    static func onPlan(_ title: String, in all: [PlanItem], on now: Date = Date(),
+                       calendar: Calendar = .current) -> PlanItem? {
         let words = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return all.first { $0.completedAt == nil && $0.text.compare(words, options: .caseInsensitive) == .orderedSame }
+        func same(_ line: PlanItem) -> Bool {
+            line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .compare(words, options: .caseInsensitive) == .orderedSame
+        }
+        let ordered = all.sorted { ($0.order, $0.createdAt) < ($1.order, $1.createdAt) }
+        return ordered.first { same($0) && $0.isOpen(on: now, calendar: calendar, today: now) }
+            ?? ordered.first { same($0) && $0.isEarlier(than: now) }
     }
 
     @discardableResult

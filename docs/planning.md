@@ -15,6 +15,11 @@ inference of ours.
   Photo, Log Without a Photo, Edit, Not Today.
 - **The plan sheet has a row of days**: Today, Tomorrow, the week, Repeating.
   Its bar adds to whichever is chosen. A pasted list becomes a line each.
+- **Under Repeating, seven letters choose the days** (2026-10-11): all on
+  is every day; press off the ones it is not for (Monday, Wednesday,
+  Friday). They stand with the field the line is typed in, in the add sheet
+  and above the plan's bar, and stay as set for the next line. Each line
+  says its days under its name.
 - **The add sheet has one word, Now.** Pressed, it is the same row of days
   with Now first; choose a day and the sheet writes plan lines, a line a
   Return.
@@ -74,6 +79,17 @@ app's older rule stands: an unfinished plan never expires by itself.
 
 **Skip Today** for a repeating line is kept beside the model, on this phone,
 by day: the model has one row per line and nowhere to put "not this Tuesday".
+
+**A win finds today's line, not any line with its name.** Logging "Study"
+today ticks today's "Study". Thursday's waits for Thursday. Before
+2026-10-11 the first unticked line with those words was ticked, whatever
+its day, and a ticked one-off is cleared overnight, so a plan for later in
+the week could vanish because of a win today.
+
+**Repeats, switched on in a line's sheet, keeps the line where it is.** A
+line for Saturday repeats on Saturdays until more days are pressed; it used
+to become Monday to Friday and leave its own day. Switched off again, it
+goes back to the day it had.
 
 ## What the references do
 

@@ -229,6 +229,150 @@ struct PlanningAheadTests {
         #expect(chips.contains("if on, days.count == 1"))
     }
 
+    // MARK: Found by the read of 2026-10-11
+
+    @Test("a win ticks the line open today, never another day's with the same words")
+    func ticksTodaysLine() {
+        let thursday = PlanItem(text: "Study", order: 0, day: name(5))
+        let todays = PlanItem(text: "study ", order: 1, day: name(0))
+        #expect(DayComposing.onPlan("Study", in: [thursday, todays], on: today, calendar: calendar) === todays)
+        // Done today already: there is nothing of today's to tick, and
+        // Thursday's is left for Thursday.
+        todays.completedAt = today
+        #expect(DayComposing.onPlan("Study", in: [thursday, todays], on: today, calendar: calendar) == nil)
+        // In the plan's order when two of today's share the words.
+        let first = PlanItem(text: "Study", order: 0, day: name(0))
+        let second = PlanItem(text: "Study", order: 3, day: name(0))
+        #expect(DayComposing.onPlan("Study", in: [second, first], on: today, calendar: calendar) === first)
+        // A repeating line ticked on a day gone by, in an app open since,
+        // is open today and is found.
+        let walk = PlanItem(text: "Walk", order: 0); walk.repeatDays = PlanScope.everyDay
+        walk.completedAt = day(-1)
+        #expect(DayComposing.onPlan("Walk", in: [walk], on: today, calendar: calendar) === walk)
+        // One whose day went by: doing it now is doing it.
+        let late = PlanItem(text: "Laundry", order: 0, day: name(-2))
+        #expect(DayComposing.onPlan("Laundry", in: [late], on: today, calendar: calendar) === late)
+    }
+
+    @Test("only a repeating line can be skipped for a day")
+    func skipIsARepeats() {
+        let suite = "skip-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let line = PlanItem(text: "Gym", order: 0); line.repeatDays = PlanScope.everyDay
+        PlanSkips.skip(line.id, on: Date(), defaults: defaults)
+        #expect(PlanSkips.isSkipped(line, on: Date(), defaults: defaults))
+        // Made a one-off in its own sheet: it is today's, and shown today.
+        line.repeatDays = []
+        #expect(!line.repeats && line.day == DateUtils.dateString(from: Date()))
+        #expect(!PlanSkips.isSkipped(line, on: Date(), defaults: defaults))
+    }
+
+    @Test("a repeat switched off does not keep a tick from a day gone by")
+    func repeatOffDropsAnOldTick() {
+        let line = PlanItem(text: "Gym", order: 0); line.repeatDays = [2, 4, 6]
+        line.completedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
+        line.repeatDays = []
+        #expect(line.completedAt == nil, "or it is a one-off done on no day, shown nowhere, and swept")
+        #expect(line.isOpen(on: Date(), calendar: .current))
+        let doneToday = PlanItem(text: "Read", order: 1); doneToday.repeatDays = [2, 4, 6]
+        let now = Date(); doneToday.completedAt = now
+        doneToday.repeatDays = []
+        #expect(doneToday.completedAt == now, "today's tick is today's")
+    }
+
+    @Test("a tick still waiting for its win at launch is taken back, unless the win is there")
+    func pendingTickIsSettled() throws {
+        let container = try ModelContainer(for: PlanItem.self, Habit.self, HabitLog.self,
+                                           configurations: .init(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let suite = "tick-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let line = PlanItem(text: "Call the landlord", order: 0, day: DateUtils.dateString(from: Date()))
+        line.completedAt = Date()
+        context.insert(line)
+        try context.save()
+        // Nothing waiting: nothing is touched.
+        PlanTickPending.settle(context: context, defaults: defaults)
+        #expect(line.completedAt != nil)
+        // The app closed with the add sheet up: no win was made.
+        PlanTickPending.hold(line.id, defaults: defaults)
+        PlanTickPending.settle(context: context, defaults: defaults)
+        #expect(line.completedAt == nil)
+        #expect(defaults.string(forKey: PlanTickPending.key) == nil, "settled once")
+        // The win was saved and only the note was left behind.
+        line.completedAt = Date()
+        let win = Habit(title: "Call the landlord", category: .health)
+        win.planItemID = line.id
+        context.insert(win)
+        try context.save()
+        PlanTickPending.hold(line.id, defaults: defaults)
+        PlanTickPending.settle(context: context, defaults: defaults)
+        #expect(line.completedAt != nil)
+    }
+
+    @Test("a win that ticks a line by name remembers the line")
+    func winRemembersTheLine() throws {
+        let container = try ModelContainer(for: PlanItem.self, Habit.self, HabitLog.self,
+                                           configurations: .init(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let line = PlanItem(text: "Gym", order: 0, day: DateUtils.dateString(from: Date()))
+        let later = PlanItem(text: "Gym", order: 1, day: DateUtils.dateString(from: Date().addingTimeInterval(3 * 86_400)))
+        let win = Habit(title: "Gym", category: .health)
+        context.insert(line); context.insert(later); context.insert(win)
+        #expect(WinIdeas.tickPlanLine(named: "gym", context: context, win: win) == line.id)
+        #expect(win.planItemID == line.id)
+        #expect(line.completedAt != nil && later.completedAt == nil, "the later day's line waits for its day")
+        // Nothing of today's left with those words: nothing is ticked.
+        #expect(WinIdeas.tickPlanLine(named: "Gym", context: context) == nil)
+        #expect(later.completedAt == nil)
+        // Made from a line: told which, and nothing is ticked by name.
+        let other = PlanItem(text: "Read", order: 2, day: DateUtils.dateString(from: Date()))
+        let twin = PlanItem(text: "Read", order: 3, day: DateUtils.dateString(from: Date()))
+        let read = Habit(title: "Read", category: .health)
+        context.insert(other); context.insert(twin); context.insert(read)
+        WinIdeas.winMade(read, from: twin.id, named: "Read", context: context)
+        #expect(read.planItemID == twin.id)
+        #expect(other.completedAt == nil && twin.completedAt == nil, "the caller ticks the line it opened")
+    }
+
+    @Test("Do It Too brings a line whose day went by to today")
+    func doItTooBringsItToToday() throws {
+        let container = try ModelContainer(for: PlanItem.self, Habit.self, HabitLog.self,
+                                           configurations: .init(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let past = DateUtils.dateString(from: Date().addingTimeInterval(-2 * 86_400))
+        let late = PlanItem(text: "Morning run", order: 0, day: past)
+        context.insert(late)
+        try context.save()
+        let line = DayComposing.doItToo("Morning run", colour: .health, size: .small, context: context)
+        #expect(line === late && late.day == DateUtils.dateString(from: Date()))
+        #expect(try context.fetch(FetchDescriptor<PlanItem>()).count == 1)
+    }
+
+    @Test("the review's fixes are where the code is")
+    func reviewFixesArePinned() throws {
+        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let made = try #require(add.range(of: "WinIdeas.winMade(win.habit, from: plannedLine, named: title, context: modelContext)"))
+        let attach = try #require(add.range(of: "guard await attach(photo, to: log) else {"))
+        #expect(made.lowerBound < attach.lowerBound, "the plan hears of the win before a photo can fail")
+        #expect(add.contains("&& (isPlanning || (photo == nil && doodle == nil))"),
+                "a sheet holding a picture is not offered a day; one whose picture was removed is")
+        let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
+        #expect(main.contains("onCamera: { if stillThere($0), !alreadyWon($0) { capturingPlan = $0 } }"))
+        #expect(main.contains("plannedLine: draft.planItemID"))
+        #expect(main.contains("PlanTickPending.hold(item.id)"))
+        let settle = try #require(main.range(of: "PlanTickPending.settle(context: modelContext)"))
+        let sweep = try #require(main.range(of: "PlanItem.sweep(context: modelContext)"))
+        #expect(settle.lowerBound < sweep.lowerBound, "before the sweep reads the tick as done")
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanItemDetailSheet.swift"))
+        #expect(sheet.contains("if on, set.count == 1"), "the last day cannot be pressed off")
+        #expect(sheet.contains("item.repeatDays = [calendar.component(.weekday, from: date)]"),
+                "Repeats on keeps the line on the day it had")
+        #expect(!sheet.contains("on ? [2, 3, 4, 5, 6] : []"))
+    }
+
     @Test("a line's own sheet can move it to another day")
     func dayFromTheLine() {
         #expect(PlanScope.of(day: name(0), today: today, calendar: calendar) == .day(0))

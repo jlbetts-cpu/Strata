@@ -525,7 +525,7 @@ struct PlanLines: View {
                 Label("Options", systemImage: "info.circle")
             }
             // Skipped for today from the tower: back on it from here.
-            if PlanSkips.isSkipped(item.id, on: Date()) {
+            if PlanSkips.isSkipped(item, on: Date()) {
                 Button {
                     PlanSkips.unskip(item.id, on: Date())
                     HapticsEngine.lightTap()
