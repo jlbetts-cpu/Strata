@@ -1195,6 +1195,28 @@ measured. `-strataSeedHistory <days>` uses it. Its seeded photos are written
 async save back with a semaphore deadlocks the main actor during launch and the
 app comes up blank. Measured, once.
 
+### On this day (2026-10-12)
+
+`Flashback` (pure, `Strata/Models/Flashback.swift`) makes one `Album` of
+kind `.day`, put first in `moments` by `MemoriesViewModel.refreshShelf`.
+Design, rubric and grade: `docs/flashback.md`. Rules that are easy to break:
+
+- **The exact date or nothing.** A rung is skipped when the date has no
+  counterpart (31 March has no "a month ago today").
+- **Under a year, at most once in seven days**, kept in
+  `memories.flashback.lastUnderAYear`. A year or more always shows.
+- **It is an album card, not a new thing.** No heading, no section, no
+  drawing of its own. Removal is `RemovedAlbums` (`day:<key>@<today>`, and
+  the family `moment:onThisDay` for Never Show Past Days).
+- **`PastWin.pick` uses the same rungs and titles**, so the 8pm line and
+  the card never name two different pasts.
+- The old `onThisDay` moment albums (three photos) are filtered off the
+  shelf; the flashback replaces them.
+- `-strataSeedFlashback <months>` seeds the smallest store that has one.
+- **Not on the first screen.** The owner removed a past-win line from under
+  the calendar on 2026-10-06. Ask before putting anything about the past
+  above the fold.
+
 ## Screenshots without a tap
 
 There is no accessibility permission for `osascript` on this machine, so

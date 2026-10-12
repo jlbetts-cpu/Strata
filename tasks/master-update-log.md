@@ -846,3 +846,33 @@ that a save is still running after about 3.5 seconds; in the failing runs
 the save had simply finished. I could not find what made it finish early
 those four times. No replay code changed. **Build 126 is in TestFlight for
 you only**; Friends have 125.
+
+## 12. While you were at the gym (2026-10-12)
+
+You asked for six things. What was done, in the order you asked.
+
+- **Tips no longer push the page down.** The tower's tip floats over the
+  page instead of taking a row. Memories' tip is decided once, when the
+  page is made, so it never arrives mid-visit.
+- **The album called "With".** A crew with no name of its own gave "With "
+  and nothing after it; it is now named by its people, or "With Your
+  Crew". And wins sent to two crews made two albums of the same photos;
+  the second is dropped.
+- **Onboarding asks your name**, as its last page, and Start waits for it.
+- **Ripples.** Dark was too loud and light could not be seen: the dark
+  step came down and the light one now darkens the page instead of
+  lightening it. **I could not catch one in a screenshot, so this is
+  judged by arithmetic, not by eye.** Tell me how it looks.
+- **The onboarding bar is a ring**, in five segments, one a page, drawn by
+  the goal ring's own stroke (30pt, 4pt line). Looked at in light and dark.
+- **On this day** (`docs/flashback.md`). One album card, first on the
+  Memories shelf: "A year ago today" (or two, or three), then "6 months
+  ago today", then "A month ago today", the furthest back that has a
+  photo. The exact date only; under a year, at most once in seven days.
+  A press opens that day. Hold it for Remove Album or Never Show Past
+  Days, with Undo; Settings brings it back. The 8pm past-win line uses the
+  same ladder and words. All 13 lines of the rubric pass; the grade and
+  what it did not ask are at the foot of that doc.
+  **Your call:** the card sits under the calendar, below the fold. You
+  took a past-win line off that first screen once, so I did not put this
+  one there.

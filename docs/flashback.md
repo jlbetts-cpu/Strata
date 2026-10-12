@@ -97,3 +97,31 @@ flashbacks, a second notification.
 "One tap to dismiss" is not on the list: in this app a hold is the menu
 (`docs/ten.md`, rule 2), so removing is a hold and a tap, as for every
 album.
+
+## The grade, 2026-10-12 (first build of it)
+
+| # | Line | Result | How it was checked |
+|---|---|---|---|
+| 1 | Honest dates, 2024 to 2028 | Pass | `FlashbackTests.honestDates`: every rung of 1,827 days; 31 March and 29 February give nothing false |
+| 2 | No photo, no card | Pass | `needsAPhoto` |
+| 3 | Under a year, at most one in seven days | Pass | `quiet`: a photo every day, 90 days, 12 cards, each at least 7 days after the last |
+| 4 | Remove is today only; Never is 400 days | Pass | `removing` |
+| 5 | A press opens the day, titled with its date | Pass | Screenshot: "Saturday 12 September" |
+| 6 | A fixed set of titles | Pass | `titles`: five strings |
+| 7 | First on the shelf, also in a month with no photos | Pass | `firstOnTheShelf`; screenshot of a store with nothing in October |
+| 8 | One card, nothing new drawn | Pass | `firstOnTheShelf`, `wiring`; the diff adds no view |
+| 9 | Nothing due: the page as it was | Pass, by reading | With a photo this month the gate and the gaps are the same values. **Not compared pixel for pixel** against the build before. One real difference, on purpose: in a month with no photos yet, "this week last year" now shows too, where it was hidden with the rest. |
+| 10 | Light and dark | Pass | Looked at both: no shadow, nothing white in dark |
+| 11 | Hold, Remove Album, Undo | Pass | Screenshots: the card goes, "Album removed  Undo", and it is back |
+| 12 | One photo, a month ago | Pass | `-strataSeedFlashback 1`: the card, its cover filled, the day opens |
+| 13 | VoiceOver | Pass | The card's label is "A month ago today, 12 SEP"; both removals are named actions |
+
+**What the rubric did not ask and should have.** The card is under the
+calendar, so on the first screen of Memories it is below the fold: you
+meet it by scrolling a little, or from the evening's line, which now uses
+the same ladder and the same words ("A month ago today: Morning Run") and
+opens that day. Putting anything about the past on the first screen is
+the thing the owner took off once, so it was not done without asking.
+
+**Not proven:** on a real phone with real photos; the simulator's stand-in
+photo is a flat colour.
