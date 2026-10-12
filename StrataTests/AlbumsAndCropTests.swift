@@ -112,7 +112,7 @@ struct AlbumsAndCropTests {
         #expect(!main.contains("guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil"))
         #expect(try code("Strata/Views/Crews/FirstWinInviteCard.swift").contains("await MainAppView.waitForRing()"))
         #expect(DayOneHint.drawOut == "Drag the slot sideways or up.")
-        #expect(PlannedHint.line == "Tap to take it. Hold for more.")
+        #expect(PlannedHint.line == "Tap one to finish it.")
         #expect(PlannedHint.line.count <= TipCopy.longestMessage && DayOneHint.drawOut.count <= TipCopy.longestMessage)
         let onboarding = try code("Strata/Views/OnboardingView.swift")
         #expect(onboarding.contains("if size != .small || reduceMotion { hasDrawn = true }"),

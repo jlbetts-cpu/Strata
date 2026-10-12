@@ -46,3 +46,13 @@ this (Take Photo, Choose from Library, Doodle). A planned win would open
 the same menu plus Log Without a Photo, in place of going straight to the
 camera. A block holding a photo would open Move, Replace, Remove. Then
 nothing is hold-only, and learning one block teaches all of them.
+
+
+## Done on 2026-10-11, night
+
+The owner chose the one rule: **a press on a block-shaped thing opens its
+short list.** A planned win opens Take Photo, Choose from Library, Log
+Without a Photo, Edit, Not Today. The add sheet's block opens Take Photo,
+Choose from Library, Doodle and its colours. Planning from the add sheet
+is the plan sheet itself. Expected ratings after: finish a planned win 9,
+plan from the add sheet 8, add a win 9. To be confirmed on a phone.

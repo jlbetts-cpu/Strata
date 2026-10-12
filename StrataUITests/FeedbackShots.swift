@@ -252,6 +252,10 @@ final class FeedbackShots: XCTestCase {
     /// but it is a UIKit field and the simulator's keyboard will not type
     /// into it reliably from a script, so that door is checked by hand.
     func testPlanningTomorrowIsQuick() {
+        // **Retired with the add sheet's own plan mode** (2026-10-11):
+        // choosing a day on Now opens the plan sheet itself, and a UI test
+        // cannot type into that sheet's UIKit bar on the simulator.
+        guard ProcessInfo.processInfo.environment["STRATA_OLD_PLAN_MODE"] != nil else { return }
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3"])
         wait(7)
         let started = Date()
@@ -287,8 +291,9 @@ final class FeedbackShots: XCTestCase {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
                           "-strataPlanOnTower", "1"])
         wait(8); snap("finish-0-tower")
+        // A press opens the menu now (2026-10-11); it was a hold.
         let outline = app.buttons["Planned: Run the loop"].firstMatch
-        outline.press(forDuration: 1.2)
+        outline.tap()
         wait(1); snap("finish-1-menu")
         app.buttons["Log Without a Photo"].firstMatch.tap()
         wait(3); snap("finish-2-sheet")
@@ -302,6 +307,10 @@ final class FeedbackShots: XCTestCase {
     /// day, a line a Return, Plan; and what was planned for later today
     /// standing on the tower as outlines.
     func testPlanningFromTheAddSheet() {
+        // **Retired with the add sheet's own plan mode** (2026-10-11):
+        // choosing a day on Now opens the plan sheet itself, and a UI test
+        // cannot type into that sheet's UIKit bar on the simulator.
+        guard ProcessInfo.processInfo.environment["STRATA_OLD_PLAN_MODE"] != nil else { return }
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
         wait(7); snap("plan-add-0")
         app.buttons["When: now"].firstMatch.tap()
@@ -338,25 +347,37 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("move-4-block")
     }
 
-    /// "Gym @ 2": typed where any plan is typed, read back on the tower's
-    /// outline and under the line in the plan (the owner, 2026-10-11).
+    /// "Gym @ 2" typed on the add sheet, then a day chosen on Now: the plan
+    /// sheet opens on that day with the line in it and its time read back
+    /// (the owner, 2026-10-11).
     func testPlanTime() {
-        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add",
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add",
                           "-hint.planned.shown", "YES"])
         wait(7)
-        app.buttons["When: now"].firstMatch.tap()
-        wait(1)
-        app.buttons["Later today"].firstMatch.tap()
-        wait(1)
-        app.typeText("Gym @ 2\n")
-        app.typeText("Call Mum @ 6:30\n")
-        app.typeText("Laundry")
+        app.typeText("Gym @ 2")
         wait(1); snap("time-0-typed")
-        app.buttons["Plan"].firstMatch.tap()
-        wait(4); snap("time-1-tower")
-        app.terminate()
-        app = launch(["-strataStartTab", "tower", "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-hint.planned.shown", "YES"])
-        wait(8); snap("time-2-plan")
+        app.buttons["When: now"].firstMatch.tap()
+        wait(1); snap("time-1-row")
+        app.buttons["Later today"].firstMatch.tap()
+        wait(4); snap("time-2-plan")
+        let done = app.buttons["Done"].firstMatch
+        if done.waitForExistence(timeout: 3) { done.tap() }
+        wait(3); snap("time-3-tower")
+    }
+
+    /// The block's own menu on the add sheet: three ways to fill it and its
+    /// colour, which left the sheet's own row (the owner, 2026-10-11).
+    func testBlockMenu() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
+        wait(7); snap("block-0-sheet")
+        app.buttons["Add a photo"].firstMatch.tap()
+        wait(2); snap("block-1-menu")
+        let work = app.buttons["work"].firstMatch
+        if work.waitForExistence(timeout: 3) { work.tap() }
+        wait(1); snap("block-2-colour")
+        let doodle = app.buttons["Doodle"].firstMatch
+        if doodle.waitForExistence(timeout: 3) { doodle.tap() }
+        wait(3); snap("block-3-doodle")
     }
 
     /// The `+` slot beside planned wins, and alone on an empty tower (the
@@ -376,6 +397,10 @@ final class FeedbackShots: XCTestCase {
     /// Monday, Wednesday and Friday, chosen where the line is written (the
     /// owner, 2026-10-11): in the add sheet, then as the plan shows it.
     func testRepeatingOnSomeDays() {
+        // **Retired with the add sheet's own plan mode** (2026-10-11):
+        // choosing a day on Now opens the plan sheet itself, and a UI test
+        // cannot type into that sheet's UIKit bar on the simulator.
+        guard ProcessInfo.processInfo.environment["STRATA_OLD_PLAN_MODE"] != nil else { return }
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
         wait(7)
         app.buttons["When: now"].firstMatch.tap()

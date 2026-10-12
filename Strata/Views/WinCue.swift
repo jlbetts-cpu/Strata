@@ -77,6 +77,6 @@ nonisolated enum DayOneHint {
 nonisolated enum PlannedHint {
     static let title = "Planned wins wait here"
     // One line beside the mark (`TipCopy.longestMessage`).
-    static let line = "Tap to take it. Hold for more."
+    static let line = "Tap one to finish it."
     static let shownKey = "hint.planned.shown"
 }

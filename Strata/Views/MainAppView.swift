@@ -219,6 +219,11 @@ struct MainAppView: View {
     /// The planned win whose camera is open, and the one being changed.
     @State private var capturingPlan: PlanItem?
     @State private var pickingPlan: PlanItem?
+    /// A day chosen on the add sheet's Now, and any words typed there: the
+    /// plan sheet opens on it once the add sheet has left (`AddWinSheet
+    /// .onPlan`).
+    @State private var planHandoff: (scope: PlanScope, words: String)?
+    @State private var planOpeningScope: PlanScope?
     @State private var editingPlan: PlanItem?
     /// Bumped when a line is skipped for today, which is kept beside the
     /// model (`PlanSkips`) and so is not something a query notices.
@@ -625,6 +630,8 @@ struct MainAppView: View {
         .sheet(isPresented: $isPlanning, onDismiss: {
             // What was planned in there is what tomorrow's cue should say.
             scheduleReminder()
+            // The next opening is an ordinary one: on today, keyboard down.
+            planOpeningScope = nil
             if let pending = pendingDraft {
                 winDraft = pending
                 pendingDraft = nil
@@ -634,7 +641,7 @@ struct MainAppView: View {
             // 2026-10-05). It replaced the Plan sheet and today's Journal
             // sheet, then was one mixed page for an evening.
             DaySheet(dateString: DateUtils.dateString(from: Date()),
-                     tabs: .wins, opening: dayOpeningTab, onThree: { three in
+                     tabs: .wins, opening: dayOpeningTab, scope: planOpeningScope, onThree: { three in
                 // One of your three, from the top of the plan: written in the
                 // add sheet, small, in its colour (a typed one with no colour
                 // takes the one it was last logged in, as the ideas do).
@@ -659,9 +666,25 @@ struct MainAppView: View {
             // before `openDay` has picked the tab, and a `@State` keeps the
             // first value it is given, so a day last left on the Journal
             // reopened on the Plan. A new opening is a new sheet.
-            .id(dayOpeningTab)
+            .id("\(dayOpeningTab)|\(planOpeningScope.map { "\($0)" } ?? "")")
         }
         .sheet(item: $winDraft, onDismiss: {
+            // **To the plan, on the day chosen on Now.** Words already in
+            // the name field are the first line.
+            if let handoff = planHandoff {
+                planHandoff = nil
+                if DayComposing.hasWords(handoff.words) {
+                    let all = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+                    _ = DayComposing.addPlanLines(handoff.words, after: all, habits: habits, context: modelContext,
+                                                  day: handoff.scope.date() ?? Date(),
+                                                  repeatDays: handoff.scope == .repeating ? PlanScope.everyDay : [])
+                    plannedNudge += 1
+                }
+                planOpeningScope = handoff.scope
+                dayOpeningTab = .plan
+                isPlanning = true
+                return
+            }
             let saved = tickAwaitingWin == nil
             // Closed without saving: put the line back the way it was.
             if let id = tickAwaitingWin {
@@ -698,6 +721,7 @@ struct MainAppView: View {
                 initialColour: draft.colour,
                 initialCrews: draft.crews,
                 plannedLine: draft.planItemID,
+                onPlan: { scope, words in planHandoff = (scope, words) },
                 onSaved: { habit in
                     if let id = draft.planItemID {
                         // The win remembers the line, so deleting it later can

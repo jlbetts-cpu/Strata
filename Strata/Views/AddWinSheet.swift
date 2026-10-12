@@ -53,6 +53,15 @@ struct AddWinSheet: View {
     /// The plan line this win is being made from (its box, or its outline
     /// on the tower). The caller ticks that line; nothing is ticked by name.
     var plannedLine: UUID? = nil
+    /// **A day chosen on Now goes to the plan sheet** (the owner's pick,
+    /// 2026-10-11, "make it the plan sheet's bar"). The add sheet had a
+    /// plan mode of its own: a bold field at the top where the plan types
+    /// in a bar at the foot, a Return that behaved differently, and only
+    /// this sitting's lines listed. Rather than build the plan sheet a
+    /// second time in here, choosing a day closes this sheet and opens that
+    /// one, on that day, ready to write. Anything already typed goes with
+    /// it as the first line. Nil keeps the old in-sheet mode.
+    var onPlan: ((PlanScope, String) -> Void)? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -111,6 +120,9 @@ struct AddWinSheet: View {
     @State private var categoryChosen = false
     @State private var showCamera = false
     @State private var choosingSource = false
+    /// What the block's menu was asked for, done once the menu has closed.
+    private enum BlockChoice { case camera, library, doodle, move }
+    @State private var afterMenu: BlockChoice?
     /// **A doodle instead of a photograph** (`BlockDoodleSheet`): its strokes,
     /// its stickers and the canvas they were drawn on, until the win is saved.
     @State private var doodle: PKDrawing?
@@ -350,6 +362,14 @@ struct AddWinSheet: View {
                                         withAnimation(GridConstants.crossFade) { planFor = nil }
                                     }
                                 }
+                                .onChange(of: planFor) { _, scope in
+                                    guard let scope, let onPlan else { return }
+                                    let words = title
+                                    title = ""
+                                    planFor = nil
+                                    onPlan(scope, words)
+                                    dismiss()
+                                }
                         }
                         if planFor == .repeating {
                             WeekdayChips(days: $planDays)
@@ -462,27 +482,20 @@ struct AddWinSheet: View {
         // is `Take Photo`, `Choose from Library`, `Remove Photo` and `Cancel`,
         // which say it four times over. `Text(verbatim:)` rather than a bare
         // "" so it is not offered to the localiser as a string to translate.
-        .confirmationDialog(Text(verbatim: ""), isPresented: $choosingSource, titleVisibility: .hidden) {
-            Button("Take Photo") { showCamera = true }
-            Button("Choose from Library") { showLibrary = true }
-            // **Doodle lives here** (2026-10-10): a block is a photograph or
-            // a drawing, so drawing one is the third way to fill it, beside
-            // the two ways to get a photograph.
-            Button(doodle == nil ? "Doodle" : "Edit Doodle") { doodling = true }
-            if photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    photo = nil
-                    photoChanged = true
+        // What the block's menu chose opens once the menu has left: a
+        // sheet asked for while a popover is still going is dropped.
+        .onChange(of: choosingSource) { _, shown in
+            guard !shown, let next = afterMenu else { return }
+            afterMenu = nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                switch next {
+                case .camera: showCamera = true
+                case .library: showLibrary = true
+                case .doodle: doodling = true
+                case .move: movingPhoto = true
                 }
             }
-            if doodle != nil {
-                Button("Remove Doodle", role: .destructive) {
-                    doodle = nil
-                    doodleStickers = []
-                    doodleChanged = true
-                }
-            }
-            Button("Cancel", role: .cancel) { }
         }
         .fullScreenCover(isPresented: $peeking) { peekCover }
         .sheet(isPresented: $doodling) {
@@ -962,15 +975,13 @@ struct AddWinSheet: View {
                     // photograph and the block needs its colour back, and
                     // silently discarding a choice somebody made would be
                     // worse than hiding the control.
-                    if photo == nil || isEditing {
-                        categoryControl
-                            // Under Reduce Motion the row fades and does not
-                            // travel (design review, 2026-10-02): it was the
-                            // one moving transition on this sheet with no gate.
-                            .transition(reduceMotion
-                                        ? .opacity
-                                        : .opacity.combined(with: .move(edge: .top)))
-                    }
+                    // **The colour row left this sheet on 2026-10-11** (the
+                    // owner: "for the category colors I feel like that
+                    // might be just clutter ... incorporate it in the doodle
+                    // menu and still do the random color"). It is in the
+                    // block's own menu now (`blockMenu`), with its drawings:
+                    // press the block. A new win still takes the colour the
+                    // tower has least of, so nothing has to be chosen.
                     sizeControl
         }
         // `gapSection`, not `gapPage`: the name and what the block is are one
@@ -1466,6 +1477,10 @@ struct AddWinSheet: View {
         // the card being pressed. See `PressResponse.pressSurface`; this well is
         // the biggest pressable surface in the app and had no answer at all.
         .buttonStyle(.pressSurface)
+        .popover(isPresented: $choosingSource, arrowEdge: .top) {
+            blockMenu
+                .presentationCompactAdaptation(.popover)
+        }
         // **On the photograph, and it was on the whole sheet** (design review,
         // 2026-10-02). The menu was attached to the `NavigationStack`, so once a
         // win had a picture a long press ANYWHERE on the sheet, on the name,
@@ -1476,6 +1491,10 @@ struct AddWinSheet: View {
         // already have it, and as Photos does: these are buttons, and the
         // same action was spelled two ways depending on which door you used.
         .contextMenu {
+            // The colour is always here, by name, for a block that shows
+            // none (a photographed win keeps a colour for the tower's own
+            // uses and for Focus filters).
+            ColourMenuPicker(category: $category) { _ in categoryChosen = true }
             if photo != nil {
                 // Where the block's window sits on the picture (`CropEditor`).
                 Button("Move Photo", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
@@ -1531,6 +1550,66 @@ struct AddWinSheet: View {
     /// What is left here is the one thing that is genuinely this sheet's:
     /// `showsSelection`, because only this sheet can be showing a photograph
     /// over the colour it is choosing.
+    /// **The block's menu**: the three ways to fill it, what can be done to
+    /// what is on it, and its colour. It was the system's sheet of choices,
+    /// which holds words only; the colour row needs its swatches and their
+    /// drawings, so the menu is the app's own, hung off the block.
+    private var blockMenu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            menuRow("Take Photo", "camera") { pick(.camera) }
+            menuRow("Choose from Library", "photo.on.rectangle") { pick(.library) }
+            // **Doodle lives here** (2026-10-10): a block is a photograph or
+            // a drawing, so drawing one is the third way to fill it.
+            menuRow(doodle == nil ? "Doodle" : "Edit Doodle", "pencil.tip") { pick(.doodle) }
+            if photo != nil {
+                menuRow("Move Photo", "arrow.up.and.down.and.arrow.left.and.right") { pick(.move) }
+                menuRow("Remove Photo", "trash", destructive: true) {
+                    photo = nil
+                    photoChanged = true
+                    choosingSource = false
+                }
+            }
+            if doodle != nil {
+                menuRow("Remove Doodle", "trash", destructive: true) {
+                    doodle = nil
+                    doodleStickers = []
+                    doodleChanged = true
+                    choosingSource = false
+                }
+            }
+            // The colour, with its drawings and its name, where the block
+            // is. A photographed block shows no colour, so it is not asked.
+            if photo == nil {
+                categoryControl
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .padding(.top, GridConstants.gapTight)
+            }
+        }
+        .padding(.vertical, GridConstants.gapTight)
+        .frame(width: 320, alignment: .leading)
+    }
+
+    private func pick(_ choice: BlockChoice) {
+        afterMenu = choice
+        choosingSource = false
+    }
+
+    private func menuRow(_ title: String, _ symbol: String, destructive: Bool = false,
+                         action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(destructive ? AppColors.destructiveInk : AppColors.inkPrimary)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+    }
+
     private var categoryControl: some View {
         ColourSwatchRow(category: $category,
                         showsSelection: showsSelection,

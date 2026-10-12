@@ -314,3 +314,22 @@ struct ColourSwatchRow: View {
         .accessibilityLabel("Colour")
     }
 }
+
+/// **The same choice, as a system menu's list**: for a hold menu, where a
+/// row of swatches cannot go. Defined here, beside `ColourSwatchRow`, so
+/// there is still one place that walks the categories to offer a colour
+/// (`ConsistencyTests`).
+struct ColourMenuPicker: View {
+    @Binding var category: HabitCategory
+    var onPick: (HabitCategory) -> Void = { _ in }
+
+    var body: some View {
+        Menu("Colour") {
+            Picker("Colour", selection: Binding(get: { category }, set: { category = $0; onPick($0) })) {
+                ForEach(HabitCategory.selectable, id: \.self) { option in
+                    Label(option.rawValue.capitalized, systemImage: option.iconName ?? "circle").tag(option)
+                }
+            }
+        }
+    }
+}

@@ -152,6 +152,9 @@ struct PlannedOutlines: View {
     var onEdit: (PlanItem) -> Void
     var onNotToday: (PlanItem) -> Void
 
+    /// The planned win whose choices are showing.
+    @State private var choosing: PlanItem?
+
     private struct Placed: Identifiable {
         let item: PlanItem
         let frame: CGRect
@@ -172,24 +175,35 @@ struct PlannedOutlines: View {
     }
 
     private func outline(_ item: PlanItem, frame: CGRect) -> some View {
+        // **A press opens the menu** (the owner's pick, 2026-10-11, over
+        // press = camera). It is a checkbox, and a press that opened the
+        // camera surprised anyone who only meant to tick it, while the
+        // library and "without a photo" sat behind a hold nobody could see.
+        // The same short menu the add sheet's empty block opens, so one
+        // block teaches the other (`docs/flows.md`).
+        // (As the system's sheet of choices, which is what that block
+        // opens: a `Menu` round interactive glass never opened on a tap,
+        // the pairing `CrewReactions` records as swallowing taps.)
         Button {
             HapticsEngine.lightTap()
-            onCamera(item)
+            choosing = item
         } label: {
             PlannedOutline(title: PlanTime.title(item.text), time: PlanTime.label(for: item.text),
                            cornerRadius: cornerRadius, side: frame.width)
         }
         .buttonStyle(.pressSurface)
-        // **Hold is the menu**, as on a plan line: a recogniser of its own
-        // on something in the tower starves the tower's scroll (CLAUDE.md),
-        // and the system's does not.
+        .modifier(OutlineChoices(title: PlanTime.title(item.text),
+                                 isPresented: Binding(get: { choosing?.id == item.id },
+                                                      set: { if !$0, choosing?.id == item.id { choosing = nil } }),
+                                 choices: { menu(item) }))
+        // A hold opens the same choices, as on a plan line.
         .contextMenu { menu(item) }
         .frame(width: frame.width, height: frame.height)
         .offset(x: frame.minX, y: gridHeight - frame.minY - frame.height)
         .transition(.scale(scale: 0.86).combined(with: .opacity))
         .accessibilityLabel(["Planned: \(PlanTime.title(item.text))", PlanTime.label(for: item.text)]
             .compactMap { $0 }.joined(separator: ", "))
-        .accessibilityHint("Opens the camera to finish it.")
+        .accessibilityHint("Shows the ways to finish it.")
         // The hold's own items, by name (one builder: a chain of four
         // named actions was past what the type checker would solve).
         .accessibilityActions { named(item) }
@@ -214,6 +228,21 @@ struct PlannedOutlines: View {
         Button("Log Without a Photo", systemImage: "checkmark") { onLog(item) }
         Button("Edit", systemImage: "pencil") { onEdit(item) }
         Button(item.repeats ? "Skip Today" : "Not Today", systemImage: "moon.zzz") { onNotToday(item) }
+    }
+}
+
+/// The choices a press on a planned win opens, as their own modifier so
+/// the outline's chain stays short enough to type-check.
+private struct OutlineChoices<Choices: View>: ViewModifier {
+    let title: String
+    @Binding var isPresented: Bool
+    @ViewBuilder var choices: () -> Choices
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(title, isPresented: $isPresented, titleVisibility: .visible) {
+            choices()
+            Button("Cancel", role: .cancel) { }
+        }
     }
 }
 
@@ -297,7 +326,7 @@ struct PlannedCapture: ViewModifier {
             // the add sheet holding the photo once the picker has left, as
             // the camera's does.
             .photosPicker(isPresented: Binding(get: { picking.wrappedValue != nil },
-                                               set: { if !$0, picked == nil { picking.wrappedValue = nil } }),
+                                               set: { if !$0, picked == nil, picking.wrappedValue != nil { picking.wrappedValue = nil } }),
                           selection: $picked, matching: .images)
             .onChange(of: picked) { _, chosen in
                 guard let chosen, let item = picking.wrappedValue else { return }

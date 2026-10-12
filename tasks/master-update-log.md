@@ -745,3 +745,56 @@ earlier calls).
 run) passed with no failure before the last three changes; those were
 checked by unit tests and on screen, not by a second full run.
 **Builds 122 and 123 are in TestFlight for you only.** Friends are on 121.
+
+
+## 10. Your three picks, and what you asked for before bed (2026-10-11, night)
+
+You answered three questions, all with the recommended choice, then said to
+finish everything and test it before uploading again.
+
+**A press on a planned win opens its choices.** Take Photo, Choose from
+Library, Log Without a Photo, Edit, Not Today. It opened the camera, and
+everything else was behind a hold nobody could see. (A system `Menu` round
+the glass never opened on a tap, the same fault recorded for the crew's
+glass; it is the sheet of choices the add sheet's block used.) A hold
+still opens the same list.
+
+**Colours live in the block's menu.** The colour row is off the add sheet
+and the edit sheet. Press the block: Take Photo, Choose from Library,
+Doodle, and under them the six colours with their drawings. A new win
+still takes the colour the tower has least of. A block holding a photo
+shows no colour, so its colour is in the hold menu, by name. The strip's
+paper list shows each category's glyph. This overturns three earlier calls
+of yours, on your say: the visible colour name, colour "optional, in
+Edit", and the plan line's sheet matching the edit sheet (the plan line's
+sheet still has its row).
+
+**Planning from the add sheet is the plan sheet.** Choosing a day on Now
+closes the add sheet and opens the plan sheet on that day with its bar
+ready. Anything already typed goes with it as the first line. So there is
+one place plans are written, and the two cannot differ. The add sheet's
+own plan mode is still in the file, unused; it comes out next.
+**The 15 second test** was timed on the old mode. A UI test cannot type
+into the plan sheet's bar on the simulator, so that timing is unproven on
+the new path until you try it: Now, Tomorrow, type, Return, type, Return.
+
+**The tip card has your head**, alive (it blinks, looks about, answers a
+tap), at the crew drawing's height, so both cards are one size.
+
+**A bug I shipped to you in build 123 and caught after.** With the photo
+library added to planned wins, a replay's Close button stopped closing it.
+The picker's binding wrote state every time any screen changed, which
+redrew the main screen under the replay. Fixed, and the replay test passes
+again. **Do not judge replays on 123.**
+
+**Still not done, honestly:**
+- Your Three are not in backups.
+- Seven pieces of duplicated code that look the same today (`docs/ten.md`,
+  rules 1 and 7).
+- Move Photo on the strip was never seen on screen (the simulator's strip
+  has one flat picture).
+- A crew send that is waiting or failed still looks sent (needs real
+  iCloud).
+- No alert at a plan's time; lines are not sorted by time.
+- Making your own album; strip templates; scanning a journal page: research
+  only, in `docs/research-2026-10-11.md`.

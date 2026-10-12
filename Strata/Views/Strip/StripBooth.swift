@@ -610,7 +610,15 @@ struct StripBooth: View {
         Menu {
             Picker("Paper", selection: Binding(get: { paper }, set: { choosePaper($0) })) {
                 ForEach(StripPaper.allCases) { option in
-                    Text(option.name).tag(option)
+                    // A category's own glyph beside its name, as the add
+                    // sheet's colours have (the owner, 2026-10-11: "make
+                    // sure they both use the category icons"). Black and
+                    // white are papers, not categories, and have none.
+                    if let symbol = option.category?.iconName {
+                        Label(option.name, systemImage: symbol).tag(option)
+                    } else {
+                        Text(option.name).tag(option)
+                    }
                 }
             }
         } label: {

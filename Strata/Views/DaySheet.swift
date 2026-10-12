@@ -316,15 +316,25 @@ struct DaySheet: View {
 
     /// `opening` is the tab to show first; a past day's set has only the
     /// Journal, so it opens there whatever is passed.
-    init(dateString: String, tabs: DayTabSet, opening: DayTab = .plan,
+    ///
+    /// `scope` opens the plan on that day (or Repeating) with its bar ready
+    /// to write in: what the add sheet's Now hands over when a day is
+    /// chosen there (2026-10-11), so planning from Add IS this sheet and the
+    /// two cannot differ.
+    init(dateString: String, tabs: DayTabSet, opening: DayTab = .plan, scope: PlanScope? = nil,
          onThree: ((YourThree.Item) -> Void)? = nil,
          onComplete: @escaping (PlanItem) -> Void = { _ in }) {
         self.dateString = dateString
         self.tabSet = tabs
         self.onThree = onThree
         self.onComplete = onComplete
+        self.writesOnOpen = scope != nil
         _tab = State(initialValue: tabs.opening(opening))
+        _planScope = State(initialValue: scope ?? Self.openingScope)
     }
+
+    /// Opened from the add sheet to plan: the bar takes the keyboard.
+    private let writesOnOpen: Bool
 
     private var isToday: Bool { dateString == DateUtils.dateString(from: Date()) }
 
@@ -503,6 +513,13 @@ struct DaySheet: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        // Once the sheet has risen: a field focused in a sheet still
+        // rising drops the keyboard again.
+        .task {
+            guard writesOnOpen else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            planFocus = planComposerID
+        }
         // Where a deleted line's Undo shows: over the list, above the bar.
         .undoLine()
         .safeAreaInset(edge: .bottom, spacing: 0) {

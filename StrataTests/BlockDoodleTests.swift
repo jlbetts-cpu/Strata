@@ -87,12 +87,17 @@ struct BlockDoodleTests {
         // tile; it now holds the decision that replaced it: no tile in the
         // strip, and Doodle offered where a photograph is chosen.
         #expect(!sheet.contains("doodleTile("), "the pen tile is back in the photo strip")
-        let menu = try #require(sheet.components(separatedBy: "isPresented: $choosingSource").dropFirst().first)
-        let choices = menu.components(separatedBy: "Button(\"Cancel\"").first ?? ""
+        // The menu is the app's own since 2026-10-11 (`blockMenu`, hung off
+        // the block, so the colour row can live in it); what is held is
+        // the same: three ways to fill a block, and Doodle is one.
+        let menu = try #require(sheet.components(separatedBy: "private var blockMenu: some View {").dropFirst().first)
+        let choices = menu.components(separatedBy: "private func pick(").first ?? ""
         #expect(choices.contains("Take Photo") && choices.contains("Choose from Library"))
-        #expect(choices.contains("\"Doodle\"") && choices.contains("doodling = true"),
+        #expect(choices.contains("\"Doodle\"") && choices.contains("pick(.doodle)"),
                 "Doodle is a way to fill the block, beside the two ways to get a photograph")
+        #expect(sheet.contains("case .doodle: doodling = true"))
         #expect(choices.contains("Remove Doodle"))
+        #expect(choices.contains("categoryControl"), "the colour is chosen in the block's menu")
         // The first thing after the block in the strip is a photograph (or
         // the tile that asks for the library), never a tool.
         let strip = try #require(sheet.components(separatedBy: "private func photoStrip").dropFirst().first)

@@ -77,6 +77,9 @@ struct HouseCardView: View {
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
                     .multilineTextAlignment(.center)
+                    // Room for two lines on both cards, so one is not a
+                    // line shorter than the other.
+                    .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button {
@@ -134,7 +137,19 @@ struct HouseCardView: View {
                     .accessibilityHidden(true)
             }
         case .tip:
-            MarkWell(mark: "MarkHeart")
+            // **His own head, alive** (the owner, 2026-10-11: "the leave a
+            // tip should be the same size as the crew one, but could you
+            // instead add my black and white head with all the animations
+            // there"). "Made by one person", and there he is: it blinks,
+            // looks about and answers a tap, as it does in onboarding. At
+            // the crew drawing's height, so the two cards are one size.
+            if let rig = HeadRig.creatorRig {
+                TappableHead(rig: rig, side: 96, greets: true)
+                    .frame(width: 96, height: 96)
+                    .accessibilityHidden(true)
+            } else {
+                MarkWell(mark: "MarkHeart")
+            }
         }
     }
 }

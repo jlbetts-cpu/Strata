@@ -1867,6 +1867,17 @@ placeholder ... a user should be able to plan their entire next day in under
   back from Settings. Never touches a win or a photo.
 - **Move Photo** is `CropEditor`: the camera's own `crop` number, for a
   block (the add sheet's menu) and a strip frame (`StripKeeping.crops`).
+- **A press on a planned win opens its choices** (a `confirmationDialog`;
+  a `Menu` round interactive glass does not open on a tap). **The add
+  sheet has no colour row**: colour is in the block's own menu
+  (`blockMenu`, a popover with `ColourSwatchRow`) and, for a photographed
+  block, in its hold menu (`ColourMenuPicker`). **A day chosen on the add
+  sheet's Now opens the plan sheet** on that day (`AddWinSheet.onPlan`,
+  `DaySheet(scope:)`); do not rebuild a plan mode inside the add sheet.
+  All three were the owner's picks, 2026-10-11.
+- **A `.photosPicker`/sheet binding's setter must not write when nothing
+  changed**: one that did redrew the main screen on every presentation
+  change and a replay's Close stopped working (build 123).
 - **A plan's time is in its words** (`PlanTime`, "Gym @ 2"): parsed from
   the end of the line for display only. Never a stored field. The win made
   from the line is called by `PlanTime.title`.
