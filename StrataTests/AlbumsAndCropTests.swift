@@ -154,3 +154,50 @@ struct AlbumsAndCropTests {
         #expect(try code("Strata/Views/AddWinSheet.swift").contains("if !isEditing, !isPlanning, !ideas.isEmpty { ideaRow }"))
     }
 }
+
+/// **A time, typed into a plan line** (the owner, 2026-10-11: "gym @ 2 ...
+/// super simple and optional").
+@MainActor
+@Suite("A time in a plan line")
+struct PlanTimeTests {
+    @Test("the end of the line is read as a time, the way a person planning a day means it")
+    func parses() {
+        #expect(PlanTime.parse("Gym @ 2") == .init(title: "Gym", minutes: 14 * 60))
+        #expect(PlanTime.parse("gym @2:30") == .init(title: "gym", minutes: 14 * 60 + 30))
+        #expect(PlanTime.parse("Class @ 9") == .init(title: "Class", minutes: 9 * 60), "nine is the morning")
+        #expect(PlanTime.parse("Run @ 7pm") == .init(title: "Run", minutes: 19 * 60))
+        #expect(PlanTime.parse("Call Mum at 6") == .init(title: "Call Mum", minutes: 18 * 60))
+        #expect(PlanTime.parse("Flight @ 14:05") == .init(title: "Flight", minutes: 14 * 60 + 5))
+        #expect(PlanTime.parse("Sleep @ 12am") == .init(title: "Sleep", minutes: 0))
+        #expect(PlanTime.parse("Lunch @ 12") == .init(title: "Lunch", minutes: 12 * 60))
+    }
+
+    @Test("a line with no time is exactly what was typed")
+    func leavesTheRestAlone() {
+        for line in ["Gym", "Email sam@school.edu", "Lunch at Sam's", "Read chapter 2", "@ 2", "Meet @ 25", "Run @ 2:75", "Top 10"] {
+            #expect(PlanTime.parse(line) == nil, "\(line) is not a line with a time")
+            #expect(PlanTime.title(line) == line)
+        }
+    }
+
+    @Test("the win is called by the line without its time, and a win by that name ticks it")
+    func titleAndTick() {
+        #expect(PlanTime.title("Gym @ 2") == "Gym")
+        let today = DateUtils.date(from: "2026-10-10")!
+        let line = PlanItem(text: "Gym @ 2", order: 0, day: "2026-10-10")
+        #expect(DayComposing.onPlan("gym", in: [line], on: today, calendar: .current) === line)
+        #expect(DayComposing.onPlan("Gym @ 2", in: [line], on: today, calendar: .current) === line)
+    }
+
+    @Test("the time is shown under the line with its days, and on the hour reads short")
+    func shown() {
+        let locale = Locale(identifier: "en_US")
+        #expect(PlanTime.label(14 * 60, locale: locale).replacingOccurrences(of: "\u{202F}", with: " ") == "2 PM")
+        #expect(PlanTime.label(14 * 60 + 30, locale: locale).replacingOccurrences(of: "\u{202F}", with: " ") == "2:30 PM")
+        let line = PlanItem(text: "Gym @ 2", order: 0)
+        line.repeatDays = [2, 4, 6]
+        let subtitle = PlanLines.subtitle(for: line, calendar: .current) ?? ""
+        #expect(subtitle.hasSuffix(" · Mon Wed Fri") && subtitle.contains("2"))
+        #expect(PlanLines.subtitle(for: PlanItem(text: "Gym", order: 0), calendar: .current) == nil)
+    }
+}

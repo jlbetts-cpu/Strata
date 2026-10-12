@@ -398,8 +398,9 @@ struct PlanningAheadTests {
         let outline = SourceSweep.code(try SourceSweep.read("Strata/Views/PlannedBlocks.swift"))
         #expect(outline.contains("AppColors.slotInk.opacity(SlotPane.edge(scheme))"))
         #expect(!outline.contains(".opacity(0.82)"), "not dimmed behind the slot")
-        let words = try #require(outline.range(of: ".font(BlockContentOverlay.titleFont)"))
-        #expect(outline[words.upperBound...].hasPrefix("\n                    .foregroundStyle(AppColors.inkPrimary)"),
+        // The title's own lines (the time beside the box wears the same
+        // face, quieter, since 2026-10-11).
+        #expect(outline.contains("Text(title)\n                    .font(BlockContentOverlay.titleFont)\n                    .foregroundStyle(AppColors.inkPrimary)"),
                 "the block's face at full strength, not the secondary grey")
     }
 

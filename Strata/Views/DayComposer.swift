@@ -112,9 +112,10 @@ enum DayComposing {
     static func onPlan(_ title: String, in all: [PlanItem], on now: Date = Date(),
                        calendar: Calendar = .current) -> PlanItem? {
         let words = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // By what the win is called: "Gym" ticks "Gym @ 2" (`PlanTime`).
+        let wanted = PlanTime.title(words)
         func same(_ line: PlanItem) -> Bool {
-            line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                .compare(words, options: .caseInsensitive) == .orderedSame
+            PlanTime.title(line.text).compare(wanted, options: .caseInsensitive) == .orderedSame
         }
         let ordered = all.sorted { ($0.order, $0.createdAt) < ($1.order, $1.createdAt) }
         return ordered.first { same($0) && $0.isOpen(on: now, calendar: calendar, today: now) }

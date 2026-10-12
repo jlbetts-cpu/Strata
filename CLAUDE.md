@@ -1867,6 +1867,9 @@ placeholder ... a user should be able to plan their entire next day in under
   back from Settings. Never touches a win or a photo.
 - **Move Photo** is `CropEditor`: the camera's own `crop` number, for a
   block (the add sheet's menu) and a strip frame (`StripKeeping.crops`).
+- **A plan's time is in its words** (`PlanTime`, "Gym @ 2"): parsed from
+  the end of the line for display only. Never a stored field. The win made
+  from the line is called by `PlanTime.title`.
 - **A win ticks the line open TODAY** (`DayComposing.onPlan`), in the
   plan's order, then one whose day went by; never a later day's line with
   the same words. A win made from a line (`AddWinSheet.plannedLine`) ticks

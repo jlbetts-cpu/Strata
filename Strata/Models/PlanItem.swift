@@ -366,3 +366,81 @@ enum PlanTickPending {
         try? context.save()
     }
 }
+
+// MARK: - A time, written into the line
+
+/// **"Gym @ 2"** (the owner, 2026-10-11: "if you were able to time
+/// allocate, like gym @ 2 or something like that, make sure it is super
+/// simple and optional").
+///
+/// The time is the words. Nothing is set anywhere: you type "Gym @ 2" where
+/// you type any plan, the app reads the end of the line, and shows that it
+/// understood ("2 PM" under the line and on its outline). To change it,
+/// change the words. A line with no time is exactly as it was.
+///
+/// **Kept in the text on purpose.** A time of its own would be a new field
+/// on the model, which needs the iCloud schema deployed by hand before any
+/// phone can save one. In the words, it already syncs, is already in
+/// backups, already shows in the day's reminder ("Today: Gym @ 2"), and a
+/// phone on an older build simply shows what was typed.
+///
+/// What is read: `@ 2`, `@2:30`, `@ 14:00`, `@ 9am`, and the same after
+/// "at". With no am or pm, 1 to 6 is the afternoon and 7 to 11 the morning,
+/// which is what a person planning their day means by "@ 2" and "@ 9".
+nonisolated enum PlanTime {
+    struct Found: Equatable {
+        /// The line without its time: what the win is called.
+        var title: String
+        /// Minutes after midnight.
+        var minutes: Int
+    }
+
+    private static let pattern = try? NSRegularExpression(
+        pattern: #"\s*(?:@|\bat)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?\s*$"#, options: [.caseInsensitive])
+
+    static func parse(_ text: String) -> Found? {
+        let line = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let pattern, let match = pattern.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              let whole = Range(match.range, in: line),
+              let hourRange = Range(match.range(at: 1), in: line), var hour = Int(line[hourRange]) else { return nil }
+        let minute = Range(match.range(at: 2), in: line).flatMap { Int(line[$0]) } ?? 0
+        let half = Range(match.range(at: 3), in: line).map { line[$0].lowercased() }
+        guard minute < 60 else { return nil }
+        if let half {
+            guard (1...12).contains(hour) else { return nil }
+            if half.hasPrefix("p"), hour < 12 { hour += 12 }
+            if half.hasPrefix("a"), hour == 12 { hour = 0 }
+        } else {
+            guard hour < 24 else { return nil }
+            // "@ 2" is two in the afternoon; "@ 9" is nine in the morning.
+            if (1...6).contains(hour) { hour += 12 }
+        }
+        let title = String(line[..<whole.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        // A time alone is not a plan with a time; it is just what was typed.
+        guard !title.isEmpty else { return nil }
+        return Found(title: title, minutes: hour * 60 + minute)
+    }
+
+    /// What the win is called: the line without its time.
+    static func title(_ text: String) -> String {
+        parse(text)?.title ?? text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// "2 PM", "2:30 PM", or the 24 hour form where the phone uses it.
+    static func label(_ minutes: Int, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        var parts = DateComponents()
+        parts.year = 2026; parts.month = 1; parts.day = 1
+        parts.hour = minutes / 60; parts.minute = minutes % 60
+        guard let date = calendar.date(from: parts) else { return "" }
+        let style = minutes % 60 == 0 ? Date.FormatStyle.dateTime.hour() : Date.FormatStyle.dateTime.hour().minute()
+        var styled = style
+        styled.locale = locale
+        styled.timeZone = calendar.timeZone
+        return date.formatted(styled)
+    }
+
+    /// The time a line carries, as it is shown, or nil.
+    static func label(for text: String) -> String? {
+        parse(text).map { label($0.minutes) }
+    }
+}

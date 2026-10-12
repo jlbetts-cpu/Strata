@@ -723,3 +723,25 @@ line has the same words; hold one in the plan for Change Your Three.
 templates, scanning a paper journal page, and moving colours into the
 block's menu (which waits for your yes, since it overturns three of your
 earlier calls).
+
+**Later the same day.**
+- **A planned win from the photo library.** Its hold menu is the add
+  sheet's own three ways to fill a block, in the same order and words:
+  Take Photo, Choose from Library, Log Without a Photo.
+- **The checkboxes follow a light/dark switch.** They stayed dark on a
+  light page until the app was reopened; the glass is made again when the
+  appearance changes. Seen switching live on the simulator.
+- **A time in a plan: "Gym @ 2".** Typed where any plan is typed. The app
+  reads the end of the line and shows "2 PM" on the outline and under the
+  line. The time lives in the words, so there is nothing to set, nothing
+  new to sync, and an older build simply shows what was typed. With no am
+  or pm, 1 to 6 is the afternoon and 7 to 11 the morning. A win made from
+  the line is called "Gym". REVIEW: no alert at that time yet; lines are
+  not reordered by time. Both are one step each if you want them.
+- **The hints, photographed and rated**, and **the flows, rated**, with the
+  three holes a new person can fall in: `docs/flows.md`.
+
+**Suites:** 1,401 unit tests pass. The full run (81 UI tests listed, 41
+run) passed with no failure before the last three changes; those were
+checked by unit tests and on screen, not by a second full run.
+**Builds 122 and 123 are in TestFlight for you only.** Friends are on 121.

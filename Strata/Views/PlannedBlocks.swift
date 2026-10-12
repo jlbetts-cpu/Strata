@@ -75,6 +75,8 @@ enum PlannedSlots {
 /// words and the plan's empty box.
 struct PlannedOutline: View {
     let title: String
+    /// When it is for, if the line said ("Gym @ 2"): beside the box.
+    var time: String? = nil
     let cornerRadius: CGFloat
     let side: CGFloat
     @Environment(\.colorScheme) private var scheme
@@ -87,9 +89,19 @@ struct PlannedOutline: View {
         ZStack(alignment: .topLeading) {
             Color.clear
             VStack(alignment: .leading, spacing: 0) {
-                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: box), style: .continuous)
-                    .strokeBorder(PlanBullet.outlineInk, lineWidth: PlanBullet.outlineWidth(forSide: box))
-                    .frame(width: box, height: box)
+                HStack(spacing: GridConstants.spacing) {
+                    RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: box), style: .continuous)
+                        .strokeBorder(PlanBullet.outlineInk, lineWidth: PlanBullet.outlineWidth(forSide: box))
+                        .frame(width: box, height: box)
+                    if let time {
+                        Text(time)
+                            .font(BlockContentOverlay.titleFont)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+                    }
+                }
                 Spacer(minLength: 2)
                 // A block's own title type and place (`BlockContentOverlay`).
                 // **And its own strength** (the owner, 2026-10-11: "the
@@ -164,7 +176,8 @@ struct PlannedOutlines: View {
             HapticsEngine.lightTap()
             onCamera(item)
         } label: {
-            PlannedOutline(title: item.text, cornerRadius: cornerRadius, side: frame.width)
+            PlannedOutline(title: PlanTime.title(item.text), time: PlanTime.label(for: item.text),
+                           cornerRadius: cornerRadius, side: frame.width)
         }
         .buttonStyle(.pressSurface)
         // **Hold is the menu**, as on a plan line: a recogniser of its own
@@ -174,7 +187,8 @@ struct PlannedOutlines: View {
         .frame(width: frame.width, height: frame.height)
         .offset(x: frame.minX, y: gridHeight - frame.minY - frame.height)
         .transition(.scale(scale: 0.86).combined(with: .opacity))
-        .accessibilityLabel("Planned: \(item.text)")
+        .accessibilityLabel(["Planned: \(PlanTime.title(item.text))", PlanTime.label(for: item.text)]
+            .compactMap { $0 }.joined(separator: ", "))
         .accessibilityHint("Opens the camera to finish it.")
         // The hold's own items, by name (one builder: a chain of four
         // named actions was past what the type checker would solve).

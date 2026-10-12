@@ -328,9 +328,16 @@ struct PlanLines: View {
     }
 
     /// The empty plan's one line, for the day on the page.
+    /// The quiet line under a plan line: when, and how often.
+    static func subtitle(for item: PlanItem, calendar: Calendar) -> String? {
+        let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     private var ghostWords: String {
         scope == .repeating ? "Plan something that repeats, like a morning walk"
-            : "Plan a few small things \(scope.spoken(calendar: calendar))"
+            // And the one thing nobody would guess: a time is typed.
+            : "Plan a few small things \(scope.spoken(calendar: calendar)). Add a time with @ 2."
     }
 
     // MARK: - Earlier
@@ -453,7 +460,9 @@ struct PlanLines: View {
                     onReturn: { addLine(after: item) },
                     onBackspaceWhenEmpty: { backspace(item) }
                 )
-                if let summary = item.repeatSummary(calendar: calendar) {
+                // Its time, if the words say one ("Gym @ 2" reads back as
+                // "2 PM"), then the days it repeats on.
+                if let summary = Self.subtitle(for: item, calendar: calendar) {
                     // **`screenSubtitle`, 15 Medium, and it was 13 Regular**
                     // (2026-10-01, the type pass). A repeat summary is the
                     // quiet line under a line you wrote, and the quiet is the

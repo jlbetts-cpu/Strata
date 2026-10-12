@@ -648,7 +648,7 @@ struct MainAppView: View {
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
-                pendingDraft = WinDraft(title: item.text, size: item.size, colour: item.category,
+                pendingDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category,
                                         planItemID: item.id)
                 tickAwaitingWin = item.id
                 PlanTickPending.hold(item.id)
@@ -746,7 +746,7 @@ struct MainAppView: View {
     /// win's weight is decided once it is done.
     private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint) {
         guard stillThere(item) else { return }
-        winDraft = WinDraft(title: item.text, photo: photo, size: size, place: place, crop: crop,
+        winDraft = WinDraft(title: PlanTime.title(item.text), photo: photo, size: size, place: place, crop: crop,
                             colour: item.category, planItemID: item.id)
     }
 
@@ -754,7 +754,7 @@ struct MainAppView: View {
     private func logPlanned(_ item: PlanItem) {
         guard stillThere(item), !alreadyWon(item) else { return }
         // At the line's own size, as its box in the plan logs it.
-        winDraft = WinDraft(title: item.text, size: item.size, colour: item.category, planItemID: item.id)
+        winDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category, planItemID: item.id)
     }
 
     /// **Its win is already there** (unticked in the plan after it was

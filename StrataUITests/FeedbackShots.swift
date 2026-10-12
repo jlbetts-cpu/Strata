@@ -338,6 +338,27 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("move-4-block")
     }
 
+    /// "Gym @ 2": typed where any plan is typed, read back on the tower's
+    /// outline and under the line in the plan (the owner, 2026-10-11).
+    func testPlanTime() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add",
+                          "-hint.planned.shown", "YES"])
+        wait(7)
+        app.buttons["When: now"].firstMatch.tap()
+        wait(1)
+        app.buttons["Later today"].firstMatch.tap()
+        wait(1)
+        app.typeText("Gym @ 2\n")
+        app.typeText("Call Mum @ 6:30\n")
+        app.typeText("Laundry")
+        wait(1); snap("time-0-typed")
+        app.buttons["Plan"].firstMatch.tap()
+        wait(4); snap("time-1-tower")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataOpenSheet", "plan", "-strataDayTab", "plan", "-hint.planned.shown", "YES"])
+        wait(8); snap("time-2-plan")
+    }
+
     /// The `+` slot beside planned wins, and alone on an empty tower (the
     /// owner, 2026-10-11: "they should look the same").
     func testSlotBesideOutlines() {
