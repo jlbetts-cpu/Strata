@@ -260,7 +260,7 @@ final class FeedbackShots: XCTestCase {
         wait(7)
         let started = Date()
         app.descendants(matching: .any)["Log a win"].firstMatch.tap()
-        app.buttons["When: now"].firstMatch.tap()
+        app.buttons["Plan for later"].firstMatch.tap()
         app.buttons["Tomorrow"].firstMatch.tap()
         for line in ["Email the professor", "Laundry", "Gym with Sam"] {
             let typing = Date()
@@ -313,7 +313,7 @@ final class FeedbackShots: XCTestCase {
         guard ProcessInfo.processInfo.environment["STRATA_OLD_PLAN_MODE"] != nil else { return }
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
         wait(7); snap("plan-add-0")
-        app.buttons["When: now"].firstMatch.tap()
+        app.buttons["Plan for later"].firstMatch.tap()
         wait(1); snap("plan-add-1-row")
         app.buttons["Tomorrow"].firstMatch.tap()
         wait(1)
@@ -334,8 +334,8 @@ final class FeedbackShots: XCTestCase {
     func testMovePhoto() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto"])
         wait(8); snap("move-0-sheet")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).press(forDuration: 1.2)
-        wait(1); snap("move-1-menu")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
+        wait(2); snap("move-1-menu")
         let move = app.buttons["Move Photo"].firstMatch
         if move.waitForExistence(timeout: 3) { move.tap() }
         wait(2); snap("move-2-crop")
@@ -356,7 +356,7 @@ final class FeedbackShots: XCTestCase {
         wait(7)
         app.typeText("Gym @ 2")
         wait(1); snap("time-0-typed")
-        app.buttons["When: now"].firstMatch.tap()
+        app.buttons["Plan for later"].firstMatch.tap()
         wait(1); snap("time-1-row")
         app.buttons["Later today"].firstMatch.tap()
         wait(4); snap("time-2-plan")
@@ -378,6 +378,43 @@ final class FeedbackShots: XCTestCase {
         let doodle = app.buttons["Doodle"].firstMatch
         if doodle.waitForExistence(timeout: 3) { doodle.tap() }
         wait(3); snap("block-3-doodle")
+    }
+
+    /// The flows pass (2026-10-11, `docs/flows.md`): a block holding a
+    /// photo opens its menu on a press; Repeating stands at the end of the
+    /// plan's row; an album's own page can remove it; the empty tower says
+    /// both things the slot does; the strip says it can be tapped.
+    func testFlowsPass() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto"])
+        wait(8)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
+        wait(2); snap("flows-0-photo-menu")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                      "-strataOpenSheet", "plan", "-strataDayTab", "plan"])
+        wait(8); snap("flows-1-plan-row")
+        app.buttons["Repeating"].firstMatch.tap()
+        wait(2); snap("flows-2-repeating")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "0", "-strataSeedHabits", "0"])
+        wait(7); snap("flows-3-empty")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "3",
+                      "-strataOpenSheet", "booth"])
+        wait(10); snap("flows-4-strip")
+        app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedRealPhotos", "1",
+                      "-strataCrews", "1", "-strataSeedCrew", "3", "-strataSeedCrews", "1", "-strataSeedSentToCrew", "1",
+                      "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(7)
+        app.swipeUp(velocity: .slow)
+        wait(2)
+        let album = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'With '")).firstMatch
+        if album.waitForExistence(timeout: 4) { album.tap() }
+        wait(3); snap("flows-5-album")
+        let more = app.buttons["More"].firstMatch
+        if more.waitForExistence(timeout: 3) { more.tap() }
+        wait(2); snap("flows-6-album-menu")
     }
 
     /// The `+` slot beside planned wins, and alone on an empty tower (the
@@ -403,7 +440,7 @@ final class FeedbackShots: XCTestCase {
         guard ProcessInfo.processInfo.environment["STRATA_OLD_PLAN_MODE"] != nil else { return }
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
         wait(7)
-        app.buttons["When: now"].firstMatch.tap()
+        app.buttons["Plan for later"].firstMatch.tap()
         wait(1)
         app.buttons["Repeating"].firstMatch.tap()
         wait(1); snap("days-0-every")

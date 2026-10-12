@@ -1867,6 +1867,10 @@ placeholder ... a user should be able to plan their entire next day in under
   back from Settings. Never touches a win or a photo.
 - **Move Photo** is `CropEditor`: the camera's own `crop` number, for a
   block (the add sheet's menu) and a strip frame (`StripKeeping.crops`).
+- **A press on the add sheet's block opens its menu whatever is on it**
+  (2026-10-12): never the photo for one and the doodle for another. The
+  add sheet's way to plan is the chip "Plan for Later". Repeating is a
+  pinned glyph at the end of `PlanScopeRow`, not a word in the scroll.
 - **A block's menu is `BlockMenu.swift`** (`BlockMenuRow`, `.blockMenu`): a
   glyph and a word a row, in a popover hung off the block. The add sheet's
   block and a planned win both use it. Never a system dialog of bare words

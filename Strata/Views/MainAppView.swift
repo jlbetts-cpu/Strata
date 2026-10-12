@@ -1149,7 +1149,7 @@ struct MainAppView: View {
                     return
                 }
                 // Not before a first win ever: the tower's own line asks then
-                // ("Tap the slot to log today's first win.").
+                // ("Tap the slot to add a win. Hold it for a quick one.").
                 guard ringIsClear, !logs.isEmpty,
                       let line = WinCue.line(winsToday: blocksToday, now: Date(),
                                              shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: todaysGoal)
@@ -3901,7 +3901,11 @@ struct MainAppView: View {
         // starts on the margin without carrying one of its own.
         // "today's", not "your" (2026-10-09): every morning starts here, and
         // "your first win" was said to people with months of them.
-        Text("Tap the slot to log today's first win.")
+        // **Both things the slot does** (the flows pass, 2026-10-11): a
+        // press opens Add, a hold logs one at once. The hold is the app's
+        // fastest move and was taught once, in onboarding, then never said
+        // again; this line is there every morning.
+        Text("Tap the slot to add a win. Hold it for a quick one.")
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
             .fixedSize(horizontal: false, vertical: true)

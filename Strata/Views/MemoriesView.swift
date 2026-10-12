@@ -242,17 +242,7 @@ struct MemoriesView: View {
                         // and the first screen are exactly as they were.
                         MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
                                       topGap: GridConstants.gapTight,
-                                      onRemove: { album, never in
-                                          // Off the shelf, with Undo; the
-                                          // wins and photos stay.
-                                          let model = vm
-                                          guard let key = withAnimation(GridConstants.motionSnappy, {
-                                              model.removeAlbum(album, never: never)
-                                          }) else { return }
-                                          UndoLine.shared.show("Album removed", undo: {
-                                              withAnimation(GridConstants.motionSnappy) { model.showAlbumAgain(key) }
-                                          })
-                                      })
+                                      onRemove: { album, never in remove(album, never: never) })
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
                         PhotoGalleryGrid(sections: shown,
@@ -406,11 +396,11 @@ struct MemoriesView: View {
                 case .place(let key):
                     PhotoCollectionView(source: .place(key))
                 case .curated(let key):
-                    PhotoCollectionView(source: .interest(key))
+                    albumPage(.interest(key), kind: .curated(key))
                 case .moment(let id):
-                    PhotoCollectionView(source: .moment(id))
+                    albumPage(.moment(id), kind: .moment(id))
                 case .crew(let key):
-                    PhotoCollectionView(source: .crew(key))
+                    albumPage(.crew(key), kind: .crew(key))
                 }
             }
         }
@@ -578,6 +568,29 @@ struct MemoriesView: View {
                                     title: MemoriesShelf.name(of: live.period, now: replays.now)))
         }
         return rows
+    }
+
+    /// An album's page, with the way to take it off the shelf when it is
+    /// one of the shelf's.
+    @ViewBuilder
+    private func albumPage(_ source: PhotoCollectionView.Source, kind: AlbumKind) -> some View {
+        if let album = vm.monthAlbums.first(where: { $0.kind == kind }) {
+            PhotoCollectionView(source: source, onRemove: { never in
+                remove(album, never: never)
+                if !path.isEmpty { path.removeLast() }
+            }, neverWords: MemoriesShelf.neverWords(for: album))
+        } else {
+            PhotoCollectionView(source: source)
+        }
+    }
+
+    /// Off the shelf, with Undo; the wins and photos stay.
+    private func remove(_ album: Album, never: Bool) {
+        let model = vm
+        guard let key = withAnimation(GridConstants.motionSnappy, { model.removeAlbum(album, never: never) }) else { return }
+        UndoLine.shared.show("Album removed", undo: {
+            withAnimation(GridConstants.motionSnappy) { model.showAlbumAgain(key) }
+        })
     }
 
     private func open(album route: AlbumRoute) {

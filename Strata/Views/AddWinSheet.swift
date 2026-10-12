@@ -121,7 +121,7 @@ struct AddWinSheet: View {
     @State private var showCamera = false
     @State private var choosingSource = false
     /// What the block's menu was asked for, done once the menu has closed.
-    private enum BlockChoice { case camera, library, doodle, move }
+    private enum BlockChoice { case camera, library, doodle, move, view }
     @State private var afterMenu: BlockChoice?
     /// **A doodle instead of a photograph** (`BlockDoodleSheet`): its strokes,
     /// its stickers and the canvas they were drawn on, until the win is saved.
@@ -494,6 +494,7 @@ struct AddWinSheet: View {
                 case .library: showLibrary = true
                 case .doodle: doodling = true
                 case .move: movingPhoto = true
+                case .view: peeking = true
                 }
             }
         }
@@ -1296,13 +1297,12 @@ struct AddWinSheet: View {
             // at.
             // The block's shape now, for a doodle begun from the menu.
             doodleAspect = w / max(h, 1)
-            if photo != nil {
-                peeking = true
-            } else if doodle != nil {
-                doodling = true
-            } else {
-                choosingSource = true
-            }
+            // **A press opens the block's menu, whatever is on it** (the
+            // flows pass, 2026-10-11, `docs/flows.md`). An empty block
+            // opened the menu, a block with a photo opened the photo, and a
+            // block with a doodle opened the doodle: three answers to one
+            // press, and Move, Replace and Remove were behind a hold.
+            choosingSource = true
         } label: {
             ZStack {
                 // **THE WELL IS THE BLOCK, NOT A HOLE WHERE ONE GOES.**
@@ -1556,13 +1556,17 @@ struct AddWinSheet: View {
     /// drawings, so the menu is the app's own, hung off the block.
     private var blockMenu: some View {
         BlockMenuList {
+            // What is on it first: look at it, move it.
+            if photo != nil {
+                BlockMenuRow("View Photo", "eye") { pick(.view) }
+                BlockMenuRow("Move Photo", "arrow.up.and.down.and.arrow.left.and.right") { pick(.move) }
+            }
             BlockMenuRow("Take Photo", "camera") { pick(.camera) }
             BlockMenuRow("Choose from Library", "photo.on.rectangle") { pick(.library) }
             // **Doodle lives here** (2026-10-10): a block is a photograph or
             // a drawing, so drawing one is the third way to fill it.
             BlockMenuRow(doodle == nil ? "Doodle" : "Edit Doodle", "pencil.tip") { pick(.doodle) }
             if photo != nil {
-                BlockMenuRow("Move Photo", "arrow.up.and.down.and.arrow.left.and.right") { pick(.move) }
                 BlockMenuRow("Remove Photo", "trash", destructive: true) {
                     photo = nil
                     photoChanged = true

@@ -56,3 +56,35 @@ Without a Photo, Edit, Not Today. The add sheet's block opens Take Photo,
 Choose from Library, Doodle and its colours. Planning from the add sheet
 is the plan sheet itself. Expected ratings after: finish a planned win 9,
 plan from the add sheet 8, add a win 9. To be confirmed on a phone.
+
+
+## The pass to a 10 (2026-10-12)
+
+The owner: "could you implement all the changes and updates to get it to a
+10". Six changes, one for each thing the table said was holding a flow back.
+
+| Was | Now |
+|---|---|
+| A block with a photo opened the photo; Move, Replace, Remove were hold-only | A press opens the block's menu whatever is on it: View Photo, Move Photo, Take Photo, Choose from Library, Doodle, Remove Photo |
+| "Now" on the add sheet read as a caption | A chip that says what it does: Plan for Later |
+| Repeating was the eighth word, off the edge of a row that scrolls | A repeat glyph stands still at the end of the row |
+| The hold on the slot was taught once, in onboarding | The empty tower says it every morning: "Tap the slot to add a win. Hold it for a quick one." |
+| The strip could only be shaken | "Shake or tap to develop" |
+| An album could only be removed by a hold on the shelf | Its own page has a "more" button: Remove Album, Never Show |
+
+| Flow | Before | After | What is still short of 10 |
+|---|---|---|---|
+| Add a win | 9 | 9 | The block is pressable but nothing says so until it is pressed |
+| Quick win (hold the slot) | 6 | 8 | Still a hold that does the thing; now said every morning and undoable |
+| Finish a planned win | 9 | 9 | Fine |
+| Plan from the plan sheet | 8 | 9 | Fine |
+| Plan from the add sheet | 8 | 9 | Two steps (chip, then a day) |
+| Move or replace a photo | 6 | 9 | Fine |
+| Memories, albums | 8 | 9 | Fine |
+| Photo strip | 7 | 8 | Its tools are glyphs with no words |
+| Crews | 7 | 7 | The invite link still says github; a waiting send looks sent. Both need things outside this code (the domain, real iCloud) |
+
+**Honest total: about 9, not 10.** What is left is the crew side, which
+waits on the domain and on a test with two real phones, and the fact that
+none of this has been watched in the hands of someone new. These ratings
+are mine, from the simulator.

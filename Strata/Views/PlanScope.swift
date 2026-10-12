@@ -109,28 +109,56 @@ struct PlanScopeRow: View {
     /// planned can say so with a dot, never a number.
     var planned: (PlanScope) -> Bool = { _ in false }
 
+    /// The days, which scroll. Repeating is not one of them.
+    private var days: [PlanScope] { choices.filter { $0 != .repeating } }
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(choices, id: \.self) { item in
-                        word(item).id(item)
+        HStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(days, id: \.self) { item in
+                            word(item).id(item)
+                        }
                     }
+                    .padding(.horizontal, margin)
                 }
-                .padding(.horizontal, margin)
+                .moreToTheRight()
+                // **Opened on the chosen day.** A line set for Saturday
+                // opened its sheet with the row at Today and nothing on it
+                // in ink: the chosen word was off the right edge.
+                .onAppear { proxy.scrollTo(scope, anchor: .center) }
+                .onChange(of: scope) { _, now in
+                    withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
+                }
             }
-            .moreToTheRight()
-            // **Opened on the chosen day.** A line set for Saturday opened
-            // its sheet with the row at Today and nothing on it in ink: the
-            // chosen word was off the right edge (found 2026-10-11, in a
-            // screenshot of the plan opened on Repeating).
-            .onAppear { proxy.scrollTo(scope, anchor: .center) }
-            .onChange(of: scope) { _, now in
-                withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
-            }
+            // **Repeating stands still at the end of the row** (the flows
+            // pass, 2026-10-11). It was the eighth word, off the right edge
+            // of a row that scrolls, so the way to make a plan repeat could
+            // not be seen without knowing to look for it.
+            if choices.contains(.repeating) { repeating }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Which day")
+    }
+
+    private var repeating: some View {
+        let chosen = scope == .repeating
+        return Button {
+            guard !chosen else { return }
+            HapticsEngine.tick()
+            withAnimation(GridConstants.crossFade) { scope = .repeating }
+        } label: {
+            Image(systemName: "repeat")
+                .font(Typography.headerSmall)
+                .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .padding(.trailing, max(0, margin - GridConstants.gapTight))
+        .accessibilityLabel("Repeating")
+        .accessibilityAddTraits(chosen ? [.isSelected] : [])
     }
 
     private func word(_ item: PlanScope) -> some View {
@@ -300,18 +328,27 @@ struct WhenRow: View {
                     withAnimation(GridConstants.crossFade) { open = true }
                 } label: {
                     HStack(spacing: 4) {
-                        Text("Now")
+                        // **It says what it does, on a chip** (the flows
+                        // pass, 2026-10-11). It was the word "Now" in the
+                        // caption grey with a small chevron, which read as
+                        // a label for the field above it; nobody pressed
+                        // it. The chip is the one the row of ideas over the
+                        // keyboard is made of, so it is a thing to press.
+                        Text("Plan for Later")
                             .font(Typography.headerSmall)
                         Image(systemName: "chevron.down")
                             .iconSize(GridConstants.iconChevron, relativeTo: .caption2, weight: .semibold)
                     }
-                    .foregroundStyle(AppColors.inkTertiary)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .frame(height: 34)
+                    .background(Capsule(style: .continuous).fill(AppColors.quietFill))
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressWord)
-                .accessibilityLabel("When: now")
-                .accessibilityHint("Plan it for later instead.")
+                .accessibilityLabel("Plan for later")
+                .accessibilityHint("Choose a day, and the plan opens on it.")
                 .transition(.opacity)
             }
         }

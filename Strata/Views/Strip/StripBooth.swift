@@ -362,6 +362,10 @@ struct StripBooth: View {
                 }
                 .scaleEffect(fit)
                 .frame(height: stripHeight * fit)
+                // A tap develops it a step, as a shake does: a shake was the
+                // only way shown, and not everywhere is a place to shake a
+                // phone (the flows pass, 2026-10-11).
+                .simultaneousGesture(TapGesture().onEnded { shook() })
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { heldTop = $0 }
                 .rotationEffect(.degrees(isDeveloped ? 0 : -2.5 + Double(handShake) * 0.06))
                 .offset(x: handShake)
@@ -529,7 +533,7 @@ struct StripBooth: View {
     private var hint: some View {
         Group {
             if !isDeveloped {
-                Text(canDevelop() ? "Shake to develop" : "Reach your goal to develop it")
+                Text(canDevelop() ? "Shake or tap to develop" : "Reach your goal to develop it")
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkSecondary)
                     .transition(.opacity)

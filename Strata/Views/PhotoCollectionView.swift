@@ -24,6 +24,10 @@ struct PhotoCollectionView: View {
     }
 
     let source: Source
+    /// Takes the album off the Memories shelf; `true` is every album of
+    /// its kind. Nil where the page is not an album from the shelf.
+    var onRemove: ((Bool) -> Void)? = nil
+    var neverWords = "Never Show This Album"
 
     @Environment(\.modelContext) private var modelContext
     @State private var sections: [GallerySection] = []
@@ -83,6 +87,22 @@ struct PhotoCollectionView: View {
         // The glass back button the day page beside it on the shelf has
         // (rule 1 of `docs/ten.md`): this page kept the system's.
         .glassBackButton()
+        // **Remove, where it can be seen** (the flows pass, 2026-10-11).
+        // On the shelf it is behind a hold; here it is the page's own
+        // "more", as an album's page has in Photos.
+        .toolbar {
+            if let onRemove {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Remove Album", systemImage: "minus.circle") { onRemove(false) }
+                        Button(neverWords, systemImage: "eye.slash") { onRemove(true) }
+                    } label: {
+                        Image(systemName: "ellipsis").sheetAction(.confirm, as: .glyph)
+                    }
+                    .accessibilityLabel("More")
+                }
+            }
+        }
         .task { load() }
         // Asking is a network call and it is allowed to fail. The screen is
         // already correct without it; the name is something it gains.

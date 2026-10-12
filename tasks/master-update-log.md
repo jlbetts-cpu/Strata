@@ -815,3 +815,34 @@ word ("push this to beta testing"), after a full run with no failure (83 UI
 tests listed, 41 run) and a last look at every tab and screen in light and
 dark. Friends had 121. No crew sync code changed since 117; what changed
 in the crew screens is words, presses and Undo.
+
+
+## 11. The pass to a 10 on the flows (2026-10-12)
+
+You: "could you implement all the changes and updates to get it to a 10".
+Six changes, each closing something `docs/flows.md` named; the table and
+the before and after ratings are at its foot.
+
+- A block holding a photo or a doodle opens the block's menu on a press,
+  as an empty one does (View Photo, Move Photo, the three ways to fill it,
+  Remove). It opened three different things depending on what was on it.
+- The add sheet's way to plan is a chip that says "Plan for Later".
+- Repeating stands still at the end of the plan's row of days, as a glyph.
+- The empty tower says both things the slot does, every morning.
+- The strip develops under a tap as well as a shake, and says so.
+- An album's own page has a "more" button to remove it.
+
+**My honest number is about 9.** Crews hold it there: the invite link still
+says github until the domain points at the page, and a crew send that is
+waiting looks sent, which I cannot build without real iCloud to run it on.
+And nobody new has been watched using it.
+
+**Tests for this pass:** 1,402 unit tests pass. The full run had two UI
+failures. One (the first launch waiting on the film) is the known flake
+and passed alone. The other, a replay's Save Video surviving an opened
+photo, failed four times in a row, then passed on yesterday's code, then
+passed six times on today's code with nothing changed in between. It tests
+that a save is still running after about 3.5 seconds; in the failing runs
+the save had simply finished. I could not find what made it finish early
+those four times. No replay code changed. **Build 126 is in TestFlight for
+you only**; Friends have 125.
