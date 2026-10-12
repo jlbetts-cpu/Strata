@@ -809,3 +809,9 @@ plain list the same evening. They are one component now (`BlockMenu.swift`:
 same word, and a test holds them together (`TenTests.oneBlockMenu`). On
 the tower the menu opens above the block; opened downward it was cut off
 by the foot of the screen.
+
+**Build 125 went to the Friends group and Apple's beta review** at your
+word ("push this to beta testing"), after a full run with no failure (83 UI
+tests listed, 41 run) and a last look at every tab and screen in light and
+dark. Friends had 121. No crew sync code changed since 117; what changed
+in the crew screens is words, presses and Undo.
