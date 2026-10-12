@@ -388,23 +388,24 @@ struct OnboardingView: View {
     /// fills in ink page by page on the app's own spring; the track is the
     /// warm grey the idle tabs use. No segments, no count, no percentage: the
     /// row already tells VoiceOver "Step 2 of 4".
+    /// **A ring, in segments, as the day's goal is** (the owner,
+    /// 2026-10-12: "the progress bar in the onboarding I feel like it should
+    /// be thicker and be in groups kinda like the filling of the ring, maybe
+    /// instead of a bar we can do a ring so it shows that flow"). It was a
+    /// 112 by 3 point hairline that filled smoothly. It is the goal's own
+    /// ring now (`GoalRingStroke`), a segment a page, filling as the pages
+    /// go by: the first thing the app shows you is the thing it will show
+    /// you every day.
     private var progress: some View {
         let index = shownSteps.firstIndex(of: step) ?? 0
-        let fraction = CGFloat(index + 1) / CGFloat(max(shownSteps.count, 1))
-        return Capsule(style: .continuous)
-            .fill(AppColors.inkQuiet.opacity(0.4))
-            .frame(width: Self.progressWidth, height: Self.progressHeight)
-            .overlay(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(AppColors.inkPrimary)
-                    .frame(width: Self.progressWidth * fraction, height: Self.progressHeight)
-            }
+        return GoalRingStroke(wins: index + 1, goal: max(shownSteps.count, 1), line: Self.progressLine)
+            .frame(width: Self.progressSide, height: Self.progressSide)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: step)
             .accessibilityHidden(true)
     }
 
-    private static let progressWidth: CGFloat = 112
-    private static let progressHeight: CGFloat = 3
+    private static let progressSide: CGFloat = 30
+    private static let progressLine: CGFloat = 4
 
     /// **Its room is held on page 0, where there is nothing to go back to**, so
     /// the rule below it never moves between pages. Held with `.opacity`, not by
