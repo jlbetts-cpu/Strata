@@ -618,10 +618,21 @@ final class FeedbackShots: XCTestCase {
             flash.tap(); wait(1)
             print("PLANNING-flash after two: \(flash.value ?? "nil")")
         }
+        // Folded at rest: one pill, and no row.
+        let pill = app.buttons["Lens, 0.5x"]
+        print("PLANNING-folded: pill \(pill.exists) frame \(pill.exists ? pill.frame : .zero) row \(app.buttons["Lens 2x"].exists)")
+        if pill.exists { pill.tap(); wait(1); snap("camera-lenses-open") }
         for name in ["Lens 0.5x", "Lens 1x", "Lens 2x", "Lens 3x"] {
             let lens = app.buttons[name]
             print("PLANNING-\(name): exists \(lens.exists) frame \(lens.exists ? lens.frame : .zero) selected \(lens.exists && lens.isSelected)")
         }
+        // Left alone it folds by itself.
+        wait(4); snap("camera-lenses-folded")
+        print("PLANNING-after 4s: pill \(pill.exists) row \(app.buttons["Lens 2x"].exists)")
+        // Choosing folds it at once.
+        if pill.exists { pill.tap(); wait(1) }
+        if app.buttons["Lens 2x"].exists { app.buttons["Lens 2x"].tap(); wait(1) }
+        print("PLANNING-after choosing: pill \(pill.exists) row \(app.buttons["Lens 2x"].exists)")
     }
 
     /// On this day (`Flashback`, `docs/flashback.md`): alone, among a

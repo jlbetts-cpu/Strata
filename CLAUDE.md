@@ -1070,7 +1070,12 @@ must not move.
   fixed. Do not make a coordinator, read it once and drop it.
 - `CameraPreview(camera:)` is what attaches the viewfinder. **The head
   maker passes none on purpose**: its angles were tuned on a phone.
-- Lenses are a row (`lensRow`), one button a stop, `CameraService.glide`.
+- **The lenses rest folded, as one pill.** The owner rejected the row
+  left on show the day it shipped to him ("I dont like the long bar
+  look"). A tap opens `lensRow`; choosing, a touch on the viewfinder, a
+  pinch, or three seconds fold it. Two lenses: a tap goes to the other.
+  Do not leave the row open at rest.
+- Opened, the lenses are a row (`lensRow`), one button a stop, `CameraService.glide`.
   `CameraLenses.stops(crop:)` adds 2x only where the main camera reports a
   native-resolution crop. All zoom goes through `CameraLenses.clamped`.
 - A tap to focus turns on subject-area monitoring; `subjectChanged` lets

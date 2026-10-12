@@ -59,6 +59,10 @@ struct CameraView: View {
     /// reports a magnification RELATIVE to the start of the gesture, so
     /// multiplying it by a live value would compound on every frame.
     @State private var zoomAtPinchStart: CGFloat?
+    /// Whether the lenses are written out, and since when: they close by
+    /// themselves a few seconds after the last touch.
+    @State private var lensesOpen = false
+    @State private var lensesTouched = Date()
     /// The size being drawn out of the shutter, and the state the drag needs.
     ///
     /// The camera could only ever make a 1x1 unless you went into the add
@@ -942,7 +946,12 @@ struct CameraView: View {
                 MagnifyGesture()
                     .onChanged { value in
                         let start = zoomAtPinchStart ?? camera.zoom
-                        if zoomAtPinchStart == nil { zoomAtPinchStart = start }
+                        if zoomAtPinchStart == nil {
+                            zoomAtPinchStart = start
+                            // A pinch says where the lens is on the pill
+                            // itself; the row would only be in its way.
+                            if lensesOpen { withAnimation(GridConstants.motionSnappy) { lensesOpen = false } }
+                        }
                         camera.setZoom(start * value.magnification)
                     }
                     .onEnded { _ in zoomAtPinchStart = nil }
@@ -1004,6 +1013,7 @@ struct CameraView: View {
     }
 
     private func focus(at location: CGPoint) {
+        if lensesOpen { withAnimation(GridConstants.motionSnappy) { lensesOpen = false } }
         guard let layer = previewBox.layer else { return }
         let devicePoint = layer.captureDevicePointConverted(fromLayerPoint: location)
         camera.focus(at: devicePoint)
@@ -1181,6 +1191,8 @@ struct CameraView: View {
             ZStack { zoomPill }
                 .frame(height: 34)
                 .animation(GridConstants.motionSnappy, value: camera.zoom)
+                // A new lens set (the front camera has one) starts folded.
+                .onChange(of: camera.facing) { _, _ in lensesOpen = false }
 
             ZStack {
             HStack(spacing: 0) {
@@ -1372,11 +1384,44 @@ struct CameraView: View {
     /// every lens the phone has is written out, the one in use with its x,
     /// and a press glides there (`CameraService.glide`). It is still one
     /// piece of glass on the photograph, in the place the pill had.
+    ///
+    /// **And it folds away again** (the owner, the same day, on his phone:
+    /// "I dont like that the zoom doesnt collapse anymore, I dont like the
+    /// long bar look"). At rest it is the one small pill it always was,
+    /// saying where the lens is. A tap writes the lenses out; choosing one
+    /// glides there and folds it; so does touching the viewfinder, or three
+    /// seconds of nothing. With only two lenses there is nothing to write
+    /// out: a tap goes to the other one.
     @ViewBuilder
     private var zoomPill: some View {
         let lenses = CameraLenses.offer(from: camera)
         if camera.canZoom || Self.debugLenses, lenses.hasChoice {
-            lensRow(lenses)
+            if lensesOpen, lenses.stops.count > 2 {
+                lensRow(lenses)
+                    .task(id: lensesTouched) {
+                        try? await Task.sleep(for: .seconds(3))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(GridConstants.motionSnappy) { lensesOpen = false }
+                    }
+            } else {
+                let label = CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base)
+                let chosen = CameraLenses.chosen(for: camera.zoom, in: lenses.stops)
+                let other = lenses.stops.first { $0 != chosen } ?? chosen
+                lensButton(label, chosen: true, name: "Lens, \(label)",
+                           hint: lenses.stops.count > 2
+                               ? "Shows the lenses"
+                               : "Switches to \(CameraLenses.label(forDeviceFactor: other, base: lenses.base))") {
+                    if lenses.stops.count > 2 {
+                        lensesTouched = Date()
+                        withAnimation(GridConstants.motionSnappy) { lensesOpen = true }
+                    } else {
+                        camera.glide(to: other)
+                    }
+                }
+                .frame(height: 34)
+                .glassCapsule(interactive: false)
+                .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
         } else if camera.canZoom, camera.zoom > 1.005 {
             // One lens: a readout that is there after a pinch, and a tap
             // undoes the pinch.
@@ -1404,6 +1449,7 @@ struct CameraView: View {
                            : CameraLenses.shortLabel(forDeviceFactor: stop, base: lenses.base),
                            chosen: isChosen, name: "Lens \(name)", hint: nil) {
                     camera.glide(to: stop)
+                    withAnimation(GridConstants.motionSnappy) { lensesOpen = false }
                 }
             }
         }

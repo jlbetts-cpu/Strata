@@ -58,7 +58,12 @@ By test, no camera needed:
 1. The lens stops for a phone with 0.5x, 1x and 3x are exactly those, with
    those labels.
 2. A pinch never goes below the widest lens or past the limit.
-3. Any lens is one press from any other.
+3. The lenses rest as one small pill. A tap writes them out; from there
+   any lens is one press, and it folds again when you choose, touch the
+   viewfinder, or leave it three seconds. (Changed 2026-10-12: it was "any
+   lens is one press from any other", a row always on show, and the owner
+   on his phone: "I dont like that the zoom doesnt collapse anymore, I
+   dont like the long bar look".) With two lenses a tap goes to the other.
 4. A photo at each of the eight orientations comes out the right way up
    through every step the app puts it through.
 

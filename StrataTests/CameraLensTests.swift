@@ -46,7 +46,7 @@ struct CameraLensTests {
     }
 
     // Rubric 3.
-    @Test("any lens is one press from any other, and the one in use is marked")
+    @Test("the lenses fold to one pill; opened, each is one press, and the one in use is marked")
     func onePress() throws {
         let stops: [CGFloat] = [1, 2, 4, 6]
         #expect(CameraLenses.chosen(for: 2, in: stops) == 2)
@@ -59,6 +59,13 @@ struct CameraLensTests {
         // Every stop is its own button that goes straight there.
         #expect(view.contains("ForEach(lenses.stops, id: \\.self) { stop in"))
         #expect(view.contains("camera.glide(to: stop)"))
+        // **Folded at rest** (the owner, 2026-10-12, on his phone: "I dont
+        // like that the zoom doesnt collapse anymore, I dont like the long
+        // bar look"). The row is drawn only while open, choosing folds it,
+        // and it folds by itself.
+        #expect(view.contains("if lensesOpen, lenses.stops.count > 2 {"))
+        #expect(view.contains("withAnimation(GridConstants.motionSnappy) { lensesOpen = false }"))
+        #expect(view.contains(".task(id: lensesTouched) {"))
         // The pill that cycled is gone.
         let lenses = SourceSweep.code(try SourceSweep.read("Strata/Services/CameraLenses.swift"))
         #expect(!lenses.contains("func stop(after"))
