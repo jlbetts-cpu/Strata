@@ -1867,8 +1867,12 @@ placeholder ... a user should be able to plan their entire next day in under
   back from Settings. Never touches a win or a photo.
 - **Move Photo** is `CropEditor`: the camera's own `crop` number, for a
   block (the add sheet's menu) and a strip frame (`StripKeeping.crops`).
-- **A press on a planned win opens its choices** (a `confirmationDialog`;
-  a `Menu` round interactive glass does not open on a tap). **The add
+- **A block's menu is `BlockMenu.swift`** (`BlockMenuRow`, `.blockMenu`): a
+  glyph and a word a row, in a popover hung off the block. The add sheet's
+  block and a planned win both use it. Never a system dialog of bare words
+  for one and the app's menu for the other (the owner caught exactly that,
+  2026-10-11), and never a `Menu` round interactive glass (it does not
+  open on a tap). **The add
   sheet has no colour row**: colour is in the block's own menu
   (`blockMenu`, a popover with `ColourSwatchRow`) and, for a photographed
   block, in its hold menu (`ColourMenuPicker`). **A day chosen on the add

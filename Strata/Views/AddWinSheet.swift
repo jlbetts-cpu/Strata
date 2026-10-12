@@ -1555,22 +1555,22 @@ struct AddWinSheet: View {
     /// which holds words only; the colour row needs its swatches and their
     /// drawings, so the menu is the app's own, hung off the block.
     private var blockMenu: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            menuRow("Take Photo", "camera") { pick(.camera) }
-            menuRow("Choose from Library", "photo.on.rectangle") { pick(.library) }
+        BlockMenuList {
+            BlockMenuRow("Take Photo", "camera") { pick(.camera) }
+            BlockMenuRow("Choose from Library", "photo.on.rectangle") { pick(.library) }
             // **Doodle lives here** (2026-10-10): a block is a photograph or
             // a drawing, so drawing one is the third way to fill it.
-            menuRow(doodle == nil ? "Doodle" : "Edit Doodle", "pencil.tip") { pick(.doodle) }
+            BlockMenuRow(doodle == nil ? "Doodle" : "Edit Doodle", "pencil.tip") { pick(.doodle) }
             if photo != nil {
-                menuRow("Move Photo", "arrow.up.and.down.and.arrow.left.and.right") { pick(.move) }
-                menuRow("Remove Photo", "trash", destructive: true) {
+                BlockMenuRow("Move Photo", "arrow.up.and.down.and.arrow.left.and.right") { pick(.move) }
+                BlockMenuRow("Remove Photo", "trash", destructive: true) {
                     photo = nil
                     photoChanged = true
                     choosingSource = false
                 }
             }
             if doodle != nil {
-                menuRow("Remove Doodle", "trash", destructive: true) {
+                BlockMenuRow("Remove Doodle", "trash", destructive: true) {
                     doodle = nil
                     doodleStickers = []
                     doodleChanged = true
@@ -1585,29 +1585,11 @@ struct AddWinSheet: View {
                     .padding(.top, GridConstants.gapTight)
             }
         }
-        .padding(.vertical, GridConstants.gapTight)
-        .frame(width: 320, alignment: .leading)
     }
 
     private func pick(_ choice: BlockChoice) {
         afterMenu = choice
         choosingSource = false
-    }
-
-    private func menuRow(_ title: String, _ symbol: String, destructive: Bool = false,
-                         action: @escaping () -> Void) -> some View {
-        Button {
-            HapticsEngine.lightTap()
-            action()
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(destructive ? AppColors.destructiveInk : AppColors.inkPrimary)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .padding(.horizontal, GridConstants.horizontalPadding)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressWord)
     }
 
     private var categoryControl: some View {

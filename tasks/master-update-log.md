@@ -798,3 +798,14 @@ again. **Do not judge replays on 123.**
 - No alert at a plan's time; lines are not sorted by time.
 - Making your own album; strip templates; scanning a journal page: research
   only, in `docs/research-2026-10-11.md`.
+
+**Then you, on build 124:** the planned win's choices "would be a lot
+clearer with icons ... it should be like this" (the add sheet's menu), and
+"the menu shouldn't have been inconsistent in the first place because I
+asked for a consistency pass". Correct, and mine: I built the add sheet's
+block menu as the app's own and left the planned win's as the system's
+plain list the same evening. They are one component now (`BlockMenu.swift`:
+`BlockMenuRow`, `BlockMenuList`, `.blockMenu`), with the same glyph for the
+same word, and a test holds them together (`TenTests.oneBlockMenu`). On
+the tower the menu opens above the block; opened downward it was cut off
+by the foot of the screen.

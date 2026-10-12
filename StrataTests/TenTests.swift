@@ -35,6 +35,26 @@ struct TenTests {
         #expect(try code("Strata/Views/PlanSuggestionsView.swift").contains("PlanBullet(category: .unlabeled, isDone: false)"))
     }
 
+    /// The owner, 2026-10-11, of a planned win's plain list beside the add
+    /// sheet's menu with icons: "the menu shouldn't have been inconsistent
+    /// in the first place because I asked for a consistency pass".
+    @Test("rule 1: a block's menu is one drawing, on the add sheet and on a planned win")
+    func oneBlockMenu() throws {
+        let add = try code("Strata/Views/AddWinSheet.swift")
+        #expect(add.contains("BlockMenuList {") && add.contains("BlockMenuRow(\"Take Photo\", \"camera\")"))
+        #expect(!add.contains("private func menuRow("), "the add sheet draws its own rows again")
+        let planned = try code("Strata/Views/PlannedBlocks.swift")
+        #expect(planned.contains(".blockMenu(isPresented: shows(item), above: true) { rows(item) }"),
+                "opened downward, it is cut off by the foot of the screen")
+        #expect(planned.contains("BlockMenuRow(\"Take Photo\", \"camera\")"))
+        #expect(planned.contains("BlockMenuRow(\"Choose from Library\", \"photo.on.rectangle\")"))
+        #expect(!planned.contains("confirmationDialog"), "a planned win's choices are the system's bare list again")
+        // The same glyph for the same word in both.
+        for row in ["\"Take Photo\", \"camera\"", "\"Choose from Library\", \"photo.on.rectangle\""] {
+            #expect(add.contains(row) && planned.contains(row), "\(row) differs between the two menus")
+        }
+    }
+
     @Test("rule 3: what cannot be brought back asks, and what can offers Undo")
     func asksOrUndoes() throws {
         let lines = try code("Strata/Views/PlanLines.swift")

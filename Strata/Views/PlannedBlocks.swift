@@ -181,9 +181,9 @@ struct PlannedOutlines: View {
         // library and "without a photo" sat behind a hold nobody could see.
         // The same short menu the add sheet's empty block opens, so one
         // block teaches the other (`docs/flows.md`).
-        // (As the system's sheet of choices, which is what that block
-        // opens: a `Menu` round interactive glass never opened on a tap,
-        // the pairing `CrewReactions` records as swallowing taps.)
+        // (A button that shows the menu, never a system `Menu` round the
+        // glass: that never opened on a tap, the pairing `CrewReactions`
+        // records as swallowing taps.)
         Button {
             HapticsEngine.lightTap()
             choosing = item
@@ -192,10 +192,9 @@ struct PlannedOutlines: View {
                            cornerRadius: cornerRadius, side: frame.width)
         }
         .buttonStyle(.pressSurface)
-        .modifier(OutlineChoices(title: PlanTime.title(item.text),
-                                 isPresented: Binding(get: { choosing?.id == item.id },
-                                                      set: { if !$0, choosing?.id == item.id { choosing = nil } }),
-                                 choices: { menu(item) }))
+        // The block's own menu (`BlockMenuRow`), the one the add sheet's
+        // block opens: a glyph and a word a row, hung off the block.
+        .blockMenu(isPresented: shows(item), above: true) { rows(item) }
         // A hold opens the same choices, as on a plan line.
         .contextMenu { menu(item) }
         .frame(width: frame.width, height: frame.height)
@@ -207,6 +206,26 @@ struct PlannedOutlines: View {
         // The hold's own items, by name (one builder: a chain of four
         // named actions was past what the type checker would solve).
         .accessibilityActions { named(item) }
+    }
+
+    private func shows(_ item: PlanItem) -> Binding<Bool> {
+        Binding(get: { choosing?.id == item.id },
+                set: { if !$0, choosing?.id == item.id { choosing = nil } })
+    }
+
+    /// The rows of a planned win's menu: the three ways to fill a block, in
+    /// the add sheet's order and words, then what can be done to the plan.
+    @ViewBuilder
+    private func rows(_ item: PlanItem) -> some View {
+        let open = shows(item)
+        BlockMenuRow("Take Photo", "camera") { BlockMenuAfter.run(closing: open) { onCamera(item) } }
+        BlockMenuRow("Choose from Library", "photo.on.rectangle") { BlockMenuAfter.run(closing: open) { onLibrary(item) } }
+        BlockMenuRow("Log Without a Photo", "checkmark") { BlockMenuAfter.run(closing: open) { onLog(item) } }
+        BlockMenuRow("Edit", "pencil") { BlockMenuAfter.run(closing: open) { onEdit(item) } }
+        BlockMenuRow(item.repeats ? "Skip Today" : "Not Today", "moon.zzz") {
+            open.wrappedValue = false
+            onNotToday(item)
+        }
     }
 
     @ViewBuilder
@@ -228,21 +247,6 @@ struct PlannedOutlines: View {
         Button("Log Without a Photo", systemImage: "checkmark") { onLog(item) }
         Button("Edit", systemImage: "pencil") { onEdit(item) }
         Button(item.repeats ? "Skip Today" : "Not Today", systemImage: "moon.zzz") { onNotToday(item) }
-    }
-}
-
-/// The choices a press on a planned win opens, as their own modifier so
-/// the outline's chain stays short enough to type-check.
-private struct OutlineChoices<Choices: View>: ViewModifier {
-    let title: String
-    @Binding var isPresented: Bool
-    @ViewBuilder var choices: () -> Choices
-
-    func body(content: Content) -> some View {
-        content.confirmationDialog(title, isPresented: $isPresented, titleVisibility: .visible) {
-            choices()
-            Button("Cancel", role: .cancel) { }
-        }
     }
 }
 
