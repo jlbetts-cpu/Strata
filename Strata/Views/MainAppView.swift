@@ -218,6 +218,7 @@ struct MainAppView: View {
     @State private var winDraft: WinDraft?
     /// The planned win whose camera is open, and the one being changed.
     @State private var capturingPlan: PlanItem?
+    @State private var pickingPlan: PlanItem?
     @State private var editingPlan: PlanItem?
     /// Bumped when a line is skipped for today, which is kept beside the
     /// model (`PlanSkips`) and so is not something a query notices.
@@ -957,7 +958,7 @@ struct MainAppView: View {
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
         // The camera a planned win opens, and the sheet that changes one.
-        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan) { item, photo, size, place, crop in
+        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop)
         })
         .overlay {
@@ -2157,7 +2158,7 @@ struct MainAppView: View {
         // and cut the ring off mid-air.
         selectedTab == .tower && scenePhase == .active && crewPath.isEmpty
             && handoffLogs == nil && winDraft == nil && !isPlanning && !returnsToPlan
-            && editingHabit == nil && capturingPlan == nil && editingPlan == nil
+            && editingHabit == nil && capturingPlan == nil && editingPlan == nil && pickingPlan == nil
             && expandedBlockID == nil && booth == nil && !showsYourDay && !showsTipAsk
     }
 
@@ -3751,6 +3752,7 @@ struct MainAppView: View {
                      gridHeight: gridH, cornerRadius: cornerRadius, nudge: plannedNudge,
                      rowsNeeded: $plannedRows,
                      onCamera: { if stillThere($0), !alreadyWon($0) { capturingPlan = $0 } },
+                     onLibrary: { if stillThere($0), !alreadyWon($0) { pickingPlan = $0 } },
                      onLog: { logPlanned($0) },
                      onEdit: { editingPlan = $0 },
                      onNotToday: { notToday($0) })

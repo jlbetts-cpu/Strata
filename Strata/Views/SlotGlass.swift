@@ -153,6 +153,13 @@ private struct SlotGlassPane: ViewModifier {
         if #available(iOS 26.0, *) {
             content.glassEffect(GlassRecipe.slot(thickness: thickness, dark: scheme == .dark),
                                 in: .rect(cornerRadius: cornerRadius, style: .continuous))
+                // **Made again when the appearance changes** (the owner,
+                // 2026-10-11: "when switching from dark to light mode the
+                // check boxes don't switch for some reason to light"). A
+                // glass effect keeps the tint it was made with when only its
+                // recipe changes under it, so the panes stayed dark on a
+                // light page until the app was opened again.
+                .id(scheme)
         } else {
             content.background(.ultraThinMaterial,
                                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

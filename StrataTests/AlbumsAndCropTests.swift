@@ -120,6 +120,23 @@ struct AlbumsAndCropTests {
         #expect(!onboarding.contains("prints the day's strip"), "a day of plain blocks prints none")
     }
 
+    @Test("a planned win is finished the three ways a block is filled, in the add sheet's words")
+    func plannedWinFromTheLibrary() throws {
+        let outline = try code("Strata/Views/PlannedBlocks.swift")
+        let take = try #require(outline.range(of: "Button(\"Take Photo\", systemImage: \"camera\") { onCamera(item) }"))
+        let library = try #require(outline.range(of: "Button(\"Choose from Library\", systemImage: \"photo.on.rectangle\") { onLibrary(item) }"))
+        let plain = try #require(outline.range(of: "Button(\"Log Without a Photo\", systemImage: \"checkmark\") { onLog(item) }"))
+        #expect(take.lowerBound < library.lowerBound && library.lowerBound < plain.lowerBound)
+        #expect(outline.contains(".photosPicker(isPresented:"))
+        #expect(try code("Strata/Views/MainAppView.swift").contains("onLibrary: { if stillThere($0), !alreadyWon($0) { pickingPlan = $0 } }"))
+    }
+
+    @Test("the slot's glass is made again when the appearance changes")
+    func paneFollowsAppearance() throws {
+        #expect(try code("Strata/Views/SlotGlass.swift").contains(".id(scheme)"),
+                "the panes stayed dark on a light page until the app was reopened")
+    }
+
     @Test("the place a plan is written says the same thing in both sheets")
     func onePrompt() throws {
         #expect(PlanScope.day(0).prompt() == "Plan for today")

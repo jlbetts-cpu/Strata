@@ -1,4 +1,5 @@
 import SwiftData
+import PhotosUI
 import SwiftUI
 
 // MARK: - Planned wins, on the tower
@@ -133,6 +134,8 @@ struct PlannedOutlines: View {
     let gridHeight: CGFloat
     let cornerRadius: CGFloat
     var onCamera: (PlanItem) -> Void
+    /// From the photo library, as the add sheet's own block offers.
+    var onLibrary: (PlanItem) -> Void = { _ in }
     var onLog: (PlanItem) -> Void
     var onEdit: (PlanItem) -> Void
     var onNotToday: (PlanItem) -> Void
@@ -173,14 +176,27 @@ struct PlannedOutlines: View {
         .transition(.scale(scale: 0.86).combined(with: .opacity))
         .accessibilityLabel("Planned: \(item.text)")
         .accessibilityHint("Opens the camera to finish it.")
-        .accessibilityAction(named: "Log Without a Photo") { onLog(item) }
-        .accessibilityAction(named: "Edit") { onEdit(item) }
-        .accessibilityAction(named: item.repeats ? "Skip Today" : "Not Today") { onNotToday(item) }
+        // The hold's own items, by name (one builder: a chain of four
+        // named actions was past what the type checker would solve).
+        .accessibilityActions { named(item) }
+    }
+
+    @ViewBuilder
+    private func named(_ item: PlanItem) -> some View {
+        Button("Choose from Library") { onLibrary(item) }
+        Button("Log Without a Photo") { onLog(item) }
+        Button("Edit") { onEdit(item) }
+        Button(item.repeats ? "Skip Today" : "Not Today") { onNotToday(item) }
     }
 
     @ViewBuilder
     private func menu(_ item: PlanItem) -> some View {
+        // The add sheet's own three ways to fill a block, in its order and
+        // its words (the owner, 2026-10-11: "you aren't able to add camera
+        // roll wins to the check mark ... make sure the plan and check mark
+        // experience is both consistent").
         Button("Take Photo", systemImage: "camera") { onCamera(item) }
+        Button("Choose from Library", systemImage: "photo.on.rectangle") { onLibrary(item) }
         Button("Log Without a Photo", systemImage: "checkmark") { onLog(item) }
         Button("Edit", systemImage: "pencil") { onEdit(item) }
         Button(item.repeats ? "Skip Today" : "Not Today", systemImage: "moon.zzz") { onNotToday(item) }
@@ -206,6 +222,8 @@ struct PlannedLayer: View {
     let nudge: Int
     @Binding var rowsNeeded: Int
     var onCamera: (PlanItem) -> Void
+    /// From the photo library, as the add sheet's own block offers.
+    var onLibrary: (PlanItem) -> Void = { _ in }
     var onLog: (PlanItem) -> Void
     var onEdit: (PlanItem) -> Void
     var onNotToday: (PlanItem) -> Void
@@ -214,7 +232,7 @@ struct PlannedLayer: View {
         let open = PlannedSlots.open(lines)
         let cells = PlannedSlots.cells(count: open.count, grid: grid, slot: slot, slotSize: slotSize)
         PlannedOutlines(items: open, cells: cells, cellSize: cellSize, gridHeight: gridHeight,
-                        cornerRadius: cornerRadius, onCamera: onCamera, onLog: onLog, onEdit: onEdit,
+                        cornerRadius: cornerRadius, onCamera: onCamera, onLibrary: onLibrary, onLog: onLog, onEdit: onEdit,
                         onNotToday: onNotToday)
             .onChange(of: PlannedSlots.rows(cells), initial: true) { _, rows in
                 if rowsNeeded != rows { rowsNeeded = rows }
@@ -231,7 +249,11 @@ struct PlannedLayer: View {
 struct PlannedCapture: ViewModifier {
     @Binding var capturing: PlanItem?
     @Binding var editing: PlanItem?
+    /// The planned win a photo is being chosen for, from the library.
+    var picking: Binding<PlanItem?> = .constant(nil)
     var onCaptured: (PlanItem, UIImage, BlockSize, WinPlace?, CGPoint) -> Void
+
+    @State private var picked: PhotosPickerItem?
 
     /// What the shutter took, held until the camera has gone.
     @State private var taken: (item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint)?
@@ -256,6 +278,23 @@ struct PlannedCapture: ViewModifier {
                     onClose: { capturing = nil },
                     fillsScreen: true
                 )
+            }
+            // **A photo from the library finishes it too.** The picker, then
+            // the add sheet holding the photo once the picker has left, as
+            // the camera's does.
+            .photosPicker(isPresented: Binding(get: { picking.wrappedValue != nil },
+                                               set: { if !$0, picked == nil { picking.wrappedValue = nil } }),
+                          selection: $picked, matching: .images)
+            .onChange(of: picked) { _, chosen in
+                guard let chosen, let item = picking.wrappedValue else { return }
+                Task { @MainActor in
+                    let data = try? await chosen.loadTransferable(type: Data.self)
+                    picked = nil
+                    picking.wrappedValue = nil
+                    guard let data, let image = UIImage(data: data) else { return }
+                    try? await Task.sleep(for: .milliseconds(500))
+                    onCaptured(item, image, item.size, nil, .zero)
+                }
             }
             .sheet(item: $editing) { item in
                 PlanItemDetailSheet(item: item)
