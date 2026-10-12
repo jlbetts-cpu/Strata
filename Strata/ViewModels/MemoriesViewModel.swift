@@ -332,12 +332,28 @@ final class MemoriesViewModel {
     /// wins per crew. Written only when different, since every view reading
     /// it redraws on a write.
     private func refreshShelf() {
-        let moments = calendar.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+        let thisMonth = calendar.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+        var moments = thisMonth
             // Not "last month": the picker one step back is that already,
             // and a second route to it is the duplication the owner cut from
             // the old shelf ("I dont see what the point of the more is").
-            ? carousel.filter { if case .moment(let id) = $0.kind { return id != AlbumMoment.lastMonth.id } else { return false } }
+            // And not the old "a year ago today" albums, which needed three
+            // photos: the flashback below is that, from one photo.
+            ? carousel.filter {
+                if case .moment(let id) = $0.kind { return id != AlbumMoment.lastMonth.id && !id.hasPrefix("onThisDay") }
+                return false
+            }
             : []
+        // **On this day, first on the shelf** (`Flashback`).
+        let now = Date()
+        let defaults = UserDefaults.standard
+        // In the calendar the day keys are written in, so "the same day of
+        // the month" means the same thing on a phone set to another one.
+        if thisMonth, let found = Flashback.album(records: photoRecords, today: now, calendar: DateUtils.keyCalendar(),
+                                                  lastUnderAYear: defaults.string(forKey: Flashback.lastShownKey)) {
+            moments.insert(found.album, at: 0)
+            if found.rung.underAYear { defaults.set(DateUtils.dateString(from: now), forKey: Flashback.lastShownKey) }
+        }
         let store = SocialStore.shared
         let crews = store.crews.map { Album.ShelfCrew(id: $0.id.rawValue, name: $0.displayName(excluding: store.me), wins: store.winsSent(to: $0.id)) }
         let removed = Set(RemovedAlbums.all().keys)
@@ -351,7 +367,11 @@ final class MemoriesViewModel {
     /// (`RemovedAlbums`). Its wins and photos are untouched. Returns the key
     /// to bring it back by.
     func removeAlbum(_ album: Album, never: Bool) -> String? {
-        let key = RemovedAlbums.remove(album.kind, title: album.title, never: never,
+        // Every look back is one switch, so Settings names the kind and not
+        // the one card that happened to be showing.
+        var title = album.title
+        if never, case .day = album.kind { title = Flashback.familyName }
+        let key = RemovedAlbums.remove(album.kind, title: title, never: never,
                                        today: DateUtils.dateString(from: Date()))
         refreshShelf()
         return key

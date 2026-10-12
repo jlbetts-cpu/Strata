@@ -605,6 +605,29 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
+    /// On this day (`Flashback`, `docs/flashback.md`): alone, among a
+    /// month's albums, opened, and with its menu.
+    func testFlashback() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedFlashback", "1",
+                          "-memories.flashback.lastUnderAYear", ""])
+        wait(8); snap("flashback-alone")
+        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'A month ago today'")).firstMatch
+        if card.waitForExistence(timeout: 4) {
+            card.press(forDuration: 1.0); wait(2); snap("flashback-menu")
+            if app.buttons["Remove Album"].exists { app.buttons["Remove Album"].tap(); wait(2); snap("flashback-removed") }
+            if app.buttons["Undo"].firstMatch.exists { app.buttons["Undo"].firstMatch.tap(); wait(2); snap("flashback-undone") }
+            card.tap(); wait(3); snap("flashback-day")
+        }
+        app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedFlashback", "1", "-strataSeedHistory", "20",
+                      "-memories.flashback.lastUnderAYear", ""])
+        wait(8); snap("flashback-among")
+        app.terminate()
+        // None due: the page as it was.
+        _ = launch(["-strataStartTab", "memories", "-strataSeedHistory", "20", "-memories.flashback.lastUnderAYear", ""])
+        wait(8); snap("flashback-none")
+    }
+
     func testMemoriesOneMonth() {
         _ = launch(["-strataStartTab", "memories", "-strataSeedWins", "4", "-strataTipsReset", "1",
                     "-strataTipsShow", "1"])

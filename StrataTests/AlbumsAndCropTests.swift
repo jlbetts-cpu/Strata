@@ -13,7 +13,7 @@ struct AlbumsAndCropTests {
 
     // MARK: Albums
 
-    @Test("removing an album is this one, or every one of its kind, and never a day")
+    @Test("removing an album is this one, or every one of its kind")
     func albumKeys() {
         #expect(RemovedAlbums.key(for: .curated("gym session@2026-10"), today: "2026-10-11") == "curated:gym session@2026-10")
         #expect(RemovedAlbums.familyKey(for: .curated("gym session@2026-10")) == "curated:gym session")
@@ -23,7 +23,11 @@ struct AlbumsAndCropTests {
         // today is today's only.
         #expect(RemovedAlbums.key(for: .moment("onThisDay:1"), today: "2026-10-11") == "moment:onThisDay:1@2026-10-11")
         #expect(RemovedAlbums.familyKey(for: .moment("onThisDay:1")) == "moment:onThisDay")
-        #expect(RemovedAlbums.key(for: .day("2026-10-11"), today: "2026-10-11") == nil)
+        // A day had no key while no day's card was ever on the shelf. The
+        // flashback (`Flashback`, 2026-10-12) is one, so it has both: today's
+        // alone, and the same family as every other look back.
+        #expect(RemovedAlbums.key(for: .day("2026-09-11"), today: "2026-10-11") == "day:2026-09-11@2026-10-11")
+        #expect(RemovedAlbums.familyKey(for: .day("2026-09-11")) == "moment:onThisDay")
     }
 
     @Test("a removed album is off the shelf, its kind too when asked, and both come back")

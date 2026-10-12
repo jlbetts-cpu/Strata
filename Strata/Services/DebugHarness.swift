@@ -1148,6 +1148,7 @@ enum DebugHarness {
     static var wantsSeed: Bool {
         argument("-strataSeedWins") != nil
             || argument("-strataSeedHistory") != nil
+            || argument("-strataSeedFlashback") != nil
             || argument("-strataSeedHistoryPerDay") != nil
             || argument("-strataSeedStreak") != nil
             || argument("-strataSeedHabits") != nil
@@ -1308,6 +1309,18 @@ enum DebugHarness {
         // looked at. Everything else here seeds today, which is all the app
         // can produce on its own — `QuickWinService.logWin` takes a date now
         // for exactly this reason.
+        // `-strataSeedFlashback <months>`: one photographed win, that many
+        // months ago to the day, and nothing else: the smallest store that
+        // has an "on this day" (`Flashback`, rubric line 12).
+        if let months = argument("-strataSeedFlashback").flatMap(Int.init),
+           let day = DateUtils.keyCalendar().date(byAdding: .month, value: -months, to: Date()),
+           let win = try? QuickWinService.logWin(title: "Morning Run", category: .health, size: .medium,
+                                                 on: day, context: context, tower: tower),
+           let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+            log.imageFileName = seedPhoto(for: win.logID, category: .health)
+            try? context.save()
+        }
+
         let historyDays = Int(argument("-strataSeedHistory") ?? "0") ?? 0
         if historyDays > 0 {
             let calendar = Calendar.current

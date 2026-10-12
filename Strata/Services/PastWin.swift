@@ -7,9 +7,9 @@ import UserNotifications
 /// rediscovering ordinary moments, and savouring is worth a moderate effect,
 /// g = 0.51, across 20 trials).
 ///
-/// One win a day, the same one all day: the same date a year or more back
-/// if there is one ("A year ago today: Morning run"), otherwise an ordinary
-/// win from at least four weeks ago, chosen by the date so it does not change
+/// One win a day, the same one all day: the same date back if there is one
+/// ("A year ago today: Morning run", by `Flashback`'s ladder), otherwise an
+/// ordinary win from at least four weeks ago, chosen by the date so it does not change
 /// each time the page opens. Only named wins: a nameless block has nothing
 /// to say.
 ///
@@ -38,15 +38,16 @@ nonisolated enum PastWin {
     static func pick(from candidates: [Candidate], today: Date, calendar: Calendar) -> Pick? {
         let todayKey = DateUtils.dateString(from: today)
         let named = candidates.filter { !$0.title.isEmpty && $0.title != QuickWinService.untitled }
-        // The same date, a year or more back.
-        for years in 1...AlbumMoment.maxYearsBack {
-            guard let then = calendar.date(byAdding: .year, value: -years, to: today) else { continue }
-            let key = DateUtils.dateString(from: then)
-            let thatDay = named.filter { $0.dateString == key }.sorted { $0.title < $1.title }
+        // The same date back: years, then six months, then one. **The
+        // card's own ladder and its own words** (`Flashback`, 2026-10-12),
+        // so the evening's line and the card on the Memories shelf never
+        // name two different pasts. It was years only, from the nearest;
+        // a person at launch has no year to look back on.
+        for rung in Flashback.rungs(today: today, calendar: calendar) {
+            let thatDay = named.filter { $0.dateString == rung.day }.sorted { $0.title < $1.title }
             if !thatDay.isEmpty {
                 let chosen = thatDay[Int(stableHash(todayKey) % UInt64(thatDay.count))]
-                return Pick(title: chosen.title, dateString: key,
-                            when: years == 1 ? "A year ago today" : "\(years) years ago today")
+                return Pick(title: chosen.title, dateString: rung.day, when: rung.title)
             }
         }
         // Otherwise any ordinary win old enough to be a memory.

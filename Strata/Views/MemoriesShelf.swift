@@ -134,7 +134,7 @@ struct MemoriesShelf: View {
         case .curated: "Never Show \(album.title)"
         case .crew: "Never Show This Crew"
         case .moment: "Never Show Past Days"
-        case .day: "Never Show This Day"
+        case .day: "Never Show Past Days"
         }
     }
 

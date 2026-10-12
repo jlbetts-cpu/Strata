@@ -36,7 +36,10 @@ nonisolated enum RemovedAlbums {
         case .curated(let key): "curated:\(key)"
         case .crew(let key): "crew:\(key)"
         case .moment(let id): "moment:\(id)@\(today)"
-        case .day: nil
+        // A day's card on the shelf is the flashback (`Flashback`). Stamped
+        // with today, as a moment is: removed, it is gone today, and the
+        // same day may come round again in five months or a year.
+        case .day(let key): "day:\(key)@\(today)"
         }
     }
 
@@ -47,7 +50,9 @@ nonisolated enum RemovedAlbums {
         case .curated(let key): "curated:\(Album.splitMonth(key).key)"
         case .crew(let key): "crew:\(Album.splitMonth(key).key)"
         case .moment(let id): "moment:\(id.split(separator: ":").first.map(String.init) ?? id)"
-        case .day: nil
+        // The same family as "a year ago today": Never Show Past Days is
+        // one switch for every look back.
+        case .day: "moment:onThisDay"
         }
     }
 

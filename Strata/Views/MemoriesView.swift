@@ -246,24 +246,31 @@ struct MemoriesView: View {
                     // there: a fold hid them for nothing (the owner,
                     // 2026-10-03: "i dont think theres a point to closing
                     // them at all").
-                    if !pageIsEmpty, count > 0 {
-                        photosCaption(count)
-                            .padding(.top, GridConstants.gapSection)
+                    // **And for a flashback alone** (`Flashback`): on the
+                    // first days of a month there are no photos here yet,
+                    // and "a year ago today" was hidden with them.
+                    if !pageIsEmpty, count > 0 || !vm.monthAlbums.isEmpty {
+                        if count > 0 {
+                            photosCaption(count)
+                                .padding(.top, GridConstants.gapSection)
+                        }
                         // **The month's albums, made of these photographs**
                         // (`Album.monthShelf`): under the count, so the fold
                         // and the first screen are exactly as they were.
                         MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
-                                      topGap: GridConstants.gapTight,
+                                      topGap: count > 0 ? GridConstants.gapTight : GridConstants.gapSection,
                                       onRemove: { album, never in remove(album, never: never) })
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
-                        PhotoGalleryGrid(sections: shown,
-                                         transitionNamespace: photoTransition,
-                                         onSelect: { photo in
-                                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
-                                         },
-                                         screenTitle: shown.first?.title)
-                            .padding(.top, vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
+                        if count > 0 {
+                            PhotoGalleryGrid(sections: shown,
+                                             transitionNamespace: photoTransition,
+                                             onSelect: { photo in
+                                                 viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
+                                             },
+                                             screenTitle: shown.first?.title)
+                                .padding(.top, vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
+                        }
                     }
                 }
                 // Room under the photos for the tab bar.
