@@ -73,3 +73,29 @@ On a real phone only:
 10. Tap to focus, then point somewhere else: it refocuses within a second.
 11. A volume button takes one photo and shows no volume bar.
 12. Flash on Auto fires in a dark room and not in daylight.
+
+## Built on 2026-10-12, and what is proven
+
+| Change | Proven here | Needs your phone |
+|---|---|---|
+| The photo is told which way up the phone is, by one kept rotation coordinator | The app's steps keep all eight orientations upright (`CameraLensTests.eightWays`) | Lines 5 and 6 |
+| The viewfinder's angle is set from the same coordinator | Compiles; reads as Apple's sample does | That the viewfinder is unchanged held upright, on your phone |
+| The front camera's live frames use the viewfinder's angle | The same | Line 7 |
+| A row of lenses, one press each, with 2x where the main camera has a true one | Lines 1 to 3, by test; the row looked at with made-up lenses (`-strataFakeLenses 1,2,4,6`) | Lines 8 and 9; whether 2x appears on your phone |
+| A lens press glides (`ramp`) | Compiles | Line 9 |
+| A tap to focus lets go when the picture changes | Compiles | Line 10 |
+| Volume buttons and Camera Control take the photo | Compiles | Line 11 |
+| Flash: Off, Auto, On (back camera) | The three states and their bolts, by test | Line 12 |
+
+**None of the right-hand column has been seen.** The simulator has no
+camera. The one I am least sure of: the front camera, phone held sideways.
+The photo is mirrored and turned in the same step, and whether that comes
+out upright or upside down I could not find written down. It was a
+quarter turn off before, every time.
+
+Not built: icons that turn with the phone, Live Photo, a night switch.
+The head maker's camera was left exactly as it was; its angles were tuned
+on a phone.
+
+**Because of that column this is in a build for you alone (128), not the
+Friends build (127).** The camera is the first screen the app opens on.

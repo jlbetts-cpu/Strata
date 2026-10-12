@@ -23,8 +23,27 @@ final class CameraService: NSObject {
     private(set) var isConfigured = false
     /// True while a capture is in flight, so the shutter cannot be re-fired.
     private(set) var isCapturing = false
+    /// **Off, Auto, On** (the owner, 2026-10-12: the camera "should have
+    /// most of the familiar features that casual people use on the Apple
+    /// camera"). Auto is the lamp's own: the phone decides from the light.
+    /// The front camera's flash is the screen held lit, which cannot decide
+    /// anything, so in front it is off or on.
+    enum Flash: String { case off, auto, on }
+    var flash: Flash = .off
     /// Front-camera flash is a screen flash, so the view has to know.
-    var isFlashOn = false
+    var isFlashOn: Bool {
+        get { flash == .on }
+        set { flash = newValue ? .on : .off }
+    }
+
+    /// The next of the three, as a tap on the bolt moves it.
+    func cycleFlash() {
+        switch flash {
+        case .off: flash = !usesScreenFlash && output.supportedFlashModes.contains(.auto) ? .auto : .on
+        case .auto: flash = .on
+        case .on: flash = .off
+        }
+    }
 
     /// Whether the composition guides are drawn.
     ///
@@ -54,6 +73,46 @@ final class CameraService: NSObject {
     private var input: AVCaptureDeviceInput?
     private let queue = DispatchQueue(label: "camera.session")
     private var onCaptured: ((UIImage?) -> Void)?
+
+    /// **Which way up, asked of the phone for as long as the camera is open**
+    /// (the owner, 2026-10-12: "sometimes the orientation is wrong";
+    /// `docs/camera.md`). The app is held to portrait, so nothing ever told
+    /// a photograph the phone had been turned: held sideways, it came out a
+    /// quarter turn off. This is Apple's own object for exactly that, kept
+    /// (it was made and thrown away, read once), and it feeds three things:
+    /// the photograph, the viewfinder, and the front camera's live frames.
+    @ObservationIgnored private var rotation: AVCaptureDevice.RotationCoordinator?
+    @ObservationIgnored private var rotationWatch: NSKeyValueObservation?
+    @ObservationIgnored private weak var previewLayer: AVCaptureVideoPreviewLayer?
+    @ObservationIgnored private var subjectWatch: NSObjectProtocol?
+    @ObservationIgnored private var focusedAt = Date.distantPast
+
+    /// The viewfinder this camera is showing in, so the two agree about
+    /// which way is up.
+    func attach(previewLayer layer: AVCaptureVideoPreviewLayer) {
+        previewLayer = layer
+        if isConfigured { watchRotation() }
+    }
+
+    private func watchRotation() {
+        rotationWatch = nil
+        guard let device = input?.device else { rotation = nil; return }
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
+        rotation = coordinator
+        applyPreviewRotation()
+        rotationWatch = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.applyPreviewRotation() }
+        }
+    }
+
+    private func applyPreviewRotation() {
+        guard let rotation, let layer = previewLayer else { return }
+        let angle = rotation.videoRotationAngleForHorizonLevelPreview
+        if let connection = layer.connection, connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
+        }
+        orientRetouch()
+    }
 
     // MARK: - Lifecycle
 
@@ -169,6 +228,8 @@ final class CameraService: NSObject {
         session.commitConfiguration()
         retouch.setEnabled(facing == .front)
         isConfigured = true
+        watchRotation()
+        watchSubject()
         // **Open at 1x, not at the widest lens.**
         //
         // On a virtual device the zoom factor 1.0 is the ULTRA WIDE, so a
@@ -229,6 +290,11 @@ final class CameraService: NSObject {
             session.addInput(newInput)
             input = newInput
             facing = next
+            // The old lens's answer about which way is up is not this one's.
+            rotationWatch = nil
+            rotation = nil
+            // The screen held lit cannot be on Auto.
+            if next == .front, flash == .auto { flash = .off }
             // A new device starts at its own 1x with its own metering. Without
             // this the pill keeps reading whatever the old lens was at, and
             // the first pinch jumps.
@@ -245,6 +311,7 @@ final class CameraService: NSObject {
             session.addInput(current)
         }
         session.commitConfiguration()
+        watchRotation()
     }
 
     /// How much of the front camera's field to crop away by default.
@@ -286,10 +353,22 @@ final class CameraService: NSObject {
     /// frame is the picture the preview layer would have shown. The angle is
     /// asked of the device: the iPhone 17 front sensor is mounted a quarter
     /// turn from its predecessors (see `attachFrames`).
+    ///
+    /// **The viewfinder's angle, not the photograph's** (2026-10-12). These
+    /// frames are drawn in the viewfinder, which stays upright on the screen
+    /// however the phone is held; the angle asked for was the one for a
+    /// photograph, which follows the phone. Flip to the front camera while
+    /// holding the phone sideways and the picture was turned, and stayed
+    /// turned. Before a viewfinder is known it is asked the old way.
     private func orientRetouch() {
         guard let connection = retouch.output.connection(with: .video), let input else { return }
-        let angle = AVCaptureDevice.RotationCoordinator(device: input.device, previewLayer: nil)
-            .videoRotationAngleForHorizonLevelCapture
+        let angle: CGFloat
+        if let rotation, previewLayer != nil {
+            angle = rotation.videoRotationAngleForHorizonLevelPreview
+        } else {
+            angle = AVCaptureDevice.RotationCoordinator(device: input.device, previewLayer: nil)
+                .videoRotationAngleForHorizonLevelCapture
+        }
         if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
@@ -504,10 +583,41 @@ final class CameraService: NSObject {
             // describes anything.
             device.setExposureTargetBias(0)
             exposureBias = 0
+            // **A tap is not for ever** (2026-10-12, `docs/camera.md`). One
+            // tap focused there and then never again by itself: point the
+            // phone at something else and it stayed soft until the next tap.
+            // The phone is asked to say when the picture has changed, and
+            // then it goes back to looking after itself (`watchSubject`), as
+            // Apple's camera does.
+            device.isSubjectAreaChangeMonitoringEnabled = true
+            focusedAt = Date()
             device.unlockForConfiguration()
         } catch {
             // Being reconfigured. The next tap carries the same intent.
         }
+    }
+
+    /// How many times the camera has gone back to focusing by itself, so the
+    /// view can put the square away when it no longer describes anything.
+    private(set) var focusReleases = 0
+
+    private func watchSubject() {
+        guard subjectWatch == nil else { return }
+        subjectWatch = NotificationCenter.default.addObserver(
+            forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.subjectChanged() }
+        }
+    }
+
+    private func subjectChanged() {
+        // Not in the second after the tap (the lens moving is itself a
+        // change), and not while the brightness is being held somewhere by
+        // hand: a picture made lighter has changed, and letting go then
+        // would fight the finger that is dragging it.
+        guard Date().timeIntervalSince(focusedAt) > 1, abs(exposureBias) < 0.01 else { return }
+        resetFocus()
+        focusReleases += 1
     }
 
     /// Pushes the exposure up or down, in stops, clamped to what the device
@@ -531,16 +641,20 @@ final class CameraService: NSObject {
     /// frame. What flipping or leaving the screen should leave behind.
     func resetFocus() {
         guard let device = input?.device else { return }
+        let centre = CGPoint(x: 0.5, y: 0.5)
         do {
             try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = centre }
             if device.isFocusModeSupported(.continuousAutoFocus) {
                 device.focusMode = .continuousAutoFocus
             }
+            if device.isExposurePointOfInterestSupported { device.exposurePointOfInterest = centre }
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
             device.setExposureTargetBias(0)
             exposureBias = 0
+            device.isSubjectAreaChangeMonitoringEnabled = false
             device.unlockForConfiguration()
         } catch { }
     }
@@ -553,10 +667,13 @@ final class CameraService: NSObject {
     /// half-right.
     func setZoom(_ factor: CGFloat) {
         guard let device = input?.device else { return }
-        let clamped = min(max(factor, 1), maxZoom)
+        let clamped = CameraLenses.clamped(factor, max: maxZoom)
         guard abs(clamped - zoom) > 0.001 else { return }
         do {
             try device.lockForConfiguration()
+            // A pinch that starts while a lens button's glide is still
+            // running takes over from it.
+            if device.isRampingVideoZoom { device.cancelVideoZoomRamp() }
             device.videoZoomFactor = clamped
             device.unlockForConfiguration()
             zoom = clamped
@@ -565,6 +682,26 @@ final class CameraService: NSObject {
             // Dropping the frame is right; the next pinch event carries the
             // same intent.
         }
+    }
+
+    /// How long a lens button takes to get there, whatever the distance.
+    static let glideSeconds: CGFloat = 0.25
+
+    /// **To a lens, gliding** (2026-10-12): a lens button on Apple's camera
+    /// slides the picture to the next lens; this one cut. The phone does the
+    /// slide itself, handing over between its lenses on the way, at a rate
+    /// in doublings a second.
+    func glide(to factor: CGFloat) {
+        guard let device = input?.device else { return }
+        let clamped = CameraLenses.clamped(factor, max: maxZoom)
+        guard abs(clamped - zoom) > 0.001 else { return }
+        let doublings = abs(log2(clamped / max(zoom, 0.001)))
+        do {
+            try device.lockForConfiguration()
+            device.ramp(toVideoZoomFactor: clamped, withRate: Float(max(doublings / Self.glideSeconds, 1)))
+            device.unlockForConfiguration()
+            zoom = clamped
+        } catch { }
     }
 
     // MARK: - Capture
@@ -597,6 +734,13 @@ final class CameraService: NSObject {
         // fact. `automaticallyAdjustsVideoMirroring` has to be turned off
         // first or the assignment is silently ignored.
         if let connection = output.connection(with: .video) {
+            // **The photograph is told which way up the phone is**, at the
+            // moment it is taken (`rotation`). Lying flat, the phone answers
+            // with the last way it was held.
+            if let angle = rotation?.videoRotationAngleForHorizonLevelCapture,
+               connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
+            }
             if connection.isVideoMirroringSupported {
                 connection.automaticallyAdjustsVideoMirroring = false
                 connection.isVideoMirrored = usesScreenFlash
@@ -622,8 +766,13 @@ final class CameraService: NSObject {
             output.maxPhotoQualityPrioritization.rawValue >= AVCapturePhotoOutput.QualityPrioritization.quality.rawValue
             ? .quality : output.maxPhotoQualityPrioritization
         // Only the rear camera has a lamp to fire.
-        if !usesScreenFlash, output.supportedFlashModes.contains(.on) {
-            settings.flashMode = isFlashOn ? .on : .off
+        if !usesScreenFlash {
+            let wanted: AVCaptureDevice.FlashMode = switch flash {
+            case .off: .off
+            case .auto: .auto
+            case .on: .on
+            }
+            if output.supportedFlashModes.contains(wanted) { settings.flashMode = wanted }
         }
         output.capturePhoto(with: settings, delegate: self)
     }

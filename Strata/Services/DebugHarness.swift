@@ -573,6 +573,13 @@ enum DebugHarness {
     /// owner's "blank black screen".
     static var cameraDenied: Bool { argument("-strataCameraDenied") != nil }
 
+    /// `-strataFakeLenses 1,2,4,6`: the lens row drawn for a phone with
+    /// those stops (1x at the second), so it can be looked at on a machine
+    /// with no camera. Nothing zooms.
+    static var fakeLenses: [CGFloat]? {
+        argument("-strataFakeLenses").map { $0.split(separator: ",").compactMap { Double($0) }.map { CGFloat($0) } }
+    }
+
     /// Spawns a touch ripple at the middle of the page on launch, from
     /// `-strataRipple 1`.
     ///

@@ -876,3 +876,20 @@ You asked for six things. What was done, in the order you asked.
   **Your call:** the card sits under the calendar, below the fold. You
   took a past-win line off that first screen once, so I did not put this
   one there.
+
+### The camera (`docs/camera.md`)
+
+- **Orientation.** The app is held to portrait, and nothing ever told a
+  photo the phone had been turned, so a photo taken sideways came out a
+  quarter turn off. It is told now, at the moment it is taken.
+- **Lenses.** A row, `0.5x 1 2 3`, one press each, gliding. The pill that
+  cycled put 0.5x two taps away.
+- **Focus.** A tap focused there and never again by itself. It now lets
+  go when the picture changes, as Apple's does.
+- **Volume buttons** take the photo. **Flash** has Auto on the back camera.
+
+**I could not see any of this work: the simulator has no camera.** So
+there are two builds. **127 went to Friends** with everything else.
+**128 is for you alone** and has the camera changes. The eight things to
+try on your phone are lines 5 to 12 of the rubric in `docs/camera.md`.
+Say the word and the next build to Friends carries them.

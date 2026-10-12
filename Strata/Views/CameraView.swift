@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -203,7 +204,7 @@ struct CameraView: View {
             let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
-                CameraPreview(session: camera.session, box: previewBox)
+                CameraPreview(session: camera.session, box: previewBox, camera: camera)
                 #if DEBUG
                 // `-strataFakeLens`: a video where the lens would be, so the
                 // camera can be filmed in the simulator (`FakeLens`).
@@ -391,6 +392,19 @@ struct CameraView: View {
         // thing that makes the overlay actually EMIT: a warm wash on a screen
         // at 30% lights nothing.
         .onChange(of: ringIsArmed) { _, armed in setRingBrightness(armed) }
+        // **The volume buttons take the photo, and the Camera Control button
+        // on a phone that has one** (2026-10-12, `docs/camera.md`): what
+        // every camera on this phone does. The same press as the shutter,
+        // so the timer and a running countdown behave as they do there. Only
+        // while the viewfinder is what is showing.
+        .onCameraCaptureEvent(isEnabled: review == nil && !camera.isDenied) { event in
+            if event.phase == .ended { shutterPressed() }
+        }
+        // The camera went back to focusing by itself: the square no longer
+        // says where it is looking.
+        .onChange(of: camera.focusReleases) { _, _ in
+            withAnimation(GridConstants.motionSnappy) { focusPoint = nil }
+        }
         .onAppear { if ringIsArmed { setRingBrightness(true) } }
         #if DEBUG
         .onAppear {
@@ -1197,16 +1211,16 @@ struct CameraView: View {
 
                 Spacer(minLength: 0)
 
-                glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill",
-                            label: camera.isFlashOn ? "Flash on" : "Flash off",
+                glyphButton(Self.flashSymbol(camera.flash),
+                            label: "Flash \(camera.flash.rawValue)",
                             identifier: "flashToggle",
-                            value: camera.isFlashOn ? "on" : "off",
+                            value: camera.flash.rawValue,
                             // Off is DIMMED, as the grid and the timer are
                             // and as iOS Camera does it. It was a full-white
                             // slashed glyph beside a dimmed timer, so one row
                             // of four said "off" two different ways.
-                            dimmed: !camera.isFlashOn) {
-                    camera.isFlashOn.toggle()
+                            dimmed: camera.flash == .off) {
+                    camera.cycleFlash()
                 }
 
                 Spacer(minLength: 0)
@@ -1341,52 +1355,90 @@ struct CameraView: View {
     /// and this is exactly the control it has always been: absent at 1x,
     /// present after a pinch, and a tap undoes the pinch. No dead buttons, and
     /// nothing drawn for a lens that is not there.
+    ///
+    /// **A row of lenses, one press each** (the owner, 2026-10-12: "the
+    /// zoom should be automatic like it is on the native Apple camera ...
+    /// it should have most of the familiar features"). The one pill cycled:
+    /// from 1x a tap went to the telephoto and only then wrapped to 0.5x, so
+    /// the wide lens was two taps away and nothing said it existed. Now
+    /// every lens the phone has is written out, the one in use with its x,
+    /// and a press glides there (`CameraService.glide`). It is still one
+    /// piece of glass on the photograph, in the place the pill had.
     @ViewBuilder
     private var zoomPill: some View {
         let lenses = CameraLenses.offer(from: camera)
-        let label = CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base)
-        // A choice of glass is worth a permanent control; a bare readout is
-        // not. See the note above `shutterBounds` about reserving its height
-        // either way.
-        if camera.canZoom, lenses.hasChoice || camera.zoom > 1.005 {
-            let next = lenses.hasChoice
-                ? CameraLenses.stop(after: camera.zoom, in: lenses.stops)
-                : 1
-            Button {
-                HapticsEngine.lightTap()
-                withAnimation(GridConstants.motionSnappy) { camera.setZoom(next) }
-            } label: {
-                Text(label)
-                    .font(Typography.headerSmall)
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-                    // After the layout, not before: the material takes its
-                    // shape from the final frame.
-                    .frame(width: 56, height: 34)
-                    // The app's one glass capsule, not a private fourth copy of
-                    // it. See the note where `zoomGlass()` used to be, at the
-                    // bottom of this file.
-                    .glassCapsule()
-                    // **The capsule stays 34pt and the TARGET is 44.** The
-                    // drawn pill is the size it is drawn; the thing a thumb
-                    // has to find is not. It was 34 tall, ten points under the
-                    // floor every other control on this screen meets, and it
-                    // is the one control that appears mid-gesture with a
-                    // finger already moving. The extra ten points are
-                    // invisible and are the difference between tapping it and
-                    // tapping the viewfinder, which refocuses the shot.
-                    .frame(width: 60, height: Self.controlSide)
-                    .contentShape(Rectangle())
+        if camera.canZoom || Self.debugLenses, lenses.hasChoice {
+            lensRow(lenses)
+        } else if camera.canZoom, camera.zoom > 1.005 {
+            // One lens: a readout that is there after a pinch, and a tap
+            // undoes the pinch.
+            lensButton(CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base),
+                       chosen: true, name: "Lens, \(CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base))",
+                       hint: "Returns to 1x") {
+                withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
             }
-            .buttonStyle(.plain)
-            // It grows out of the shutter's line rather than fading in on the
-            // spot, which is what makes it read as belonging to the gesture
-            // that produced it.
+            .frame(height: 34)
+            .glassCapsule(interactive: false)
             .transition(.scale(scale: 0.7).combined(with: .opacity))
-            .accessibilityLabel("Lens, \(label)")
-            .accessibilityHint(lenses.hasChoice
-                               ? "Switches to \(CameraLenses.label(forDeviceFactor: next, base: lenses.base))"
-                               : "Returns to 1x")
+        }
+    }
+
+    private func lensRow(_ lenses: CameraLenses.Offer) -> some View {
+        let chosen = CameraLenses.chosen(for: camera.zoom, in: lenses.stops)
+        return HStack(spacing: 0) {
+            ForEach(lenses.stops, id: \.self) { stop in
+                let isChosen = stop == chosen
+                let name = CameraLenses.label(forDeviceFactor: stop, base: lenses.base)
+                // The chosen one says where the lens IS, so mid pinch it
+                // reads 1.4x; the others are the numbers alone.
+                lensButton(isChosen
+                           ? CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base)
+                           : CameraLenses.shortLabel(forDeviceFactor: stop, base: lenses.base),
+                           chosen: isChosen, name: "Lens \(name)", hint: nil) {
+                    camera.glide(to: stop)
+                }
+            }
+        }
+        // The drawn capsule is 34pt and every lens in it is a 44pt target,
+        // as the pill was.
+        .frame(height: 34)
+        .glassCapsule(interactive: false)
+        .transition(.scale(scale: 0.7).combined(with: .opacity))
+    }
+
+    private func lensButton(_ label: String, chosen: Bool, name: String, hint: String?,
+                            action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            Text(label)
+                .font(Typography.headerSmall)
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(chosen ? 1 : 0.6))
+                .frame(width: chosen ? 56 : Self.controlSide, height: Self.controlSide)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(name)
+        .accessibilityHint(hint ?? "")
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
+    private static var debugLenses: Bool {
+        #if DEBUG
+        DebugHarness.fakeLenses != nil
+        #else
+        false
+        #endif
+    }
+
+    /// The bolt for each of the flash's three states.
+    static func flashSymbol(_ flash: CameraService.Flash) -> String {
+        switch flash {
+        case .off: "bolt.slash.fill"
+        case .auto: "bolt.badge.automatic.fill"
+        case .on: "bolt.fill"
         }
     }
 
@@ -1844,6 +1896,10 @@ final class PreviewLayerBox {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let box: PreviewLayerBox
+    /// The camera whose photographs have to agree with this viewfinder about
+    /// which way is up (`CameraService.attach`). Nil for the head maker,
+    /// which measures faces and keeps the angles it was tuned with.
+    var camera: CameraService? = nil
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -1851,6 +1907,7 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         box.layer = view.previewLayer
+        camera?.attach(previewLayer: view.previewLayer)
 
         return view
     }

@@ -1058,6 +1058,30 @@ report and nothing to undo. Its height is reserved anyway: a control that
 appears by pushing the shutter down moves the one thing on this screen that
 must not move.
 
+### Which way up, lenses, focus (2026-10-12)
+
+`docs/camera.md` has the findings, the rubric and what is unproven.
+
+- **One `AVCaptureDevice.RotationCoordinator`, kept** on `CameraService`
+  (`rotation`), remade on a flip and when a viewfinder attaches. The
+  PHOTO takes `...ForHorizonLevelCapture` (follows the phone); the
+  VIEWFINDER and the front camera's live frames take `...ForHorizonLevel
+  Preview` (stays with the screen). Mixing the two is the bug that was
+  fixed. Do not make a coordinator, read it once and drop it.
+- `CameraPreview(camera:)` is what attaches the viewfinder. **The head
+  maker passes none on purpose**: its angles were tuned on a phone.
+- Lenses are a row (`lensRow`), one button a stop, `CameraService.glide`.
+  `CameraLenses.stops(crop:)` adds 2x only where the main camera reports a
+  native-resolution crop. All zoom goes through `CameraLenses.clamped`.
+- A tap to focus turns on subject-area monitoring; `subjectChanged` lets
+  go, except in the second after the tap and while an exposure bias is
+  held (a brightened picture has "changed", and it would fight the drag).
+- Flash is `Flash` (off, auto, on); `isFlashOn` remains for the head maker
+  and the ring light. The front camera never holds Auto.
+- `-strataFakeLenses 1,2,4,6` draws the lens row with no camera.
+- **Unseen on a device as of build 128.** Do not send camera changes to
+  the Friends group before the owner has tried them.
+
 ## Gestures CAN be tested — use `StrataUITests`
 
 The line below about nothing being able to tap the simulator is true of

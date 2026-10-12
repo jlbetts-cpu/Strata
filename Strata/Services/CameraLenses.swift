@@ -65,11 +65,17 @@ nonisolated enum CameraLenses {
     ///
     /// **Pure**, so the mapping can be checked on a machine with no camera,
     /// which is the only place any of this can be checked at all.
-    static func stops(base: CGFloat, switchovers: [CGFloat], maxFactor: CGFloat) -> [CGFloat] {
+    static func stops(base: CGFloat, switchovers: [CGFloat], maxFactor: CGFloat, crop: Bool = false) -> [CGFloat] {
         guard base > 0 else { return [1] }
         // 1 is the widest the glass goes; `base` is the familiar 1x.
         var stops: [CGFloat] = [1, base]
         stops.append(contentsOf: switchovers)
+        // **2x, where the phone has one** (2026-10-12). A main camera with
+        // four times the pixels a photo needs gives a true 2x from its
+        // middle, and Apple's camera offers it as a lens. Not on a phone
+        // whose 2x would be enlarged pixels, and not where a real lens
+        // already sits about there.
+        if crop, !stops.contains(where: { abs($0 / base - 2) < 0.3 }) { stops.append(base * 2) }
         return stops
             .filter { $0 >= 1 - 0.001 && $0 <= maxFactor + 0.001 }
             .sorted()
@@ -81,14 +87,16 @@ nonisolated enum CameraLenses {
             }
     }
 
-    /// The stop a tap should go to: the next one up, and back to the widest
-    /// from the top. From somewhere between two stops it goes to the one
-    /// ABOVE, so a pinch followed by a tap tidies up rather than jumping
-    /// backwards.
-    static func stop(after factor: CGFloat, in stops: [CGFloat]) -> CGFloat {
-        guard let first = stops.first, let last = stops.last else { return 1 }
-        if let above = stops.first(where: { $0 > factor + 0.01 }) { return above }
-        return factor > last - 0.01 ? first : last
+    /// The stop the lens is on or past: the one drawn as chosen. Between
+    /// two, it is the lower, which is the lens doing the work.
+    static func chosen(for factor: CGFloat, in stops: [CGFloat]) -> CGFloat {
+        stops.last(where: { $0 <= factor + 0.01 }) ?? stops.first ?? 1
+    }
+
+    /// A factor held inside what the lens can do: never wider than the
+    /// widest lens, never past the limit. Every zoom goes through this.
+    static func clamped(_ factor: CGFloat, max limit: CGFloat) -> CGFloat {
+        min(max(factor, 1), max(limit, 1))
     }
 
     /// What a device factor is called on screen. `1x`, `2.4x`: one decimal,
@@ -99,6 +107,14 @@ nonisolated enum CameraLenses {
         return rounded == rounded.rounded()
             ? String(format: "%.0fx", rounded)
             : String(format: "%.1fx", rounded)
+    }
+
+    /// A lens that is not the chosen one, as iOS Camera writes it: the
+    /// number alone, `.5`, `1`, `2`, `3`.
+    static func shortLabel(forDeviceFactor factor: CGFloat, base: CGFloat) -> String {
+        var text = String(label(forDeviceFactor: factor, base: base).dropLast())
+        if text.hasPrefix("0.") { text.removeFirst() }
+        return text
     }
 }
 
@@ -119,6 +135,9 @@ extension CameraLenses {
 
     @MainActor
     static func offer(from service: CameraService) -> Offer {
+        #if DEBUG
+        if let stops = DebugHarness.fakeLenses, stops.count > 1 { return Offer(base: stops[1], stops: stops) }
+        #endif
         guard let device = device(in: service.session) else { return Offer() }
         let base = base(for: device)
         return Offer(base: base,
@@ -126,6 +145,17 @@ extension CameraLenses {
                                   switchovers: device.virtualDeviceSwitchOverVideoZoomFactors.map {
                                       CGFloat(truncating: $0)
                                   },
-                                  maxFactor: service.maxZoom))
+                                  maxFactor: service.maxZoom,
+                                  crop: hasQualityCrop(device)))
+    }
+
+    /// Whether the back camera's main lens can give a true 2x from the
+    /// middle of its sensor. The phone says so on the format it is using.
+    @MainActor
+    static func hasQualityCrop(_ device: AVCaptureDevice) -> Bool {
+        guard device.position == .back else { return false }
+        let wide = device.constituentDevices.first { $0.deviceType == .builtInWideAngleCamera } ?? device
+        return !device.activeFormat.secondaryNativeResolutionZoomFactors.isEmpty
+            || !wide.activeFormat.secondaryNativeResolutionZoomFactors.isEmpty
     }
 }

@@ -605,6 +605,25 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
+    /// The camera's lens row and the flash's states (`docs/camera.md`). The
+    /// simulator has no lens, so the row is drawn for a made-up phone.
+    func testCameraLenses() {
+        let app = launch(["-strataStartTab", "camera", "-strataFakeLenses", "1,2,4,6"])
+        wait(6); snap("camera-lenses")
+        let flash = app.buttons["flashToggle"]
+        if flash.waitForExistence(timeout: 3) {
+            print("PLANNING-flash before: \(flash.value ?? "nil")")
+            flash.tap(); wait(1); snap("camera-flash-1")
+            print("PLANNING-flash after one: \(flash.value ?? "nil")")
+            flash.tap(); wait(1)
+            print("PLANNING-flash after two: \(flash.value ?? "nil")")
+        }
+        for name in ["Lens 0.5x", "Lens 1x", "Lens 2x", "Lens 3x"] {
+            let lens = app.buttons[name]
+            print("PLANNING-\(name): exists \(lens.exists) frame \(lens.exists ? lens.frame : .zero) selected \(lens.exists && lens.isSelected)")
+        }
+    }
+
     /// On this day (`Flashback`, `docs/flashback.md`): alone, among a
     /// month's albums, opened, and with its menu.
     func testFlashback() {
