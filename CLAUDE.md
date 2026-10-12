@@ -1237,9 +1237,10 @@ Design, rubric and grade: `docs/flashback.md`. Rules that are easy to break:
 - The old `onThisDay` moment albums (three photos) are filtered off the
   shelf; the flashback replaces them.
 - `-strataSeedFlashback <months>` seeds the smallest store that has one.
-- **Not on the first screen.** The owner removed a past-win line from under
-  the calendar on 2026-10-06. Ask before putting anything about the past
-  above the fold.
+- **Not on the first screen, and that is settled.** The owner removed a
+  past-win line from under the calendar on 2026-10-06, and on 2026-10-12,
+  asked whether the card should go above the calendar or put a dot on the
+  tab, chose to keep it on the shelf. Do not move it or add a dot.
 
 ## Screenshots without a tap
 
