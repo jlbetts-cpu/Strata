@@ -99,3 +99,26 @@ on a phone.
 
 **Because of that column this is in a build for you alone (128), not the
 Friends build (127).** The camera is the first screen the app opens on.
+
+### The independent read (2026-10-12)
+
+A second reader went through the change with nothing run. Nothing wrong in
+the everyday case (upright, back camera, tap the shutter). Three things
+fixed from it:
+
+- A volume press could reach the tab's camera while the add sheet's camera
+  was the one showing, and a photo asked of a stopped camera left its
+  shutter dead until relaunch. The buttons now belong to the camera on
+  screen, and a camera that is not running takes nothing.
+- Every camera heard every lens, so the tab's stopped camera could undo a
+  tap to focus made in the add sheet's. Only the running camera lets go.
+- The viewfinder's angle is asked again once it is on screen.
+
+Two more for the phone, added to the list above:
+
+13. Front camera, phone upright: the viewfinder is upright (most at risk on
+    an iPhone 17, whose front sensor is mounted differently).
+14. On the Wins tab, a volume button changes the volume and takes nothing.
+
+If the front camera held sideways gives an upside-down photo (line 5), the
+fix is one line: turn the angle the other way when the photo is mirrored.

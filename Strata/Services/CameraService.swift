@@ -84,7 +84,7 @@ final class CameraService: NSObject {
     @ObservationIgnored private var rotation: AVCaptureDevice.RotationCoordinator?
     @ObservationIgnored private var rotationWatch: NSKeyValueObservation?
     @ObservationIgnored private weak var previewLayer: AVCaptureVideoPreviewLayer?
-    @ObservationIgnored private var subjectWatch: NSObjectProtocol?
+    @ObservationIgnored private var watchesSubject = false
     @ObservationIgnored private var focusedAt = Date.distantPast
 
     /// The viewfinder this camera is showing in, so the two agree about
@@ -108,7 +108,10 @@ final class CameraService: NSObject {
     private func applyPreviewRotation() {
         guard let rotation, let layer = previewLayer else { return }
         let angle = rotation.videoRotationAngleForHorizonLevelPreview
-        if let connection = layer.connection, connection.isVideoRotationAngleSupported(angle) {
+        // Only when it is different: writing the same angle still makes a
+        // running session stop and think.
+        if let connection = layer.connection, connection.isVideoRotationAngleSupported(angle),
+           connection.videoRotationAngle != angle {
             connection.videoRotationAngle = angle
         }
         orientRetouch()
@@ -191,7 +194,16 @@ final class CameraService: NSObject {
                 done.resume()
             }
         }
+        // Asked again now the viewfinder is on screen: a layer that was
+        // handed over before it was in a window may have answered for
+        // nowhere (the camera review, 2026-10-12).
+        applyPreviewRotation()
     }
+
+    /// Whether this camera is the one the phone is using right now. The
+    /// tab's camera stays in the hierarchy when another camera opens over
+    /// it or you leave the tab; this is how it knows to keep quiet.
+    var isLive: Bool { session.isRunning && !session.isInterrupted }
 
     func stop() {
         let session = session
@@ -369,7 +381,9 @@ final class CameraService: NSObject {
             angle = AVCaptureDevice.RotationCoordinator(device: input.device, previewLayer: nil)
                 .videoRotationAngleForHorizonLevelCapture
         }
-        if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        if connection.isVideoRotationAngleSupported(angle), connection.videoRotationAngle != angle {
+            connection.videoRotationAngle = angle
+        }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = facing == .front
@@ -601,16 +615,26 @@ final class CameraService: NSObject {
     /// view can put the square away when it no longer describes anything.
     private(set) var focusReleases = 0
 
+    /// By selector, which the system forgets by itself when this camera
+    /// goes; a block would have been left behind for every camera opened.
     private func watchSubject() {
-        guard subjectWatch == nil else { return }
-        subjectWatch = NotificationCenter.default.addObserver(
-            forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.subjectChanged() }
-        }
+        guard !watchesSubject else { return }
+        watchesSubject = true
+        NotificationCenter.default.addObserver(self, selector: #selector(subjectAreaChanged(_:)),
+                                               name: AVCaptureDevice.subjectAreaDidChangeNotification, object: nil)
+    }
+
+    @objc nonisolated private func subjectAreaChanged(_ note: Notification) {
+        Task { @MainActor in self.subjectChanged() }
     }
 
     private func subjectChanged() {
+        // **Only the camera that is running** (the camera review,
+        // 2026-10-12). Every camera hears every lens, and the phone has one
+        // back lens: the tab's camera, stopped under the add sheet's, went
+        // back to automatic on the lens the sheet's camera had just been
+        // pointed with.
+        guard isLive else { return }
         // Not in the second after the tap (the lens moving is itself a
         // change), and not while the brightness is being held somewhere by
         // hand: a picture made lighter has changed, and letting go then
@@ -711,7 +735,12 @@ final class CameraService: NSObject {
         // `-strataFakeLens`: the frame of the video on screen is the photograph.
         if let lens = FakeLens.shared { completion(lens.snapshot()); return }
         #endif
-        guard isConfigured, !isCapturing else { completion(nil); return }
+        // **Running, or nothing** (the camera review, 2026-10-12). A photo
+        // asked of a stopped camera never answers, and `isCapturing` is only
+        // put back by the answer: the shutter would have been dead until the
+        // app was opened again. A volume button can reach a camera that is
+        // not the one showing.
+        guard isConfigured, !isCapturing, isLive else { completion(nil); return }
         isCapturing = true
         onCaptured = completion
 

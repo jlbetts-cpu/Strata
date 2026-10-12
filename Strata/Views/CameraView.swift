@@ -38,6 +38,8 @@ struct CameraView: View {
     // same day) cannot happen with no second row to disagree with the first.
 
     @State private var camera = CameraService()
+    /// Whether this camera is the screen showing, for the volume buttons.
+    @State private var isOnScreen = false
     /// Whether the composition guides are drawn. Remembered, because it is a
     /// preference about how you shoot rather than a per-session choice.
     ///
@@ -397,9 +399,15 @@ struct CameraView: View {
         // every camera on this phone does. The same press as the shutter,
         // so the timer and a running countdown behave as they do there. Only
         // while the viewfinder is what is showing.
-        .onCameraCaptureEvent(isEnabled: review == nil && !camera.isDenied) { event in
-            if event.phase == .ended { shutterPressed() }
+        // **And only this camera, while it is the one you are looking at**
+        // (the camera review, 2026-10-12): a tab you have left stays in the
+        // hierarchy, so without `isOnScreen` the tab's camera heard a press
+        // meant for the add sheet's.
+        .onCameraCaptureEvent(isEnabled: isOnScreen && review == nil && !camera.isDenied) { event in
+            if event.phase == .ended, camera.isLive { shutterPressed() }
         }
+        .onAppear { isOnScreen = true }
+        .onDisappear { isOnScreen = false }
         // The camera went back to focusing by itself: the square no longer
         // says where it is looking.
         .onChange(of: camera.focusReleases) { _, _ in

@@ -143,7 +143,11 @@ struct CameraLensTests {
         let view = SourceSweep.code(try SourceSweep.read("Strata/Views/CameraView.swift"))
         #expect(view.contains("CameraPreview(session: camera.session, box: previewBox, camera: camera)"))
         // The volume buttons are the shutter's own press.
-        #expect(view.contains(".onCameraCaptureEvent(isEnabled: review == nil && !camera.isDenied)"))
+        #expect(view.contains(".onCameraCaptureEvent(isEnabled: isOnScreen && review == nil && !camera.isDenied)"))
+        #expect(view.contains("if event.phase == .ended, camera.isLive { shutterPressed() }"))
+        // A camera that is not running takes nothing and resets nothing.
+        #expect(service.contains("guard isConfigured, !isCapturing, isLive else { completion(nil); return }"))
+        #expect(service.contains("guard isLive else { return }"))
         // The head maker keeps the angles it was tuned with on a phone.
         let maker = SourceSweep.code(try SourceSweep.read("Strata/Views/HeadMakerView.swift"))
         #expect(maker.contains("CameraPreview(session: model.camera.session, box: previewBox)"))
