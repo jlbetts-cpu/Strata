@@ -905,6 +905,21 @@ enum DebugHarness {
     /// footage that has to look like a person's day (the launch video,
     /// 2026-10-07). Taken in turn, so a tower shows a dozen different ones.
     nonisolated(unsafe) private static var demoPhotoNext = 0
+    /// A picture whose every part is different, so a moved crop can be seen:
+    /// five coloured bands and a dark disc left of the middle.
+    static func stripedPhoto() -> UIImage {
+        let size = CGSize(width: 1500, height: 1000)
+        return UIGraphicsImageRenderer(size: size).image { context in
+            let colours: [UIColor] = [.systemTeal, .systemOrange, .systemPink, .systemIndigo, .systemGreen]
+            for (i, colour) in colours.enumerated() {
+                colour.setFill()
+                context.fill(CGRect(x: CGFloat(i) * size.width / 5, y: 0, width: size.width / 5, height: size.height))
+            }
+            UIColor.black.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 350, y: 350, width: 300, height: 300))
+        }
+    }
+
     private static func demoPhoto() -> UIImage? {
         guard argument("-strataSeedRealPhotos") == "demo" else { return nil }
         demoPhotoNext += 1

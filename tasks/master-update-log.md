@@ -658,3 +658,68 @@ when run alone, and neither touches what changed.
 
 **Also, at your word the same morning:** the Settings logo is the camera
 drawing in ink on the page, with no dark tile behind it.
+
+
+## 9. The asks that came in while that ran (2026-10-11)
+
+**Hints.** A reader listed every hint in the app (ten), with its words,
+where it stands, what shows it and whether it is still true.
+- **They wait their turn now.** Each checked only that the add sheet was
+  shut, so one could be spent behind the plan, a crew or the booth, and
+  each landed while the ring was out in the middle of the screen. All wait
+  for a clear tower and for the ring to go home. The invite card leaves by
+  itself after 12 seconds; it used to stay until closed and block the
+  day's cue.
+- **Words.** "Hold the slot and pull it out." gave no direction: now "Drag
+  the slot sideways or up." "One more and your tower dances." wrapped: now
+  "One more and it dances." Onboarding promised the tower "prints the
+  day's strip", and a day of plain blocks prints none: now "The day's
+  photos print as a strip."
+- **A new one.** The first time a planned win stands on the tower:
+  "Planned wins wait here. Tap to take it. Hold for more." Planned wins,
+  the add sheet's Now and the block's menu had no hint anyone could see.
+- **A real dead end, found on the way.** With Reduce Motion on, the slot
+  only makes Quick blocks, and onboarding's first page waited for a bigger
+  one. Nobody with Reduce Motion could get past page one. Fixed.
+- One style: the tip card, under the header. The house card's second line
+  now uses the tip's type.
+
+**The + and the checkboxes in dark, again.** You: they "have a different
+hue from the other liquid glass elements". They did: I had lifted them
+with white in the glass. They are the page's own glass now, the same
+recipe as every round button and capsule on a page. No outline, no hue of
+their own.
+
+**Quick, after choosing Regular or Deep.** The camera hands back Quick
+when you only press the shutter, and that overwrote the size chosen on the
+sheet. A size is taken from the camera only when one was drawn there.
+
+**Move Photo.** Hold the block on the add or edit sheet, or hold a photo
+in the strip's editor: Move Photo opens the picture in its frame, and it
+follows your finger. The block on the sheet now shows the crop (it drew
+the middle whatever the crop was, even one set at the camera). Seen
+working on the add sheet. **Not seen on the strip**: the simulator's
+seeded strip has one flat picture and no row of photos to hold.
+
+**Albums.** Hold one: Remove Album, or Never Show (that title, that crew,
+or past days). Undo for five seconds; Settings, Memories, Removed Albums
+brings any back. Wins and photos are never touched. Cards are 152 points,
+up from 108. Making your own album: not built; the reasoning and the
+cheap version are in `docs/research-2026-10-11.md`.
+
+**Add sheet and plan sheet.** The field says the same thing in both
+("Plan for tomorrow"); a planned line is the same height in both; the row
+of suggestions is not offered while planning (it planned things twice).
+**Not done:** the add sheet still types in a bold field at the top where
+the plan types in a bar at the foot, and Return behaves differently. That
+is the biggest difference left and it is a rebuild of the add sheet's
+plan mode.
+
+**Your Three: kept, and connected.** One is not listed twice when a plan
+line has the same words; hold one in the plan for Change Your Three.
+**Not done:** they are still not in backups.
+
+**Research, written up in `docs/research-2026-10-11.md`:** albums, strip
+templates, scanning a paper journal page, and moving colours into the
+block's menu (which waits for your yes, since it overturns three of your
+earlier calls).

@@ -1855,6 +1855,18 @@ placeholder ... a user should be able to plan their entire next day in under
   the block's face in `inkPrimary` at full strength. Do not give either a
   look the other lacks. The seven weekday chips are one component in all
   three places, square; a line's own sheet passes its colour as `tint`.
+- **In dark the slot's pane is the page's own glass** (`GlassRecipe.onPage`'s
+  tint), nothing else: no outline (tried, "why is there an outline on
+  everything") and no white lift (tried, "a different hue from the other
+  liquid glass elements"). Both were his, 2026-10-11.
+- **Hints** (`WinCue`, `DayOneHint`, `PlannedHint`, the invite card) wait
+  for `ringIsClear` and `MainAppView.waitForRing()`, are one `TipCard`
+  under the header, and their message fits `TipCopy.longestMessage`.
+- **Albums are removed, not deleted** (`RemovedAlbums`, UserDefaults): this
+  one, or every one of its kind; filtered before the shelf's cap; brought
+  back from Settings. Never touches a win or a photo.
+- **Move Photo** is `CropEditor`: the camera's own `crop` number, for a
+  block (the add sheet's menu) and a strip frame (`StripKeeping.crops`).
 - **A win ticks the line open TODAY** (`DayComposing.onPlan`), in the
   plan's order, then one whose day went by; never a later day's line with
   the same words. A win made from a line (`AddWinSheet.plannedLine`) ticks

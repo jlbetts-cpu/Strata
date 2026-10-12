@@ -72,8 +72,9 @@ struct HouseCardView: View {
                 Text(card.title)
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
+                // A tip's second line, in the type every tip's is (`TipCard`).
                 Text(card.line)
-                    .font(Typography.bodyLarge)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

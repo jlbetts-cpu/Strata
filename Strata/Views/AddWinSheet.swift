@@ -102,6 +102,9 @@ struct AddWinSheet: View {
     @State private var photoChanged = false
     /// Which part of the photograph the block shows. Carried from the review.
     @State private var crop: CGPoint = .zero
+    /// The block's own shape, for moving its photo in (`CropEditor`).
+    @State private var movingPhoto = false
+    @State private var cropAspect: CGFloat = 1
     /// Whether a swatch was pressed. Until one is, `category` is only the
     /// colour the sheet opened on, and is saved as a colour rather than as a
     /// kind of win. See `QuickWinService.labels(showing:chosen:)`.
@@ -488,6 +491,13 @@ struct AddWinSheet: View {
                 keepDoodle(drawn)
             }
         }
+        .sheet(isPresented: $movingPhoto) {
+            if let photo {
+                CropEditor(image: photo, aspect: cropAspect, crop: crop) { moved in
+                    crop = moved
+                }
+            }
+        }
         // A block is a photograph OR a doodle: a photograph put on, from
         // anywhere, takes the doodle off.
         .onChange(of: photo) { _, now in
@@ -577,7 +587,10 @@ struct AddWinSheet: View {
                         }
                         .toolbar {
                             ToolbarItemGroup(placement: .keyboard) {
-                                if !isEditing, !ideas.isEmpty { ideaRow }
+                                // Not while planning: the row offers your
+                                // three and today's open lines as wins, and
+                                // pressing one there planned it a second time.
+                                if !isEditing, !isPlanning, !ideas.isEmpty { ideaRow }
                             }
                         }
         }
@@ -1020,7 +1033,12 @@ struct AddWinSheet: View {
                     // A size drawn out of the shutter wins over the sheet's
                     // own picker: it is the more recent thing you said, and
                     // you said it with your hand.
-                    size = drawn
+                    // **Only when one was drawn** (the owner, 2026-10-11:
+                    // "when I click deep or regular before picking a photo
+                    // it goes back to quick"). A plain press of the shutter
+                    // hands back Quick, which is not a size anyone chose,
+                    // and it overwrote the one chosen on the sheet.
+                    if drawn != .small { size = drawn }
                     place = where_
                     showCamera = false
                 },
@@ -1164,7 +1182,11 @@ struct AddWinSheet: View {
 
     /// The tense is the mode (`PlanItemDetailSheet`): what you did, or what
     /// you mean to.
-    private var namePrompt: String { isPlanning ? "What do you mean to do?" : "What did you do?" }
+    /// Planning, the plan sheet's own words for the day chosen ("Plan for
+    /// tomorrow", `PlanScope.prompt`): it asked "What do you mean to do?",
+    /// which no other place a plan is written says (the owner, 2026-10-11:
+    /// "make sure the add sheet and plan sheet feel the same").
+    private var namePrompt: String { planFor?.prompt() ?? "What did you do?" }
 
     /// What is typed becomes a plan line for the day chosen, and the field
     /// is cleared for the next. False when there was nothing to keep. (A
@@ -1323,9 +1345,17 @@ struct AddWinSheet: View {
                         // the owner's report was "once a photo is added you can
                         // edit the title no more". Nothing errored, nothing looked
                         // wrong, the field simply stopped answering.
+                        // Filled, and where the window was left: by the
+                        // camera's review, or by Move Photo (`CropEditor`).
+                        // It drew the middle whatever the crop was.
+                        let well = CGSize(width: w, height: h)
+                        let drawn = CachedImageView.filled(photo.size, in: well)
+                        let shift = CachedImageView.shift(crop: CropEditor.clamped(crop, photo: photo.size, frame: well),
+                                                          photo: photo.size, frame: well)
                         Image(uiImage: photo)
                             .resizable()
-                            .scaledToFill()
+                            .frame(width: drawn.width, height: drawn.height)
+                            .offset(shift)
                             .frame(width: w, height: h)
                             .clipped()
                     } else {
@@ -1447,6 +1477,11 @@ struct AddWinSheet: View {
         // same action was spelled two ways depending on which door you used.
         .contextMenu {
             if photo != nil {
+                // Where the block's window sits on the picture (`CropEditor`).
+                Button("Move Photo", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
+                    cropAspect = w / max(h, 1)
+                    movingPhoto = true
+                }
                 Button("Replace Photo") {
                     doodleAspect = w / max(h, 1)
                     choosingSource = true

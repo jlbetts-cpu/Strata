@@ -320,6 +320,24 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("plan-add-4-tower")
     }
 
+    /// Move Photo, from the block's hold menu on a sheet holding a picture
+    /// (the owner, 2026-10-11): the editor, the photo dragged, the block after.
+    func testMovePhoto() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto"])
+        wait(8); snap("move-0-sheet")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).press(forDuration: 1.2)
+        wait(1); snap("move-1-menu")
+        let move = app.buttons["Move Photo"].firstMatch
+        if move.waitForExistence(timeout: 3) { move.tap() }
+        wait(2); snap("move-2-crop")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        wait(1); snap("move-3-dragged")
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+        wait(2); snap("move-4-block")
+    }
+
     /// The `+` slot beside planned wins, and alone on an empty tower (the
     /// owner, 2026-10-11: "they should look the same").
     func testSlotBesideOutlines() {

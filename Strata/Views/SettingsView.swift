@@ -114,6 +114,10 @@ struct SettingsView: View {
 
     // MARK: - App Info
 
+    /// Read through `AppStorage` so the row comes and goes as albums are
+    /// removed and brought back.
+    @AppStorage(RemovedAlbums.key) private var removedAlbums = Data()
+
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -518,6 +522,20 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "pencil.and.scribble")
+                    }
+                }
+                // Only when something was removed: the way back for an
+                // album taken off the Memories shelf (`RemovedAlbums`).
+                if !removedAlbums.isEmpty {
+                    NavigationLink {
+                        RemovedAlbumsView()
+                    } label: {
+                        Label {
+                            Text("Removed Albums")
+                                .foregroundStyle(AppColors.inkPrimary)
+                        } icon: {
+                            SettingsIcon(systemName: "rectangle.stack.badge.minus")
+                        }
                     }
                 }
             } header: {
@@ -1404,4 +1422,61 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Removed albums
+
+/// Every album taken off the Memories shelf, each with the way back. A list
+/// rather than one "reset", so one can be brought back without the rest
+/// (Google Photos does this; Photos has only reset-all, `docs/albums.md`).
+struct RemovedAlbumsView: View {
+    @AppStorage(RemovedAlbums.key) private var raw = Data()
+
+    private var entries: [(key: String, entry: RemovedAlbums.Entry)] {
+        _ = raw
+        return RemovedAlbums.all().map { ($0.key, $0.value) }.sorted { $0.entry.at > $1.entry.at }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                if entries.isEmpty {
+                    Text("Nothing removed.")
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkSecondary)
+                }
+                ForEach(entries, id: \.key) { item in
+                    HStack(spacing: GridConstants.gapLabel) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.entry.title)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Text(item.entry.never ? "Never shown" : "Removed once")
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        Button {
+                            HapticsEngine.lightTap()
+                            withAnimation(GridConstants.motionSnappy) { RemovedAlbums.showAgain(item.key) }
+                        } label: {
+                            Text("Show Again")
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .buttonStyle(.pressWord)
+                    }
+                }
+            } footer: {
+                Text("Removing an album never removes its wins or photos.")
+                    .formFooter()
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(WarmBackground().ignoresSafeArea())
+        .navigationTitle("Removed Albums")
+        .navigationBarTitleDisplayMode(.inline)
+    }
 }

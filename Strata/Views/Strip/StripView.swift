@@ -84,7 +84,15 @@ struct StripView: View {
                 Color(uiColor: frame.picture.cornerColour)
                 Image(uiImage: frame.picture).resizable().scaledToFit()
             } else {
-                Image(uiImage: frame.picture).resizable().scaledToFill()
+                // Filled, and moved to where the editor left it: the frame
+                // is a window on the photo, as a block is.
+                let size = CGSize(width: w, height: h)
+                let drawn = CachedImageView.filled(frame.picture.size, in: size)
+                let shift = CachedImageView.shift(crop: CropEditor.clamped(frame.crop, photo: frame.picture.size, frame: size),
+                                                  photo: frame.picture.size, frame: size)
+                Image(uiImage: frame.picture).resizable()
+                    .frame(width: drawn.width, height: drawn.height)
+                    .offset(shift)
             }
         }
             .frame(width: w, height: h)

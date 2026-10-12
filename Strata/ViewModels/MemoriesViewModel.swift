@@ -340,8 +340,26 @@ final class MemoriesViewModel {
             : []
         let store = SocialStore.shared
         let crews = store.crews.map { Album.ShelfCrew(id: $0.id.rawValue, name: $0.name, wins: store.winsSent(to: $0.id)) }
-        let fresh = Album.monthShelf(records: photoRecords, month: monthKey(selectedMonth), crews: crews, moments: moments)
+        let removed = Set(RemovedAlbums.all().keys)
+        let today = DateUtils.dateString(from: Date())
+        let fresh = Album.monthShelf(records: photoRecords, month: monthKey(selectedMonth), crews: crews, moments: moments,
+                                     hidden: { RemovedAlbums.isRemoved($0, today: today, in: removed) })
         if fresh != monthAlbums { monthAlbums = fresh }
+    }
+
+    /// Takes an album off the shelf: this one, or every one of its kind
+    /// (`RemovedAlbums`). Its wins and photos are untouched. Returns the key
+    /// to bring it back by.
+    func removeAlbum(_ album: Album, never: Bool) -> String? {
+        let key = RemovedAlbums.remove(album.kind, title: album.title, never: never,
+                                       today: DateUtils.dateString(from: Date()))
+        refreshShelf()
+        return key
+    }
+
+    func showAlbumAgain(_ key: String) {
+        RemovedAlbums.showAgain(key)
+        refreshShelf()
     }
 
     private func monthKey(_ date: Date) -> String {

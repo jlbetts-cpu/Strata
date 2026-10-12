@@ -66,7 +66,19 @@ struct MemoriesShelf: View {
     /// on a page whose subject is the month above them. 108 puts three and a bit
     /// on screen, which also says the row scrolls without a chevron telling you
     /// so.
-    static let albumWidth: CGFloat = 108
+    /// **152, and it was 108** (the owner, 2026-10-11: "right now they
+    /// kinda feel small on the screen"). The shelf sits over the photo grid
+    /// now, whose cells are 132.7 points on a 402 point phone, so at 108 an
+    /// album's cover was smaller than one photograph inside it. At 152 it is
+    /// larger, which is what makes it read as a thing that holds photos, and
+    /// 2.3 cards show, so the third still peeks and says the row scrolls.
+    /// (132 was turned down once as too loud, when the shelf stood under the
+    /// calendar with nothing to be measured against.)
+    static let albumWidth: CGFloat = 152
+
+    /// Hold a card: take it off the shelf. `never` is every album of its
+    /// kind. Nil where a shelf is only for looking.
+    var onRemove: ((Album, Bool) -> Void)? = nil
 
     /// **Why the replays are not in here, kept because it is the finding rather
     /// than the change.**
@@ -116,6 +128,16 @@ struct MemoriesShelf: View {
         }
     }
 
+    /// What "every album like this one" is called, for its kind.
+    static func neverWords(for album: Album) -> String {
+        switch album.kind {
+        case .curated: "Never Show \(album.title)"
+        case .crew: "Never Show This Crew"
+        case .moment: "Never Show Past Days"
+        case .day: "Never Show This Day"
+        }
+    }
+
     private func row(width: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: .top, spacing: GridConstants.gapItem) {
@@ -131,8 +153,23 @@ struct MemoriesShelf: View {
                         AlbumCard(album: album, width: width)
                     }
                     .buttonStyle(.pressSurface)
+                    // **Hold: take it off the shelf** (rule 2, `docs/ten.md`:
+                    // a hold is the system's menu). Remove, not Delete: the
+                    // wins and photos in it stay where they are.
+                    .contextMenu {
+                        if let onRemove {
+                            Button("Remove Album", systemImage: "minus.circle") { onRemove(album, false) }
+                            Button(Self.neverWords(for: album), systemImage: "eye.slash") { onRemove(album, true) }
+                        }
+                    }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(album.title), \(album.subtitle)")
+                    .accessibilityActions {
+                        if let onRemove {
+                            Button("Remove Album") { onRemove(album, false) }
+                            Button(Self.neverWords(for: album)) { onRemove(album, true) }
+                        }
+                    }
                 }
             }
             .scrollTargetLayout()

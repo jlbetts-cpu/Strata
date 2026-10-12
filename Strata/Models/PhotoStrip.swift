@@ -19,8 +19,11 @@ struct PhotoStrip: Identifiable, Equatable {
         /// and bottom quarters (the 2026-10-08 audit). Fitted, with its own
         /// colour either side.
         var isDoodle = false
+        /// Where the frame's window sits on the photo, moved in the strip's
+        /// editor (`CropEditor`, `StripKeeping.crops`). Zero is the middle.
+        var crop: CGPoint = .zero
 
-        static func == (a: Frame, b: Frame) -> Bool { a.id == b.id && a.size == b.size }
+        static func == (a: Frame, b: Frame) -> Bool { a.id == b.id && a.size == b.size && a.crop == b.crop }
     }
 
     /// Whose strip: yours, or a crew's.
@@ -50,7 +53,12 @@ struct PhotoStrip: Identifiable, Equatable {
 
     /// The frames on the strip: the chosen ones, at most `most`.
     func frames(excluding excluded: Set<UUID>) -> [Frame] {
-        Array(candidates.filter { !excluded.contains($0.id) }.prefix(Self.most))
+        let crops = StripKeeping.crops(owner, day: day)
+        return candidates.filter { !excluded.contains($0.id) }.prefix(Self.most).map { frame in
+            var frame = frame
+            frame.crop = crops[frame.id] ?? .zero
+            return frame
+        }
     }
 }
 
@@ -103,6 +111,23 @@ enum StripKeeping {
 
     static func setExcluded(_ ids: Set<UUID>, _ owner: PhotoStrip.Owner, day: String) {
         defaults.set(ids.map(\.uuidString).sorted(), forKey: "strip.out.\(owner.key).\(day)")
+    }
+
+    /// Where each photo was moved to in its frame, for this strip. Beside
+    /// the model, as which photos are on it is: a strip is not a row.
+    static func crops(_ owner: PhotoStrip.Owner, day: String) -> [UUID: CGPoint] {
+        let raw = defaults.dictionary(forKey: "strip.crop.\(owner.key).\(day)") as? [String: [Double]] ?? [:]
+        var out: [UUID: CGPoint] = [:]
+        for (key, value) in raw where value.count == 2 {
+            if let id = UUID(uuidString: key) { out[id] = CGPoint(x: value[0], y: value[1]) }
+        }
+        return out
+    }
+
+    static func setCrops(_ crops: [UUID: CGPoint], _ owner: PhotoStrip.Owner, day: String) {
+        var raw: [String: [Double]] = [:]
+        for (id, point) in crops where point != .zero { raw[id.uuidString] = [point.x, point.y] }
+        defaults.set(raw, forKey: "strip.crop.\(owner.key).\(day)")
     }
 
     static func isDeveloped(_ owner: PhotoStrip.Owner, day: String) -> Bool {

@@ -80,18 +80,17 @@ extension GlassRecipe {
     /// reading as a filled block is that it carries no colour of its own and
     /// holds a `+`, not that you can see the lattice through it.
     ///
-    /// **On the dark page the pane is lifted, not outlined** (the owner,
-    /// 2026-10-11, an hour after the slot and the planned wins were given
-    /// one edge: "why in dark mode is there an outline on everything, it
-    /// should just be liquid glass like it is in light mode"). In light the
-    /// glass stands off the page by itself: it is brighter than what it is
-    /// over. On a near-black page it has nothing to brighten and came out
-    /// the page's own colour, which is what the outline was covering for. A
-    /// little white in the glass does in dark what the material does unasked
-    /// in light, so the pane is a raised charcoal tile and needs no line.
+    /// **On the dark page it is the page's own glass** (`onPage`, what every
+    /// round button and capsule on a page is made of). Twice in one morning
+    /// (2026-10-11): first the dark pane was given a drawn outline to be
+    /// found by, and the owner asked why everything had an outline; then it
+    /// was lifted with white in the glass, and he saw at once that "the +
+    /// button and the check boxes in dark mode have a different hue from the
+    /// other liquid glass elements". One glass on a page, in dark as in
+    /// light. It is found by its `+`, as a glass button is found by its glyph.
     static func slot(thickness: Double, dark: Bool = false) -> Glass {
         let t = max(0, min(1, thickness))
-        if dark { return .regular.tint(.white.opacity(SlotPane.darkLift + 0.05 * t)).interactive() }
+        if dark { return .regular.tint(.black.opacity(pageInk + 0.06 * t)).interactive() }
         guard t > 0 else { return .regular.interactive() }
         // Thickening: ink, never a hue. See the note on §4 below.
         return .regular.tint(.black.opacity(0.06 * t)).interactive()
@@ -116,13 +115,11 @@ extension GlassRecipe {
 /// the glass already stands off the ground. **On the dark page no line at
 /// all**: the first version drew a stronger one there, and four outlined
 /// boxes in a row read as a wireframe, not as glass (the owner, the same
-/// morning). The dark pane is lifted in the glass itself (`GlassRecipe
+/// morning). The dark pane is the page's own glass (`GlassRecipe
 /// .slot(thickness:dark:)`). The slot is still first, still holds the `+`,
 /// and still answers a press (its recess and edge deepen under the finger).
 enum SlotPane {
     static func edge(_ scheme: ColorScheme) -> Double { scheme == .dark ? 0 : 0.20 }
-    /// How much white the dark pane's glass carries.
-    static let darkLift = 0.10
 }
 
 extension View {

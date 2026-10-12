@@ -24,7 +24,9 @@ nonisolated enum WinCue {
     static let anythingElse = "Anything else today?"
     /// One short of the goal: the nearer the goal, the harder people push
     /// (the goal gradient), and it says what the goal is for.
-    static let oneMore = "One more and your tower dances."
+    // Short enough for one line beside the mark (the hints audit,
+    // 2026-10-11: the longer one wrapped).
+    static let oneMore = "One more and it dances."
     /// From when each is asked, and the most wins the second is asked at.
     static let emptyFrom = 9
     static let elseFrom = 15
@@ -57,7 +59,9 @@ nonisolated enum WinCue {
 nonisolated enum DayOneHint {
     /// Set as a tip: the title says what, the message says how.
     static let title = "Bigger wins, bigger blocks"
-    static let drawOut = "Hold the slot and pull it out."
+    // Says which way, which the first wording did not (the hints audit,
+    // 2026-10-11): sideways is Regular, up is Deep.
+    static let drawOut = "Drag the slot sideways or up."
     static let shownKey = "hint.drawOut.shown"
     static let lastChance = 5
 
@@ -65,4 +69,14 @@ nonisolated enum DayOneHint {
         guard !shown, !drewBigger, (1...lastChance).contains(winsEver) else { return nil }
         return drawOut
     }
+}
+
+/// **What a planned win on the tower is for**, said once, the first time
+/// one stands there (the hints audit, 2026-10-11: outlines, the add sheet's
+/// Now and the block's menu had no hint anyone could see, only VoiceOver's).
+nonisolated enum PlannedHint {
+    static let title = "Planned wins wait here"
+    // One line beside the mark (`TipCopy.longestMessage`).
+    static let line = "Tap to take it. Hold for more."
+    static let shownKey = "hint.planned.shown"
 }

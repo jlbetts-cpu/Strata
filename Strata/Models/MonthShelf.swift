@@ -35,8 +35,12 @@ nonisolated extension Album {
     }
 
     /// `month` is `"yyyy-MM"`, as `HabitLog.dateString` begins.
+    ///
+    /// `hidden` says which albums the person took off the shelf
+    /// (`RemovedAlbums`). They are dropped BEFORE the cap, so the next one
+    /// moves up and a removed card never leaves a gap.
     static func monthShelf(records: [WinRecord], month: String, crews: [ShelfCrew],
-                           moments: [Album]) -> [Album] {
+                           moments: [Album], hidden: (AlbumKind) -> Bool = { _ in false }) -> [Album] {
         let inMonth = records.filter { $0.hasPhoto && $0.dateString.hasPrefix(month + "-") }
         var shelf = moments
 
@@ -77,7 +81,7 @@ nonisolated extension Album {
         .sorted { $0.winCount != $1.winCount ? $0.winCount > $1.winCount : $0.id < $1.id }
         shelf += interests
 
-        return Array(shelf.prefix(monthShelfMax))
+        return Array(shelf.filter { !hidden($0.kind) }.prefix(monthShelfMax))
     }
 
     /// A shelf key's two halves: `"gym@2026-10"` gives ("gym", "2026-10").

@@ -63,6 +63,7 @@ struct PlanLines: View {
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
     @State private var detail: PlanItem?
+    @State private var choosingThree = false
     /// Lines deleted a moment ago and not yet gone: off the page while Undo
     /// is offered (`delete`), then removed for good.
     @State private var removed: Set<UUID> = []
@@ -143,6 +144,11 @@ struct PlanLines: View {
         content
             .sheet(item: $detail) { item in
                 PlanItemDetailSheet(item: item)
+            }
+            .sheet(isPresented: $choosingThree) {
+                YourThreePicker(initial: three) { chosen in
+                    threeRaw = YourThree.encode(chosen)
+                }
             }
             // **The line detail, which is otherwise behind a tap** and so
             // had never been photographed. `-strataOpenSheet planline` raises
@@ -243,7 +249,10 @@ struct PlanLines: View {
                 FormSectionLabel(YourThree.Copy.section)
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.bottom, GridConstants.gapTight)
-                ForEach(three) { item in
+                // Not one that is already a line on today's plan: it was
+                // listed twice, once here and once below (2026-10-11).
+                let planned = Set(items.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+                ForEach(three.filter { !planned.contains($0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) }) { item in
                     threeRow(item, isDone: done.contains(item.id))
                 }
             }
@@ -278,6 +287,11 @@ struct PlanLines: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        // The plan had no way to them; they were changed only from Your Day.
+        .contextMenu {
+            Button("Change Your Three", systemImage: "pencil") { choosingThree = true }
+        }
+        .accessibilityAction(named: "Change Your Three") { choosingThree = true }
         .accessibilityLabel(isDone ? "\(item.title), done" : "Log \(item.title) as a win")
     }
 

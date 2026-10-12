@@ -44,6 +44,12 @@ enum PlanScope: Hashable {
         return calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
     }
 
+    /// What the field you write a plan in says, in the plan sheet's bar and
+    /// under the add sheet's title alike.
+    func prompt(from today: Date = Date(), calendar: Calendar = .current) -> String {
+        self == .repeating ? "Plan something that repeats" : "Plan \(spoken(from: today, calendar: calendar))"
+    }
+
     /// The same, in a sentence: "for today", "for tomorrow", "for Monday".
     func spoken(from today: Date = Date(), calendar: Calendar = .current) -> String {
         switch self {
@@ -364,6 +370,9 @@ struct PlannedHereList: View {
                     }
                     Spacer(minLength: 0)
                 }
+                // The plan's own row pitch (`PlanLines`), so a line reads
+                // the same height in both sheets.
+                .padding(.vertical, GridConstants.spacing)
                 .padding(.leading, -PlanLines.bulletInset)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }

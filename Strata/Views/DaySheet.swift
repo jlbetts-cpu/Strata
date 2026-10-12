@@ -550,12 +550,7 @@ struct DaySheet: View {
 
     /// What the bar says it adds to: today's plan, tomorrow's, a day's, or
     /// the lines that repeat.
-    private var planPlaceholder: String {
-        switch planScope {
-        case .repeating: "Plan something that repeats"
-        default: "Plan \(planScope.spoken())"
-        }
-    }
+    private var planPlaceholder: String { planScope.prompt() }
 
     /// One line, or as many as were pasted in, for the day on the page.
     private func sendPlanLine(_ words: String) {

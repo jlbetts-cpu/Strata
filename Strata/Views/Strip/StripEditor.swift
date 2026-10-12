@@ -40,7 +40,27 @@ struct StripEditor: View {
     @State private var moved = false
     private var touched: Bool { ink.canUndo || moved }
 
-    private var frames: [PhotoStrip.Frame] { strip.frames(excluding: current) }
+    /// Photos moved in their frames in this sitting, written on Done.
+    @State private var crops: [UUID: CGPoint] = [:]
+    @State private var movingFrame: PhotoStrip.Frame?
+
+    private var frames: [PhotoStrip.Frame] {
+        strip.frames(excluding: current).map { frame in
+            var frame = frame
+            if let moved = crops[frame.id] { frame.crop = moved }
+            return frame
+        }
+    }
+
+    /// The shape a frame has on the strip, as it is laid out now.
+    private func aspect(of id: UUID) -> CGFloat {
+        let now = frames
+        guard let index = now.firstIndex(where: { $0.id == id }) else { return 1 }
+        for row in StripLayout.rows(now.map(\.size)) {
+            if case .full(let i, let aspect) = row, i == index { return aspect }
+        }
+        return 1
+    }
 
     var body: some View {
         NavigationStack {
@@ -104,13 +124,24 @@ struct StripEditor: View {
                                     canvas: CGSize(width: canvas.width * k, height: canvas.height * k),
                                     anchors: StripAnchors.of(frames), parked: parked,
                                     owner: strip.owner, day: strip.day)
+                    if !crops.isEmpty {
+                        var kept = StripKeeping.crops(strip.owner, day: strip.day)
+                        for (id, point) in crops { kept[id] = point }
+                        StripKeeping.setCrops(kept, strip.owner, day: strip.day)
+                    }
                     if let draft { excluded = draft }
                     dismiss()
                 })
             }
             .background { WarmBackground().ignoresSafeArea() }
         }
-        .interactiveDismissDisabled(ink.canUndo || (draft != nil && draft != excluded))
+        .sheet(item: $movingFrame) { frame in
+            CropEditor(image: frame.picture, aspect: aspect(of: frame.id), crop: frame.crop) { moved in
+                crops[frame.id] = moved
+                self.moved = true
+            }
+        }
+        .interactiveDismissDisabled(ink.canUndo || !crops.isEmpty || (draft != nil && draft != excluded))
         // Opened from the booth's sticker button: straight to the stickers,
         // once the sheet has risen (a popover from a sheet still rising
         // does not appear).
@@ -160,6 +191,14 @@ struct StripEditor: View {
                                 }
                         }
                         .buttonStyle(.press)
+                        // Hold: move the photo inside its frame (`CropEditor`).
+                        .contextMenu {
+                            if on, !frame.isDoodle {
+                                Button("Move Photo", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
+                                    movingFrame = frames.first { $0.id == frame.id } ?? frame
+                                }
+                            }
+                        }
                         .accessibilityLabel(frame.title.isEmpty ? "A win" : frame.title)
                         .accessibilityAddTraits(on ? [.isSelected] : [])
                     }

@@ -881,7 +881,11 @@ struct OnboardingView: View {
         ripple = LatticeRipple(column: spot.column, row: spot.row,
                                columnSpan: size.columnSpan, rowSpan: size.rowSpan)
         drawingSize = .small
-        if size != .small { hasDrawn = true }
+        // **Any block, with Reduce Motion** (the hints audit, 2026-10-11).
+        // The slot makes Quick blocks only there (`NextSlotButton`), and
+        // this page waited for a bigger one that could never be drawn: a
+        // person with Reduce Motion on could not leave the first page.
+        if size != .small || reduceMotion { hasDrawn = true }
         HapticsEngine.success()
     }
 
@@ -1217,6 +1221,7 @@ struct OnboardingView: View {
         // not, which is the entry above.
         case 1: return hasDrawn
             ? "Pull nothing and it's a quick one. The size is how much it took."
+            : reduceMotion ? "Hold the slot, then let go to drop a block in."
             : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
         case 2: return nil
         case 3: return "Your wins land on the map where you took them."
@@ -1226,7 +1231,9 @@ struct OnboardingView: View {
             // see it whenever it shows anywhere (`HeadStore.headForCrews`).
             : "Find it in Profile and on your photos. Your crews see it too."
         // What counts, said once; the chips say the rest by example.
-        case Self.goalStep: return "Reach it and your tower dances and prints the day's strip."
+        // The strip is of the day's photos; a day of plain blocks prints
+        // none, and the page promised one (the hints audit, 2026-10-11).
+        case Self.goalStep: return "Reach it and your tower dances. The day's photos print as a strip."
         case Self.threeStep: return YourThree.Copy.onboardingLine
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }

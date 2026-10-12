@@ -230,6 +230,7 @@ struct MainAppView: View {
     @State private var winCue: String?
     @AppStorage(WinCue.defaultsKey) private var winCueDay = ""
     @AppStorage(DayOneHint.shownKey) private var drawOutHintShown = false
+    @AppStorage(PlannedHint.shownKey) private var plannedHintShown = false
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     /// **The goal everything on Wins asks**: the crest, the cue, the dance
     /// and the booth. It was your three on a Hard day; Hard day is gone
@@ -1056,15 +1057,19 @@ struct MainAppView: View {
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         } else if let line = winCue {
-            TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title : line,
-                    message: line == DayOneHint.drawOut ? DayOneHint.drawOut : WinCue.tapToAdd,
-                    mark: line == DayOneHint.drawOut ? "TipPlus" : "DoodleSticker",
-                    onTap: line == DayOneHint.drawOut ? nil : {
+            // A hint teaches and has no press of its own; the day's cue is
+            // pressed to add a win.
+            let teaches = line == DayOneHint.drawOut || line == PlannedHint.line
+            TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title
+                        : line == PlannedHint.line ? PlannedHint.title : line,
+                    message: teaches ? line : WinCue.tapToAdd,
+                    mark: teaches ? "TipPlus" : "DoodleSticker",
+                    onTap: teaches ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
                         winDraft = WinDraft()
                     },
                     close: { withAnimation(GridConstants.cueOut) { winCue = nil } })
-                .accessibilityHint(line == DayOneHint.drawOut ? "" : "Adds a win")
+                .accessibilityHint(teaches ? "" : "Adds a win.")
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 .onAppear { _ = TipStage.shared.take("cue") }
@@ -1076,13 +1081,32 @@ struct MainAppView: View {
         towerTabContent()
             .background { geometryTracker }
             // Asked a beat after the tower settles, once a day (`WinCue`).
-            .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(blocksToday)") {
+            .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(blocksToday)|\(plannedRows > 0)") {
                 // A win landed or the tab changed: a cue on screen has had
                 // its answer, or is somewhere it no longer belongs.
                 if winCue != nil { withAnimation(GridConstants.cueOut) { winCue = nil } }
+                // **Every hint waits for a clear tower and for the ring**
+                // (the hints audit, 2026-10-11). They checked only that the
+                // add sheet was shut, so one could be spent behind the plan,
+                // a crew or the booth, and each landed while the ring was
+                // out in the middle of the screen after a win.
+                if ringIsClear, plannedRows > 0, !plannedHintShown {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    await Self.waitForLaunchToFinish()
+                    await Self.waitForRing()
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, ringIsClear, plannedRows > 0, TipStage.shared.holder == nil else { return }
+                    plannedHintShown = true
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = PlannedHint.line }
+                    try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
                 // **The day-one hint comes first** (`DayOneHint`): once, after a
                 // first win, before the daily cue would ever be due.
-                if selectedTab == .tower, scenePhase == .active, winDraft == nil,
+                // Not with Reduce Motion: the slot makes Quick blocks only
+                // there, and the hint would teach a drag that does nothing.
+                if ringIsClear, !reduceMotion,
                    let hint = DayOneHint.line(winsEver: logs.count,
                                               drewBigger: logs.contains { ($0.habit?.blockSize ?? .small) != .small },
                                               shown: drawOutHintShown) {
@@ -1090,8 +1114,9 @@ struct MainAppView: View {
                     await Self.waitForLaunchToFinish()
                     // The first-win invitation answers the same win: after it.
                     try? await Task.sleep(for: .seconds(0.4))
+                    await Self.waitForRing()
                     await TipStage.shared.waitUntilFree()
-                    guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil else { return }
+                    guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
                     drawOutHintShown = true
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = hint }
                     try? await Task.sleep(for: .seconds(9))
@@ -1100,14 +1125,15 @@ struct MainAppView: View {
                 }
                 // Not before a first win ever: the tower's own line asks then
                 // ("Tap the slot to log today's first win.").
-                guard selectedTab == .tower, scenePhase == .active, winDraft == nil, !logs.isEmpty,
+                guard ringIsClear, !logs.isEmpty,
                       let line = WinCue.line(winsToday: blocksToday, now: Date(),
                                              shownOn: winCueDay.isEmpty ? nil : winCueDay, goal: todaysGoal)
                 else { return }
                 try? await Task.sleep(for: .seconds(1.6))
                 await Self.waitForLaunchToFinish()
+                await Self.waitForRing()
                 await TipStage.shared.waitUntilFree()
-                guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil else { return }
+                guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
                 winCueDay = DateUtils.dateString(from: Date())
                 // Seen here, so the evening does not ask it again.
                 Task { await EveningCheckIn.update(context: modelContext) }
@@ -2231,6 +2257,16 @@ struct MainAppView: View {
     /// asked for on the first frame played its nine seconds under the drawn
     /// logo and was gone before the tower showed: the day-one hint was spent
     /// on a screen nobody could see. Half a minute at most.
+    /// Until the goal ring has gone home (`RingMoment`): a hint that lands
+    /// while it is out sits under it.
+    static func waitForRing() async {
+        var waited = 0
+        while RingMoment.shared.isPlaying, waited < 40 {
+            try? await Task.sleep(for: .milliseconds(200))
+            waited += 1
+        }
+    }
+
     static func waitForLaunchToFinish() async {
         var waited = 0
         while !LaunchMoment.shared.finished, waited < 150 {
@@ -2712,6 +2748,10 @@ struct MainAppView: View {
         // The booth, printing as at the goal (`-strataOpenSheet booth`), or
         // opened from Your day (`booth-open`).
         case "booth":    selectedTab = .tower; booth = BoothOpening(prints: true)
+        // `-strataOpenSheet addphoto`: Add holding a picture, so the block's
+        // menu and Move Photo can be photographed on a simulator, which has
+        // no camera and no photo library a script can reach.
+        case "addphoto": selectedTab = .tower; winDraft = WinDraft(photo: DebugHarness.stripedPhoto())
         case "booth-open": selectedTab = .tower; booth = BoothOpening(prints: false)
         // Your day (`-strataOpenSheet yourday`), and with its three being
         // chosen (`yourthree`): both are behind a tap on the crest.

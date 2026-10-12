@@ -241,7 +241,18 @@ struct MemoriesView: View {
                         // (`Album.monthShelf`): under the count, so the fold
                         // and the first screen are exactly as they were.
                         MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
-                                      topGap: GridConstants.gapTight)
+                                      topGap: GridConstants.gapTight,
+                                      onRemove: { album, never in
+                                          // Off the shelf, with Undo; the
+                                          // wins and photos stay.
+                                          let model = vm
+                                          guard let key = withAnimation(GridConstants.motionSnappy, {
+                                              model.removeAlbum(album, never: never)
+                                          }) else { return }
+                                          UndoLine.shared.show("Album removed", undo: {
+                                              withAnimation(GridConstants.motionSnappy) { model.showAlbumAgain(key) }
+                                          })
+                                      })
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
                         PhotoGalleryGrid(sections: shown,

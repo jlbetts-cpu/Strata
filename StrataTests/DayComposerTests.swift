@@ -49,7 +49,10 @@ struct DayComposerTests {
         // "Plan for today", "Plan for tomorrow", "Plan something that
         // repeats". Today's was "Add to the plan", the one that did not match.
         #expect(sheet.contains("placeholder: planPlaceholder"))
-        #expect(sheet.contains("case .repeating: \"Plan something that repeats\""))
+        // And from one place for both sheets since the add sheet's field
+        // took the same words (`PlanScope.prompt`).
+        #expect(sheet.contains("private var planPlaceholder: String { planScope.prompt() }"))
+        #expect(PlanScope.repeating.prompt() == "Plan something that repeats")
         #expect(!sheet.contains("\"Add to the plan\""))
         #expect(sheet.contains("isToday ? \"Write about today\" : \"Write about that day\""))
     }

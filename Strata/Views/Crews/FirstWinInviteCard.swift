@@ -85,7 +85,14 @@ struct FirstWinInvitePrompt: ViewModifier {
         Task {
             // After the block has landed, not over its fall.
             try? await Task.sleep(for: .milliseconds(1400))
+            // After the ring has gone home, not under it; and it leaves by
+            // itself, as every other tip does. It used to stay until closed,
+            // holding the stage so the day's cue never showed (the hints
+            // audit, 2026-10-11).
+            await MainAppView.waitForRing()
             showing = moment
+            try? await Task.sleep(for: .seconds(12))
+            if showing == moment { showing = nil }
         }
     }
 

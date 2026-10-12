@@ -385,7 +385,11 @@ struct PlanningAheadTests {
         // No line in dark (the owner, 2026-10-11: "why in dark mode is there
         // an outline on everything"): the dark pane is lifted in its glass.
         #expect(SlotPane.edge(.dark) == 0 && SlotPane.edge(.light) > 0)
-        #expect(SlotPane.darkLift > 0)
+        // And no hue of its own: the page's glass, as the buttons beside
+        // it are ("a different hue from the other liquid glass elements").
+        let recipe = SourceSweep.code(try SourceSweep.read("Strata/Views/SlotGlass.swift"))
+        #expect(recipe.contains("if dark { return .regular.tint(.black.opacity(pageInk + 0.06 * t)).interactive() }"))
+        #expect(!recipe.contains(".white.opacity("))
         let glass = SourceSweep.code(try SourceSweep.read("Strata/Views/SlotGlass.swift"))
         #expect(glass.contains("GlassRecipe.slot(thickness: thickness, dark: scheme == .dark)"))
         let slot = SourceSweep.code(try SourceSweep.read("Strata/Views/NextSlotButton.swift"))
