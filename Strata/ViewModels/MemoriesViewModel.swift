@@ -339,7 +339,7 @@ final class MemoriesViewModel {
             ? carousel.filter { if case .moment(let id) = $0.kind { return id != AlbumMoment.lastMonth.id } else { return false } }
             : []
         let store = SocialStore.shared
-        let crews = store.crews.map { Album.ShelfCrew(id: $0.id.rawValue, name: $0.name, wins: store.winsSent(to: $0.id)) }
+        let crews = store.crews.map { Album.ShelfCrew(id: $0.id.rawValue, name: $0.displayName(excluding: store.me), wins: store.winsSent(to: $0.id)) }
         let removed = Set(RemovedAlbums.all().keys)
         let today = DateUtils.dateString(from: Date())
         let fresh = Album.monthShelf(records: photoRecords, month: monthKey(selectedMonth), crews: crews, moments: moments,

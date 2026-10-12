@@ -44,19 +44,36 @@ nonisolated extension Album {
         let inMonth = records.filter { $0.hasPhoto && $0.dateString.hasPrefix(month + "-") }
         var shelf = moments
 
-        let crewAlbums: [Album] = crews.compactMap { crew in
-            let group = inMonth.filter { $0.id.map(crew.wins.contains) ?? false }
-            guard group.count >= monthCrewMinPhotos else { return nil }
-            return Album(id: "crew:\(crew.id)@\(month)",
-                         kind: .crew("\(crew.id)@\(month)"),
-                         title: "With \(crew.name)",
-                         subtitle: "\(group.count) PHOTOS",
-                         sortDate: group.map(\.completedAt).max() ?? .distantPast,
-                         photoFileNames: coverOrder(for: group),
-                         winCount: group.count,
-                         haystack: crew.name.lowercased())
+        // **One album for one set of wins, and never a title that stops at
+        // "With"** (the owner, 2026-10-12: "I got an album called 'With'
+        // nothing after it and it was lowkey a duplicate of the album
+        // before it"). A crew with no name of its own gave "With " and
+        // nothing; and wins sent to two crews made two albums of the same
+        // photos. The caller passes the name the crew is shown by (its
+        // people, when it has no name), and a crew whose wins are exactly
+        // another's adds nothing.
+        var held: [Set<UUID>] = []
+        // The crew with the most of the month's wins first, so of two crews
+        // holding the same wins it is always the same one that is kept.
+        let groups: [(crew: ShelfCrew, wins: [WinRecord])] = crews
+            .map { crew in (crew, inMonth.filter { $0.id.map(crew.wins.contains) ?? false }) }
+            .sorted { a, b in a.wins.count != b.wins.count ? a.wins.count > b.wins.count : a.crew.id < b.crew.id }
+        var crewAlbums: [Album] = []
+        for (crew, group) in groups where group.count >= monthCrewMinPhotos {
+            let ids = Set(group.compactMap(\.id))
+            if held.contains(ids) { continue }
+            held.append(ids)
+            let name = crew.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            crewAlbums.append(Album(id: "crew:\(crew.id)@\(month)",
+                                    kind: .crew("\(crew.id)@\(month)"),
+                                    title: name.isEmpty ? "With Your Crew" : "With \(name)",
+                                    subtitle: "\(group.count) PHOTOS",
+                                    sortDate: group.map(\.completedAt).max() ?? .distantPast,
+                                    photoFileNames: coverOrder(for: group),
+                                    winCount: group.count,
+                                    haystack: name.lowercased()))
         }
-        .sorted { $0.winCount != $1.winCount ? $0.winCount > $1.winCount : $0.sortDate > $1.sortDate }
+        crewAlbums.sort { $0.winCount != $1.winCount ? $0.winCount > $1.winCount : $0.sortDate > $1.sortDate }
         shelf += crewAlbums
 
         var byKey: [String: [WinRecord]] = [:]

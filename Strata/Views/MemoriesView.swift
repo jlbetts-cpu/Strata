@@ -36,7 +36,9 @@ struct MemoriesView: View {
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
     @State private var monthStep = 0
     /// TipKit says the drawing's tip is due (`monthTipLayer`).
-    @State private var showsMonthTip = false
+    /// Asked once, when the page is made: a tip due then is in the first
+    /// frame, and nothing moves for it.
+    @State private var showsMonthTip = MonthDrawingTip().shouldDisplay
     /// Some Wins' own card in the drawing's place this visit (`HouseCard`).
     @State private var houseCard: HouseCard?
     @State private var showsTipAsk = false
@@ -141,15 +143,25 @@ struct MemoriesView: View {
             VStack(spacing: 0) {
             pageHeader
                 .task {
-                    for await status in MonthDrawingTip().statusUpdates {
-                        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) {
-                            showsMonthTip = status == .available
+                    // Only ever away: it never arrives mid-visit (see below).
+                    for await status in MonthDrawingTip().statusUpdates where status != .available {
+                        if showsMonthTip {
+                            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueOut) {
+                                showsMonthTip = false
+                            }
                         }
                     }
                 }
             // The month drawing's tip, as every tip is now (`TipCard`): under
             // the header, in the page, so the drawing makes room for it
-            // rather than standing under it.
+            // rather than standing under it. **And there from the first
+            // frame or not at all this visit** (the owner, 2026-10-12: "the
+            // tips kinda push the page down for a second, looks like a
+            // glitch"). It arrived a moment after the page, when TipKit
+            // said it was due, and the whole month moved down for it. Now
+            // the page asks once, as it appears; a tip that falls due while
+            // you are looking waits for the next visit. (Floating it over
+            // the page instead covered the drawing it is about.)
             monthTipLayer
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {

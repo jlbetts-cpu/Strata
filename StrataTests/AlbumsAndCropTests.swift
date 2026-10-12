@@ -137,6 +137,21 @@ struct AlbumsAndCropTests {
                 "the panes stayed dark on a light page until the app was reopened")
     }
 
+    /// The owner, 2026-10-12: "the tips kinda push the page down for a
+    /// second, looks like a glitch. Make sure there isn't anything like
+    /// that throughout the app."
+    @Test("a tip floats over the page and never moves what is under it")
+    func tipsTakeNoRoom() throws {
+        let main = try code("Strata/Views/MainAppView.swift")
+        #expect(main.contains("towerHeader\n                    .overlay(alignment: .bottom) {\n                        winsTip"),
+                "the tower's tip is stacked in the header's inset again, and the page jumps when it arrives")
+        #expect(!main.contains("towerHeader\n                    winsTip"))
+        let memories = try code("Strata/Views/MemoriesView.swift")
+        #expect(memories.contains("@State private var showsMonthTip = MonthDrawingTip().shouldDisplay"),
+                "the month's tip is decided after the page is up, and the month moves down for it")
+        #expect(!memories.contains("showsMonthTip = status == .available"), "it can arrive mid-visit again")
+    }
+
     @Test("the place a plan is written says the same thing in both sheets")
     func onePrompt() throws {
         #expect(PlanScope.day(0).prompt() == "Plan for today")

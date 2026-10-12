@@ -70,4 +70,28 @@ struct MonthShelfTests {
         #expect(Album.splitMonth("gym session").month == nil)
         #expect(Album.splitMonth("me@home").month == nil)
     }
+
+    /// The owner, 2026-10-12: "I got an album called 'With' nothing after it
+    /// and it was lowkey a duplicate of the album before it which actually
+    /// said who it was with."
+    @Test("a crew with no name still names its album, and two crews with the same wins are one album")
+    func noBareWithAndNoTwin() {
+        let sent = (0..<4).map { _ in UUID() }
+        let records = sent.enumerated().map { record("Run \($0.offset)", "2026-10-0\($0.offset + 1)", id: $0.element) }
+        let named = Album.ShelfCrew(id: "crew-1", name: "Roommates", wins: Set(sent))
+        let unnamed = Album.ShelfCrew(id: "crew-2", name: "  ", wins: Set(sent))
+        // The same four wins went to both crews: one album, the first crew's.
+        let shelf = Album.monthShelf(records: records, month: "2026-10", crews: [unnamed, named], moments: [])
+        #expect(shelf.map(\.title) == ["With Roommates"])
+        // Alone, a crew with no name of its own is never "With" and nothing.
+        let alone = Album.monthShelf(records: records, month: "2026-10", crews: [unnamed], moments: [])
+        #expect(alone.map(\.title) == ["With Your Crew"])
+        #expect(!alone.contains { $0.title.trimmingCharacters(in: .whitespaces) == "With" })
+        // A crew holding different wins is its own album.
+        let more = (0..<3).map { _ in UUID() }
+        let extra = more.enumerated().map { record("Read \($0.offset)", "2026-10-1\($0.offset)", id: $0.element) }
+        let other = Album.ShelfCrew(id: "crew-3", name: "Run Club", wins: Set(more))
+        let both = Album.monthShelf(records: records + extra, month: "2026-10", crews: [named, other], moments: [])
+        #expect(Set(both.map(\.title)) == ["With Roommates", "With Run Club"])
+    }
 }

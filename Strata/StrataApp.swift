@@ -74,6 +74,11 @@ struct StrataApp: App {
         // and has already decided, so the reset only took effect on the NEXT
         // render — which for a UI test is after it has given up looking.
         if DebugHarness.resetsOnboarding {
+            // And the page it would resume on: a run that stopped part way
+            // left this set, so the next "clean" launch opened on that page
+            // and not on the film (the first-run test's long-standing flake,
+            // found 2026-10-12).
+            UserDefaults.standard.removeObject(forKey: "onboarding.resumeStep")
             UserDefaults.standard.set(false, forKey: "hasOnboarded")
         }
         #endif

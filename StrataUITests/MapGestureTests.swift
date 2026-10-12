@@ -211,7 +211,9 @@ final class MapGestureTests: XCTestCase {
         let app = XCUIApplication()
         // Deliberately no `-strataShowOnboarding`: this has to be the real
         // first-launch path, decided by `hasOnboarded`.
-        app.launchArguments += ["-strataResetOnboarding", "1", "-strataResetStore", "1"]
+        // No name yet, as on a new phone: a name kept by an earlier run is
+        // written into the name page, and Return then rightly goes on.
+        app.launchArguments += ["-strataResetOnboarding", "1", "-strataResetStore", "1", "-profileName", ""]
         app.launch()
 
         // The film, which a person can leave from its first frame.
@@ -249,6 +251,16 @@ final class MapGestureTests: XCTestCase {
         // The day's goal, its number left at the default. The last page.
         XCTAssertTrue(app.buttons["Set My Goal"].waitForExistence(timeout: 15), "no goal page")
         app.buttons["Set My Goal"].tap()
+        // Your name, the last page (2026-10-12): Start does nothing until
+        // one is written.
+        // The keyboard is up and covers Start; its own key goes on.
+        let nameField = app.textFields["Your name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 15), "no name page")
+        nameField.tap()
+        app.typeText("\n")
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(nameField.exists, "the page was left with no name written")
+        app.typeText("Sam\n")
         dismissSystemAlerts(app)
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
         // tower. A shorter wait catches the loading skeleton.

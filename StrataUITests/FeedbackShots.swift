@@ -417,6 +417,29 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("flows-6-album-menu")
     }
 
+    /// Your name, onboarding's last page: Start is off until one is written
+    /// (the owner, 2026-10-12).
+    func testOnboardingName() {
+        let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "8", "-profileName", ""])
+        wait(5); snap("name-0-empty")
+        app.typeText("Jayden")
+        wait(1); snap("name-1-typed")
+    }
+
+    /// A tip arriving and leaving: the page under it must not move (the
+    /// owner, 2026-10-12: "the tips kinda push the page down for a second").
+    func testTipTakesNoRoom() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                          "-strataPlanOnTower", "1", "-hint.planned.shown", "NO"])
+        wait(11); snap("tip-0-showing")
+        let close = app.buttons["Close"].firstMatch
+        if close.waitForExistence(timeout: 2) { close.tap() }
+        wait(2); snap("tip-1-gone")
+        // And the ripple a touch on the bare page leaves, caught mid-ring.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+        Thread.sleep(forTimeInterval: 0.18); snap("tip-2-ripple")
+    }
+
     /// The `+` slot beside planned wins, and alone on an empty tower (the
     /// owner, 2026-10-11: "they should look the same").
     func testSlotBesideOutlines() {

@@ -126,12 +126,25 @@ struct TouchRipple: Identifiable, Equatable {
 
     /// The lit side: the page, taken up. On the light page that lands on white;
     /// on the dark one it is a warm grey, because white would be a hole in it.
+    ///
+    /// **Even in both appearances** (the owner, 2026-10-12: "the ripple taps
+    /// on dark mode are way too noticeable, on light mode they feel
+    /// invisible"). It was the ground taken up by 0.22 either way. The light
+    /// page is at 0.99 already, so "up" had one level to move and the ring
+    /// could not be seen at all; the dark page is at 0.11, so the same step
+    /// tripled it and the ring was the brightest thing on the screen. The
+    /// ring moves the ground by about the same amount each way now: a touch
+    /// under the light page (there is nowhere above it to go), and a
+    /// smaller step over the dark one.
+    static let lightStep: CGFloat = 0.07
+    static let darkStep: CGFloat = 0.10
     static let light = Color(uiColor: UIColor { traits in
         let ground = UIColor(WarmBackground.top).resolvedColor(with: traits)
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ground.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        let dark = traits.userInterfaceStyle == .dark
         return UIColor(hue: h, saturation: s * 0.5,
-                       brightness: min(1, b + 0.22), alpha: 1)
+                       brightness: dark ? min(1, b + darkStep) : max(0, b - lightStep), alpha: 1)
     })
 
     /// Whether this ring is still worth drawing, so the layer that draws them

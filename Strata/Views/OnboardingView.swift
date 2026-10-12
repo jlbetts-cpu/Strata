@@ -115,6 +115,15 @@ struct OnboardingView: View {
     /// which is a good one: the one time a person is asked to plan for a bad
     /// day while having a good one.
     private static let threeStep = 7
+    /// **Your name, the last page, and not optional** (the owner,
+    /// 2026-10-12: "in the onboarding we should make them write their name
+    /// because I don't really want your name to be optional"). It is on
+    /// your photo strip and it is what a crew sees beside your wins; left
+    /// to the profile, most people never set it. The last page, so every
+    /// page before it keeps its number.
+    private static let nameStep = 8
+    @State private var name = ""
+    @FocusState private var nameFocused: Bool
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
     /// The three being chosen, kept only once the button is pressed: Skip
@@ -124,14 +133,14 @@ struct OnboardingView: View {
     /// win: "that should be explained in the app they just kinda look lame").
     /// Your three is chosen from Your day; the first win is the tower's own
     /// slot, which the app opens on. Both pages stay in the code, unreached.
-    private var lastStep: Int { endsOnGoal ? Self.goalStep : Self.thanksStep }
+    private var lastStep: Int { endsOnGoal ? Self.nameStep : Self.thanksStep }
 
     /// **Seven pages, not nine** (2026-10-08, `docs/superpowers/specs/
     /// 2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
     /// opening tower picture, the camera slide and the map slide are what the
     /// film shows, and the map asks for places itself when it is opened. Their
     /// pages stay in the code, skipped: one line from back.
-    private static let skipped: Set<Int> = [0, 2, 3]
+    private static let skipped: Set<Int> = [0, 2, 3, 7]
     private static let firstShown = 1
     private var shownSteps: [Int] { (0...lastStep).filter { !Self.skipped.contains($0) } }
     private func next(after s: Int) -> Int { shownSteps.first { $0 > s } ?? lastStep }
@@ -564,6 +573,7 @@ struct OnboardingView: View {
                 case Self.thanksStep: thanks
                 case Self.goalStep: goalPage
                 case Self.threeStep: threePage
+                case Self.nameStep: namePage
                 default: EmptyView()
                 }
             }
@@ -576,6 +586,38 @@ struct OnboardingView: View {
 
     /// The crest as Wins will show it, empty, and the number under it: what
     /// is being chosen is visible as it is chosen (each step adds a segment).
+    /// One field, and nothing else on the page. The name a person already
+    /// has (a second run of onboarding) is in it.
+    private var namePage: some View {
+        TextField("Your name", text: $name, prompt: Text("Your name").foregroundStyle(AppColors.inkTertiary))
+            .font(Typography.screenTitle)
+            .foregroundStyle(AppColors.inkPrimary)
+            .multilineTextAlignment(.center)
+            .textContentType(.givenName)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            // **The keyboard's own key goes on.** These pages do not move
+            // for the keyboard, so Start is under it while you type; the key
+            // says "continue" and does what Start does. With nothing
+            // written it keeps the keyboard up and goes nowhere.
+            .submitLabel(.continue)
+            .focused($nameFocused)
+            .onSubmit {
+                if canAdvance { advance() } else { nameFocused = true }
+            }
+            .onChange(of: name) { _, now in
+                // A first name fits a strip; a paragraph does not.
+                if now.count > 24 { name = String(now.prefix(24)) }
+            }
+            .padding(.horizontal, GridConstants.gapWide)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                if name.isEmpty { name = ProfileStore.shared.name }
+                nameFocused = true
+            }
+            .accessibilityLabel("Your name")
+    }
+
     private var goalPage: some View {
         VStack(spacing: GridConstants.gapSection) {
             // No caption: the number under the ring says it once, and the
@@ -1174,6 +1216,7 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         case Self.goalStep: return "A goal for each day"
         case Self.threeStep: return YourThree.Copy.onboardingTitle
+        case Self.nameStep: return "What should we call you?"
         default: return "Thank you, genuinely"
         }
     }
@@ -1235,6 +1278,7 @@ struct OnboardingView: View {
         // none, and the page promised one (the hints audit, 2026-10-11).
         case Self.goalStep: return "Reach it and your tower dances. The day's photos print as a strip."
         case Self.threeStep: return YourThree.Copy.onboardingLine
+        case Self.nameStep: return "It goes on your photo strip, and your crew sees it beside your wins."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
@@ -1370,8 +1414,8 @@ struct OnboardingView: View {
             PrimaryCapsule(title: actionTitle) { advance() }
         } else {
             PrimaryCapsule(waiting: actionTitle,
-                           because: step == Self.threeStep
-                                   ? YourThree.Copy.onboardingWaiting
+                           because: step == Self.threeStep ? YourThree.Copy.onboardingWaiting
+                                   : step == Self.nameStep ? "Write your name to start."
                                    : "Not yet. Draw a block to go on.")
         }
     }
@@ -1390,6 +1434,7 @@ struct OnboardingView: View {
     private var canAdvance: Bool {
         if step == 1 { return hasDrawn }
         if step == Self.threeStep { return !threePicked.isEmpty }
+        if step == Self.nameStep { return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         return true
     }
 
@@ -1404,6 +1449,7 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil ? "Make My Head" : "One More Thing"
         // The last page now (2026-10-08): it sets the goal and opens the app.
         case Self.goalStep: return "Set My Goal"
+        case Self.nameStep: return "Start"
         // Not the last page any more when the goal follows it.
         case Self.thanksStep where step < lastStep: return "One More Thing"
         case Self.threeStep: return YourThree.Copy.onboardingKeep
@@ -1426,6 +1472,10 @@ struct OnboardingView: View {
             return
         }
         if step == Self.threeStep { threeRaw = YourThree.encode(threePicked) }
+        if step == Self.nameStep {
+            ProfileStore.shared.setName(name.trimmingCharacters(in: .whitespacesAndNewlines))
+            nameFocused = false
+        }
         Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
         guard step < lastStep else { finish(); return }
         withAnimation(GridConstants.motionSnappy) { step = next(after: step) }

@@ -47,7 +47,12 @@ struct WinCueTests {
     func isATip() throws {
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         #expect(main.contains("TipCard(title: line == DayOneHint.drawOut"))
-        #expect(main.contains("VStack(spacing: GridConstants.gapTight) {\n                    towerHeader\n                    winsTip"))
+        // Still hung off the header by layout, never by a measured offset;
+        // since 2026-10-12 as the header's overlay, not a second row of its
+        // inset, so the page under it does not move when a tip arrives (the
+        // owner: "the tips kinda push the page down for a second").
+        #expect(main.contains("towerHeader\n                    .overlay(alignment: .bottom) {\n                        winsTip"))
+        #expect(main.contains(".alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }"))
         #expect(!main.contains("slotFrame"))
         #expect(main.contains("!logs.isEmpty"))
         let tip = SourceSweep.code(try SourceSweep.read("Strata/Views/TipCard.swift"))

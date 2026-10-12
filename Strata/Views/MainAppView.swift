@@ -1179,13 +1179,21 @@ struct MainAppView: View {
                 // the header's own inset, so it is placed by layout rather
                 // than by a measured or guessed offset, and the tower, which
                 // stands on the tab bar, does not move for it.
-                VStack(spacing: GridConstants.gapTight) {
-                    towerHeader
-                    winsTip
-                }
-                .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
-                .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
-                           value: TipStage.shared.invite == nil)
+                // **A tip hangs under the header; it is not in the layout**
+                // (the owner, 2026-10-12: "the tips kinda push the page down
+                // for a second, looks like a glitch"). It was stacked with
+                // the header inside this inset, so the inset grew when a tip
+                // arrived a few seconds after the page and everything under
+                // it was laid out again. As an overlay it takes no room: the
+                // page under it does not know it came.
+                towerHeader
+                    .overlay(alignment: .bottom) {
+                        winsTip
+                            .alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }
+                            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
+                            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
+                                       value: TipStage.shared.invite == nil)
+                    }
             }
             // **The head that lives on the tower, OVER the header** (moved
             // 2026-10-02). It was an overlay on the scroll view, under this
