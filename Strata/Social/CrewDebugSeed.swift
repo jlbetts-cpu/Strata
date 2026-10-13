@@ -138,6 +138,14 @@ extension DebugHarness {
                 friend.now = { Date().addingTimeInterval(-back) }
                 _ = try? await friend.accept(CrewInvite(url: link))
                 friend.now = Date.init
+                // `-strataCrewFaces none`: nobody has a head or a photo, so
+                // each friend is their own initial on their own colour (the
+                // owner, 2026-10-13, of a capture where every friend wore
+                // the one fixture head: "the pfp should be different for
+                // each person").
+                if argument("-strataCrewFaces") == "none" {
+                    // Their initial stands for them.
+                } else
                 // Every third friend has no head, only a profile photo, so
                 // the mixed circles can be seen.
                 if f % 3 == 2 {

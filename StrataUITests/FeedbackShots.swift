@@ -763,7 +763,8 @@ final class FeedbackShots: XCTestCase {
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
                           "-strataCrewSheet", "chat", "-strataSeedCrewChat", "1", "-strataSeedHistory", "2",
-                          "-strataSeedTodayPhotos", "all"])
+                          "-strataSeedHistoryPerDay", "5", "-strataSeedTodayPhotos", "all",
+                          "-strataSeedRealPhotos", "demo", "-strataCrewFaces", "none"])
         wait(9)
         let plus = app.buttons["More to send"]
         if plus.waitForExistence(timeout: 5) { plus.tap(); wait(1) }

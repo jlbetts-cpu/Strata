@@ -1377,6 +1377,10 @@ enum DebugHarness {
                     // photo strip, which only prints wins with a picture.
                     let photographed = isInterest || (i == 0 && back % 2 == 0)
                         || (back == 0 && argument("-strataSeedTodayPhotos") == "all")
+                        // `-strataSeedAllPhotos`: every seeded win on every
+                        // day, for the site's films (the owner, 2026-10-13:
+                        // "make sure all the blocks use photos").
+                        || argument("-strataSeedAllPhotos") != nil
                     if back > 0 || seedsTodayPhotos, photographed,
                        let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
