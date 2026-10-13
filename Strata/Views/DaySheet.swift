@@ -300,6 +300,8 @@ struct DaySheet: View {
     @FocusState private var writing: Bool
     /// What is being typed in the Journal's bar, before it joins the note.
     @State private var journalDraft = ""
+    /// The day's wins are drawn above the note (`DayWinNotes`).
+    @State private var winNotesShown = false
     @FocusState private var journalComposing: Bool
     /// The day's sketch, by file name (`MoodLog.sketchFileName`).
     @State private var sketchName: String?
@@ -600,7 +602,7 @@ struct DaySheet: View {
             // chat's is "Quiet here. Yet."). Gone the moment there is a word,
             // a question or a sketch, and never in the way of a tap.
             .overlay {
-                if isEmpty && question == nil && sketchName == nil {
+                if isEmpty && question == nil && sketchName == nil && !winNotesShown {
                     Text("Nothing written. Yet.")
                         .font(Typography.bodyLarge)
                         .foregroundStyle(AppColors.inkTertiary)
@@ -673,6 +675,10 @@ struct DaySheet: View {
             // pictures in the journal tab I dont think i like that"). The row
             // of the day's photos came out; Suggest still asks about the
             // day's own wins, so the help to start remains without them.
+            // **The day's wins and their notes, once one has a note**
+            // (`WinNote`, 2026-10-13). Names and words in the page's own
+            // type; still no photographs.
+            DayWinNotes(dateString: dateString, shown: $winNotesShown)
             editor
             if let question, !isEmpty {
                 questionLine(question)

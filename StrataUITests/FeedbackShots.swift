@@ -725,6 +725,40 @@ final class FeedbackShots: XCTestCase {
         XCTAssertTrue(renamed, "today's box does not carry the new name")
     }
 
+    /// **A note on a win, and the day's wins in that day's journal**
+    /// (`WinNote`, 2026-10-13).
+    func testWinNote() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-hint.winNote.shown", "NO", "-hint.winNote.due", "NO"])
+        wait(8)
+        // A press on a win's own block: the edit sheet that holds the win,
+        // not the harness's, which has only its name and colour.
+        let block = app.buttons["Your win, Walk"].firstMatch
+        if block.waitForExistence(timeout: 6) { block.tap(); wait(2) }
+        snap("winnote-edit")
+        let field = app.textFields["Add a note"].exists ? app.textFields["Add a note"] : app.textViews["Add a note"]
+        let offered = field.waitForExistence(timeout: 4)
+        if offered { field.tap(); wait(1); app.typeText("Slow, but I went.") }
+        snap("winnote-typed")
+        let save = app.buttons["Save"].firstMatch
+        if save.exists { save.tap() }
+        // The hint, once, under the header.
+        let hint = app.staticTexts["A note on a win"]
+        let hinted = hint.waitForExistence(timeout: 14)
+        snap("winnote-hint")
+        let journal = app.buttons["Plan and Journal"].firstMatch
+        if journal.waitForExistence(timeout: 4) { journal.tap(); wait(3) }
+        let tab = app.buttons["Journal"].firstMatch
+        if tab.exists { tab.tap(); wait(2) }
+        snap("winnote-journal")
+        let shown = app.textFields.matching(NSPredicate(format: "value CONTAINS 'Slow, but I went.'")).firstMatch.exists
+            || app.textViews.matching(NSPredicate(format: "value CONTAINS 'Slow, but I went.'")).firstMatch.exists
+            || app.staticTexts["Slow, but I went."].exists
+        print("PLANNING-winnote: field \(offered) save \(save.exists) hint \(hinted) in-journal \(shown) buttons \(app.buttons.allElementsBoundByIndex.prefix(10).map(\.label))")
+        XCTAssertTrue(offered, "no note line on a win being edited")
+        XCTAssertTrue(shown, "the note is not in that day's journal")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

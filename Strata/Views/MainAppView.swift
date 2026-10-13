@@ -1133,9 +1133,10 @@ struct MainAppView: View {
             // **Tonight's note in full** (`DayNote`): the number and what it
             // means. It says, and asks for nothing.
             let note = shownNote.flatMap { $0.headline == line ? $0 : nil }
-            let teaches = line == DayOneHint.drawOut || line == PlannedHint.line || note != nil
+            let teaches = line == DayOneHint.drawOut || line == PlannedHint.line || line == WinNote.hintLine || note != nil
             TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title
-                        : line == PlannedHint.line ? PlannedHint.title : line,
+                        : line == PlannedHint.line ? PlannedHint.title
+                        : line == WinNote.hintLine ? WinNote.hintTitle : line,
                     message: note?.detail ?? (teaches ? line : WinCue.tapToAdd),
                     mark: note != nil ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
                     onTap: teaches ? nil : {
@@ -1193,6 +1194,20 @@ struct MainAppView: View {
                     guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
                     drawOutHintShown = true
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = hint }
+                    try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
+                // **Where a win's note shows**, said once, after the first
+                // one is written (`WinNote`).
+                if ringIsClear, WinNote.hintDue() {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    await Self.waitForLaunchToFinish()
+                    await Self.waitForRing()
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
+                    WinNote.markHintShown()
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = WinNote.hintLine }
                     try? await Task.sleep(for: .seconds(9))
                     withAnimation(GridConstants.cueOut) { winCue = nil }
                     return

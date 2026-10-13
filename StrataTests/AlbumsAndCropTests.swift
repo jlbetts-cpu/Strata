@@ -112,9 +112,11 @@ struct AlbumsAndCropTests {
     @Test("every hint waits for a clear tower and the ring, and says what the app does")
     func hints() throws {
         let main = try code("Strata/Views/MainAppView.swift")
-        // Four since 2026-10-13: tonight's note (`DayNote`) is a fourth
-        // thing said under the header, and waits as the other three do.
-        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 4)
+        // Five since 2026-10-13: tonight's note (`DayNote`) and where a
+        // win's note shows (`WinNote`) are said under the header too, and
+        // wait as the other three do.
+        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 5)
+        #expect(WinNote.hintLine.count <= TipCopy.longestMessage)
         #expect(!main.contains("guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil"))
         #expect(try code("Strata/Views/Crews/FirstWinInviteCard.swift").contains("await MainAppView.waitForRing()"))
         // "Pull", the verb onboarding uses twice for the same gesture: one

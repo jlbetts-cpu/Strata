@@ -25,7 +25,8 @@ struct FlowFixTests {
         // None of them opens straight over the keys any more.
         #expect(!add.contains("\n            choosingSource = true\n"))
         #expect(!add.contains("\n            tagging = true\n"))
-        #expect(add.contains("guard titleFocused else { open(); return }"))
+        // Either field: the name, or (since the same day) a win's note.
+        #expect(add.contains("guard titleFocused || noteFocused else { open(); return }"))
     }
 
     @Test("Add waits for a photo chosen from the library")

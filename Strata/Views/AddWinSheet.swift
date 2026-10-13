@@ -70,6 +70,10 @@ struct AddWinSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var titleFocused: Bool
+    /// The win's note (`WinNote`), on a win being edited.
+    @State private var winNote = ""
+    @FocusState private var noteFocused: Bool
+    @AppStorage(JournalLock.defaultsKey) private var journalLocked = false
     /// Where the well starts on the page, for `wellFit`.
     @State private var wellTop: CGFloat = 0
 
@@ -242,8 +246,9 @@ struct AddWinSheet: View {
     /// first, and the menu opens into the room that leaves, as the chat's
     /// reactions and the day sheet's stickers already do.
     private func afterKeyboard(_ open: @escaping () -> Void) {
-        guard titleFocused else { open(); return }
+        guard titleFocused || noteFocused else { open(); return }
         titleFocused = false
+        noteFocused = false
         Task { @MainActor in
             // The keyboard's own going, and the block growing back.
             try? await Task.sleep(for: .milliseconds(Self.keyboardBeat))
@@ -371,6 +376,21 @@ struct AddWinSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
+                        // **A note, on a win that exists** (`WinNote`): one
+                        // quiet line under the name when you edit it. Never
+                        // in a fresh Add, where it would be a form and would
+                        // push the block behind the keys. And not while the
+                        // journal is locked: it is the journal's.
+                        if editingLog != nil, !(journalLocked && !JournalLock.shared.isUnlocked) {
+                            TextField(WinNote.prompt, text: $winNote,
+                                      prompt: Text(WinNote.prompt).foregroundStyle(AppColors.inkTertiary),
+                                      axis: .vertical)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkSecondary)
+                                .lineLimit(1...4)
+                                .focused($noteFocused)
+                                .padding(.top, GridConstants.gapTight)
+                        }
                         if offersPlanning {
                             WhenRow(when: $planFor)
                                 .padding(.top, GridConstants.gapTight)
@@ -1809,6 +1829,7 @@ struct AddWinSheet: View {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
             category = habit.displayCategory
             size = habit.blockSize
+            winNote = editingLog?.note ?? ""
             if let name = editingLog?.imageFileName {
                 Task { photo = await ImageManager.shared.loadFullImage(fileName: name) }
             } else if let name = editingLog?.doodleFileName, let kept = BlockDoodles.drawing(for: name) {
@@ -1868,6 +1889,12 @@ struct AddWinSheet: View {
                 habit.spontaneousCategoryRaw = nil
             }
             habit.blockSize = size
+            if let log = editingLog {
+                let kept = WinNote.tidy(winNote)
+                // A first note: said once where it will show.
+                if log.note == nil, kept != nil { WinNote.noteSaved() }
+                if log.note != kept { log.note = kept }
+            }
             // **Not `try?`.** A rename that did not save closed the sheet as
             // if it had, and the next launch quietly showed the old name.
             do { try modelContext.save() } catch {
