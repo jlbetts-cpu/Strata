@@ -51,13 +51,20 @@ extension View {
     /// under a plain `safeAreaInset` the edge drew nothing at all, and the
     /// calendar's weekdays ran straight through the month's name (looked at
     /// on Memories, 2026-10-13). Before 26 it is the inset it always was.
-    @ViewBuilder
-    func pinnedBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
-        if #available(iOS 26.0, *) {
-            self.safeAreaBar(edge: .top, spacing: 0, content: bar)
-        } else {
-            self.safeAreaInset(edge: .top, spacing: 0, content: bar)
-        }
+    ///
+    /// **What hangs under the header goes in `below`, never inside the
+    /// bar.** A tip, or a crew's plan card, used to be an overlay on the
+    /// header that overflowed it. Inside a bar that overflow is drawn and
+    /// takes no touch: I'm In did nothing (tried, 2026-10-13, before it
+    /// reached anyone). `below` is laid just under the bar, over the page,
+    /// and takes no room, so nothing moves when it comes or goes.
+    func pinnedBar<Bar: View>(@ViewBuilder _ bar: @escaping () -> Bar) -> some View {
+        modifier(PinnedBar(bar: bar, below: { EmptyView() }))
+    }
+
+    func pinnedBar<Bar: View, Below: View>(@ViewBuilder _ bar: @escaping () -> Bar,
+                                           @ViewBuilder below: @escaping () -> Below) -> some View {
+        modifier(PinnedBar(bar: bar, below: below))
     }
 
     /// A soft progressive blur where scrolling content meets pinned chrome.
@@ -71,5 +78,34 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+private struct PinnedBar<Bar: View, Below: View>: ViewModifier {
+    @ViewBuilder let bar: () -> Bar
+    @ViewBuilder let below: () -> Below
+    /// Where the bar ends, in this view's own space: where `below` begins.
+    @State private var barFoot: CGFloat = 0
+    private static var space: String { "pinnedBar" }
+
+    func body(content: Content) -> some View {
+        barred(content)
+            .overlay(alignment: .top) {
+                below().padding(.top, barFoot)
+            }
+            .coordinateSpace(.named(Self.space))
+    }
+
+    @ViewBuilder
+    private func barred(_ content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.safeAreaBar(edge: .top, spacing: 0) { measured }
+        } else {
+            content.safeAreaInset(edge: .top, spacing: 0) { measured }
+        }
+    }
+
+    private var measured: some View {
+        bar().onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { barFoot = $0 }
     }
 }

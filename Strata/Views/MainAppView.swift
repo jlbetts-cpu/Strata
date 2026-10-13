@@ -1175,8 +1175,7 @@ struct MainAppView: View {
             // at all.
             // A bar, so the tower blurs away under the header (`pinnedBar`,
             // 2026-10-13): under a plain inset the soft edge drew nothing,
-            // and the lattice ran crisp behind the crest and the clock.
-            .pinnedBar {
+            .pinnedBar({ towerHeader }, below: {
                 // **A Wins tip stands directly under the crest** (2026-10-08,
                 // "the placement of the tips still dont look the best"): in
                 // the header's own inset, so it is placed by layout rather
@@ -1189,15 +1188,15 @@ struct MainAppView: View {
                 // arrived a few seconds after the page and everything under
                 // it was laid out again. As an overlay it takes no room: the
                 // page under it does not know it came.
-                towerHeader
-                    .overlay(alignment: .bottom) {
-                        winsTip
-                            .alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }
-                            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
-                            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
-                                       value: TipStage.shared.invite == nil)
-                    }
-            }
+                // **And it is not inside the header's bar** (2026-10-13,
+                // `pinnedBar`): overflowing a bar it was drawn and took no
+                // touch.
+                winsTip
+                    .padding(.top, GridConstants.gapTight)
+                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
+                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
+                               value: TipStage.shared.invite == nil)
+            })
             // **The head that lives on the tower, OVER the header** (moved
             // 2026-10-02). It was an overlay on the scroll view, under this
             // pinned header, so carried over the bubble beside the Plan button

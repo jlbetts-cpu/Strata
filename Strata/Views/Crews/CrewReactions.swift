@@ -384,7 +384,7 @@ struct CrewReactionsPanel: View {
                 ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            do {
+            Group {
                 Button {
                     HapticsEngine.tick()
                     withAnimation(motion) { open.toggle() }

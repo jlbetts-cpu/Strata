@@ -605,6 +605,35 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
+    /// **Things that hang below a pinned header still take a touch**
+    /// (2026-10-13): the Wins tip's close, and I'm In on the crew's screen.
+    /// The header became a bar (`pinnedBar`), and whether a bar passes
+    /// touches to what overflows it could not be known without trying.
+    func testTapsUnderTheBar() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5",
+                          "-strataPlanOnTower", "1", "-hint.planned.shown", "NO"])
+        // The hint is up for nine seconds: looked for from the start.
+        let close = app.buttons["Close"].firstMatch
+        let shown = close.waitForExistence(timeout: 25)
+        snap("bar-tip-shown")
+        if shown { close.tap() }
+        wait(2); snap("bar-tip-closed")
+        print("PLANNING-tip: shown \(shown) hittable-before \(shown) gone-after-tap \(!app.buttons["Close"].firstMatch.exists)")
+        XCTAssertTrue(shown, "no tip to test with")
+        XCTAssertFalse(app.buttons["Close"].firstMatch.exists, "the tip's close took no touch under the bar")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                      "-strataSeedCrewChat", "1", "-strataSeedCrewPlan", "1"])
+        wait(10)
+        let join = app.buttons["I'm In"].firstMatch
+        let offered = join.waitForExistence(timeout: 3)
+        if offered { join.tap() }
+        wait(2); snap("bar-plan-joined")
+        print("PLANNING-plan: offered \(offered) gone-after-tap \(!app.buttons["I'm In"].firstMatch.exists) undo \(app.buttons["Undo"].firstMatch.exists)")
+        XCTAssertTrue(offered, "no plan card on the crew's screen")
+        XCTAssertFalse(app.buttons["I'm In"].firstMatch.exists, "I'm In took no touch under the bar")
+    }
+
     /// Memories scrolled under its header (the soft edge), and the tower's
     /// blocks without a shadow (both 2026-10-13).
     func testEdgeAndBlocks() {

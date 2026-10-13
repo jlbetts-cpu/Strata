@@ -244,6 +244,9 @@ enum GroupPlanActions {
 /// the tower's.
 struct CrewPlanCards: View {
     let crewID: CrewID
+    /// Counted up by the host when something else may have changed the book
+    /// (the chat closing): the book is on this phone and is not observed.
+    var refresh = 0
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -263,7 +266,7 @@ struct CrewPlanCards: View {
     }
 
     var body: some View {
-        let _ = tick
+        let _ = (tick, refresh)
         let today = store.crew(crewID).map { CrewDay.string(for: store.now(), in: $0.timeZone) }
             ?? DateUtils.dateString(from: Date())
         let plans = Self.plans(proposed: store.messages(in: crewID).compactMap(\.groupPlan),

@@ -282,6 +282,8 @@ struct MemoriesView: View {
             // draws its scroll edge under. Under a plain inset it drew
             // nothing (looked at, 2026-10-13).
             .pinnedBar {
+                // In the bar, and in the layout: the month's tip makes room
+                // for itself here on purpose (it is about the drawing).
                 VStack(spacing: 0) {
             pageHeader
                 .task {

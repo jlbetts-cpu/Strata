@@ -28,6 +28,7 @@ struct CrewTowerView: View {
     @State private var showsInfo = false
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
+    @State private var plansRefresh = 0
     /// A photograph opened from its block, in the same viewer a past day's
     /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
     /// previous day").
@@ -83,17 +84,18 @@ struct CrewTowerView: View {
         }
         // A bar, so the tower blurs away under it (`pinnedBar`): under a plain
         // inset the soft edge drew nothing.
-        .pinnedBar {
+        .pinnedBar({ header }, below: {
             // **The crew's plans, on the crew's own screen** (the owner,
             // 2026-10-13: "make sure the crew plan shows up on the crew page
             // as well"). The same card the chat draws, floating under the
             // header as the tower's tips do, so nothing on the page moves.
-            header.overlay(alignment: .bottom) {
-                CrewPlanCards(crewID: crewID)
-                    .padding(.horizontal, hPad)
-                    .alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }
-            }
-        }
+            // Under the bar and not in it, or I'm In takes no touch.
+            CrewPlanCards(crewID: crewID, refresh: plansRefresh)
+                .padding(.horizontal, hPad)
+                .padding(.top, GridConstants.gapTight)
+        })
+        // What was joined or closed in the chat shows here when it shuts.
+        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1 } }
         // **The page answers a touch, as Wins does**, header and all: rings
         // on water behind the content, consuming nothing. It was missing
         // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
