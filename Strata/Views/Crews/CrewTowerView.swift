@@ -595,6 +595,14 @@ struct CrewTowerView: View {
                     .zIndex(2)
                     .accessibilityLabel("\(crew.displayName(excluding: store.me)), details")
                     .accessibilityAddTraits(.isHeader)
+                    // **A crew of one has its way to a second, here** (the
+                    // Launch Pack, 2026-10-12): it was two taps away, in
+                    // the crew's page. Gone the moment someone joins.
+                    if crew.members.count == 1 {
+                        QuietWord("Invite") { Task { await CrewSharing.invite(crewID) } }
+                            .zIndex(2)
+                            .accessibilityHint("Opens the invite")
+                    }
                     // **The starter's iCloud is full** (2026-10-08): one
                     // quiet line while new wins wait in the outbox, rather
                     // than posts that vanish (`SocialStore.fullCrews`).

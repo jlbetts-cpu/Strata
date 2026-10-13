@@ -21,6 +21,18 @@ struct CrewPingRetryTests {
         return (store, cloud)
     }
 
+    /// A crew with someone in it to tell. **A crew of one is told nothing**
+    /// since 2026-10-12 (a win's ping goes only where somebody has not heard
+    /// of it), and these tests posted to a crew of one: they would have gone
+    /// on passing with no ping ever tried.
+    func crewOfTwo(_ a: SocialStore) async throws -> Crew {
+        let (crew, link) = try await a.createCrew(name: "Two")
+        let (friend, _) = store(UUID())
+        _ = try await friend.accept(CrewInvite(url: link))
+        await a.refresh()
+        return crew
+    }
+
     func win() -> OwnWin {
         OwnWin(winID: UUID(), title: "Gym", colour: .health, icon: .health, blockSize: .small,
                photoJPEG: nil, cropX: nil, cropY: nil, createdAt: .now, updatedAt: .now)
@@ -40,7 +52,7 @@ struct CrewPingRetryTests {
         let (a, cloud) = store(UUID())
         var clock = Date()
         a.now = { clock }
-        let (crew, _) = try await a.createCrew(name: "One")
+        let crew = try await crewOfTwo(a)
         cloud.pingError = CKError(.networkFailure)
         await a.post(win(), to: [crew.id])
         #expect(winPings == 0)
@@ -59,7 +71,7 @@ struct CrewPingRetryTests {
         let (a, cloud) = store(UUID())
         var clock = Date()
         a.now = { clock }
-        let (crew, _) = try await a.createCrew(name: "One")
+        let crew = try await crewOfTwo(a)
         cloud.pingError = CKError(.serviceUnavailable)
         await a.post(win(), to: [crew.id])           // try 1
         clock = clock.addingTimeInterval(6)
@@ -76,7 +88,7 @@ struct CrewPingRetryTests {
         let (a, cloud) = store(UUID())
         var clock = Date()
         a.now = { clock }
-        let (crew, _) = try await a.createCrew(name: "One")
+        let crew = try await crewOfTwo(a)
         cloud.pingError = CKError(.permissionFailure)
         await a.post(win(), to: [crew.id])
         cloud.pingError = nil

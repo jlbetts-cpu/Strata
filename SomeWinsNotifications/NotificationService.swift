@@ -51,6 +51,9 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
             content.userInfo["message"] = winID
         } else if kind == .win || kind == .reaction {
             content.userInfo["win"] = winID
+            // A friend's win, as against a reaction to yours: what the fold
+            // below looks for.
+            if kind == .win { content.userInfo["news"] = "win" }
         }
         let request = request.identifier
         // **A busy chat rings once** (`CrewChatPending`): asked here, once
@@ -74,6 +77,17 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
                 let earlier = await center.deliveredNotifications().filter {
                     $0.request.identifier != request && $0.request.content.userInfo["chat"] != nil
                         && $0.request.content.userInfo["crew"] as? String == zone
+                }.map(\.request.identifier)
+                if !earlier.isEmpty, !Task.isCancelled { center.removeDeliveredNotifications(withIdentifiers: earlier) }
+            }
+            // **One win, one notification** (2026-10-12): a win sent to two
+            // crews you share with its sender can arrive once for each. The
+            // earlier one leaves; this one stays.
+            if kind == .win {
+                let center = UNUserNotificationCenter.current()
+                let earlier = await center.deliveredNotifications().filter {
+                    $0.request.identifier != request && $0.request.content.userInfo["news"] as? String == "win"
+                        && $0.request.content.userInfo["win"] as? String == winID
                 }.map(\.request.identifier)
                 if !earlier.isEmpty, !Task.isCancelled { center.removeDeliveredNotifications(withIdentifiers: earlier) }
             }

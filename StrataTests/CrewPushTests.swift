@@ -91,6 +91,34 @@ struct CrewPushTests {
                photoJPEG: nil, cropX: nil, cropY: nil, createdAt: date, updatedAt: date)
     }
 
+    /// **A win sent to several crews tells every crew, and each person
+    /// once** (2026-10-12). It left one ping, under whichever crew saved
+    /// first: a friend who was only in the others was never told.
+    @Test func aWinToSeveralCrewsTellsEveryoneOnce() async throws {
+        let ana = UUID()
+        let a = store(jayden), b = store(sam), c = store(ana)
+        let (withSam, samLink) = try await a.createCrew(name: "With Sam")
+        _ = try await b.accept(CrewInvite(url: samLink))
+        let (withAna, anaLink) = try await a.createCrew(name: "With Ana")
+        _ = try await c.accept(CrewInvite(url: anaLink))
+        let (samAgain, againLink) = try await a.createCrew(name: "Sam Again")
+        _ = try await b.accept(CrewInvite(url: againLink))
+        for store in [a, b, c] { await store.refresh() }
+        let before = pings(.win).count
+        await a.post(win(at: Date()), to: [withSam.id, withAna.id, samAgain.id])
+        let sent = pings(.win).dropFirst(before)
+        let crews = Set(pings(.win).compactMap { $0[CrewPingRecord.crew] })
+        // Ana's crew is told, whichever of Sam's two saved first.
+        #expect(crews.contains(CrewPingRecord.tag(withAna.id.rawValue)))
+        // Sam is in two of them and is told once: two pings in all, not three, and not one.
+        #expect(pings(.win).count - before == 2, "\(sent.count)")
+        let samCrews = crews.intersection([CrewPingRecord.tag(withSam.id.rawValue), CrewPingRecord.tag(samAgain.id.rawValue)])
+        #expect(samCrews.count == 1)
+        // Refreshing, or an edit, tells nobody again.
+        await a.refresh()
+        #expect(pings(.win).count - before == 2)
+    }
+
     /// Seven days running in a crew of two: the win that makes the seventh
     /// day tells the crew, once, whoever else posts after it. Either of a
     /// pair keeps a day since 2026-10-12 (`CrewHistory.needed`), so it is

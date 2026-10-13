@@ -29,6 +29,7 @@ struct CrewInfoSheet: View {
     @State private var thanked = false
     /// A crew day playing, presented from the page rather than a List row.
     @State private var replay: Replay?
+    @State private var showsCode = false
     /// The crew's strip today, and its booth (`PhotoStrip.crew`).
     @State private var strip: PhotoStrip?
     @State private var showsStrip = false
@@ -56,6 +57,17 @@ struct CrewInfoSheet: View {
                                 Label {
                                     Text("Invite").foregroundStyle(AppColors.inkPrimary)
                                 } icon: { SettingsIcon(systemName: "person.badge.plus") }
+                                    .font(Typography.bodyLarge)
+                            }
+                            // The same invite, for a friend beside you
+                            // (`CrewCodeSheet`).
+                            Button {
+                                HapticsEngine.lightTap()
+                                showsCode = true
+                            } label: {
+                                Label {
+                                    Text("Show a Code").foregroundStyle(AppColors.inkPrimary)
+                                } icon: { SettingsIcon(systemName: "qrcode") }
                                     .font(Typography.bodyLarge)
                             }
                         }
@@ -161,6 +173,7 @@ struct CrewInfoSheet: View {
         .fullScreenCover(item: $replay) { shown in
             ReplayView(replay: shown) { replay = nil }
         }
+        .sheet(isPresented: $showsCode) { CrewCodeSheet(crewID: crewID) }
         .fullScreenCover(isPresented: $showsStrip, onDismiss: { Task { strip = await PhotoStrip.crew(crewID) } }) {
             StripBooth(owner: .crew(crewID.rawValue), day: strip?.day ?? DateUtils.dateString(from: Date())) {
                 await PhotoStrip.crew(crewID)

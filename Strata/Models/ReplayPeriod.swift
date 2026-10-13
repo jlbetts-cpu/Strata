@@ -132,8 +132,9 @@ struct ReplayPeriod: Hashable, Identifiable {
 
     var title: String {
         switch kind {
-        case .week: "Your week"
-        case .month: "Your month"
+        // A crew's week is titled with the crew's name, as its day is.
+        case .week: name ?? "Your week"
+        case .month: name ?? "Your month"
         case .day: name ?? "Your day"
         }
     }

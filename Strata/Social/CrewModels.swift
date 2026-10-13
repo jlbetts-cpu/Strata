@@ -292,6 +292,15 @@ extension Reaction {
     /// first (`stickerSide`): a sticker lives only on the phone that made
     /// it, and a friend's phone draws the copy that came with the reaction.
     static let stickerPrefix = "sticker:"
+
+    /// **A sticker on a win** (the Launch Pack, 2026-10-12: "any emoji or
+    /// sticker, quick to apply"). On a chat line a sticker's mark is
+    /// "sticker:<file>"; a win's badge and its notification print the mark
+    /// as it is, on every build, so there it is a real emoji, a star, with
+    /// the picture beside it in `sketch`. A build from before this shows the
+    /// star; this one draws the sticker.
+    static let stickerStandIn = "\u{2B50}\u{FE0F}"
+    var isStickerOnAWin: Bool { emoji == Self.stickerStandIn && sketch != nil && line == nil }
     /// The longest edge a sticker is sent at, in pixels: crisp at the 22pt a
     /// chip draws it, and a few kilobytes on the wire.
     static let stickerSide = 256

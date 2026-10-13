@@ -180,9 +180,20 @@ struct ReactorRow: View {
                             VStack(spacing: 4) {
                                 CrewFace(member: member, crew: crew.id, me: me, side: 40)
                                     .overlay(alignment: .bottomTrailing) {
-                                        Text(reaction.emoji)
-                                            .font(Typography.screenSubtitle)
-                                            .offset(x: 6, y: 4)
+                                        // A sticker is drawn as the picture it
+                                        // is, once this phone has passed it;
+                                        // until then, and on a build from
+                                        // before this, it is its star.
+                                        if reaction.isStickerOnAWin, let picture = reaction.sketch,
+                                           reaction.profileID == me || SocialStore.shared.photoIsShown(picture) {
+                                            StickerMark(url: picture)
+                                                .frame(width: 22, height: 22)
+                                                .offset(x: 8, y: 6)
+                                        } else {
+                                            Text(reaction.emoji)
+                                                .font(Typography.screenSubtitle)
+                                                .offset(x: 6, y: 4)
+                                        }
                                     }
                                 Text(member.profileID == me ? "You" : member.shortName)
                                     .font(Typography.screenSubtitle)
@@ -191,7 +202,7 @@ struct ReactorRow: View {
                                     .fitsLargeType(.subheadline)
                             }
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(member.profileID == me ? "You" : member.shortName), \(reaction.emoji)")
+                            .accessibilityLabel("\(member.profileID == me ? "You" : member.shortName), \(reaction.isStickerOnAWin ? "a sticker" : reaction.emoji)")
                         }
                     }
                 }
@@ -309,9 +320,21 @@ struct CrewReactionsPanel: View {
     @State private var notSent = false
     @State private var doodling = false
     @State private var doodleRefused = false
+    @State private var choosingSticker = false
+    @State private var makingSticker = false
+    @State private var stickerRefused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var store: SocialStore { SocialStore.shared }
+
+    private func sendSticker(_ symbol: String) {
+        guard let name = StickerStore.name(in: symbol), let png = StickerStore.shared.image(name)?.pngData() else { return }
+        Task {
+            let outcome = await store.react(sticker: png, to: winID, in: crewID)
+            if outcome == .refusedSketch { stickerRefused = true }
+        }
+        withAnimation(motion) { open = false }
+    }
 
     /// Whoever posted the win, by name, for the reply's words.
     private var owner: String {
@@ -344,6 +367,11 @@ struct CrewReactionsPanel: View {
                             replying = true
                         }
                         replyChip("Doodle") { doodling = true }
+                        // One of your stickers, as a chat line can take one.
+                        // Not from someone who may not send photographs.
+                        if store.photosAllowed() {
+                            replyChip("Sticker") { choosingSticker = true }
+                        }
                     }
                     .transition(.opacity)
                 }
@@ -426,6 +454,28 @@ struct CrewReactionsPanel: View {
         .alert("That doodle stays with you", isPresented: $doodleRefused) {
             Button("OK", role: .cancel) {}
         }
+        .alert("That sticker stays with you", isPresented: $stickerRefused) {
+            Button("OK", role: .cancel) {}
+        }
+        .sheet(isPresented: $choosingSticker) {
+            StickerPicker(current: nil, purpose: .drawing, onPick: { symbol in
+                choosingSticker = false
+                sendSticker(symbol)
+            }, onNewSticker: {
+                // The photos once this sheet has gone (`StickerMaking`).
+                choosingSticker = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    makingSticker = true
+                }
+            })
+            .padding(GridConstants.horizontalPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+            .presentationBackground { WarmBackground().ignoresSafeArea() }
+        }
+        .stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: owner) { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
@@ -460,6 +510,10 @@ struct CrewReactionsPanel: View {
             Text(word)
                 .font(Typography.headerSmall)
                 .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                // One line, at its own width: with a third word beside it
+                // "Reply" was squeezed and broke as "Re-ply" (seen 2026-10-13).
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, GridConstants.gapTight)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
@@ -507,5 +561,25 @@ struct CrewReactionsPanel: View {
         if id == store.me { return "You" }
         let short = store.crew(crewID)?.member(id)?.shortName ?? ""
         return short.isEmpty ? "A friend" : short
+    }
+}
+
+/// A sticker that came with a reaction, drawn as the picture it is.
+struct StickerMark: View {
+    let url: URL
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFit()
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: url) {
+            image = await Task.detached(priority: .userInitiated) { [url] in UIImage(contentsOfFile: url.path) }.value
+        }
+        .accessibilityHidden(true)
     }
 }

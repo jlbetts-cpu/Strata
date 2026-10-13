@@ -256,6 +256,36 @@ struct CrewStatsSections: View {
     /// only a couple of days and the video was the only way to keep one.
     private var days: some View {
         Section {
+            // **The crew's week, put together** (the owner's Launch Pack,
+            // 2026-10-12: "consider a crew weekly or monthly recap"). The
+            // replay the app already makes of your own week, of the wins
+            // this crew holds: this week so far, and last week, which is
+            // always whole inside the two weeks a crew keeps. Asked for,
+            // never announced: nothing new is sent to anyone.
+            ForEach(weeks) { week in
+                Button {
+                    playWeek(week.period)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(week.title)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                            Text("\(week.count) \(week.count == 1 ? "win" : "wins")")
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "play")
+                            .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .accessibilityHidden(true)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .accessibilityLabel("\(week.title), \(week.count) \(week.count == 1 ? "win" : "wins")")
+                .accessibilityHint("Plays the week")
+            }
             ForEach(stats.days) { day in
                 NavigationLink {
                     CrewDayView(crew: crew, day: day.key, title: dayName(day.key),
@@ -300,7 +330,7 @@ struct CrewStatsSections: View {
         } header: {
             FormSectionLabel("Recent Days")
         } footer: {
-            Text("Wins stay for two weeks. Play a day to save it as a video.")
+            Text("Wins stay for two weeks. Play a day or a week to save it as a video.")
                 .formFooter()
         }
         .listRowSeparator(.hidden)
@@ -312,6 +342,47 @@ struct CrewStatsSections: View {
     /// title, which is handed this.
     private func dayName(_ key: String) -> String {
         DayTitle.title(forKey: key, calendar: Self.calendar(crew.timeZone))
+    }
+
+    /// A week of the crew's, as the Days section offers it.
+    struct Week: Identifiable, Equatable {
+        let title: String
+        let period: ReplayPeriod
+        let count: Int
+        var id: String { period.id }
+    }
+
+    /// This week and last week, each only when the crew has a win in it.
+    static func weeks(days: [CrewStats.HeldDay], today: Date, calendar: Calendar, name: String) -> [Week] {
+        var this = ReplayPeriod.week(containing: today, calendar: calendar)
+        var last = ReplayPeriod.week(containing: calendar.date(byAdding: .day, value: -1, to: this.firstDay) ?? today,
+                                     calendar: calendar)
+        this.name = name
+        last.name = name
+        let counts = Dictionary(days.map { ($0.key, $0.count) }, uniquingKeysWith: +)
+        return [("This Week", this), ("Last Week", last)].compactMap { title, period in
+            let count = period.days.reduce(0) { $0 + (counts[$1] ?? 0) }
+            return count > 0 ? Week(title: title, period: period, count: count) : nil
+        }
+    }
+
+    private var weeks: [Week] {
+        Self.weeks(days: stats.days, today: store.now(), calendar: Self.calendar(crew.timeZone),
+                   name: crew.displayName(excluding: store.me))
+    }
+
+    private func playWeek(_ period: ReplayPeriod) {
+        let wins = period.days.flatMap { store.wins(in: crew.id, on: $0) }
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { win in
+                ReplayWin(id: win.winID, dateString: win.crewDay, completedAt: win.createdAt,
+                          title: win.title, category: win.colour, size: win.blockSize,
+                          photo: win.photo.map { .file($0.path) },
+                          crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
+            }
+        guard !wins.isEmpty else { return }
+        HapticsEngine.tick()
+        play(Replay(period: period, wins: wins))
     }
 
     private func playDay(_ key: String) {

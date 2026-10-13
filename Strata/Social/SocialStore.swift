@@ -1381,8 +1381,11 @@ final class SocialStore {
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
         } else {
             var reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
-            // A new emoji keeps today's reply and doodle under it.
-            if let previous, isToday(previous.createdAt, in: crewID) {
+            // A sticker's picture goes with the sticker (`react(sticker:)`).
+            if let previous, previous.isStickerOnAWin, let old = previous.sketch {
+                try? FileManager.default.removeItem(at: old)
+            } else if let previous, isToday(previous.createdAt, in: crewID) {
+                // A new emoji keeps today's reply and doodle under it.
                 reaction.line = previous.line
                 reaction.sketch = previous.sketch
             }
@@ -1392,6 +1395,45 @@ final class SocialStore {
         }
         nudgeLive()
         await flush()
+    }
+
+    /// **One of your stickers, on a friend's win** (`Reaction
+    /// .stickerStandIn`). Made small, checked as a doodle is before it
+    /// leaves, and never from someone who may not send photographs: a
+    /// sticker is cut out of one. It replaces your reaction, as an emoji
+    /// does; an emoji after it replaces it.
+    @discardableResult
+    func react(sticker png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard isEnabled(), let crew = crew(crewID),
+              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me, photosAllowed() else { return .notAllowed }
+        if let held = paced(.reaction, in: crew, item: winID) { return held }
+        let side = CGFloat(Reaction.stickerSide)
+        guard let small = await Task.detached(priority: .userInitiated, operation: {
+            Self.stickerPNG(png, longestEdge: side)
+        }).value else { return .notAllowed }
+        guard await photoCheck(small) else { return .refusedSketch }
+        let url = directory.appending(
+            path: "Photos/\(crewID.rawValue)/reaction-\(winID.uuidString)-\(UUID().uuidString.prefix(8)).png")
+        do { try write(small, to: url) } catch {
+            Self.log.error("sticker for \(crewID.rawValue, privacy: .public) not kept: \(error)")
+            return .notAllowed
+        }
+        Analytics.shared.signal(.crewReaction)
+        // Read after the awaits: the list may have moved meanwhile.
+        let name = Reaction.name(winID: winID, profileID: me)
+        var list = reactionsByCrew[crewID] ?? []
+        let previous = list.first { $0.id == name }
+        list.removeAll { $0.id == name }
+        if let previous, previous.isStickerOnAWin, let old = previous.sketch { try? FileManager.default.removeItem(at: old) }
+        let reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: Reaction.stickerStandIn,
+                                createdAt: now(), sketch: url)
+        list.append(reaction)
+        reactionsByCrew[crewID] = list
+        enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        nudgeLive()
+        await flush()
+        return .sent
     }
 
     // MARK: Reactions to chat lines
@@ -2247,7 +2289,20 @@ final class SocialStore {
             // is not worth waking anyone for.
             guard let made = fields["createdAt"]?.date, now().timeIntervalSince(made) < 6 * 3600 else { return }
             ping[CrewPingRecord.kind] = CrewPingRecord.Kind.win.rawValue
-            key = "win-\(winID.uuidString)"
+            // **Every crew it went to is told, once a person** (found
+            // 2026-10-12). The key had no crew in it, so a win sent to three
+            // crews left one ping, under whichever crew saved first, and a
+            // friend who was only in the other two was never told. Now each
+            // crew is pinged unless everyone in it has heard already from an
+            // earlier one, so someone in two of your crews is still told
+            // once (and a phone that does get two folds them: the
+            // notification extension, by the win).
+            guard let crew = crew(crewID) else { return }
+            let people = Set(crew.members.map(\.profileID.uuidString)).subtracting([me.uuidString])
+            let heard = told(about: winID)
+            guard !people.isSubset(of: heard) else { return }
+            key = "win-\(winID.uuidString)-\(CrewPingRecord.tag(crewID.rawValue))"
+            remember(people.union(heard), toldAbout: winID)
         case .reaction:
             guard let owner = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID,
                   owner != me else { return }
@@ -2332,6 +2387,23 @@ final class SocialStore {
         } catch {
             Self.log.notice("milestone ping not sent: \(error)")
         }
+    }
+
+    private static let toldKey = "crews.pings.told"
+
+    /// Who has been told of a win, across the crews it went to. Kept a day:
+    /// a win is news for less.
+    private func told(about winID: UUID) -> Set<String> {
+        let table = defaults.dictionary(forKey: Self.toldKey) as? [String: [String: Any]] ?? [:]
+        return Set(table[winID.uuidString]?["who"] as? [String] ?? [])
+    }
+
+    private func remember(_ people: Set<String>, toldAbout winID: UUID) {
+        let at = now().timeIntervalSince1970
+        var table = (defaults.dictionary(forKey: Self.toldKey) as? [String: [String: Any]] ?? [:])
+            .filter { ($0.value["at"] as? Double ?? 0) >= at - 86_400 }
+        table[winID.uuidString] = ["at": at, "who": people.sorted()]
+        defaults.set(table, forKey: Self.toldKey)
     }
 
     /// One ping, the first time only for its key, kept for another try when
