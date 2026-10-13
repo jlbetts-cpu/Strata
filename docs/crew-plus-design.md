@@ -194,9 +194,17 @@ Built to the design above, with these differences, each for a reason:
 - **A win sent to several crews tells every crew.** Each is told unless
   everyone in it has already heard from an earlier one, and a phone that
   still gets two folds them into one.
-- **Show a Code** on a crew's page: the invite link as a square of dots,
-  for a friend beside you.
-- **Invite** on a crew of one's own screen.
+- **The invite as a code**: a small glyph in the top left of a crew's
+  page, opposite Done. A friend beside you points their camera at it. It
+  was a row of its own first; you moved it. Dark on its own light paper in
+  both appearances, and it leaves the screen when you look away.
+- An Invite standing on a crew of one's screen was built and taken off the
+  same day, at your word ("I dont like how invite is just there").
+- **The crew's plans show on the crew's own screen**, as the same card,
+  floating under the header (you: "make sure the crew plan shows up on the
+  crew page as well"). Two at most.
+- **Your own win takes your reaction** (from a tester, through you).
+  Nobody is told of it.
 - **This Week and Last Week** in a crew's Recent Days: the replay the app
   makes of your own week, of the wins the crew holds. Asked for, never
   announced.

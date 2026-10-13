@@ -314,9 +314,16 @@ final class ReplayGestureTests: XCTestCase {
         let viewerClose = app.buttons["Close photo"]
         XCTAssertTrue(viewerClose.waitForExistence(timeout: 15), "tapping the photo block opened nothing")
         keep(app, "photo-over-save")
-        Thread.sleep(forTimeInterval: 1.0)
+        // **Short waits, on purpose** (2026-10-13). This test needs the save
+        // to be still running when the photograph closes, and a week's video
+        // takes about three seconds to write. It waited 1.0 and 1.5 here, so
+        // it passed or failed by how fast the machine was that minute: it
+        // failed four times and passed six with nothing changed (10-12), and
+        // went red for good when blocks lost their shadow and drew faster.
+        // The product was right every time: the label read "Saved to Photos".
+        Thread.sleep(forTimeInterval: 0.2)
         viewerClose.tap()
-        Thread.sleep(forTimeInterval: 1.5)
+        Thread.sleep(forTimeInterval: 0.6)
         XCTAssertTrue(probe(app).exists, "closing the photograph closed the replay")
         let midway = control.label
         keep(app, "after-photo-closed")
