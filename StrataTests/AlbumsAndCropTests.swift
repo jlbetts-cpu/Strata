@@ -149,9 +149,16 @@ struct AlbumsAndCropTests {
     @Test("a tip floats over the page and never moves what is under it")
     func tipsTakeNoRoom() throws {
         let main = try code("Strata/Views/MainAppView.swift")
-        #expect(main.contains("towerHeader\n                    .overlay(alignment: .bottom) {\n                        winsTip"),
+        // Since 2026-10-13 the header is a bar and the tip is in the bar's
+        // own slot under it (`pinnedBar(_:below:)`): an overlay that
+        // overflowed the bar was drawn and took no touch. Still no room in
+        // the layout, which is what this test is about.
+        #expect(main.contains(".pinnedBar({ towerHeader }, below: {"),
                 "the tower's tip is stacked in the header's inset again, and the page jumps when it arrives")
         #expect(!main.contains("towerHeader\n                    winsTip"))
+        #expect(!main.contains("towerHeader\n                    .overlay(alignment: .bottom)"), "inside a bar that takes no touch")
+        let edge = try code("Strata/Views/ScrollEdge.swift")
+        #expect(edge.contains(".overlay(alignment: .top) {\n                below().padding(.top, barFoot)"))
         let memories = try code("Strata/Views/MemoriesView.swift")
         #expect(memories.contains("@State private var showsMonthTip = MonthDrawingTip().shouldDisplay"),
                 "the month's tip is decided after the page is up, and the month moves down for it")

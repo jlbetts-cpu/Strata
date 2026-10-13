@@ -51,8 +51,11 @@ struct WinCueTests {
         // since 2026-10-12 as the header's overlay, not a second row of its
         // inset, so the page under it does not move when a tip arrives (the
         // owner: "the tips kinda push the page down for a second").
-        #expect(main.contains("towerHeader\n                    .overlay(alignment: .bottom) {\n                        winsTip"))
-        #expect(main.contains(".alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }"))
+        // And since 2026-10-13 in the slot under the header's bar, where it
+        // is placed by the bar's own measured foot (`PinnedBar`), a gap
+        // below it, and still takes no room.
+        #expect(main.contains(".pinnedBar({ towerHeader }, below: {"))
+        #expect(main.contains("winsTip\n                    .padding(.top, GridConstants.gapTight)"))
         #expect(!main.contains("slotFrame"))
         #expect(main.contains("!logs.isEmpty"))
         let tip = SourceSweep.code(try SourceSweep.read("Strata/Views/TipCard.swift"))

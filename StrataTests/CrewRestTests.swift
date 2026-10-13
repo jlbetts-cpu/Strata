@@ -169,8 +169,10 @@ struct CrewRestTests {
         #expect(CrewPlanCards.most == 2)
         let tower = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewTowerView.swift")) ?? "")
         // Floating under the header, so nothing on the page moves.
-        #expect(tower.contains("header.overlay(alignment: .bottom) {"))
-        #expect(tower.contains("CrewPlanCards(crewID: crewID)"))
+        // Under the header's bar, never in it: in it, I'm In took no touch.
+        #expect(tower.contains(".pinnedBar({ header }, below: {"))
+        #expect(tower.contains("CrewPlanCards(crewID: crewID, refresh: plansRefresh)"))
+        #expect(!tower.contains("header.overlay(alignment: .bottom)"))
     }
 
     @Test("a crew's week: this week and last, only with wins in them, titled with the crew")
