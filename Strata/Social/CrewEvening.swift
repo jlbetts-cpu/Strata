@@ -37,6 +37,13 @@ nonisolated enum CrewEvening {
         return at
     }
 
-    /// Warm, about the crew, never about who has or has not posted.
-    static func line(crewName: String) -> String { "\(crewName) is sharing tonight's wins." }
+    /// About the crew, never about who has or has not posted, and true
+    /// whoever has.
+    ///
+    /// It said "Roommates is sharing tonight's wins." This is written in
+    /// the morning for the evening, so nothing knew whether anyone would;
+    /// and a crew with no name is shown by its people, so a pair's read
+    /// "Sam is sharing tonight's wins." about someone who might not have
+    /// (`docs/voice.md`: honest, and nobody named for a quiet day).
+    static let line = "Your crew's tower is open too."
 }

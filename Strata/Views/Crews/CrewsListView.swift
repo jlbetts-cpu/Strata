@@ -251,7 +251,7 @@ struct CrewsListView: View {
     static func preview(_ win: SharedWin?, in crew: Crew, me: UUID) -> String {
         guard let win else {
             let count = crew.members.count
-            return count <= 1 ? "Waiting for people to join." : "\(count) people. No wins yet today."
+            return count <= 1 ? "Just you so far." : "No wins yet today."
         }
         let who = win.senderProfileID == me ? "You"
             : (crew.member(win.senderProfileID)?.shortName).flatMap { $0.isEmpty ? nil : $0 } ?? "A friend"
@@ -347,7 +347,7 @@ struct CrewsListView: View {
                                  motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
                 }
                 FeatureList(rows: [
-                    ("MarkPeople", "Up to 8 friends", "You included."),
+                    ("MarkPeople", "You and a friend, or a few", "Two is a crew. So is eight."),
                     ("MarkLayers", "One tower for the day", "Send a win and it lands there."),
                     ("MarkLock", "Private", "Only people you invite can see it."),
                 ])
@@ -400,7 +400,7 @@ struct NewCrewSheet: View {
                     .focused($focused)
                     .submitLabel(.go)
                     .onSubmit(start)
-                Text("Up to 8 people, you included. Everyone sees the wins sent to the crew that day, with their photos.")
+                Text("Whoever you invite sees the wins sent here that day, with their photos.")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
                 // Red, as every error the app sets on the page is (the owner,
@@ -416,7 +416,7 @@ struct NewCrewSheet: View {
                 if working {
                     PrimaryCapsule(waiting: "Starting", because: "The crew is being made")
                 } else {
-                    PrimaryCapsule(title: "Invite People", action: start)
+                    PrimaryCapsule(title: "Invite", action: start)
                 }
             }
             .padding(GridConstants.horizontalPadding)

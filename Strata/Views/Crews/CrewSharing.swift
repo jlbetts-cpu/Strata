@@ -36,8 +36,11 @@ enum CrewSharing {
         let store = SocialStore.shared
         do {
             let url = try await store.inviteURL(for: crewID)
-            let name = store.crew(crewID)?.displayName(excluding: store.me)
-            let title = name.map { "Join \($0) on Some Wins" } ?? message
+            // Only a name somebody typed. An unnamed crew is shown by its
+            // people, so a pair's invite read "Join Sam on Some Wins" and a
+            // new one "Join New Crew on Some Wins".
+            let name = store.crew(crewID)?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let title = name.isEmpty ? message : "Join \(name) on Some Wins"
             present(UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
                                              applicationActivities: nil))
         } catch {

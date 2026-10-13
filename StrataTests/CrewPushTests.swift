@@ -91,8 +91,10 @@ struct CrewPushTests {
                photoJPEG: nil, cropX: nil, cropY: nil, createdAt: date, updatedAt: date)
     }
 
-    /// Seven days running with both of a crew of two in: the win that makes
-    /// the seventh day tells the crew, once, whoever else posts after it.
+    /// Seven days running in a crew of two: the win that makes the seventh
+    /// day tells the crew, once, whoever else posts after it. Either of a
+    /// pair keeps a day since 2026-10-12 (`CrewHistory.needed`), so it is
+    /// the first win of the seventh day.
     @Test func theWinThatMakesAMilestoneTellsTheCrewOnce() async throws {
         let (a, b, crew) = try await pair()
         let start = Date()
@@ -103,10 +105,10 @@ struct CrewPushTests {
             await a.refresh()
             await b.refresh()
             await a.post(win(at: at), to: [crew.id])
-            #expect(pings(.milestone).isEmpty, "day \(day + 1): half the crew is not the day kept")
+            #expect(pings(.milestone).count == (day == 6 ? 1 : 0), "day \(day + 1): one of two keeps the day")
             await b.refresh()
             await b.post(win(at: at), to: [crew.id])
-            #expect(pings(.milestone).count == (day == 6 ? 1 : 0), "day \(day + 1)")
+            #expect(pings(.milestone).count == (day == 6 ? 1 : 0), "day \(day + 1): told once")
         }
         let ping = try #require(pings(.milestone).first)
         #expect(ping[CrewPingRecord.win] == "7")

@@ -76,10 +76,21 @@ struct CohesionPassTests {
         #expect(CrewStats.streakLine(people: 3, waiting: 0) == "Everyone's in today.")
         // The rule became half the crew on 2026-10-09 (unification pass §5):
         // a kept day short of everyone says so, warmly, still naming nobody.
-        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "Today counts. Nice work, crew.")
+        #expect(CrewStats.streakLine(people: 3, waiting: 1) == "Today counts.")
         #expect(CrewStats.streakLine(people: 3, waiting: 3) == "A day counts when half the crew sends a win. Two days off a week are fine.")
-        #expect(CrewStats.streakLine(people: 2, waiting: 1) == "A day counts when everyone sends a win. Two days off a week are fine.")
-        #expect(CrewStats.streakLine(people: 1, waiting: 0) == "A day counts when everyone sends a win. Two days off a week are fine.")
+        // **Two people and eight both read right** (the Launch Pack,
+        // 2026-10-12). A pair is told about a pair: "everyone" said to two
+        // people means the other one, and a pair's day is kept by either.
+        #expect(CrewStats.streakLine(people: 2, waiting: 0) == "You're both in today.")
+        #expect(CrewStats.streakLine(people: 2, waiting: 1) == "Today counts.")
+        #expect(CrewStats.streakLine(people: 2, waiting: 2) == "A day counts when either of you sends a win. Two days off a week are fine.")
+        #expect(CrewStats.streakLine(people: 1, waiting: 1) == "A day counts when you send a win. Two days off a week are fine.")
+        for people in 1...8 {
+            for waiting in 0...people {
+                let line = CrewStats.streakLine(people: people, waiting: waiting)
+                #expect(!line.contains("everyone sends") && !line.contains("Nice work"), "\(people), \(waiting): \(line)")
+            }
+        }
         // Celebrated on a milestone, a fresh start after a break, never a loss.
         #expect(CrewStats.streakLine(people: 3, waiting: 1, current: 14, best: 14) == "Look what your crew is building. 14 days.")
         #expect(CrewStats.streakLine(people: 3, waiting: 3, current: 0, best: 21) == "Starting fresh. Your best is still 21.")

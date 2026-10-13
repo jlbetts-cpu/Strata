@@ -209,10 +209,13 @@ nonisolated enum BackupArchive {
 
         var message: String {
             switch self {
-            case .couldNotEncodeJSON(let detail): "Some Wins could not write out your wins (\(detail))."
-            case .couldNotMakeFolder(let detail): "Some Wins could not make room for the backup (\(detail))."
-            case .couldNotWriteJSON(let detail): "Some Wins could not write the backup's index (\(detail))."
-            case .couldNotZip(let detail): "Some Wins could not pack the backup into one file (\(detail))."
+            // What went wrong and what to do, without the system's own
+            // sentence in brackets after it (`docs/voice.md`: no codes).
+            // `detail` is still carried, for a log.
+            case .couldNotEncodeJSON: "Some Wins could not write out your wins. Try again."
+            case .couldNotMakeFolder: "Some Wins could not make room for the backup. Free some space and try again."
+            case .couldNotWriteJSON: "Some Wins could not write the backup. Try again."
+            case .couldNotZip: "Some Wins could not pack the backup into one file. Try again."
             }
         }
     }
@@ -316,13 +319,13 @@ nonisolated enum BackupArchive {
             case .notABackup(let detail):
                 "This file isn't a Some Wins backup, or it didn't finish downloading. \(detail)"
             case .noWinsFile:
-                "This zip has no wins.json inside it, so it isn't a Some Wins backup. Pick the file Back Up Everything made."
+                "This isn't a Some Wins backup. Pick the file Back Up Everything made."
             case .fromTheFuture:
                 // No format numbers: "format 9; this one reads 2" was the
                 // file's business, not the reader's (2026-10-02).
                 "This backup was made by a newer version of Some Wins. Update Some Wins and try again. Nothing has been changed."
-            case .malformedJSON(let detail):
-                "Some Wins could not read this backup's index: \(detail). Nothing has been changed."
+            case .malformedJSON:
+                "Some Wins could not read this backup. Nothing has been changed."
             case .archive(let failure):
                 switch failure {
                 case .notAZip:

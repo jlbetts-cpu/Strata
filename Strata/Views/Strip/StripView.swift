@@ -104,7 +104,15 @@ struct StripView: View {
             .accessibilityLabel(frame.title.isEmpty ? "A win" : frame.title)
     }
 
-    /// The wordmark, and under it who and when: "Jayden · Oct 6".
+    /// The wordmark, and under it when: "Oct 6".
+    ///
+    /// **The date alone, no name** (the owner's Launch Pack, 2026-10-12:
+    /// the shared strip is "just the strip, wordmark, date, doodle. Never a
+    /// name or words stamped onto the image"). It read "Jayden · Oct 6",
+    /// his pick of 2026-10-07, and a crew's strip carried the crew's name
+    /// the same way. What is on screen is what is shared, so it is off both.
+    /// `signature` is still handed in and kept on the strip; nothing draws
+    /// it.
     private var foot: some View {
         VStack(alignment: .leading, spacing: width * 0.012) {
             Wordmark(size: width * 0.085)
@@ -120,8 +128,7 @@ struct StripView: View {
     }
 
     private var signatureLine: String {
-        let date = DateUtils.date(from: day).map { $0.formatted(.dateTime.month(.abbreviated).day()) } ?? day
-        return signature.isEmpty ? date : "\(signature) \u{00B7} \(date)"
+        DateUtils.date(from: day).map { $0.formatted(.dateTime.month(.abbreviated).day()) } ?? day
     }
 
     /// The strip's own doodles and stickers: stickers in their colours, the

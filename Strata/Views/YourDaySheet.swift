@@ -71,9 +71,12 @@ struct YourDaySheet: View {
                 } header: {
                     FormSectionLabel("Daily Goal")
                 } footer: {
-                    Text(history.isReadable
-                         ? "\(history.sentence(goal: goal)) Reach it and your tower dances and prints the day's strip."
-                         : "Reach it and your tower dances and prints the day's strip.")
+                    // "...and prints the day's strip" was untrue of a day with
+                    // no photos; onboarding's line was fixed for the same on
+                    // 2026-10-11 and this one was missed.
+                    Text(history.isReadable && !history.sentence(goal: goal).isEmpty
+                         ? "\(history.sentence(goal: goal)) Reach it and your tower dances. The day's photos print as a strip."
+                         : "Reach it and your tower dances. The day's photos print as a strip.")
                         .formFooter()
                         .contentTransition(.numericText())
                         .animation(GridConstants.crossFade, value: goal)

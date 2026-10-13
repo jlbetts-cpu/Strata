@@ -54,7 +54,7 @@ struct CrewInfoSheet: View {
                                 Task { await CrewSharing.invite(crewID) }
                             } label: {
                                 Label {
-                                    Text("Invite People").foregroundStyle(AppColors.inkPrimary)
+                                    Text("Invite").foregroundStyle(AppColors.inkPrimary)
                                 } icon: { SettingsIcon(systemName: "person.badge.plus") }
                                     .font(Typography.bodyLarge)
                             }
@@ -64,7 +64,7 @@ struct CrewInfoSheet: View {
                         // Days above it have.
                         FormSectionLabel(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
                     } footer: {
-                        Text("Up to 8 people. Everyone here sees the wins sent to this crew.")
+                        Text("Everyone here sees the wins sent to this crew.")
                             .formFooter()
                     }
                     .listRowSeparator(.hidden)

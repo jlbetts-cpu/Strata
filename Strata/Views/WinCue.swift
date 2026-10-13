@@ -20,8 +20,12 @@ import SwiftUI
 nonisolated enum WinCue {
     /// One line each, as a message is: the ideas over the add sheet's
     /// keyboard already say that small ones count, so the bubble only asks.
-    static let emptyDay = "What have you done so far?"
+    static let emptyDay = "Done something today?"
     static let anythingElse = "Anything else today?"
+    /// The same cue as a notification. Not a question there (`docs/voice.md`:
+    /// "no unprompted questions in notifications"); the bubble in the app is
+    /// asked by something you are already looking at.
+    static let roomLeft = "Still room on today's tower."
     /// One short of the goal: the nearer the goal, the harder people push
     /// (the goal gradient), and it says what the goal is for.
     // Short enough for one line beside the mark (the hints audit,
@@ -61,7 +65,7 @@ nonisolated enum DayOneHint {
     static let title = "Bigger wins, bigger blocks"
     // Says which way, which the first wording did not (the hints audit,
     // 2026-10-11): sideways is Regular, up is Deep.
-    static let drawOut = "Drag the slot sideways or up."
+    static let drawOut = "Pull the slot sideways or up."
     static let shownKey = "hint.drawOut.shown"
     static let lastChance = 5
 

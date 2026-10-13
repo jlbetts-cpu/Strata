@@ -53,10 +53,19 @@ struct CrewStats: Equatable {
         if milestones.contains(current) { return "Look what your crew is building. \(current) days." }
         // The rule says rest days are free, so a quiet day reads as allowed
         // rather than as a streak quietly at risk (`Streaks.Rest`).
-        if people > 1 && waiting == 0 { return "Everyone's in today." }
-        if people > 2 && people - waiting >= CrewHistory.needed(of: people) { return "Today counts. Nice work, crew." }
+        // **Two people and eight both read right** (the owner's Launch
+        // Pack, 2026-10-12: "a crew of two is complete"). "Everyone" said to
+        // a pair means the other one.
+        if people > 1 && waiting == 0 { return people == 2 ? "You're both in today." : "Everyone's in today." }
+        // Said plainly: it had "Nice work, crew." after it, which is praise
+        // the day had not asked for (`docs/voice.md`).
+        if people > 1 && people - waiting >= CrewHistory.needed(of: people) { return "Today counts." }
         if current == 0 && best >= 7 { return "Starting fresh. Your best is still \(best)." }
-        let who = people > 2 ? "half the crew sends" : "everyone sends"
+        let who = switch people {
+        case ...1: "you send"
+        case 2: "either of you sends"
+        default: "half the crew sends"
+        }
         return "A day counts when \(who) a win. Two days off a week are fine."
     }
 

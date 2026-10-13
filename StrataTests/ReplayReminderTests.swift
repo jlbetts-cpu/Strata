@@ -19,8 +19,8 @@ struct ReplayReminderTests {
         let up = ReplayReminder.upcoming(now: at(9, 9), calendar: calendar) { _ in true }
         #expect(up.map(\.date).contains(at(9, 13, 18)))
         #expect(up.map(\.date).contains(at(10, 1, 10)))
-        #expect(up.first { $0.date == at(9, 13, 18) }?.title == "Your week is ready")
-        #expect(up.first { $0.date == at(10, 1, 10) }?.title == "September is ready")
+        #expect(up.first { $0.date == at(9, 13, 18) }?.title == "Your week, put together.")
+        #expect(up.first { $0.date == at(10, 1, 10) }?.title == "September, put together.")
     }
 
     @Test("nothing is scheduled for a period without wins")

@@ -401,7 +401,9 @@ struct BackupRestoreTests {
                 Issue.record("wrong failure: \(failure)")
                 return
             }
-            #expect(failure.message.contains("wins.json"))
+            // No file name: "wins.json" is the backup's business, not the
+            // reader's (the voice pass, 2026-10-12). What to do is still said.
+            #expect(failure.message == "This isn't a Some Wins backup. Pick the file Back Up Everything made.")
         }
     }
 

@@ -337,7 +337,7 @@ struct PlanLines: View {
     private var ghostWords: String {
         scope == .repeating ? "Plan something that repeats, like a morning walk"
             // And the one thing nobody would guess: a time is typed.
-            : "Plan a few small things \(scope.spoken(calendar: calendar)). Add a time with @ 2."
+            : "Plan a few small things \(scope.spoken(calendar: calendar)). Type @ 2 for a time."
     }
 
     // MARK: - Earlier

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Some Wins</title>
+<meta name="description" content="A quiet place to hold the good things, with a few people you love.">
+<meta property="og:site_name" content="Some Wins">
+<meta property="og:title" content="Some Wins">
+<meta property="og:description" content="A quiet place to hold the good things, with a few people you love.">
+<meta property="og:image" content="https://jlbetts-cpu.github.io/Strata/invite/logo.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  /* The app's own ground, ink and wordmark (Zen Maru Gothic, SIL Open Font
+     License: invite/ZenMaruGothic-OFL.txt). */
+  @font-face { font-family: "Zen Maru"; src: url("invite/ZenMaruGothic-Bold.ttf") format("truetype"); font-display: swap; }
+  :root {
+    --bg-top: #f6f7fa; --bg-bottom: #f1f4f6;
+    --ink: #16171a; --ink-2: rgba(22,23,26,.70); --ink-3: rgba(22,23,26,.55);
+    --fill: #16171a; --on-fill: #f6f7fa; --rule: rgba(22,23,26,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-top: #211f1e; --bg-bottom: #181716;
+      --ink: #f4f3f1; --ink-2: rgba(244,243,241,.72); --ink-3: rgba(244,243,241,.52);
+      /* The one white button, as in the app. */
+      --fill: #ffffff; --on-fill: #16171a; --rule: rgba(244,243,241,.16);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; min-height: 100svh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom)) no-repeat fixed;
+    color: var(--ink);
+    font: 400 17px/1.5 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased; text-align: center;
+  }
+  .mark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 "Zen Maru", ui-rounded, sans-serif; }
+  /* His drawings are one black line: shown in the page's ink, as the app does. */
+  .ink { background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
+  .mark .ink { --art: url("invite/camera.png"); width: 26px; height: 25px; }
+  main { flex: 1; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0; }
+  .art { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 2; margin-bottom: 20px; }
+  .art .ink { position: absolute; inset: 0; }
+  .art .crew { --art: url("invite/crew.png"); }
+  .art .cheer { --art: url("invite/cheer.png"); }
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; margin: 0 0 8px; }
+  p { color: var(--ink-2); margin: 0 0 28px; }
+  a { color: inherit; -webkit-tap-highlight-color: transparent; }
+  a.open {
+    display: block; width: 100%; height: 50px; line-height: 50px; border-radius: 25px;
+    background: var(--fill); color: var(--on-fill); text-decoration: none; font-weight: 600;
+  }
+  a.open:active { opacity: .8; }
+  a.get {
+    display: block; width: 100%; height: 50px; line-height: 48px; border-radius: 25px; margin-top: 12px;
+    border: 1px solid var(--rule); text-decoration: none; font-weight: 600;
+  }
+  a.get:active { opacity: .6; }
+  .note { font-size: 15px; color: var(--ink-3); margin: 20px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="mark" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</div>
+  <main>
+    <div class="art" aria-hidden="true"><div class="ink crew"></div><div class="ink cheer"></div></div>
+    <h1>Some Wins</h1>
+    <p>A quiet place to hold the good things, with a few people you love.</p>
+    <a class="open" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+  </main>
+</body>
+</html>

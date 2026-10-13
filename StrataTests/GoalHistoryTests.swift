@@ -26,7 +26,7 @@ struct GoalHistoryTests {
         let h = GoalHistory(days: [3, 4, 1, 0, 3, 2, 5, 3, 0, 1, 3, 2, 6, 3])
         #expect(h.reached(3) == 8)
         #expect(h.sentence(goal: 3) == "You reached 3 on 8 of the last 14 days.")
-        #expect(GoalHistory(days: Array(repeating: 1, count: 14)).sentence(goal: 2) == "None of the last 14 days reached 2 yet.")
+        #expect(GoalHistory(days: Array(repeating: 1, count: 14)).sentence(goal: 2).isEmpty, "nothing is said of a stretch with none: the bars show it")
         #expect(!GoalHistory(days: [0, 0, 1] + Array(repeating: 0, count: 11)).isReadable)
     }
 }

@@ -161,7 +161,7 @@ struct TowerWidgetView: View {
                 .foregroundStyle(.white.opacity(0.85))
         }
         .shadow(color: .black.opacity(0.42), radius: 6, y: 1)
-        .accessibilityLabel("\(snapshot.today) wins today")
+        .accessibilityLabel(snapshot.today == 1 ? "1 win today" : "\(snapshot.today) wins today")
     }
 
     /// **Not "no wins yet".** An empty day is the state everybody is in every
@@ -177,7 +177,12 @@ struct TowerWidgetView: View {
             // "Quiet here. Yet." (the owner's empty-state voice, 2026-10-05)
             // where it said "Nothing yet today": on a Home Screen all day,
             // every day, that line was a count of zero read aloud.
-            Text(snapshot.total == 0 ? "Your first win goes here" : "Quiet here. Yet.")
+            // **A day with wins and no photo is not quiet** (found
+            // 2026-10-12): this is drawn whenever there is no photograph to
+            // show, so three wins without one read "Quiet here. Yet."
+            Text(snapshot.total == 0 ? "Your first win goes here"
+                 : snapshot.today == 0 ? "Quiet here. Yet."
+                 : snapshot.today == 1 ? "1 win today" : "\(snapshot.today) wins today")
                 .font(.system(size: 15, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -192,11 +197,15 @@ struct TowerWidgetView: View {
     /// tinted stencil, so a picture arrives as a grey smear.
     private var lockScreen: some View {
         VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(StrataFont.digits(snapshot.today))
-                    .font(StrataFont.size(16))
-                Text("today")
-                    .font(.system(size: 15, weight: .medium, design: .default))
+            // Not "0 today": an empty morning is not a score (`empty`
+            // above says the same of the Home Screen).
+            if snapshot.today > 0 {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(StrataFont.digits(snapshot.today))
+                        .font(StrataFont.size(16))
+                    Text("today")
+                        .font(.system(size: 15, weight: .medium, design: .default))
+                }
             }
             Text(secondLine)
                 .font(.system(size: 15, weight: .medium, design: .default))

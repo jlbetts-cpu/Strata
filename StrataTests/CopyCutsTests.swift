@@ -149,8 +149,10 @@ struct CopyCutsTests {
         #expect(!reminder.contains("stacked into one tower"))
         #expect(!reminder.contains("\"Find it in Memories.\""), "the tap lands there now; the body need not say so")
         // Both halves: the titles are the news and they stay.
-        #expect(reminder.contains("Your week is ready"))
-        #expect(reminder.contains("is ready"))
+        // In the owner's own words for a recap since 2026-10-12
+        // (`docs/voice.md`): "Your week, put together."
+        #expect(reminder.contains("Your week, put together."))
+        #expect(reminder.contains(", put together."))
     }
 
     // MARK: - Cut 21: the walkthrough's two states and its captions

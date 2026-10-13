@@ -115,7 +115,9 @@ struct AlbumsAndCropTests {
         #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 3)
         #expect(!main.contains("guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil"))
         #expect(try code("Strata/Views/Crews/FirstWinInviteCard.swift").contains("await MainAppView.waitForRing()"))
-        #expect(DayOneHint.drawOut == "Drag the slot sideways or up.")
+        // "Pull", the verb onboarding uses twice for the same gesture: one
+        // word for one thing (`docs/ten.md`, rule 4).
+        #expect(DayOneHint.drawOut == "Pull the slot sideways or up.")
         #expect(PlannedHint.line == "Tap one to finish it.")
         #expect(PlannedHint.line.count <= TipCopy.longestMessage && DayOneHint.drawOut.count <= TipCopy.longestMessage)
         let onboarding = try code("Strata/Views/OnboardingView.swift")

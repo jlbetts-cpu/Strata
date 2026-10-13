@@ -34,7 +34,10 @@ nonisolated struct GoalHistory: Equatable {
     func sentence(goal: Int) -> String {
         let n = reached(goal)
         switch n {
-        case 0: return "None of the last \(Self.length) days reached \(goal) yet."
+        // Nothing, where it said "None of the last 14 days reached 3 yet."
+        // The bars above already show it, and said in words it is a count
+        // held against you (`docs/voice.md`: never guilt).
+        case 0: return ""
         case Self.length: return "You reached \(goal) on every one of the last \(Self.length) days."
         default: return "You reached \(goal) on \(n) of the last \(Self.length) days."
         }

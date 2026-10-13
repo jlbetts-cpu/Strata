@@ -86,8 +86,10 @@ enum ReplayReminder {
         let month = ReplayPeriod.month(containing: now, calendar: calendar)
         let monthName = month.range(relativeTo: month.firstDay)
         return [
-            (week, week.notificationDate, "Your week is ready", Self.whereToLook),
-            (month, month.notificationDate, "\(monthName) is ready", Self.whereToLook)
+            // The owner's own words for a recap (`docs/voice.md`): "Your
+            // week, put together." It said "is ready", as any app's does.
+            (week, week.notificationDate, "Your week, put together.", Self.whereToLook),
+            (month, month.notificationDate, "\(monthName), put together.", Self.whereToLook)
         ]
         .filter { $0.1 > now && hasWins($0.0) }
         .map { (period: $0.0, date: $0.1, title: $0.2, body: $0.3) }

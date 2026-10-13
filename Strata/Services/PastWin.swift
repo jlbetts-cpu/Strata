@@ -58,7 +58,7 @@ nonisolated enum PastWin {
         guard !old.isEmpty else { return nil }
         let chosen = old[Int(stableHash(todayKey) % UInt64(old.count))]
         return Pick(title: chosen.title, dateString: chosen.dateString,
-                    when: dateWords(chosen.dateString, today: today, calendar: calendar))
+                    when: "A win from \(dateWords(chosen.dateString, today: today, calendar: calendar))")
     }
 
     /// "March 4", or "March 4, 2025" when it was another year.
@@ -121,8 +121,10 @@ enum PastWinReminder {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        content.title = pick.when
-        content.body = pick.title
+        // **It invites, it does not report** (`docs/voice.md`): "A year ago
+        // today." and nothing more. The win's name was the body, which is
+        // the thing to find when you open it.
+        content.title = pick.when + "."
         // **Passive, deliberately** (the cohesion pass, 2026-10-05). A past
         // win is something to enjoy when you next look, never something to
         // look at now: it arrives silently into Notification Center and the

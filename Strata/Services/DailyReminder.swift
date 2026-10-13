@@ -166,7 +166,7 @@ nonisolated enum DailyReminder {
 nonisolated enum EveningCheckIn {
     static let prefix = NotificationRoute.Prefix.evening
     static let hour = 19
-    static let title = WinCue.anythingElse
+    static let title = WinCue.roomLeft
 
     /// When today's should come, or nil for none.
     static func when(winsToday: Int, firstWin: Date?, now: Date, morningHour: Int, morningMinute: Int,
@@ -202,7 +202,7 @@ nonisolated enum EveningCheckIn {
                 defaults.removeObject(forKey: crewEveningKey)
                 return nil
             }
-            let line = CrewEvening.line(crewName: crew.displayName(excluding: store.me))
+            let line = CrewEvening.line
             defaults.set(["day": today, "at": at.timeIntervalSince1970, "line": line] as [String: Any], forKey: crewEveningKey)
             return (at, line)
         }

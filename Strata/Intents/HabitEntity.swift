@@ -15,7 +15,7 @@ struct HabitEntity: AppEntity, IndexedEntity {
     @Property(title: "Category")
     var category: String
 
-    @Property(title: "Completed Today")
+    @Property(title: "Logged Today")
     var isCompletedToday: Bool
 
     var displayRepresentation: DisplayRepresentation {

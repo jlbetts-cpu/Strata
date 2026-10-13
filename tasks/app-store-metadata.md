@@ -3,7 +3,93 @@
 **Nothing here is live.** App Store Connect is the owner's to edit and nothing
 in this file has been submitted. Text for him to paste.
 
-## Current: the ADHD positioning (owner-approved, 2026-10-05)
+## Current: the Launch Pack listing (the owner's doc, 2026-10-12)
+
+His words, from "Some Wins — Launch Pack". Checked here against Apple's
+limits and against the app as built. **He pastes it; nothing below has been
+entered.** It replaces the 2026-10-05 set under it.
+
+### Name (30 max)
+
+    Some Wins
+
+9 characters.
+
+### Subtitle (30 max)
+
+    Track your wins with friends
+
+28 characters. True of the app: wins are logged, and a crew sees them.
+
+### Description (4000 max)
+
+605 characters. Nothing in it is untrue of the app. No long dash, no
+exclamation mark.
+
+```
+You earned today. All of it.
+
+The walk you almost skipped. The text you finally sent. The quiet hour you gave yourself. So much of your day is good, and so much of it disappears before you notice.
+
+Some Wins is where it stops disappearing.
+
+A small place to hold the good things as they happen, and to let a few people you love see them with you. You watch them show up. They watch you grow. Everyone leaves a little better than they came.
+
+In a world built to pull your attention away, this is a still space that hands it back, one good moment at a time.
+
+The sunset's better when you know you earned it.
+```
+
+### Keywords, exactly as the doc has them
+
+| Field | Text | Count |
+|---|---|---|
+| English (U.S.) | `adhd,bodydouble,coworking,witness,goal,journal,crew,together,routine,focus,planner,reflect,buddy,duo` | 100 of 100 (the doc says 94; that was before buddy and duo) |
+| English (U.K.) | `neurodivergent,accountability,partner,executive,function,supportive,gentle,dopamine,habit,momentum` | 98 of 100 |
+| Spanish (Mexico) | `selfcare,discipline,productive,milestone,recap,memory,photo,wellbeing,companion,consistency,calm,day` | 100 of 100 |
+
+36 words, none repeated, none shared with the name or subtitle. All three
+fit.
+
+### Three things to know before pasting
+
+1. **The U.K. field does not count in the U.S. store.** For a U.S. search
+   Apple reads English (U.S.) and Spanish (Mexico). English (U.K.) is read
+   in the U.K., Australia and a few others. So for someone searching in
+   California, `neurodivergent`, `accountability`, `partner`, `executive`,
+   `function`, `supportive`, `gentle`, `dopamine`, `habit` and `momentum`
+   do nothing where they are. (From the ASO references I have; I am
+   confident about it, and it is checkable in ten minutes after launch by
+   searching "accountability partner" in the U.S. store.)
+2. **Words only pair up inside one field.** The doc says Apple combines
+   every word with every other. It combines within a language's own name,
+   subtitle and keywords, not across languages. "accountability partner"
+   needs both words in the same field, as does "executive function" and
+   "adhd planner".
+3. **"habit" was a word you ruled out** of the listing on 2026-10-05
+   (docs/brand.md). The Launch Pack brings it back on purpose as a hidden
+   combiner, so it is in. Saying it so the change is a choice and not a
+   slip.
+
+### The same 36 words, arranged for the U.S. store (my recommendation)
+
+The words that matter most go in the two fields the U.S. reads, with
+their pairs kept together. The U.K. field takes the rest.
+
+| Field | Text | Count |
+|---|---|---|
+| English (U.S.) | `adhd,neurodivergent,executive,function,dopamine,habit,planner,routine,focus,goal,journal,bodydouble` | 99 |
+| Spanish (Mexico) | `accountability,partner,buddy,crew,together,supportive,gentle,companion,photo,memory,recap,milestone` | 99 |
+| English (U.K.) | `coworking,witness,reflect,momentum,selfcare,discipline,productive,wellbeing,consistency,calm,day,duo` | 100 |
+
+The Spanish (Mexico) page needs the same name and subtitle typed into it,
+or "friends" and "wins" will not pair with its keywords.
+
+### Other naming
+
+Brand tagline "Every win stacked." Marketing line "Win with your people."
+
+## Before: the ADHD positioning (owner-approved, 2026-10-05), superseded
 
 Some Wins is designed with ADHD brains as the target, and says so. It is the
 design target, NOT a treatment claim: no word below says the app helps,

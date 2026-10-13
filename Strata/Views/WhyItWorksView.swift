@@ -81,7 +81,7 @@ struct WhyItWorksView: View {
          + "a few words can. A photo on a win is optional, and it is there for "
          + "the you who looks back later."),
         ("Friends, without a feed",
-         "A crew is a few people you choose, up to eight. There is no feed to "
+         "A crew is the people you choose. One friend is enough. There is no feed to "
          + "scroll and nothing public. You see what your friends did today, they "
          + "see yours, and nobody is shown who didn't post."),
     ]

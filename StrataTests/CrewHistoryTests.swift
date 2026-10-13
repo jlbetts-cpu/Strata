@@ -24,8 +24,11 @@ struct CrewHistoryTests {
                   createdAt: date(day), updatedAt: date(day))
     }
 
-    /// A crew of two still needs both (half of two, at least two).
-    @Test func aDayCountsOnlyWhenEveryonePosted() {
+    /// **In a pair, either keeps the day** (the Launch Pack, 2026-10-12:
+    /// "if a crew member stops posting, nothing punishes them or the crew").
+    /// This test was `aDayCountsOnlyWhenEveryonePosted` and held a pair to
+    /// both, every day: the day only Jayden posted ended the run for both.
+    @Test func inAPairEitherKeepsTheDay() {
         var history = CrewHistory()
         let members = [member(jayden, joined: "2026-09-28"), member(sam, joined: "2026-09-28")]
         history.record([win(jayden, on: "2026-09-29"), win(sam, on: "2026-09-29"),
@@ -33,10 +36,14 @@ struct CrewHistoryTests {
                         win(jayden, on: "2026-10-01")],
                        from: "2026-09-29", through: "2026-10-01")
         let full = history.keptDays(members: members, zone: zone)
-        #expect(full == ["2026-09-29", "2026-09-30"])
-        // Today is still open: the streak runs through yesterday.
-        #expect(CrewHistory.streak(full, today: "2026-10-01", zone: zone) == 2)
-        #expect(CrewHistory.best(full, zone: zone) == 2)
+        #expect(full == ["2026-09-29", "2026-09-30", "2026-10-01"])
+        #expect(CrewHistory.streak(full, today: "2026-10-01", zone: zone) == 3)
+        #expect(CrewHistory.best(full, zone: zone) == 3)
+        // A day nobody posted is still not a kept day.
+        var quiet = CrewHistory()
+        quiet.record([win(jayden, on: "2026-09-29")], from: "2026-09-29", through: "2026-09-30")
+        #expect(quiet.keptDays(members: members, zone: zone) == ["2026-09-29"])
+        // Who has not posted is still known, and still never said.
         #expect(history.waiting(today: "2026-10-01", members: members).map(\.profileID) == [sam])
     }
 
@@ -51,7 +58,9 @@ struct CrewHistoryTests {
                        from: "2026-09-29", through: "2026-09-30")
         #expect(history.keptDays(members: members, zone: zone) == ["2026-09-29"])
         #expect(CrewHistory.needed(of: 1) == 1)
-        #expect(CrewHistory.needed(of: 2) == 2)
+        // One of two is half: a pair's day is kept by either, so one of
+        // them going quiet never ends the other's run (2026-10-12).
+        #expect(CrewHistory.needed(of: 2) == 1)
         #expect(CrewHistory.needed(of: 3) == 2)
         #expect(CrewHistory.needed(of: 5) == 3)
     }

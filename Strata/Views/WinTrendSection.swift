@@ -158,7 +158,7 @@ struct WinTrendSection: View {
         }
     }
 
-    private var beforeTheTrend: String { "Keep logging to see \(owner.possessive) trend." }
+    private var beforeTheTrend: String { "A few more \(unit.plural) to see \(owner.possessive) trend." }
 
     /// The numbers, in words somebody's mum reads without a legend: how many
     /// a day, week or month lately, and what "usual" was.

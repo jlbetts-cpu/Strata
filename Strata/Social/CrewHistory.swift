@@ -54,8 +54,8 @@ nonisolated struct CrewHistory: Codable, Equatable, Sendable {
     /// win, and never fewer than two (the unification pass, 2026-10-09:
     /// "a shared crew streak with forgiving freezes"). It was everyone, so
     /// one person's quiet day was the whole crew's loss, and the bigger the
-    /// crew the less often a day ever counted. A crew of two still needs
-    /// both; a crew of one, its one.
+    /// crew the less often a day ever counted. A crew of two needs one of
+    /// its two (`needed`); a crew of one, its one.
     ///
     /// "In it that day" is the people in the crew now who had joined by the
     /// end of that day: someone who joined on Thursday never broke Tuesday.
@@ -72,9 +72,17 @@ nonisolated struct CrewHistory: Codable, Equatable, Sendable {
         return kept
     }
 
-    /// How many of `people` keep a day: half, rounded up, at least two.
+    /// How many of `people` keep a day: half, rounded up.
+    ///
+    /// **One of two is half** (the owner's Launch Pack, 2026-10-12: "If a
+    /// crew member stops posting, nothing punishes them or the crew"). It
+    /// was "at least two", so a pair needed both, every day: one of them
+    /// going quiet for four days ended the pair's streak, and it stayed at
+    /// nothing however much the other posted. In a pair "everyone" is one
+    /// known person, so the rule that nobody is named gave no cover. A pair
+    /// now keeps a day when either sends a win, as three keep it with two.
     static func needed(of people: Int) -> Int {
-        min(people, max(2, (people + 1) / 2))
+        max(1, (people + 1) / 2)
     }
 
     /// Days in a row the crew kept, ending today, or yesterday while today

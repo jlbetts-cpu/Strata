@@ -45,7 +45,7 @@ nonisolated enum HouseCard: String, Equatable {
 
     var line: String {
         switch self {
-        case .crew: "Start a crew with the people you'd tell anyway."
+        case .crew: "Start a crew with whoever you'd tell anyway."
         case .tip: "If Some Wins helps, a tip keeps it going."
         }
     }

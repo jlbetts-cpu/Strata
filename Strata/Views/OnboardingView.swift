@@ -1447,12 +1447,14 @@ struct OnboardingView: View {
         case 1: return "What Else"
         case 2: return "Go On"
         case 3: return location.canAsk ? "Turn On Places" : "One More Thing"
-        case Self.headStep: return heads.head == nil ? "Make My Head" : "One More Thing"
+        case Self.headStep: return heads.head == nil ? "Make My Head" : "Go On"
         // The last page now (2026-10-08): it sets the goal and opens the app.
         case Self.goalStep: return "Set My Goal"
         case Self.nameStep: return "Start"
         // Not the last page any more when the goal follows it.
-        case Self.thanksStep where step < lastStep: return "One More Thing"
+        // Two follow it, the goal and your name, and it said "One More
+        // Thing", as the page before it did.
+        case Self.thanksStep where step < lastStep: return "Two More Things"
         case Self.threeStep: return YourThree.Copy.onboardingKeep
         default: return "Start"
         }

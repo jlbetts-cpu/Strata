@@ -31,6 +31,10 @@ struct CrewEveningTests {
         #expect(here > noon)
         #expect(CrewEvening.time(crew: "crew-1", zone: zone, now: noon, calendar: ny) == nil)
         #expect(CrewEvening.time(crew: "crew-1", zone: zone, now: noon, calendar: tokyo) == nil)
-        #expect(!CrewEvening.line(crewName: "Roommates").contains("waiting"))
+        // It named the crew and said it "is sharing tonight's wins", written
+        // hours before anyone had. It is a line that is true whoever posts
+        // (the Launch Pack voice pass, 2026-10-12), and names nobody.
+        #expect(CrewEvening.line == "Your crew's tower is open too.")
+        #expect(!CrewEvening.line.contains("waiting") && !CrewEvening.line.contains("?"))
     }
 }

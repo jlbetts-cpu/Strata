@@ -35,7 +35,10 @@ struct EveningCheckInTests {
 
     @Test("it asks in the cue's own words, with the reminder's log actions, and lands on Wins")
     func words() {
-        #expect(EveningCheckIn.title == WinCue.anythingElse)
+        // The cue's words without the question mark: nothing asks you a
+        // question from the lock screen (`docs/voice.md`).
+        #expect(EveningCheckIn.title == WinCue.roomLeft)
+        #expect(!EveningCheckIn.title.contains("?"))
         #expect(NotificationRoute.of(identifier: EveningCheckIn.identifier(for: Date()), userInfo: [:]) == .wins)
     }
 }

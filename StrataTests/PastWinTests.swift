@@ -21,7 +21,9 @@ struct PastWinTests {
         let pick = PastWin.pick(from: [c("Last week", "2026-09-30"), c("Called Mum", "2026-03-04")],
                                 today: today, calendar: calendar)
         #expect(pick?.title == "Called Mum")
-        #expect(pick?.when == "March 4")
+        // The whole of the notification now (`docs/voice.md`: it invites,
+        // the win's name waits inside), so it says what it is.
+        #expect(pick?.when == "A win from March 4")
     }
 
     @Test func nothingNamelessAndNothingRecent() {

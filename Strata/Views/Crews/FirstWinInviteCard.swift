@@ -132,6 +132,6 @@ struct FirstWinInviteCard: View {
                 actionTitle: hasCrew ? "Invite" : "Start a Crew",
                 action: invite,
                 close: close)
-            .accessibilityHint(hasCrew ? "Invites people to your crew" : "Starts a crew")
+            .accessibilityHint(hasCrew ? "Opens the invite" : "Starts a crew")
     }
 }
