@@ -19,233 +19,246 @@
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
 <link rel="preload" href="site/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>document.documentElement.className = "js";</script>
 <style>
   /* Inter, kept on the site itself (SIL Open Font License,
      site/fonts/Inter-OFL.txt), so a page asks nobody else for anything. */
   @font-face { font-family: "Inter"; font-style: normal; font-weight: 400 600; font-display: swap; src: url("site/fonts/Inter-latin.woff2") format("woff2"); }
-  /* The layout is the owner's Apollo landing page (a bar with one button, a
-     hero of the app, a large statement beside three short blocks, rows of
-     three, a tilted phone beside words, a closing call). The air and the one
-     black line are HeyTea's. The words and the pictures are the app's.
-     Inter throughout; Zen Maru Gothic (SIL Open Font License,
-     invite/ZenMaruGothic-OFL.txt) is the wordmark and nothing else. */
+  /* The skeleton is the owner's Apollo landing page. The manner is an Apple
+     product page (his word, 2026-10-13: "would love the landing page to
+     feel more apple"): centred statements, the product in soft rounded
+     tiles, one quiet move as each thing arrives, and nothing else. The one
+     black line is his own drawing; the words are the app's. Zen Maru Gothic
+     (SIL Open Font License, invite/ZenMaruGothic-OFL.txt) is the wordmark
+     and nothing else. No shadows anywhere. */
   @font-face { font-family: "Zen Maru"; src: url("invite/ZenMaruGothic-Bold.ttf") format("truetype"); font-display: swap; }
   :root {
-    --ground: #ffffff; --soft: #f6f7f9;
-    --ink: #16171a; --ink-2: rgba(22,23,26,.66); --ink-3: rgba(22,23,26,.44);
-    --rule: rgba(22,23,26,.10);
-    --gutter: clamp(20px, 5.5vw, 80px);
-    --section: clamp(88px, 13vw, 176px);
+    --ground: #ffffff; --tile: #f5f5f7;
+    --ink: #1d1d1f; --ink-2: #6e6e73; --ink-3: #86868b;
+    --rule: rgba(0,0,0,.08);
+    --gutter: clamp(16px, 4vw, 44px);
+    --section: clamp(96px, 13vw, 190px);
+    --radius: clamp(22px, 2.4vw, 32px);
+    --ease: cubic-bezier(.2, .7, .2, 1);
   }
   * { box-sizing: border-box; }
   html { background: var(--ground); -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; color: var(--ink); background: var(--ground);
-    font: 400 17px/1.55 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font: 400 17px/1.47 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -.011em;
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
   a { color: inherit; -webkit-tap-highlight-color: transparent; }
-  img { display: block; max-width: 100%; }
-  .wrap { width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 var(--gutter); }
+  img, video { display: block; max-width: 100%; }
+  p, h1, h2, h3 { margin: 0; }
+  h1, h2, h3, .lede, .eyebrow { text-wrap: balance; }
+  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter); }
 
   /* His drawings are one black line: a mask, filled with the page's ink. */
   .ink { display: block; background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
 
-  /* The bar */
-  header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.82); -webkit-backdrop-filter: saturate(1.4) blur(18px); backdrop-filter: saturate(1.4) blur(18px); }
-  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
-  .mark { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font: 700 21px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
-  .mark .ink { --art: url("invite/camera.png"); width: 27px; height: 26px; }
+  /* The bar: thin, clear, a hairline once the page has moved under it. */
+  header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.8); -webkit-backdrop-filter: saturate(1.8) blur(20px); backdrop-filter: saturate(1.8) blur(20px); border-bottom: 1px solid transparent; transition: border-color .3s ease; }
+  header.moved { border-bottom-color: var(--rule); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .mark { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font: 700 18px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
+  .mark .ink { --art: url("invite/camera.png"); width: 23px; height: 22px; }
   .button {
-    display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 22px;
-    border-radius: 22px; background: var(--ink); color: #fff; text-decoration: none;
-    font-weight: 500; font-size: 15px; letter-spacing: -.005em; white-space: nowrap;
-    transition: opacity .16s ease;
+    display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 15px;
+    border-radius: 16px; background: var(--ink); color: #fff; text-decoration: none;
+    font-weight: 500; font-size: 13px; letter-spacing: -.005em; white-space: nowrap;
+    transition: opacity .2s ease;
   }
-  .button:hover { opacity: .86; }
-  .button:active { opacity: .72; }
-  .button.large { height: 54px; padding: 0 34px; border-radius: 27px; font-size: 17px; }
+  .button:hover { opacity: .82; }
+  .button:active { opacity: .66; }
+  .button.large { height: 50px; padding: 0 28px; border-radius: 25px; font-size: 17px; }
 
   /* The hero */
-  .hero { padding-top: clamp(48px, 8vw, 104px); text-align: center; }
-  h1 { margin: 0 auto; max-width: 12ch; font-weight: 600; font-size: clamp(44px, 8.4vw, 104px); line-height: .98; letter-spacing: -.045em; }
-  .hero .sub { margin: clamp(18px, 2.2vw, 28px) auto 0; max-width: 30ch; color: var(--ink-2); font-size: clamp(18px, 2vw, 24px); line-height: 1.4; letter-spacing: -.012em; }
-  .hero .call { margin-top: clamp(26px, 3vw, 40px); display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .hero .call small, .close small { color: var(--ink-3); font-size: 14px; }
+  .hero { padding-top: clamp(56px, 8vw, 112px); text-align: center; }
+  h1 { margin: 0 auto; max-width: 11ch; font-weight: 600; font-size: clamp(48px, 9vw, 112px); line-height: 1.02; letter-spacing: -.045em; }
+  .lede { margin: clamp(16px, 2vw, 26px) auto 0; max-width: 28ch; color: var(--ink-2); font-size: clamp(19px, 2.2vw, 28px); line-height: 1.32; letter-spacing: -.02em; font-weight: 500; }
+  .call { margin-top: clamp(24px, 3vw, 36px); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  small { color: var(--ink-3); font-size: 13px; }
 
-  /* The trailer. It is on the page's own white, so it needs no frame but
-     a corner and a hairline. No shadow. */
-  .film { position: relative; margin: clamp(40px, 6vw, 80px) auto 0; width: 100%; max-width: 1120px; aspect-ratio: 16 / 9; border-radius: clamp(16px, 2.2vw, 28px); overflow: hidden; background: var(--soft); border: 1px solid var(--rule); }
-  .film.tall { aspect-ratio: 9 / 16; max-width: min(100%, 380px); }
-  .film video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* The trailer: on the page's own white, in a tile. */
+  .film { position: relative; margin: clamp(44px, 6.5vw, 88px) auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: var(--tile); }
+  .film.tall { aspect-ratio: 9 / 16; max-width: min(100%, 390px); }
+  .film video { width: 100%; height: 100%; object-fit: cover; }
   .film .sound {
-    position: absolute; right: 12px; bottom: 12px; height: 36px; padding: 0 14px; border-radius: 18px;
-    border: 1px solid var(--rule); background: rgba(255,255,255,.86); color: var(--ink);
-    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    font: 500 14px/1 Inter, -apple-system, sans-serif; cursor: pointer;
+    position: absolute; right: 14px; bottom: 14px; height: 34px; padding: 0 14px; border-radius: 17px; border: 0;
+    background: rgba(232,232,237,.78); color: var(--ink);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    font: 500 13px/1 Inter, -apple-system, sans-serif; cursor: pointer;
   }
   .film .sound:active { opacity: .7; }
-  /* A phone standing beside words, lower on the page. */
-  .phone { flex: 0 0 auto; aspect-ratio: 1206 / 2622; border-radius: 13.5% / 6.2%; overflow: hidden; background: var(--soft); border: clamp(4px, .7vw, 8px) solid var(--ink); }
-  .phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
   /* `.wrap` sets all four paddings, so the section's own top is named with it. */
   section.wrap { padding-top: var(--section); }
-  .label { margin: 0 0 clamp(28px, 4vw, 56px); color: var(--ink-3); font-size: clamp(18px, 2vw, 26px); letter-spacing: -.015em; }
-  h2 { margin: 0; font-weight: 500; font-size: clamp(32px, 4.6vw, 60px); line-height: 1.1; letter-spacing: -.035em; }
-  h3 { margin: 0 0 10px; font-weight: 600; font-size: clamp(20px, 2vw, 26px); line-height: 1.25; letter-spacing: -.022em; }
-  p { margin: 0; }
-  /* No word left alone on a last line. */
-  h1, h2, h3, .sub, .close .body { text-wrap: balance; }
-  .body { text-wrap: pretty; }
-  .body { color: var(--ink-2); font-size: clamp(17px, 1.55vw, 21px); line-height: 1.5; letter-spacing: -.011em; }
-  .fade { background: linear-gradient(90deg, var(--ink) 10%, rgba(22,23,26,.22)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-  /* A statement beside three short blocks */
-  .split { display: grid; gap: clamp(40px, 6vw, 96px); }
-  .stack { display: grid; gap: clamp(28px, 3.4vw, 44px); }
-  /* Rows of three */
-  .three { display: grid; gap: clamp(36px, 4vw, 64px); }
-  .note { margin-top: clamp(40px, 5vw, 64px); color: var(--ink-3); font-size: 15px; }
+  /* One large paragraph, the way a product page states its case: the claim
+     in ink, the rest in grey. */
+  .statement { max-width: 920px; margin: 0 auto; text-align: center; color: var(--ink-3); font-weight: 600; font-size: clamp(26px, 4vw, 52px); line-height: 1.14; letter-spacing: -.035em; }
+  .statement b { color: var(--ink); font-weight: 600; }
 
-  /* Words beside a tilted phone */
-  .beside { display: grid; gap: clamp(48px, 6vw, 96px); align-items: center; }
-  .beside .phone { width: clamp(200px, 56vw, 320px); margin: 0 auto; transform: rotate(4.5deg); }
-  .beside h2 { max-width: 14ch; }
-  .beside .body { margin-top: clamp(18px, 2vw, 28px); max-width: 34ch; }
-  .beside .body + .body { margin-top: 1em; }
-  .drawing { width: min(100%, 360px); aspect-ratio: 3 / 2; position: relative; margin-top: clamp(28px, 3vw, 44px); }
+  /* A section's head: a small word, then the line. */
+  .head { text-align: center; margin: 0 auto clamp(36px, 5vw, 64px); }
+  .eyebrow { color: var(--ink-2); font-weight: 600; font-size: clamp(17px, 1.7vw, 21px); letter-spacing: -.015em; margin-bottom: 10px; }
+  h2 { margin: 0 auto; max-width: 16ch; font-weight: 600; font-size: clamp(36px, 6vw, 76px); line-height: 1.05; letter-spacing: -.04em; }
+  .head .lede { font-size: clamp(18px, 1.9vw, 24px); max-width: 34ch; }
+
+  /* Tiles */
+  .tiles { display: grid; gap: clamp(12px, 1.6vw, 20px); grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .tile { grid-column: span 12; position: relative; overflow: hidden; background: var(--tile); border-radius: var(--radius); padding: clamp(26px, 3.4vw, 48px) clamp(24px, 3.4vw, 48px) 0; min-height: clamp(440px, 46vw, 600px); display: flex; flex-direction: column; }
+  .tile h3 { font-weight: 600; font-size: clamp(24px, 2.7vw, 36px); line-height: 1.1; letter-spacing: -.03em; max-width: 14ch; }
+  .tile p { margin-top: 10px; color: var(--ink-2); font-size: clamp(16px, 1.45vw, 19px); line-height: 1.4; max-width: 30ch; font-weight: 500; letter-spacing: -.015em; }
+  /* The phone stands on the tile's floor and runs off it. */
+  .tile .phone { margin: clamp(26px, 3.2vw, 44px) auto 0; width: min(74%, 300px); aspect-ratio: 1206 / 2000; border-radius: 13.5% / 8.1% ; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: hidden; background: #fff; border: 7px solid var(--ink); border-bottom: 0; margin-top: auto; }
+  .tile .phone > * { width: 100%; height: auto; }
+  .tile .gap { flex: 1; min-height: clamp(26px, 3.2vw, 44px); }
+  .tile.words { min-height: 0; padding-bottom: clamp(26px, 3.4vw, 48px); justify-content: center; }
+  .tile.art { align-items: center; justify-content: center; text-align: center; padding-bottom: clamp(26px, 3.4vw, 48px); }
+  .tile.art h3 { max-width: 20ch; }
+  .tile.art p { max-width: 30ch; text-wrap: balance; }
+  .tile p { text-wrap: pretty; }
+  .drawing { width: min(84%, 380px); aspect-ratio: 3 / 2; position: relative; margin-bottom: clamp(14px, 2vw, 26px); }
   .drawing .ink { position: absolute; inset: 0; }
   .drawing .crew { --art: url("invite/crew.png"); }
   .drawing .cheer { --art: url("invite/cheer.png"); }
+  .quiet { margin-top: clamp(28px, 3.4vw, 44px); text-align: center; }
 
   /* The close */
   .close { text-align: center; padding-bottom: var(--section); }
-  .close h2 { font-weight: 600; font-size: clamp(40px, 6.4vw, 84px); line-height: 1; letter-spacing: -.045em; }
-  .close .body { margin: clamp(16px, 2vw, 24px) auto clamp(26px, 3vw, 40px); max-width: 28ch; }
-  .close small { display: block; margin-top: 12px; }
+  .close .lede { max-width: 24ch; }
 
-  footer { border-top: 1px solid var(--rule); }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between; padding-top: 28px; padding-bottom: calc(28px + env(safe-area-inset-bottom)); color: var(--ink-3); font-size: 14px; }
-  footer nav { display: flex; gap: 24px; }
+  footer { background: var(--tile); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; justify-content: space-between; padding-top: 22px; padding-bottom: calc(22px + env(safe-area-inset-bottom)); color: var(--ink-2); font-size: 12px; }
+  footer nav { display: flex; gap: 22px; }
   footer a { text-decoration: none; }
-  footer a:hover { color: var(--ink); }
+  footer a:hover { color: var(--ink); text-decoration: underline; }
 
-  @media (min-width: 860px) {
-    .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); align-items: start; }
-    .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .beside { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
-    .beside .phone { width: clamp(260px, 26vw, 340px); }
+  @media (min-width: 760px) {
+    .tile.a { grid-column: span 7; }
+    .tile.b { grid-column: span 5; }
+    .tile.third { grid-column: span 4; }
   }
-  @media (max-width: 520px) {
-    header .wrap { height: 60px; }
-    .button { height: 40px; padding: 0 16px; font-size: 14px; }
-    .button.large { height: 52px; padding: 0 30px; font-size: 17px; }
+
+  /* One move: each thing rises a little into place as it arrives. Only
+     when the page can run it, and never with Reduce Motion. */
+  .js .rise { opacity: 0; transform: translateY(22px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .js .rise.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .js .rise { opacity: 1; transform: none; transition: none; }
+    .button, header { transition: none; }
   }
-  @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
 </style>
 </head>
 <body>
-  <header>
+  <header id="bar">
     <div class="wrap">
       <a class="mark" href="/" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</a>
-      <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+      <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Get</a>
     </div>
   </header>
 
   <main>
     <div class="wrap hero">
-      <h1>Win with your people.</h1>
-      <p class="sub">Every win stacked. The small things you did today, kept where you can see them.</p>
-      <div class="call">
+      <h1 class="rise">Win with your people.</h1>
+      <p class="lede rise">Every win stacked.</p>
+      <div class="call rise">
         <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
         <small>For iPhone</small>
       </div>
       <!-- The trailer (the owner, 2026-10-13: "we already made the trailer,
            can we just have that in the hero section instead"). His launch
            film, wide on a desk and the vertical cut on a phone, silent until
-           asked. It was three phones, then three loops filmed for this. -->
-      <div class="film" id="film">
+           asked. -->
+      <div class="film rise" id="film">
         <video muted loop playsinline preload="metadata" aria-label="The Some Wins trailer"></video>
         <button type="button" class="sound" aria-pressed="false">Sound</button>
       </div>
     </div>
 
     <section class="wrap">
-      <p class="label">The idea.</p>
-      <div class="split">
-        <h2>The good things you did today are the first ones you <span class="fade">forget.</span></h2>
-        <div class="stack">
-          <div>
-            <h3>A win is anything you did</h3>
-            <p class="body">The walk. The call you made. The meal you cooked. There is no list of what you should have done, and nothing is ever marked missed.</p>
-          </div>
-          <div>
-            <h3>It stacks</h3>
-            <p class="body">Each win is a block. A small one, or a big one if it took a lot out of you. By evening the day is a tower.</p>
-          </div>
-          <div>
-            <h3>It stays</h3>
-            <p class="body">Add a photo and the day is kept. A month from now it is all still there, in the order you lived it.</p>
-          </div>
-        </div>
-      </div>
+      <p class="statement rise"><b>The good things you did today are the first ones you forget.</b> Some Wins keeps them. Every win is a block, every day is a tower, and a month from now it is all still there.</p>
     </section>
 
     <section class="wrap">
-      <p class="label">How it works.</p>
-      <div class="three">
-        <div>
-          <h3>Log it</h3>
-          <p class="body">Tap the slot and name what you did. Or hold it for a quick one and name nothing at all.</p>
+      <div class="head rise">
+        <p class="eyebrow">Your day</p>
+        <h2>Anything you did counts.</h2>
+      </div>
+      <div class="tiles">
+        <div class="tile a rise">
+          <h3>Every win is a block.</h3>
+          <p>Tap the slot and name what you did. Hold it for a quick one. Add a photo and the day is kept.</p>
+          <div class="gap"></div>
+          <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/tower.jpg" width="480" height="1044"><source src="site/tower.mp4" type="video/mp4"></video></div>
         </div>
-        <div>
-          <h3>Plan it</h3>
-          <p class="body">Write down what you mean to do. It waits on the tower as an empty box, and moving it to tomorrow is just planning.</p>
+        <div class="tile b rise">
+          <h3>Plan it. It waits.</h3>
+          <p>What you mean to do stands on the tower as an empty box. Moving it to tomorrow is just planning.</p>
+          <div class="gap"></div>
+          <div class="phone" aria-hidden="true"><img src="site/plan.jpg" alt="" width="480" height="1044" loading="lazy"></div>
         </div>
-        <div>
-          <h3>Keep it</h3>
-          <p class="body">Reach your goal and the day's photos print as a strip. The month builds itself out of what you logged.</p>
+        <div class="tile b rise">
+          <h3>A month, in your own photos.</h3>
+          <p>Memories builds itself out of what you logged. Each month has its own drawing.</p>
+          <div class="gap"></div>
+          <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/memories.jpg" width="480" height="1044"><source src="site/memories.mp4" type="video/mp4"></video></div>
+        </div>
+        <div class="tile a rise">
+          <h3>Your week, put together.</h3>
+          <p>Every Sunday the week falls back into place, block by block, in the order you lived it.</p>
+          <div class="gap"></div>
+          <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/replay.jpg" width="480" height="1044"><source src="site/replay.mp4" type="video/mp4"></video></div>
         </div>
       </div>
-      <p class="note">Designed with ADHD brains in mind.</p>
+      <p class="quiet rise"><small>Designed with ADHD brains in mind. Nothing is ever marked missed.</small></p>
     </section>
 
     <section class="wrap">
-      <p class="label">With your people.</p>
-      <div class="beside">
-        <div class="words">
-          <h2>One tower for the day, with a few friends.</h2>
-          <p class="body">A crew is two to eight people. You see what they did. They see what you did. Nobody is ranked, and nothing counts against anyone.</p>
-          <p class="body">Plan something together, and it shows up as a box on the crew's tower. Finish it and they know.</p>
+      <div class="head rise">
+        <p class="eyebrow">Crews</p>
+        <h2>One tower for the day, with a few friends.</h2>
+        <p class="lede">You see what they did. They see what you did. Nobody is ranked.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile b rise">
+          <h3>Say it in the chat.</h3>
+          <p>A heart, a crown, a sticker cut from your own photo. Plan something together and it is a box on the crew's tower.</p>
+          <div class="gap"></div>
+          <div class="phone" aria-hidden="true"><img src="site/chat.jpg" alt="" width="603" height="1311" loading="lazy"></div>
+        </div>
+        <div class="tile a art rise">
           <div class="drawing" aria-hidden="true"><span class="ink crew"></span><span class="ink cheer"></span></div>
+          <h3>Winning is better together.</h3>
+          <p>A crew is two to eight people. A crew of two is a crew.</p>
         </div>
-        <div class="phone" aria-hidden="true"><img src="site/chat.jpg" alt="" width="603" height="1311" loading="lazy"></div>
-      </div>
-    </section>
-
-    <section class="wrap">
-      <div class="three">
-        <div>
-          <h3>Crews</h3>
-          <p class="body">Small and private. A crew of two is a crew. Invite with a link, leave whenever you like.</p>
+        <div class="tile third words rise">
+          <h3>Small and private.</h3>
+          <p>Invite with a link. Leave whenever you like.</p>
         </div>
-        <div>
-          <h3>Reactions</h3>
-          <p class="body">A heart, a crown, a sticker you cut out of your own photo. A reply when you have something to say.</p>
+        <div class="tile third words rise">
+          <h3>Yours first.</h3>
+          <p>A win is on your own tower before it is anyone else's.</p>
         </div>
-        <div>
-          <h3>Yours first</h3>
-          <p class="body">A win is on your own tower before it is anyone else's. You choose which ones a crew sees.</p>
+        <div class="tile third words rise">
+          <h3>You choose.</h3>
+          <p>Each win goes only to the crews you pick for it.</p>
         </div>
       </div>
     </section>
 
     <section class="wrap close">
-      <h2>Win with your people.</h2>
-      <p class="body">Small wins still count. Start with one.</p>
-      <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
-      <small>For iPhone</small>
+      <div class="head rise">
+        <h2>Win with your people.</h2>
+        <p class="lede">Small wins still count. Start with one.</p>
+      </div>
+      <div class="call rise" style="margin-top:0">
+        <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+        <small>For iPhone</small>
+      </div>
     </section>
   </main>
 
@@ -259,14 +272,33 @@
     </div>
   </footer>
 <script>
-  // The trailer: the wide cut on a desk, the vertical one on a phone. It
-  // plays silent, only while it is on screen; Sound turns its sound on.
-  // With Reduce Motion it waits to be asked, with the browser's own controls.
   (function () {
+    var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var canWatch = "IntersectionObserver" in window;
+
+    // The bar takes its hairline once the page has moved under it.
+    var bar = document.getElementById("bar");
+    function moved() { bar.classList.toggle("moved", window.scrollY > 8); }
+    window.addEventListener("scroll", moved, { passive: true }); moved();
+
+    // Each thing rises into place once, as it arrives.
+    var rising = [].slice.call(document.querySelectorAll(".rise"));
+    if (still || !canWatch) rising.forEach(function (el) { el.classList.add("in"); });
+    else {
+      var arrive = new IntersectionObserver(function (seen) {
+        seen.forEach(function (one) {
+          if (one.isIntersecting) { one.target.classList.add("in"); arrive.unobserve(one.target); }
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+      rising.forEach(function (el) { arrive.observe(el); });
+    }
+
+    // The trailer: the wide cut on a desk, the vertical one on a phone. It
+    // plays silent, only while it is on screen; Sound turns its sound on.
+    // With Reduce Motion it waits to be asked, with the browser's controls.
     var box = document.getElementById("film");
     var film = box.querySelector("video"), sound = box.querySelector(".sound");
     var tall = window.matchMedia("(max-width: 700px)").matches;
-    var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (tall) box.classList.add("tall");
     film.poster = tall ? "site/trailer-tall.jpg" : "site/trailer-wide.jpg";
     film.src = tall ? "site/trailer-tall.mp4" : "site/trailer-wide.mp4";
@@ -276,12 +308,18 @@
       sound.setAttribute("aria-pressed", String(!film.muted));
       if (film.paused) film.play().catch(function () {});
     });
+
+    // The films in the tiles are short loops recorded in the app.
+    var films = [film].concat([].slice.call(document.querySelectorAll("video.loop")));
     if (still) { film.controls = true; sound.hidden = true; return; }
-    if (!("IntersectionObserver" in window)) { film.play().catch(function () {}); return; }
-    new IntersectionObserver(function (seen) {
-      if (seen[0].isIntersecting) film.play().catch(function () {});
-      else film.pause();
-    }, { threshold: 0.25 }).observe(film);
+    if (!canWatch) { films.forEach(function (f) { f.play().catch(function () {}); }); return; }
+    var watch = new IntersectionObserver(function (seen) {
+      seen.forEach(function (one) {
+        if (one.isIntersecting) one.target.play().catch(function () {});
+        else one.target.pause();
+      });
+    }, { threshold: 0.25 });
+    films.forEach(function (f) { watch.observe(f); });
   })();
 </script>
 </body>
