@@ -2064,6 +2064,12 @@ is easy to undo by accident:
   inset it drew nothing, on Wins and the crew tower for weeks, and nobody
   had looked. Memories' header is pinned this way too now, at his word
   ("that transparent blur effect on scroll, not a clean line").
+- **What hangs under a header goes in `pinnedBar(_:below:)`, never as an
+  overlay that overflows the bar.** A bar draws its overflow and passes it
+  no touch: build 132 had a crew plan card whose I'm In did nothing, and
+  was held back from Friends for it. `FeedbackShots.testTapsUnderTheBar`
+  taps the Wins tip's close and the crew screen's I'm In; run it after
+  touching any header.
 - A reaction's files are their own family on disk (`PublicCrewCloud
   .stem`): they began with the win's id and the win's sweep deleted them.
 

@@ -950,3 +950,9 @@ In the order it happened. The item-by-item record is `docs/launch-pack-log.md`.
 **Not proven:** the crew work has not run on real iCloud or between two
 phones. A friend still on an older build sees a plan as a plain line, a
 sticker as an ink shape, and a brought-back photo as a solid block.
+
+**Build 132 was not released to Friends.** The last independent read
+cleared it but said to try one thing first: a tap on what hangs below the
+new header bar. I'm In on the crew's screen did nothing. Fixed, tried
+again (the Wins tip closes, I'm In joins), and the build after it is the
+one that went out.
