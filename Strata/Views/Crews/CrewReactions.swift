@@ -186,7 +186,7 @@ struct ReactorRow: View {
                                         // before this, it is its star.
                                         if reaction.isStickerOnAWin, let picture = reaction.sketch,
                                            reaction.profileID == me || SocialStore.shared.photoIsShown(picture) {
-                                            StickerMark(url: picture)
+                                            StickerMark(url: picture, standIn: reaction.emoji)
                                                 .frame(width: 22, height: 22)
                                                 .offset(x: 8, y: 6)
                                         } else {
@@ -346,7 +346,9 @@ struct CrewReactionsPanel: View {
         let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
         let myReaction = store.myReaction(to: winID, in: crewID)
         VStack(spacing: 10) {
-            if open, !mine {
+            // On your own win too (the owner, 2026-10-13). Reply and Doodle
+            // answer a friend, so those two stay a friend's.
+            if open {
                 ReactionBar(mine: myReaction, onDark: onDark) { emoji in
                     Task { await store.react(emoji, to: winID, in: crewID) }
                     withAnimation(motion) { open = false }
@@ -360,13 +362,15 @@ struct CrewReactionsPanel: View {
                 // Off together when writing is off (`canReply`).
                 if store.canReply() {
                     HStack(spacing: GridConstants.gapWide) {
-                        replyChip("Reply") {
-                            // What was written last time and not sent: a
-                            // refused reply or a Cancel keeps its words.
-                            draft = CrewDrafts.reply(crewID, to: winID)
-                            replying = true
+                        if !mine {
+                            replyChip("Reply") {
+                                // What was written last time and not sent: a
+                                // refused reply or a Cancel keeps its words.
+                                draft = CrewDrafts.reply(crewID, to: winID)
+                                replying = true
+                            }
+                            replyChip("Doodle") { doodling = true }
                         }
-                        replyChip("Doodle") { doodling = true }
                         // One of your stickers, as a chat line can take one.
                         // Not from someone who may not send photographs.
                         if store.photosAllowed() {
@@ -380,7 +384,7 @@ struct CrewReactionsPanel: View {
                 ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            if !reactions.isEmpty || !mine {
+            do {
                 Button {
                     HapticsEngine.tick()
                     withAnimation(motion) { open.toggle() }
@@ -567,18 +571,24 @@ struct CrewReactionsPanel: View {
 /// A sticker that came with a reaction, drawn as the picture it is.
 struct StickerMark: View {
     let url: URL
+    /// What is drawn if the picture is not there: never nothing.
+    var standIn = Reaction.stickerStandIn
     @State private var image: UIImage?
+    @State private var missing = false
 
     var body: some View {
         Group {
             if let image {
                 Image(uiImage: image).resizable().scaledToFit()
+            } else if missing {
+                Text(standIn).font(Typography.screenSubtitle)
             } else {
                 Color.clear
             }
         }
         .task(id: url) {
             image = await Task.detached(priority: .userInitiated) { [url] in UIImage(contentsOfFile: url.path) }.value
+            missing = image == nil
         }
         .accessibilityHidden(true)
     }

@@ -137,12 +137,15 @@ struct CrewReactionTests {
         #expect(a.reactions(to: run.winID, in: crew.id).isEmpty, "the same one again takes it back")
     }
 
-    @Test func youDoNotReactToYourOwnWin() async throws {
+    /// **Your own win takes your reaction** (the owner, 2026-10-13, from a
+    /// tester who asked for it). This test was `youDoNotReactToYourOwnWin`
+    /// and held the opposite. It is one a person, as on a friend's win.
+    @Test func youCanReactToYourOwnWin() async throws {
         let (a, _, crew) = try await pair()
         let mine = win()
         await a.post(mine, to: [crew.id])
         await a.react("❤️", to: mine.winID, in: crew.id)
-        #expect(a.reactions(to: mine.winID, in: crew.id).isEmpty)
+        #expect(a.reactions(to: mine.winID, in: crew.id).map(\.emoji) == ["❤️"])
     }
 
     @Test func aWithdrawnWinTakesItsReactionsWithIt() async throws {

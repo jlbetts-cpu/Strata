@@ -611,7 +611,7 @@ final class FeedbackShots: XCTestCase {
         var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
                           "-strataCrewSheet", "info", "-strataSeedCrewHistory", "10"])
         wait(9); snap("crewrest-info")
-        let code = app.buttons["Show a Code"].firstMatch
+        let code = app.buttons["Show a code"].firstMatch
         print("PLANNING-info: code \(code.exists) this week \(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'This Week'")).firstMatch.exists)")
         app.swipeUp(); wait(2); snap("crewrest-info-days")
         print("PLANNING-days: this week \(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'This Week'")).firstMatch.exists) last week \(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Last Week'")).firstMatch.exists)")
@@ -622,7 +622,7 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "1", "-strataOpenCrew", "0"])
         wait(8); snap("crewrest-one")
-        print("PLANNING-one: invite \(app.buttons["Invite"].firstMatch.exists)")
+        print("PLANNING-one: no invite on the screen \(!app.buttons["Invite"].firstMatch.exists)")
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "win"])
         wait(9)
@@ -630,6 +630,20 @@ final class FeedbackShots: XCTestCase {
         if react.exists { react.tap(); wait(2) }
         snap("crewrest-win")
         print("PLANNING-win: react \(react.exists) sticker \(app.buttons["Sticker"].firstMatch.exists) doodle \(app.buttons["Doodle"].firstMatch.exists)")
+        app.terminate()
+        // Your own win takes your reaction (2026-10-13).
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "mine"])
+        wait(9)
+        let own = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'React'")).firstMatch
+        if own.exists { own.tap(); wait(2) }
+        snap("crewrest-own-win")
+        print("PLANNING-own: react \(own.exists) reply \(app.buttons["Reply"].firstMatch.exists) sticker \(app.buttons["Sticker"].firstMatch.exists)")
+        app.terminate()
+        // The crew's plan on the crew's own screen.
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                      "-strataSeedCrewChat", "1", "-strataSeedCrewPlan", "1"])
+        wait(10); snap("crewrest-plan-on-page")
+        print("PLANNING-page: plan card \(app.buttons["I'm In"].firstMatch.exists)")
     }
 
     /// The crew chat's plus row, a group plan's card, a sticker and a photo

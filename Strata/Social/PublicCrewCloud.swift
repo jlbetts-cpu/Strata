@@ -1652,8 +1652,8 @@ final class PublicCrewCloud: CrewCloud {
         for key in candidates {
             if let fields = try? CrewItemBox.open(sealed, assets: sources, key: key, recordName: recordName,
                                                   into: directory.appending(path: "\(folder)/\(crew.rawValue)"),
-                                                  stem: type == .crew ? "crew-picture-\(tag)" : "\(name)-\(tag)",
-                                                  family: type == .crew ? "crew-picture-" : "\(name)-") {
+                                                  stem: Self.stem(type, name: name, tag: tag),
+                                                  family: Self.family(type, name: name)) {
                 opened = (fields, key)
                 break
             }
@@ -1678,6 +1678,31 @@ final class PublicCrewCloud: CrewCloud {
         if let at = record.modificationDate { fields[Self.modKey] = .date(at) }
         cache[crew, default: [:]][cacheKey] = fields
         return (crew, cacheKey)
+    }
+
+    /// What a record's files are called on this phone, and which older
+    /// files a new version of it replaces.
+    ///
+    /// **A reaction's file is its own family** (found by review,
+    /// 2026-10-13). A reaction is named for the win it is on, then who made
+    /// it, so its file began with the win's id; and a win's files are swept
+    /// by "everything that begins with the win's id". Opening a photo win
+    /// after a friend's sticker on it deleted the sticker. The same went
+    /// for a sticker on a chat line that carried a picture.
+    nonisolated static func stem(_ type: CrewRecordType?, name: String, tag: String) -> String {
+        switch type {
+        case .crew: "crew-picture-\(tag)"
+        case .reaction: "reaction-\(name)-\(tag)"
+        default: "\(name)-\(tag)"
+        }
+    }
+
+    nonisolated static func family(_ type: CrewRecordType?, name: String) -> String {
+        switch type {
+        case .crew: "crew-picture-"
+        case .reaction: "reaction-\(name)-"
+        default: "\(name)-"
+        }
     }
 
     /// When each record's files first failed to arrive, by name and tag.

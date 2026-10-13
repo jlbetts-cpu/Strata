@@ -2037,6 +2037,15 @@ is easy to undo by accident:
     crew's plan. Finishing one ticks that crew for that win and does not
     make it your usual.
   - `-strataSeedCrewPlan 1` seeds a plan, a sticker and a photo line.
+- **A sticker on a win is a star plus a picture**
+  (`Reaction.stickerStandIn`, the PNG in `sketch`). Never write
+  "sticker:<file>" into a WIN's reaction: a win's badge and its
+  notification print the mark as it is, on every build.
+- **A win's ping is keyed by win and crew**, and skipped for a crew whose
+  people have all heard (`crews.pings.told`). A crew of one is told
+  nothing. The extension folds two notifications for one win.
+- A crew's week is `ReplayPeriod.week` with the crew's `name`; yours has
+  none and is still "Your week".
 
 ## Words the app says
 

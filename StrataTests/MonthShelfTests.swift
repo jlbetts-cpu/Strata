@@ -19,7 +19,9 @@ struct MonthShelfTests {
         let crew = Album.ShelfCrew(id: "crew-1", name: "Ana's crew", wins: Set(sent))
         let shelf = Album.monthShelf(records: records, month: "2026-10", crews: [crew], moments: [])
         let album = try? #require(shelf.first)
-        #expect(album?.title == "With Ana's crew")
+        // "Shared with": the album is what you sent there, not who is in
+        // the pictures (the owner, 2026-10-13, of "With Jolee").
+        #expect(album?.title == "Shared with Ana's crew")
         #expect(album?.winCount == 4)
         #expect(album?.route == .crew("crew-1@2026-10"))
         // September is another month's page.
@@ -82,16 +84,18 @@ struct MonthShelfTests {
         let unnamed = Album.ShelfCrew(id: "crew-2", name: "  ", wins: Set(sent))
         // The same four wins went to both crews: one album, the first crew's.
         let shelf = Album.monthShelf(records: records, month: "2026-10", crews: [unnamed, named], moments: [])
-        #expect(shelf.map(\.title) == ["With Roommates"])
+        #expect(shelf.map(\.title) == ["Shared with Roommates"])
         // Alone, a crew with no name of its own is never "With" and nothing.
         let alone = Album.monthShelf(records: records, month: "2026-10", crews: [unnamed], moments: [])
-        #expect(alone.map(\.title) == ["With Your Crew"])
-        #expect(!alone.contains { $0.title.trimmingCharacters(in: .whitespaces) == "With" })
+        #expect(alone.map(\.title) == ["Shared with Your Crew"])
+        #expect(!alone.contains { $0.title.trimmingCharacters(in: .whitespaces).hasSuffix("with") })
         // A crew holding different wins is its own album.
         let more = (0..<3).map { _ in UUID() }
         let extra = more.enumerated().map { record("Read \($0.offset)", "2026-10-1\($0.offset)", id: $0.element) }
         let other = Album.ShelfCrew(id: "crew-3", name: "Run Club", wins: Set(more))
         let both = Album.monthShelf(records: records + extra, month: "2026-10", crews: [named, other], moments: [])
-        #expect(Set(both.map(\.title)) == ["With Roommates", "With Run Club"])
+        #expect(Set(both.map(\.title)) == ["Shared with Roommates", "Shared with Run Club"])
+        // No crew album says a person is in the pictures.
+        #expect(!both.contains { $0.title.hasPrefix("With ") })
     }
 }

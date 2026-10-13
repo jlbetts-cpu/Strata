@@ -81,7 +81,17 @@ struct CrewTowerView: View {
             let colW: CGFloat = floor(usable / CGFloat(columns))
             tower(colW: colW, viewport: geo.size.height)
         }
-        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // **The crew's plans, on the crew's own screen** (the owner,
+            // 2026-10-13: "make sure the crew plan shows up on the crew page
+            // as well"). The same card the chat draws, floating under the
+            // header as the tower's tips do, so nothing on the page moves.
+            header.overlay(alignment: .bottom) {
+                CrewPlanCards(crewID: crewID)
+                    .padding(.horizontal, hPad)
+                    .alignmentGuide(.bottom) { $0[.top] - GridConstants.gapTight }
+            }
+        }
         // **The page answers a touch, as Wins does**, header and all: rings
         // on water behind the content, consuming nothing. It was missing
         // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
@@ -281,10 +291,9 @@ struct CrewTowerView: View {
     /// Two taps on a friend's block: a heart, every time, as on Instagram. A
     /// heart you already gave stays given (it is never taken back by the same
     /// gesture that gave it); a different reaction you gave becomes the heart.
-    /// Your own block takes no reaction from you, so it only answers the press.
+    /// Your own block takes yours too (the owner, 2026-10-13, from a tester).
     private func doubleTap(_ id: UUID) {
-        guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
-              win.senderProfileID != store.me else { return }
+        guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
         HapticsEngine.success()
         let burst = Burst(block: id, emoji: Reaction.doubleTap)
         bursts.append(burst)
@@ -416,8 +425,7 @@ struct CrewTowerView: View {
     private func hold(_ id: UUID, _ phase: HoldPhase) {
         switch phase {
         case .began:
-            guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
-                  win.senderProfileID != store.me else { return }
+            guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
             HapticsEngine.success()
             heldAt = Date()
             dismissing?.cancel()
@@ -595,14 +603,11 @@ struct CrewTowerView: View {
                     .zIndex(2)
                     .accessibilityLabel("\(crew.displayName(excluding: store.me)), details")
                     .accessibilityAddTraits(.isHeader)
-                    // **A crew of one has its way to a second, here** (the
-                    // Launch Pack, 2026-10-12): it was two taps away, in
-                    // the crew's page. Gone the moment someone joins.
-                    if crew.members.count == 1 {
-                        QuietWord("Invite") { Task { await CrewSharing.invite(crewID) } }
-                            .zIndex(2)
-                            .accessibilityHint("Opens the invite")
-                    }
+                    // **No Invite standing here for a crew of one.** It was
+                    // added on 2026-10-13 as a bare word under the name, and
+                    // the owner, seeing it: "I dont like how invite is just
+                    // there". The way to a second person is the crew's page,
+                    // one tap on the name: Invite, and the code in its corner.
                     // **The starter's iCloud is full** (2026-10-08): one
                     // quiet line while new wins wait in the outbox, rather
                     // than posts that vanish (`SocialStore.fullCrews`).

@@ -194,6 +194,109 @@ struct GroupPlanCard: View {
     }
 }
 
+/// What a plan's card needs to know and do, wherever it is drawn: the chat
+/// and the crew's own screen.
+@MainActor
+enum GroupPlanActions {
+    /// The people who sent this crew a win of the plan's name today, you
+    /// first, and whether two of those wins have a photo.
+    static func done(_ plan: GroupPlan, today: String, store: SocialStore = .shared) -> (names: [String], canStrip: Bool) {
+        guard plan.isFor(today) else { return ([], false) }
+        // By the name its win carries: a plan with a time is logged
+        // without it ("Gym @ 6" is the win "Gym").
+        let key = plan.proofKey
+        let wins = store.today(in: plan.crewID).filter { GroupPlan.key($0.title) == key }
+        var senders: [UUID] = []
+        for win in wins.sorted(by: { $0.createdAt < $1.createdAt }) where !senders.contains(win.senderProfileID) {
+            senders.append(win.senderProfileID)
+        }
+        if let mine = senders.firstIndex(of: store.me) { senders.insert(senders.remove(at: mine), at: 0) }
+        let crew = store.crew(plan.crewID)
+        let names = senders.map { id -> String in
+            if id == store.me { return "You" }
+            let short = crew?.member(id)?.shortName ?? ""
+            return short.isEmpty ? "A friend" : short
+        }
+        return (names, wins.filter { $0.photo != nil }.count >= 2)
+    }
+
+    /// **I'm In**: the plan goes in your own plan, and can be taken back.
+    static func join(_ plan: GroupPlan, context: ModelContext, changed: @escaping () -> Void) {
+        HapticsEngine.lightTap()
+        guard let line = plan.join(context: context) else { return }
+        changed()
+        let id = line.id, key = plan.bookKey
+        UndoLine.shared.show("In your plan", undo: {
+            if let held = try? context.fetch(FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })).first {
+                context.delete(held)
+                try? context.save()
+            }
+            GroupPlanBook.leave(key)
+            changed()
+        })
+    }
+}
+
+/// **The crew's plans on the crew's own screen** (the owner, 2026-10-13:
+/// "make sure the crew plan shows up on the crew page as well"). The plans
+/// proposed in today's chat, and the ones you are in that are for today,
+/// each once, as the same card the chat draws. Two at most: the screen is
+/// the tower's.
+struct CrewPlanCards: View {
+    let crewID: CrewID
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tick = 0
+    @State private var closed: Set<String> = []
+    @State private var strip: GroupPlan?
+
+    private var store: SocialStore { SocialStore.shared }
+
+    static let most = 2
+
+    /// Today's plans for a crew: proposed in today's chat first, then yours
+    /// for today whose line has gone, each once, without the closed ones.
+    static func plans(proposed: [GroupPlan], mine: [GroupPlan], closed: Set<String>) -> [GroupPlan] {
+        var seen: Set<String> = []
+        return (proposed + mine).filter { !closed.contains($0.bookKey) && seen.insert($0.bookKey).inserted }
+    }
+
+    var body: some View {
+        let _ = tick
+        let today = store.crew(crewID).map { CrewDay.string(for: store.now(), in: $0.timeZone) }
+            ?? DateUtils.dateString(from: Date())
+        let plans = Self.plans(proposed: store.messages(in: crewID).compactMap(\.groupPlan),
+                               mine: GroupPlanBook.plans(in: crewID, on: today, me: store.me),
+                               closed: closed.union(GroupPlanBook.closed(today: today)))
+        VStack(spacing: GridConstants.gapTight) {
+            ForEach(plans.prefix(Self.most)) { plan in
+                let state = GroupPlanActions.done(plan, today: today)
+                GroupPlanCard(plan: plan, today: today, isIn: GroupPlanBook.isIn(plan), done: state.names,
+                              canStrip: state.canStrip,
+                              join: { GroupPlanActions.join(plan, context: modelContext) { tick += 1 } },
+                              strip: { strip = plan },
+                              close: {
+                                  GroupPlanBook.close(plan.bookKey, today: today)
+                                  withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                                      _ = closed.insert(plan.bookKey)
+                                  }
+                              })
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            GroupPlanBook.reconcile(context: modelContext)
+            tick += 1
+        }
+        .fullScreenCover(item: $strip) { plan in
+            StripBooth(owner: .crew(crewID.rawValue), day: today) {
+                await PhotoStrip.crew(crewID, titled: plan.title)
+            }
+        }
+    }
+}
+
 /// A picture in the chat, shown as it is: a sticker, or a photograph brought
 /// back, with its line under it.
 struct ChatPicture: View {

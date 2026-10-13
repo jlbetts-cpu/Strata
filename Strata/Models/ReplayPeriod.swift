@@ -199,7 +199,9 @@ struct ReplayPeriod: Hashable, Identifiable {
             let f = formatter(otherYear ? "yyMd" : "Md", template: true, locale: locale)
             let head = f.string(from: first), tail = f.string(from: last)
             let joint = head.contains("-") || tail.contains("-") ? " - " : "-"
-            return head + joint + tail
+            // A crew's week says whose, as its day does: "Roommates, 10/5-10/11".
+            let range = days.count == 1 ? head : head + joint + tail
+            return [name, range].compactMap { $0 }.joined(separator: ", ")
         }
     }
 

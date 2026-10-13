@@ -639,37 +639,14 @@ struct CrewChatSheet: View {
         }
     }
 
-    /// **I'm In**: the plan goes in your own plan, and can be taken back.
+    /// I'm In, and who has done it: the card's own logic, shared with the
+    /// crew's screen (`GroupPlanActions`).
     private func join(_ plan: GroupPlan) {
-        HapticsEngine.lightTap()
-        guard let line = plan.join(context: modelContext) else { return }
-        planTick += 1
-        let id = line.id, key = plan.bookKey
-        let context = modelContext
-        UndoLine.shared.show("In your plan", undo: {
-            if let held = try? context.fetch(FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })).first {
-                context.delete(held)
-                try? context.save()
-            }
-            GroupPlanBook.leave(key)
-            planTick += 1
-        })
+        GroupPlanActions.join(plan, context: modelContext) { planTick += 1 }
     }
 
-    /// The people who sent this crew a win of the plan's name today, you
-    /// first, and whether two of those wins have a photo.
     private func done(_ plan: GroupPlan) -> (names: [String], canStrip: Bool) {
-        guard plan.isFor(today) else { return ([], false) }
-        // By the name its win carries: a plan with a time is logged
-        // without it ("Gym @ 6" is the win "Gym").
-        let key = plan.proofKey
-        let wins = store.today(in: crewID).filter { GroupPlan.key($0.title) == key }
-        var senders: [UUID] = []
-        for win in wins.sorted(by: { $0.createdAt < $1.createdAt }) where !senders.contains(win.senderProfileID) {
-            senders.append(win.senderProfileID)
-        }
-        if let mine = senders.firstIndex(of: store.me) { senders.insert(senders.remove(at: mine), at: 0) }
-        return (senders.map { name(of: $0) }, wins.filter { $0.photo != nil }.count >= 2)
+        GroupPlanActions.done(plan, today: today)
     }
 
     private func planCard(_ plan: GroupPlan) -> some View {

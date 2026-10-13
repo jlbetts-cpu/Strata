@@ -66,7 +66,15 @@ nonisolated extension Album {
             let name = crew.name.trimmingCharacters(in: .whitespacesAndNewlines)
             crewAlbums.append(Album(id: "crew:\(crew.id)@\(month)",
                                     kind: .crew("\(crew.id)@\(month)"),
-                                    title: name.isEmpty ? "With Your Crew" : "With \(name)",
+                                    // **"Shared with", not "With"** (the owner,
+                                    // 2026-10-13: "there is an album that says
+                                    // with Jolee and it's not even with Jolee,
+                                    // like Jolee is in none of the pictures").
+                                    // These are the photos you SENT to that
+                                    // crew. A crew of two with no name is shown
+                                    // by the other person, and "With Jolee" then
+                                    // says she is in them.
+                                    title: name.isEmpty ? "Shared with Your Crew" : "Shared with \(name)",
                                     subtitle: "\(group.count) PHOTOS",
                                     sortDate: group.map(\.completedAt).max() ?? .distantPast,
                                     photoFileNames: coverOrder(for: group),

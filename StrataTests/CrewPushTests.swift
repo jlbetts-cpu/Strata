@@ -119,6 +119,24 @@ struct CrewPushTests {
         #expect(pings(.win).count - before == 2)
     }
 
+    /// A crew of three and a crew of two inside it: one ping, whichever the
+    /// win was ticked for first (the larger crew is always told first).
+    @Test func theLargerCrewIsToldFirst() async throws {
+        let ana = UUID()
+        let a = store(jayden), b = store(sam), c = store(ana)
+        let (pair, pairLink) = try await a.createCrew(name: "A Pair")
+        _ = try await c.accept(CrewInvite(url: pairLink))
+        let (three, threeLink) = try await a.createCrew(name: "Three")
+        _ = try await b.accept(CrewInvite(url: threeLink))
+        _ = try await c.accept(CrewInvite(url: threeLink))
+        for store in [a, b, c] { await store.refresh() }
+        let before = pings(.win).count
+        await a.post(win(at: Date()), to: [pair.id, three.id])
+        let sent = pings(.win).count - before
+        #expect(sent == 1, "\(sent)")
+        #expect(pings(.win).contains { $0[CrewPingRecord.crew] == CrewPingRecord.tag(three.id.rawValue) })
+    }
+
     /// Seven days running in a crew of two: the win that makes the seventh
     /// day tells the crew, once, whoever else posts after it. Either of a
     /// pair keeps a day since 2026-10-12 (`CrewHistory.needed`), so it is

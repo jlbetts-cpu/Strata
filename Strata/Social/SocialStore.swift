@@ -321,7 +321,7 @@ final class SocialStore {
         // And a friend's sticker on a chat line (2026-10-06): it is lifted
         // out of a photograph, so it is checked as one.
         for reactions in reactionsByCrew.values {
-            for reaction in reactions where reaction.profileID != me && reaction.isSticker {
+            for reaction in reactions where reaction.profileID != me && (reaction.isSticker || reaction.isStickerOnAWin) {
                 guard let sticker = reaction.sketch, photoVerdicts[sticker.lastPathComponent] == nil,
                       let data = try? Data(contentsOf: sticker),
                       let verdict = await incomingCheck(data) else { continue }
@@ -998,7 +998,15 @@ final class SocialStore {
         guard isEnabled() else { return }
         let win = withTags(win)
         let photo = await checkedPhoto(for: win)
-        for crewID in chosen {
+        // **The crew with the most people first** (found by review,
+        // 2026-10-13): a win's ping is skipped for a crew whose people have
+        // all heard (`pingIfNew`), so the order decides how many are told
+        // twice, and a set has none. Largest first tells the fewest twice.
+        let ordered = chosen.sorted { a, b in
+            let (x, y) = (crew(a)?.members.count ?? 0, crew(b)?.members.count ?? 0)
+            return x != y ? x > y : a.rawValue < b.rawValue
+        }
+        for crewID in ordered {
             guard let crew = crew(crewID) else { continue }
             let shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crewID, win: win.winID) })
             upsertLocal(shared)
@@ -1363,9 +1371,13 @@ final class SocialStore {
     /// A line from an earlier day is already gone from every screen
     /// (`replies`, `prune`), so it does not hold the record.
     func react(_ emoji: String, to winID: UUID, in crewID: CrewID) async {
+        // **Your own win takes your reaction too** (the owner, 2026-10-13,
+        // from a tester: "be able to react to their own wins like on the
+        // crew tower"). It was refused. Nobody is told of it: a reaction's
+        // ping goes to the win's owner, and never from the owner to
+        // themselves (`pingIfNew`).
         guard isEnabled(), let crew = crew(crewID),
-              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me else { return }
+              winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return }
         // Too fast is dropped quietly: the reaction already showing stays.
         guard paced(.reaction, in: crew, item: winID) == nil else { return }
         Analytics.shared.signal(.crewReaction)
@@ -1377,6 +1389,10 @@ final class SocialStore {
         }
         list.removeAll { $0.id == name }
         if previous?.emoji == emoji {
+            // A sticker taken back (its star, on the bar) takes its picture.
+            if let previous, previous.isStickerOnAWin, let old = previous.sketch {
+                try? FileManager.default.removeItem(at: old)
+            }
             reactionsByCrew[crewID] = list
             enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
         } else {
@@ -1405,8 +1421,8 @@ final class SocialStore {
     @discardableResult
     func react(sticker png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
         guard isEnabled(), let crew = crew(crewID),
-              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me, photosAllowed() else { return .notAllowed }
+              winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true,
+              photosAllowed() else { return .notAllowed }
         if let held = paced(.reaction, in: crew, item: winID) { return held }
         let side = CGFloat(Reaction.stickerSide)
         guard let small = await Task.detached(priority: .userInitiated, operation: {
@@ -2013,7 +2029,7 @@ final class SocialStore {
             if !orphans.isEmpty, winsByCrew[crew.id] != nil {
                 reactionsByCrew[crew.id]?.removeAll { !live.contains($0.winID) }
                 for reaction in orphans where reaction.profileID == me {
-                    if reaction.isSticker, let sticker = reaction.sketch { try? FileManager.default.removeItem(at: sticker) }
+                    if let sticker = reaction.sketch { try? FileManager.default.removeItem(at: sticker) }
                     enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
                 }
             }
@@ -2023,7 +2039,12 @@ final class SocialStore {
             // Only the writer's phone may change a reaction record, so each
             // phone clears its own; no screen shows them.
             for (index, reaction) in (reactionsByCrew[crew.id] ?? []).enumerated()
-            where reaction.profileID == me && !reaction.isSticker && (reaction.line != nil || reaction.sketch != nil)
+            // **Not a sticker on a win** (found by review, 2026-10-13): it
+            // is a star with its picture in `sketch`, and this took the
+            // picture off it at the crew's midnight, leaving a star nobody
+            // chose on a win that stays two weeks.
+            where reaction.profileID == me && !reaction.isSticker && !reaction.isStickerOnAWin
+                && (reaction.line != nil || reaction.sketch != nil)
                 && CrewDay.string(for: reaction.createdAt, in: crew.timeZone) < today {
                 var cleared = reaction
                 cleared.line = nil
@@ -2300,9 +2321,16 @@ final class SocialStore {
             guard let crew = crew(crewID) else { return }
             let people = Set(crew.members.map(\.profileID.uuidString)).subtracting([me.uuidString])
             let heard = told(about: winID)
-            guard !people.isSubset(of: heard) else { return }
+            // Nobody listed is not "everybody has heard": a friend who
+            // joined a moment ago may not be on this phone's list yet.
+            guard people.isEmpty || !people.isSubset(of: heard) else { return }
             key = "win-\(winID.uuidString)-\(CrewPingRecord.tag(crewID.rawValue))"
-            remember(people.union(heard), toldAbout: winID)
+            // **Told only once it is on its way** (found by review,
+            // 2026-10-13): marked before the ping was sent, a ping that
+            // failed for good left its people "told", and the next crew they
+            // were in was skipped for them.
+            if await leave(ping, key: key) { remember(people.union(heard), toldAbout: winID) }
+            return
         case .reaction:
             guard let owner = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID,
                   owner != me else { return }
@@ -2407,22 +2435,26 @@ final class SocialStore {
     }
 
     /// One ping, the first time only for its key, kept for another try when
-    /// there was no signal.
-    private func leave(_ ping: [String: String], key: String) async {
+    /// there was no signal. True when this call sent it or kept it to try
+    /// again; false when it was already left, or failed for good.
+    @discardableResult
+    private func leave(_ ping: [String: String], key: String) async -> Bool {
         let done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
-        guard done[key] == nil, !pendingPings.contains(where: { $0.key == key }) else { return }
+        guard done[key] == nil, !pendingPings.contains(where: { $0.key == key }) else { return false }
         do {
             try await sendPing(ping, key: key)
+            return true
         } catch {
             Self.log.notice("ping not sent: \(error)")
             // No signal or a busy server says nothing about the ping: it is
             // kept and tried again (`CrewPingRetry`). Anything else is not.
             guard let server = Self.transientWait(error),
-                  let wait = CrewPingRetry.wait(afterAttempts: 1, serverSays: server) else { return }
+                  let wait = CrewPingRetry.wait(afterAttempts: 1, serverSays: server) else { return false }
             let at = now().timeIntervalSince1970
             var pending = pendingPings
             pending.append(CrewPingRetry(key: key, fields: ping, attempts: 1, notBefore: at + wait, firstTried: at))
             pendingPings = pending
+            return true
         }
     }
 

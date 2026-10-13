@@ -295,7 +295,7 @@ struct PhotoCollectionView: View {
                 record.hasPhoto && (record.id.map(wins.contains) ?? false)
                     && (month.map { record.dateString.hasPrefix($0 + "-") } ?? true)
             }
-            title = SocialStore.shared.crews.first { $0.id == crew }.map { "With \($0.name)" } ?? Self.countTitle(matching.count)
+            title = SocialStore.shared.crews.first { $0.id == crew }.map { "Shared with \($0.displayName(excluding: SocialStore.shared.me))" } ?? Self.countTitle(matching.count)
         case .place(let key):
             // Exactly the photographs the block stood for — see
             // `PlaceMap.members(of:in:)`.

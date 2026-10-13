@@ -59,17 +59,6 @@ struct CrewInfoSheet: View {
                                 } icon: { SettingsIcon(systemName: "person.badge.plus") }
                                     .font(Typography.bodyLarge)
                             }
-                            // The same invite, for a friend beside you
-                            // (`CrewCodeSheet`).
-                            Button {
-                                HapticsEngine.lightTap()
-                                showsCode = true
-                            } label: {
-                                Label {
-                                    Text("Show a Code").foregroundStyle(AppColors.inkPrimary)
-                                } icon: { SettingsIcon(systemName: "qrcode") }
-                                    .font(Typography.bodyLarge)
-                            }
                         }
                     } header: {
                         // The page's one header style, as Crew Streak and
@@ -137,6 +126,24 @@ struct CrewInfoSheet: View {
                 .scrollContentBackground(.hidden)
                 .background(WarmBackground().ignoresSafeArea())
                 .toolbar {
+                    // **The invite as a code, in the sheet's own corner**
+                    // (the owner, 2026-10-13: "the qr code can be in the top
+                    // left"). It was a row of its own under Invite. A glyph
+                    // opposite Done, for a friend beside you
+                    // (`CrewCodeSheet`); gone when the crew is full.
+                    if crew.members.count < CrewCaps.members {
+                        BareToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                HapticsEngine.lightTap()
+                                showsCode = true
+                            } label: {
+                                Image(systemName: "qrcode").sheetAction(.confirm, as: .glyph)
+                            }
+                            .buttonStyle(.pressWord)
+                            .accessibilityLabel("Show a code")
+                            .accessibilityHint("A friend beside you can scan it to join")
+                        }
+                    }
                     BareToolbarItem(placement: .topBarTrailing) {
                         Button { commitName(); dismiss() } label: { Text("Done").sheetAction(.confirm) }
                             .buttonStyle(.pressWord)

@@ -1,13 +1,20 @@
 # App Store metadata
 
-**Nothing here is live.** App Store Connect is the owner's to edit and nothing
-in this file has been submitted. Text for him to paste.
+**Nothing here is live.** The current listing below was entered on
+2026-10-13 and nothing has been submitted. Text for him to paste.
 
 ## Current: the Launch Pack listing (the owner's doc, 2026-10-12)
 
 His words, from "Some Wins — Launch Pack". Checked here against Apple's
-limits and against the app as built. **He pastes it; nothing below has been
-entered.** It replaces the 2026-10-05 set under it.
+limits and against the app as built. It replaces the 2026-10-05 set under
+it.
+
+**Entered in App Store Connect on 2026-10-13**, at his word ("get another
+agent to do the apple connect stuff"): name, subtitle, description and the
+U.S. keyword arrangement, on version 1.0 (Prepare for Submission), in
+English (U.S.), English (U.K.) and Spanish (Mexico). Read back and matched.
+Nothing was submitted. Still empty there, and his to fill before
+submitting: screenshots, a build, the support URL, the age rating.
 
 ### Name (30 max)
 

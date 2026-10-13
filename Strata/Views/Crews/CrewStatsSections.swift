@@ -357,7 +357,12 @@ struct CrewStatsSections: View {
         var this = ReplayPeriod.week(containing: today, calendar: calendar)
         var last = ReplayPeriod.week(containing: calendar.date(byAdding: .day, value: -1, to: this.firstDay) ?? today,
                                      calendar: calendar)
-        this.name = name
+        // **This week ends today** (found by review, 2026-10-13): days
+        // still to come played as empty days, a few seconds of nothing at
+        // the end of the replay and of the saved video.
+        let todayKey = ReplayPeriod.key(today, calendar: calendar)
+        this = ReplayPeriod(kind: .week, days: this.days.filter { $0 <= todayKey }, firstDay: this.firstDay,
+                            calendar: calendar, name: name)
         last.name = name
         let counts = Dictionary(days.map { ($0.key, $0.count) }, uniquingKeysWith: +)
         return [("This Week", this), ("Last Week", last)].compactMap { title, period in

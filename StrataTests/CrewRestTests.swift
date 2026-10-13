@@ -43,20 +43,30 @@ struct CrewRestTests {
         let image = try #require(CrewCodeSheet.image(for: link))
         #expect(image.size.width == image.size.height)
         #expect(CrewCodeSheet.read(image) == link)
+        // Dark dots on its own light paper in both appearances: a reversed
+        // code is the one a camera reads least well.
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewCode.swift"))
+        #expect(sheet.contains(".foregroundStyle(Self.dots)") && sheet.contains(".background(Self.paper"))
+        #expect(!sheet.contains(".foregroundStyle(AppColors.inkPrimary)\n                            .accessibilityLabel(\"Invite code\")"))
         // Nothing is kept anywhere but the link: no code is looked up.
         let source = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewCode.swift"))
         #expect(source.contains("SocialStore.shared.inviteURL(for: crewID)"))
         #expect(!source.contains("UserDefaults") && !source.contains("CKRecord"))
     }
 
-    @Test("a crew of one has Invite on its own screen, and the crew's page shows a code")
+    @Test("the code is a glyph in the corner of the crew's page, and nothing stands on a crew of one's screen")
     func inviting() throws {
+        // The owner, on seeing both (2026-10-13): "I dont like how invite is
+        // just there and the qr code can be in the top left".
         let tower = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewTowerView.swift"))
-        #expect(tower.contains("if crew.members.count == 1 {"))
-        #expect(tower.contains("QuietWord(\"Invite\") { Task { await CrewSharing.invite(crewID) } }"))
+        #expect(!tower.contains("QuietWord(\"Invite\")"))
         let info = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewInfoSheet.swift"))
-        #expect(info.contains("Text(\"Show a Code\")"))
+        #expect(!info.contains("Text(\"Show a Code\")"), "not a row of its own")
+        #expect(info.contains("BareToolbarItem(placement: .topBarLeading) {"))
+        #expect(info.contains("Image(systemName: \"qrcode\").sheetAction(.confirm, as: .glyph)"))
         #expect(info.contains(".sheet(isPresented: $showsCode) { CrewCodeSheet(crewID: crewID) }"))
+        // Invite itself is still a row there.
+        #expect(info.contains("Text(\"Invite\")"))
     }
 
     @Test("a sticker on a win is a star to an older build and the picture to this one")
@@ -82,13 +92,85 @@ struct CrewRestTests {
         await b.react("🔥", to: win.winID, in: crew.id)
         let after = try #require(b.reactions(to: win.winID, in: crew.id).first)
         #expect(after.emoji == "🔥" && after.sketch == nil && !after.isStickerOnAWin)
-        // Your own win takes none, and neither does someone who may not send photographs.
-        #expect(await a.react(sticker: sticker(), to: win.winID, in: crew.id) == .notAllowed)
+        // Someone who may not send photographs sends no sticker.
         b.photosAllowed = { false }
         b.now = { Date().addingTimeInterval(10) }
         #expect(await b.react(sticker: sticker(), to: win.winID, in: crew.id) == .notAllowed)
+        // **The next crew day it is still a sticker** (found by review,
+        // 2026-10-13): the clearing of old replies took its picture, and a
+        // star nobody chose was left on the win.
+        b.photosAllowed = { true }
+        b.now = { Date().addingTimeInterval(20) }
+        #expect(await b.react(sticker: sticker(), to: win.winID, in: crew.id) == .sent)
+        b.now = { Date().addingTimeInterval(86_400 + 120) }
+        await b.refresh()
+        let nextDay = try #require(b.reactions(to: win.winID, in: crew.id).first)
+        #expect(nextDay.isStickerOnAWin, "\(nextDay.emoji), sketch \(nextDay.sketch != nil)")
+        // Taken back by its star: the picture goes with it.
+        let file = try #require(nextDay.sketch)
+        b.now = { Date().addingTimeInterval(86_400 + 200) }
+        await b.react(Reaction.stickerStandIn, to: win.winID, in: crew.id)
+        #expect(b.reactions(to: win.winID, in: crew.id).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        // A friend's is checked as a photograph is, and its file is not one
+        // of the win's own, which a new version of the win sweeps away.
+        let store = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))
+        #expect(store.contains("reaction.profileID != me && (reaction.isSticker || reaction.isStickerOnAWin)"))
+        let winName = win.winID.uuidString, reactionName = Reaction.name(winID: win.winID, profileID: sam)
+        #expect(!PublicCrewCloud.stem(.reaction, name: reactionName, tag: "t").hasPrefix(PublicCrewCloud.family(.sharedWin, name: winName)))
+        #expect(PublicCrewCloud.stem(.sharedWin, name: winName, tag: "t") == "\(winName)-t")
+        #expect(PublicCrewCloud.stem(.crew, name: "crew", tag: "t") == "crew-picture-t")
         // A star somebody picked from the keyboard is a star.
         #expect(!Reaction(winID: UUID(), crewID: crew.id, profileID: sam, emoji: Reaction.stickerStandIn, createdAt: now).isStickerOnAWin)
+    }
+
+    @Test("your own win takes your reaction, and nobody is told")
+    func reactingToYourOwn() async throws {
+        let a = store(jayden), b = store(sam)
+        a.sendsPings = true
+        let (crew, link) = try await a.createCrew(name: "Roommates")
+        _ = try await b.accept(CrewInvite(url: link))
+        await a.refresh()
+        let now = Date()
+        let win = OwnWin(winID: UUID(), title: "Gym", colour: .health, icon: .health, blockSize: .small,
+                         photoJPEG: nil, cropX: nil, cropY: nil, createdAt: now, updatedAt: now)
+        await a.post(win, to: [crew.id])
+        let before = world.pings.values.filter { $0[CrewPingRecord.kind] == CrewPingRecord.Kind.reaction.rawValue }.count
+        await a.react("🔥", to: win.winID, in: crew.id)
+        #expect(a.myReaction(to: win.winID, in: crew.id) == "🔥")
+        // The crew sees it as yours.
+        await b.refresh()
+        #expect(b.reactions(to: win.winID, in: crew.id).map(\.profileID) == [jayden])
+        // No push: a reaction's ping goes to the win's owner, never from them.
+        #expect(world.pings.values.filter { $0[CrewPingRecord.kind] == CrewPingRecord.Kind.reaction.rawValue }.count == before)
+        // And a sticker, the same.
+        a.now = { Date().addingTimeInterval(5) }
+        #expect(await a.react(sticker: sticker(), to: win.winID, in: crew.id) == .sent)
+        // The same emoji again takes it back, as on a friend's.
+        a.now = { Date().addingTimeInterval(10) }
+        await a.react("🔥", to: win.winID, in: crew.id)
+        a.now = { Date().addingTimeInterval(15) }
+        await a.react("🔥", to: win.winID, in: crew.id)
+        #expect(a.myReaction(to: win.winID, in: crew.id) == nil)
+    }
+
+    @Test("the crew's screen shows each plan once: today's proposals, then yours for today, less the closed")
+    func plansOnTheCrewScreen() {
+        let crew = CrewID(rawValue: "crew-1")
+        func plan(_ title: String, _ day: String) -> GroupPlan {
+            GroupPlan(id: UUID(), crewID: crew, sender: sam, title: title, when: .day(day))
+        }
+        let walk = plan("Walk", "2026-10-13"), gym = plan("Gym", "2026-10-14"), walkMine = plan("walk", "2026-10-13")
+        let read = plan("Read", "2026-10-13")
+        let shown = CrewPlanCards.plans(proposed: [walk, gym], mine: [walkMine, read], closed: [])
+        #expect(shown.map(\.title) == ["Walk", "Gym", "Read"])
+        #expect(CrewPlanCards.plans(proposed: [walk, gym], mine: [read], closed: [gym.bookKey]).map(\.title) == ["Walk", "Read"])
+        #expect(CrewPlanCards.plans(proposed: [], mine: [], closed: []).isEmpty)
+        #expect(CrewPlanCards.most == 2)
+        let tower = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewTowerView.swift")) ?? "")
+        // Floating under the header, so nothing on the page moves.
+        #expect(tower.contains("header.overlay(alignment: .bottom) {"))
+        #expect(tower.contains("CrewPlanCards(crewID: crewID)"))
     }
 
     @Test("a crew's week: this week and last, only with wins in them, titled with the crew")
@@ -102,7 +184,9 @@ struct CrewRestTests {
         let weeks = CrewStatsSections.weeks(days: days, today: today, calendar: calendar, name: "Roommates")
         #expect(weeks.map(\.title) == ["This Week", "Last Week"])
         #expect(weeks.map(\.count) == [5, 5])
-        #expect(weeks[0].period.days.first == "2026-10-12" && weeks[0].period.days.count == 7)
+        // This week ends today: days still to come are not empty days in a replay.
+        #expect(weeks[0].period.days == ["2026-10-12", "2026-10-13"])
+        #expect(weeks[0].period.range(relativeTo: today, locale: Locale(identifier: "en_US")).hasPrefix("Roommates, "))
         #expect(weeks[1].period.days.first == "2026-10-05" && weeks[1].period.days.last == "2026-10-11")
         // Titled with the crew, as its day is; yours is still "Your week".
         #expect(weeks[0].period.title == "Roommates")

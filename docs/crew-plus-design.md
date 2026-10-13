@@ -186,9 +186,20 @@ Built to the design above, with these differences, each for a reason:
   sends one with its date under it. The look back itself is a card over
   the chat on the day, with Send It Again.
 
-Not built yet, from the list above: a sticker on a win, the fix for a win
-sent to several crews telling only one, the invite as a QR, an Invite on a
-crew of one's tower, and a crew's weekly recap.
+**The rest, built 2026-10-13** (you: "build the rest of the things"):
+
+- **A sticker on a win**, a third word beside Reply and Doodle. It travels
+  as a star with the picture beside it, so a friend on an older build sees
+  a star, and so does every notification.
+- **A win sent to several crews tells every crew.** Each is told unless
+  everyone in it has already heard from an earlier one, and a phone that
+  still gets two folds them into one.
+- **Show a Code** on a crew's page: the invite link as a square of dots,
+  for a friend beside you.
+- **Invite** on a crew of one's own screen.
+- **This Week and Last Week** in a crew's Recent Days: the replay the app
+  makes of your own week, of the wins the crew holds. Asked for, never
+  announced.
 
 **Proven:** on the simulator with a seeded crew (looked at), and by a test
 that sends a plan from one phone to another over the pretend cloud.

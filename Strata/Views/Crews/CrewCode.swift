@@ -17,24 +17,36 @@ struct CrewCodeSheet: View {
     let crewID: CrewID
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var code: UIImage?
     @State private var problem: String?
 
-    private static let side: CGFloat = 240
+    private static let side: CGFloat = 264
+    /// About four dots of quiet round the code.
+    private static let margin: CGFloat = 20
+    private static let paper = Color(red: 0.965, green: 0.969, blue: 0.980)
+    private static let dots = Color(red: 0.086, green: 0.090, blue: 0.102)
 
     var body: some View {
         NavigationStack {
             VStack(spacing: GridConstants.gapSection) {
                 Group {
                     if let code {
-                        // Ink on the page's own ground: no white tile on a
-                        // dark page, and it still reads, since a camera wants
-                        // contrast and not a colour.
+                        // **Dark on light, in both appearances** (found by
+                        // review, 2026-10-13). It was the page's ink on the
+                        // page's ground, which in dark is light dots on
+                        // dark: a reversed code, the kind a camera reads
+                        // least reliably. This is a thing to be scanned, as
+                        // a photograph is a thing to be looked at, so it
+                        // keeps its own paper, with the quiet margin a code
+                        // needs round it.
                         Image(uiImage: code)
                             .interpolation(.none)
                             .resizable()
                             .renderingMode(.template)
-                            .foregroundStyle(AppColors.inkPrimary)
+                            .foregroundStyle(Self.dots)
+                            .padding(Self.margin)
+                            .background(Self.paper, in: RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
                             .accessibilityLabel("Invite code")
                     } else {
                         Color.clear
@@ -61,6 +73,9 @@ struct CrewCodeSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
+        // The code lets in whoever reads it: not left on screen, or in the
+        // app switcher's picture, when you look away.
+        .onChange(of: scenePhase) { _, phase in if phase != .active { dismiss() } }
         .task {
             do {
                 let url = try await SocialStore.shared.inviteURL(for: crewID)
