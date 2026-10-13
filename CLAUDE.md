@@ -2118,6 +2118,29 @@ is easy to undo by accident:
 - `HabitLog.note` is unused and already private to you (a test holds it
   out of crews). A note on a win needs no new field. Design in
   `docs/launch-pack-log.md`, part 12; not built, his call.
+- **A field that grows is `glassField`, never `glassCapsule`** (a
+  tester, 2026-10-13: "the text comes out of the box when you are typing
+  in the journal"). A capsule's ends are half its height, so words typed
+  past two lines stood outside them. The journal's bar, the plan's and the
+  chat's all use it; `FlowFixTests.writingFieldHoldsItsWords` rebuilds the
+  fault.
+- **Reply and Doodle are on your own crew win too** (the owner,
+  2026-10-13). Do not put the `senderProfileID != me` guard back in
+  `SocialStore.reply` or `doodle`.
+- **A note on a win** (`WinNote`, `DayWinNotes`): one line under the name
+  in a win's EDIT sheet, never a fresh Add; that day's journal draws the
+  day's wins above your words once one has a note; kept in the old unused
+  `HabitLog.note`; never sent to a crew.
+- **The site is `docs/`, live at somewins.xyz** (GitHub Pages, his push).
+  Light only, Inter kept on the site, no outside requests. It is meant to
+  feel like the app: the crest in the header (a ring that fills with the
+  scroll, arriving after the hero's logo), glass buttons, the app's 4pt
+  grid and type tiers, his drawn marks, the lattice as the footer, the
+  trailer as the hero, Apple's badge as the one download control. The
+  screens in it are filmed in the app with
+  `-strataSeedHead 1 -strataHeadOn tower,picture -strataSeedAllPhotos 1
+  -strataSeedRealPhotos demo` (his head, a photo on every block); the
+  chat with `-strataCrewFaces none` (a picture each).
 - `-strataSeedInvite 1` opens a friend's invitation after launch, for the
   join flow; `docs/.well-known/apple-app-site-association` is ready for
   the day somewins.xyz is live (the app still needs Associated Domains and

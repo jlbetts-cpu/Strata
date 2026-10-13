@@ -283,3 +283,24 @@ exists, at the thing, with nothing drawn until then. Recommended: one line
 under the name in a win's Edit sheet; once a day has a note, the journal
 draws that day's wins above your own words, live, never saved into them.
 Not in Add, where a second line would push the block behind the keys.
+
+## 13. Later the same day (2026-10-13)
+
+- **somewins.xyz went live** (you pointed the domain and switched
+  Associated Domains on). Invites are `somewins.xyz/join` from build 135,
+  and a tapped invite opens the app with no page in between once the site
+  is pushed. Enforce HTTPS is still to be ticked in GitHub Pages: the
+  certificate is valid, and the plain http address still answers.
+- **Build 135 went to Friends** at your word.
+- **The landing page** was rebuilt several times to your notes and is the
+  app now: its crest, its glass, its grid and type, your marks, the
+  lattice, the trailer as the hero. Not built from Apollo's statistics:
+  none of them could be checked.
+- **A note on a win** is built (part 12's design, as approved).
+- **A tester's report, fixed:** typed words ran outside the journal's
+  field as it grew. The chat's field had the same fault.
+- **Reply and Doodle on your own crew win.**
+- **Next, not started:** the photo confirm screen as an editor (doodle,
+  one filters button, stickers, your head; pinch to zoom on every crop
+  with the photo moving under a still box; a quieter crop box with drawn
+  corners). Mapped: no new iCloud field is needed.
