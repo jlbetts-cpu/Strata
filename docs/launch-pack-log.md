@@ -24,8 +24,8 @@ not the app.
 **Asked:** name, subtitle, three keyword fields, description, to paste.
 **Done:** every field counted against Apple's limits and read against the
 app. All fit. Nothing in the description is untrue. The sheet is
-`tasks/app-store-metadata.md`. **Open, his call:** which keyword
-arrangement to paste.
+`tasks/app-store-metadata.md`. **His pick, 2026-10-12:** the arrangement
+for the U.S. store. **10 once pasted.**
 
 ## 2. Voice and copy
 
@@ -145,5 +145,5 @@ link as its own card. **7 until you have sent one.**
 
 ## 9. Crew, items 4, 5 and 9: the plus row, group plans, looking back
 
-Designed, not built, at your word: `docs/crew-plus-design.md`. It needs
-four answers from you.
+Designed first, at your word: `docs/crew-plus-design.md`. **Approved
+2026-10-12, all four as recommended.** Built in the order at its foot.

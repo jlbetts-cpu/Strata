@@ -40,7 +40,7 @@ In a world built to pull your attention away, this is a still space that hands i
 The sunset's better when you know you earned it.
 ```
 
-### Keywords, exactly as the doc has them
+### Keywords, exactly as the doc has them (not the set to paste; see below)
 
 | Field | Text | Count |
 |---|---|---|
@@ -71,7 +71,9 @@ fit.
    combiner, so it is in. Saying it so the change is a choice and not a
    slip.
 
-### The same 36 words, arranged for the U.S. store (my recommendation)
+### The same 36 words, arranged for the U.S. store: **paste this one**
+
+Your pick, 2026-10-12.
 
 The words that matter most go in the two fields the U.S. reads, with
 their pairs kept together. The U.K. field takes the rest.

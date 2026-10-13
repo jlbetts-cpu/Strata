@@ -1,4 +1,10 @@
-# The plus row, group plans and looking back in a crew: a design for your yes
+# The plus row, group plans and looking back in a crew
+
+**Approved 2026-10-12**, all four as recommended: the row is Win, Plan,
+Strip, Memory, Sticker with the doodle inside Sticker; a group plan has
+one button, I'm In, and its strip stays inside the crew; a crew's look
+back is shown to you and one tap sends it. What follows is the design as
+approved; "From you" lines are answered.
 
 From the Launch Pack (2026-10-12), items 4, 5 and 9. You chose "design
 first, then build". Nothing here is built. Each part ends with what I need
