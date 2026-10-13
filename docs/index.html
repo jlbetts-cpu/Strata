@@ -18,10 +18,11 @@
      just being in light mode". -->
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" href="site/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  /* Inter, kept on the site itself (SIL Open Font License,
+     site/fonts/Inter-OFL.txt), so a page asks nobody else for anything. */
+  @font-face { font-family: "Inter"; font-style: normal; font-weight: 400 600; font-display: swap; src: url("site/fonts/Inter-latin.woff2") format("woff2"); }
   /* The layout is the owner's Apollo landing page (a bar with one button, a
      hero of the app, a large statement beside three short blocks, rows of
      three, a tilted phone beside words, a closing call). The air and the one
