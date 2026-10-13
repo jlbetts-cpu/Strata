@@ -72,11 +72,13 @@ crew: no Save to Photos for a strip of other people's pictures, which is
 the rule crew albums already keep.
 
 **Under the hood.** Two new kinds of sealed crew record: the plan (title,
-days, who wrote it) and "I did this" (which plan, which win). An older
-build ignores kinds it does not know, so a friend on an old build sees the
-win arrive and no card. I do not yet know whether new kinds need you to
-press Deploy in the CloudKit Console; that is the first thing I will find
-out, before writing anything else.
+days, who wrote it) and "I did this" (which plan, which win). A friend on
+an older build sees the win arrive and no card. **No Deploy is needed from
+you** (checked 2026-10-12): every crew item is one record type on the
+server, "CrewItem", holding a kind as plain text and a sealed box, so a new
+kind is new text and a new box, not a new field. What I have not checked
+yet is exactly what an older build does on meeting a kind it does not know;
+that is read before anything is written.
 
 **From you:** yes or no to "I'm In" as the one button; and yes or no to
 the strip staying inside the crew.
@@ -129,7 +131,8 @@ by itself.
 
 ## Order and proof
 
-1. Find out whether new record kinds need a Deploy (an hour, no build).
+1. ~~Find out whether new record kinds need a Deploy.~~ They do not.
+   Still to read: what an older build does with a kind it does not know.
 2. The plus row with Win, Strip and Sticker, which need nothing new on the
    server. To your phone.
 3. Group plans. A second reader on the diff, then your phone, then a

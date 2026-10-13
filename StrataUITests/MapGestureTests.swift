@@ -236,16 +236,19 @@ final class MapGestureTests: XCTestCase {
         // The head page. Its primary opens the head maker, which needs a front
         // camera and cannot run here; "Not Now" moves on without one. A
         // simulator that already holds a head (an earlier test made one) shows
-        // "One More Thing" instead, since there is nothing to offer.
+        // "Go On" instead, since there is nothing to offer. (It said "One
+        // More Thing", as the next page did; the voice pass of 2026-10-12
+        // made this one "Go On" and that one "Two More Things", which is how
+        // many pages follow it.)
         let onFromHead = app.buttons.matching(NSPredicate(
-            format: "label == %@ OR label == %@", "Not Now", "One More Thing")).firstMatch
+            format: "label == %@ OR label == %@", "Not Now", "Go On")).firstMatch
         XCTAssertTrue(onFromHead.waitForExistence(timeout: 15),
                       "no head page. On screen: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label))")
         onFromHead.tap()
         Thread.sleep(forTimeInterval: 2)
 
-        XCTAssertTrue(app.buttons["One More Thing"].waitForExistence(timeout: 15), "no thank-you page")
-        app.buttons["One More Thing"].tap()
+        XCTAssertTrue(app.buttons["Two More Things"].waitForExistence(timeout: 15), "no thank-you page")
+        app.buttons["Two More Things"].tap()
         Thread.sleep(forTimeInterval: 2)
 
         // The day's goal, its number left at the default. The last page.
