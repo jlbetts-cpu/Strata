@@ -15,7 +15,7 @@ nonisolated enum Support {
 
     /// The hosted Terms of Use (`docs/terms.html`, beside the privacy policy).
     /// Here rather than on a screen: the URL carries the repository's name.
-    static let termsURL = URL(string: "https://jlbetts-cpu.github.io/Strata/terms.html")!
+    static let termsURL = URL(string: "https://somewins.xyz/terms.html")!
     static let subject = "Some Wins feedback"
 
     /// Info.plist key for the App Store's numeric app ID, once there is one.

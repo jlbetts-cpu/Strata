@@ -40,7 +40,11 @@ struct PublicCrewTests {
     @Test("the page's other addresses open the crew too")
     func otherAddresses() throws {
         let key = CrewKey.new()
-        #expect(CrewInviteLink.otherPages.contains("https://somewins.xyz/join"))
+        // The move happened on 2026-10-13: the owner's address is the one
+        // sent, and the github one it replaced is still read.
+        #expect(CrewInviteLink.page == "https://somewins.xyz/join")
+        #expect(CrewInviteLink.otherPages.contains("https://jlbetts-cpu.github.io/Strata/join.html"))
+        #expect(!CrewInviteLink.otherPages.contains(CrewInviteLink.page))
         for page in CrewInviteLink.otherPages {
             let read = try #require(CrewInviteLink.read(URL(string: "\(page)#\(crew.rawValue).\(key.linkText)")!), "\(page)")
             #expect(read.crew == crew && read.key == key)

@@ -25,7 +25,7 @@ final class StripMessageActivity: UIActivity, MFMessageComposeViewControllerDele
     /// His line, and the one he kept in reserve (`docs/voice.md`).
     static let line = "Today was a good one. Some of it's in here."
     /// The app's own page (`docs/index.html`), until somewins.xyz points at it.
-    static let page = "https://jlbetts-cpu.github.io/Strata/"
+    static let page = "https://somewins.xyz/"
     /// What goes in the field: the line, then the link alone on the last
     /// line, which is where Messages makes a card of one.
     static let body = "\(line)\n\(page)"

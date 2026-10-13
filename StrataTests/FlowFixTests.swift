@@ -108,6 +108,28 @@ struct FlowFixTests {
         #expect(view.contains("if rimmed {\n                        RoundedRectangle(cornerRadius: outerCorner, style: .continuous)\n                            .strokeBorder(BlockRim.gradient(in: colorScheme)"))
     }
 
+    @Test("a somewins.xyz invitation opens the app: the app claims the domain and the site names the app")
+    func appLinks() throws {
+        let entitlements = try SourceSweep.read("Strata/Strata.entitlements")
+        #expect(entitlements.contains("<key>com.apple.developer.associated-domains</key>"))
+        #expect(entitlements.contains("<string>\(CrewInviteLink.appLinkDomain)</string>"))
+        let host = try #require(URL(string: CrewInviteLink.page)?.host)
+        #expect(CrewInviteLink.appLinkDomain == "applinks:\(host)")
+        // The site's half: this app, and the invite's own paths only.
+        let site = try SourceSweep.read("docs/.well-known/apple-app-site-association")
+        let json = try #require(try JSONSerialization.jsonObject(with: Data(site.utf8)) as? [String: Any])
+        let details = try #require((json["applinks"] as? [String: Any])?["details"] as? [[String: Any]])
+        #expect(details.first?["appIDs"] as? [String] == ["W34J6358L7.JaydenBetts.Strata"])
+        let paths = (details.first?["components"] as? [[String: Any]] ?? []).compactMap { $0["/"] as? String }
+        #expect(paths == ["/join", "/join.html"])
+        #expect(paths.contains(try #require(URL(string: CrewInviteLink.page)?.path)))
+        // GitHub publishes the folder only because the site's config says to.
+        #expect(try SourceSweep.read("docs/_config.yml").contains("include: [\".well-known\"]"))
+        // A strip's link is still the app's page and never an invitation.
+        #expect(StripMessageActivity.page == "https://somewins.xyz/")
+        #expect(CrewInviteLink.read(try #require(URL(string: StripMessageActivity.page))) == nil)
+    }
+
     @Test("an album's cover has no rim of light")
     func albumCoverHasNoRim() throws {
         let cover = try code("Strata/Views/AlbumCoverView.swift")

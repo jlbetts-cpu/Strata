@@ -1,20 +1,31 @@
 import Foundation
 
-/// **The invite link**: `https://jlbetts-cpu.github.io/Strata/join.html#<crew>.<key>`.
-/// The page opens the app by its own scheme, `somewins://join#<crew>.<key>`,
-/// and every form is read here. A link without a valid crew and key is no
-/// invitation.
+/// **The invite link**: `https://somewins.xyz/join#<crew>.<key>`. Every form
+/// is read here. A link without a valid crew and key is no invitation.
 ///
-/// **It moves to `https://somewins.xyz/join`** (the owner's own address,
-/// bought 2026-10-10: "there shouldnt say github in the link") in the build
-/// after the domain is live: that day it still showed the registrar's
-/// parking page, and a link to it would have been a dead invitation. This
-/// build already reads those links, so the change is `page` and nothing else.
+/// **The owner's own address since 2026-10-13** ("there shouldnt say github
+/// in the link", 2026-10-10; the domain went live three days later). It was
+/// `https://jlbetts-cpu.github.io/Strata/join.html`, which is still read
+/// and which GitHub forwards to the new one.
+///
+/// **And a tap opens the app with no page in between** on a phone that has
+/// it: the app is associated with the domain (`applinks:somewins.xyz` in
+/// the entitlements, `docs/.well-known/apple-app-site-association` on the
+/// site), so iPhone hands the link straight to
+/// `StrataSceneDelegate.scene(_:continue:)`. Where that does not happen (a
+/// link typed into Safari, a phone without the app) the page is still
+/// there, and opens the app by its own scheme, `somewins://join#<crew>.<key>`.
+/// Builds from 116 on read this address, so friends on an older build can
+/// open a link this one sends.
 nonisolated enum CrewInviteLink {
-    static let page = "https://jlbetts-cpu.github.io/Strata/join.html"
-    /// The other addresses the page answers at, now or soon.
-    static let otherPages = ["https://jlbetts-cpu.github.io/Strata/join", "https://somewins.xyz/join",
-                             "https://somewins.xyz/join.html", "https://www.somewins.xyz/join"]
+    static let page = "https://somewins.xyz/join"
+    /// The other addresses the page answers at, or did.
+    static let otherPages = ["https://somewins.xyz/join.html", "https://www.somewins.xyz/join",
+                             "https://www.somewins.xyz/join.html",
+                             "https://jlbetts-cpu.github.io/Strata/join.html",
+                             "https://jlbetts-cpu.github.io/Strata/join"]
+    /// The domain the app is associated with, as the entitlement spells it.
+    static let appLinkDomain = "applinks:somewins.xyz"
     static let scheme = "somewins"
 
     static func url(crew: CrewID, key: CrewKey) -> URL {

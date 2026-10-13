@@ -97,7 +97,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <key>signingCertificate</key><string>Apple Distribution</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>JaydenBetts.Strata</key><string>Strata App Store 49</string>
+        <key>JaydenBetts.Strata</key><string>Strata App Store 50</string>
         <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
         <key>JaydenBetts.Strata.Notifications</key><string>Some Wins Notifications App Store 3</string>
     </dict>
@@ -106,6 +106,10 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+# **"Strata App Store 50"** (2026-10-13): made the same way once the owner
+# switched Associated Domains on for the app ID, so a somewins.xyz invite
+# opens the app. 49 before it.
+#
 # **The app signs with "Strata App Store 37"** (2026-10-02, Crews): made by
 # `tools/asc_profiles.py create` once Push Notifications was enabled on the app
 # ID, so it carries `aps-environment` as well as the iCloud container. 34
