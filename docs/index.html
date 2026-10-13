@@ -14,165 +14,217 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<!-- Light only, at the owner's word (2026-10-13): "I'm fine with the site
-     just being in light mode". -->
+<!-- Light only, at the owner's word (2026-10-13). -->
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
 <link rel="preload" href="site/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script>document.documentElement.className = "js";</script>
 <style>
   /* Inter, kept on the site itself (SIL Open Font License,
-     site/fonts/Inter-OFL.txt), so a page asks nobody else for anything. */
+     site/fonts/Inter-OFL.txt), so a page asks nobody else for anything.
+     Zen Maru Gothic (SIL OFL, invite/ZenMaruGothic-OFL.txt) is the wordmark
+     and nothing else. */
   @font-face { font-family: "Inter"; font-style: normal; font-weight: 400 600; font-display: swap; src: url("site/fonts/Inter-latin.woff2") format("woff2"); }
-  /* The skeleton is the owner's Apollo landing page. The manner is an Apple
-     product page (his word, 2026-10-13: "would love the landing page to
-     feel more apple"): centred statements, the product in soft rounded
-     tiles, one quiet move as each thing arrives, and nothing else. The one
-     black line is his own drawing; the words are the app's. Zen Maru Gothic
-     (SIL Open Font License, invite/ZenMaruGothic-OFL.txt) is the wordmark
-     and nothing else. No shadows anywhere. */
   @font-face { font-family: "Zen Maru"; src: url("invite/ZenMaruGothic-Bold.ttf") format("truetype"); font-display: swap; }
+
+  /* **The page is the app** (the owner, 2026-10-13: "it truly needs to
+     feel like the app, clean, minimal, with hints to the app ... the
+     design system's specific sizing ... everything on a clean grid").
+     So the numbers are the app's own (`GridConstants`, `Typography`):
+     a 4pt grid (4, 8, 12, 16, 24, 32, and their doubles), a 16pt page
+     margin on a phone, a 20pt corner on a surface and 8 on a block, two
+     weights and no third, the type tiers (13, 15, 17, 22, 28, 34) and
+     their doubles for a desk. Chrome is glass and hairlines; nothing casts
+     a shadow. The skeleton is his Apollo page and the manner is a product
+     page's; the marks are drawn by him. */
   :root {
-    --ground: #ffffff; --tile: #f5f5f7;
-    --ink: #1d1d1f; --ink-2: #6e6e73; --ink-3: #86868b;
-    --rule: rgba(0,0,0,.08);
-    --gutter: clamp(16px, 4vw, 44px);
-    --section: clamp(96px, 13vw, 190px);
-    --radius: clamp(22px, 2.4vw, 32px);
+    --ground: #ffffff; --fill: #f5f5f7;
+    --ink: #16171a; --ink-2: rgba(22,23,26,.62); --ink-3: rgba(22,23,26,.44);
+    --rule: rgba(22,23,26,.08);
+    --margin: 16px; --gutter: 8px; --section: 96px;
+    --surface: 20px;
+    --t-hero: 40px; --t-title: 34px; --t-state: 28px; --t-lede: 22px; --t-tile: 22px;
     --ease: cubic-bezier(.2, .7, .2, 1);
   }
+  @media (min-width: 760px) { :root { --margin: 32px; --gutter: 16px; --section: 128px; --t-hero: 56px; --t-title: 44px; --t-state: 34px; --t-tile: 28px; } }
+  @media (min-width: 1100px) { :root { --margin: 48px; --t-hero: 68px; --t-title: 56px; --t-state: 44px; --t-lede: 28px; } }
+
   * { box-sizing: border-box; }
-  html { background: var(--ground); -webkit-text-size-adjust: 100%; }
+  html { background: var(--ground); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
     margin: 0; color: var(--ink); background: var(--ground);
-    font: 400 17px/1.47 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font: 400 17px/24px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     letter-spacing: -.011em;
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
   a { color: inherit; -webkit-tap-highlight-color: transparent; }
   img, video { display: block; max-width: 100%; }
   p, h1, h2, h3 { margin: 0; }
-  h1, h2, h3, .lede, .eyebrow { text-wrap: balance; }
-  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter); }
+  h1, h2, h3, .lede, .state { text-wrap: balance; }
+  .wrap { width: 100%; max-width: 1232px; margin: 0 auto; padding: 0 var(--margin); }
 
-  /* His drawings are one black line: a mask, filled with the page's ink. */
+  /* His marks and drawings are one black line: a mask, filled with ink. */
   .ink { display: block; background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
 
-  /* The bar: thin, clear, a hairline once the page has moved under it. */
-  header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.8); -webkit-backdrop-filter: saturate(1.8) blur(20px); backdrop-filter: saturate(1.8) blur(20px); border-bottom: 1px solid transparent; transition: border-color .3s ease; }
-  header.moved { border-bottom-color: var(--rule); }
-  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 52px; }
-  .mark { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font: 700 18px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
-  .mark .ink { --art: url("invite/camera.png"); width: 23px; height: 22px; }
-  .button {
-    display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 15px;
-    border-radius: 16px; background: var(--ink); color: #fff; text-decoration: none;
-    font-weight: 500; font-size: 13px; letter-spacing: -.005em; white-space: nowrap;
-    transition: opacity .2s ease;
+  /* **The header is the app's**: the page blurs away under it with no line
+     (his word: "that blur, like the transparent effect of the header, not
+     clean apart"). A glass button either side of the crest. */
+  header { position: sticky; top: 0; z-index: 10; }
+  header::before {
+    content: ""; position: absolute; inset: 0 0 -32px 0; pointer-events: none;
+    background: linear-gradient(rgba(255,255,255,.92), rgba(255,255,255,.72) 60%, rgba(255,255,255,0));
+    -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-mask: linear-gradient(#000 0, #000 62%, transparent); mask: linear-gradient(#000 0, #000 62%, transparent);
   }
-  .button:hover { opacity: .82; }
-  .button:active { opacity: .66; }
-  .button.large { height: 50px; padding: 0 28px; border-radius: 25px; font-size: 17px; }
+  header .wrap { position: relative; display: flex; align-items: flex-start; justify-content: space-between; height: 104px; padding-top: 12px; }
+  /* Glass: clear, a little light caught on its top edge, a hairline. */
+  .glass {
+    width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; text-decoration: none;
+    background: rgba(255,255,255,.58); border: 1px solid var(--rule);
+    -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -8px 12px -10px rgba(22,23,26,.10);
+    transition: transform .16s var(--ease), background .16s ease;
+  }
+  .glass:hover { background: rgba(255,255,255,.8); }
+  .glass:active { transform: scale(.94); }
+  .glass .ink { width: 22px; height: 22px; }
+  .glass svg { width: 22px; height: 22px; fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* The crest: on Wins the day's goal is a ring of short strokes round your
+     head, with a capsule under it. Here the ring is the page, and it fills
+     as you read down. */
+  .crest { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; }
+  .ring { position: relative; width: 56px; height: 56px; }
+  .ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .track { fill: none; stroke: rgba(22,23,26,.10); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
+  .ring .cut { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
+  .ring .read { fill: none; stroke: var(--ink); stroke-width: 6; stroke-dasharray: var(--read, 0) 120; transition: stroke-dasharray .24s linear; }
+  .ring .well { position: absolute; inset: 9px; border-radius: 50%; background: var(--fill); display: grid; place-items: center; }
+  .ring .well .ink { --art: url("invite/camera.png"); width: 22px; height: 21px; }
+  .caption { height: 28px; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; background: rgba(255,255,255,.58); border: 1px solid var(--rule); -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.95); font: 700 14px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
+
+  /* The one filled button: the app's primary capsule, ink on the light page. */
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; height: 48px; padding: 0 24px;
+    border-radius: 24px; background: var(--ink); color: #fff; text-decoration: none;
+    font-weight: 600; font-size: 17px; letter-spacing: -.011em; white-space: nowrap;
+    transition: opacity .16s ease, transform .16s var(--ease);
+  }
+  .button:hover { opacity: .86; }
+  .button:active { transform: scale(.97); }
+  .call { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .badge img { height: 40px; width: auto; }
+  .badge:active { opacity: .7; }
 
   /* The hero */
-  .hero { padding-top: clamp(56px, 8vw, 112px); text-align: center; }
-  h1 { margin: 0 auto; max-width: 11ch; font-weight: 600; font-size: clamp(48px, 9vw, 112px); line-height: 1.02; letter-spacing: -.045em; }
-  .lede { margin: clamp(16px, 2vw, 26px) auto 0; max-width: 28ch; color: var(--ink-2); font-size: clamp(19px, 2.2vw, 28px); line-height: 1.32; letter-spacing: -.02em; font-weight: 500; }
-  .call { margin-top: clamp(24px, 3vw, 36px); display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  small { color: var(--ink-3); font-size: 13px; }
+  .hero { padding-top: 32px; text-align: center; }
+  h1 { margin: 0 auto; max-width: 11ch; font-weight: 600; font-size: var(--t-hero); line-height: 1.06; letter-spacing: -.04em; }
+  .lede { margin: 16px auto 0; max-width: 30ch; color: var(--ink-2); font-size: var(--t-lede); line-height: 1.28; letter-spacing: -.02em; }
+  .hero .call { margin-top: 24px; }
 
-  /* The trailer: on the page's own white, in a tile. */
-  .film { position: relative; margin: clamp(44px, 6.5vw, 88px) auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: var(--tile); }
-  .film.tall { aspect-ratio: 9 / 16; max-width: min(100%, 390px); }
+  /* The trailer, on the page's own white, in a surface. */
+  .film { position: relative; margin: 48px auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--surface); overflow: hidden; background: var(--fill); }
+  .film.tall { aspect-ratio: 9 / 16; max-width: 360px; }
   .film video { width: 100%; height: 100%; object-fit: cover; }
-  .film .sound {
-    position: absolute; right: 14px; bottom: 14px; height: 34px; padding: 0 14px; border-radius: 17px; border: 0;
-    background: rgba(232,232,237,.78); color: var(--ink);
-    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-    font: 500 13px/1 Inter, -apple-system, sans-serif; cursor: pointer;
-  }
+  .film .sound { position: absolute; right: 12px; bottom: 12px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--rule); background: rgba(255,255,255,.7); color: var(--ink); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font: 600 13px/1 Inter, -apple-system, sans-serif; cursor: pointer; }
   .film .sound:active { opacity: .7; }
 
-  /* `.wrap` sets all four paddings, so the section's own top is named with it. */
-  section.wrap { padding-top: var(--section); }
+  /* `.wrap` sets all four paddings, so a section's own top is named with it. */
+  section.wrap { padding-top: var(--section); scroll-margin-top: 24px; }
 
-  /* One large paragraph, the way a product page states its case: the claim
-     in ink, the rest in grey. */
-  .statement { max-width: 920px; margin: 0 auto; text-align: center; color: var(--ink-3); font-weight: 600; font-size: clamp(26px, 4vw, 52px); line-height: 1.14; letter-spacing: -.035em; }
-  .statement b { color: var(--ink); font-weight: 600; }
+  /* One statement: the claim in ink, the rest quieter. */
+  .state { max-width: 22ch; margin: 0 auto; text-align: center; color: var(--ink-3); font-weight: 600; font-size: var(--t-state); line-height: 1.16; letter-spacing: -.03em; }
+  .state b { color: var(--ink); font-weight: 600; }
+  @media (min-width: 760px) { .state { max-width: 26ch; } }
 
-  /* A section's head: a small word, then the line. */
-  .head { text-align: center; margin: 0 auto clamp(36px, 5vw, 64px); }
-  .eyebrow { color: var(--ink-2); font-weight: 600; font-size: clamp(17px, 1.7vw, 21px); letter-spacing: -.015em; margin-bottom: 10px; }
-  h2 { margin: 0 auto; max-width: 16ch; font-weight: 600; font-size: clamp(36px, 6vw, 76px); line-height: 1.05; letter-spacing: -.04em; }
-  .head .lede { font-size: clamp(18px, 1.9vw, 24px); max-width: 34ch; }
+  .head { text-align: center; margin: 0 auto 48px; }
+  .head .glyph { width: 32px; height: 32px; margin: 0 auto 12px; }
+  h2 { margin: 0 auto; max-width: 16ch; font-weight: 600; font-size: var(--t-title); line-height: 1.08; letter-spacing: -.035em; }
 
-  /* Tiles */
-  .tiles { display: grid; gap: clamp(12px, 1.6vw, 20px); grid-template-columns: repeat(12, minmax(0, 1fr)); }
-  .tile { grid-column: span 12; position: relative; overflow: hidden; background: var(--tile); border-radius: var(--radius); padding: clamp(26px, 3.4vw, 48px) clamp(24px, 3.4vw, 48px) 0; min-height: clamp(440px, 46vw, 600px); display: flex; flex-direction: column; }
-  .tile h3 { font-weight: 600; font-size: clamp(24px, 2.7vw, 36px); line-height: 1.1; letter-spacing: -.03em; max-width: 14ch; }
-  .tile p { margin-top: 10px; color: var(--ink-2); font-size: clamp(16px, 1.45vw, 19px); line-height: 1.4; max-width: 30ch; font-weight: 500; letter-spacing: -.015em; }
-  /* The phone stands on the tile's floor and runs off it. */
-  .tile .phone { margin: clamp(26px, 3.2vw, 44px) auto 0; width: min(74%, 300px); aspect-ratio: 1206 / 2000; border-radius: 13.5% / 8.1% ; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: hidden; background: #fff; border: 7px solid var(--ink); border-bottom: 0; margin-top: auto; }
+  /* The surfaces sit on a twelve-column grid. */
+  .tiles { display: grid; gap: var(--gutter); grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .tile { grid-column: span 12; position: relative; overflow: hidden; background: var(--fill); border-radius: var(--surface); padding: 24px 24px 0; min-height: 480px; display: flex; flex-direction: column; }
+  .tile .glyph { width: 28px; height: 28px; margin-bottom: 12px; }
+  .tile h3 { font-weight: 600; font-size: var(--t-tile); line-height: 1.14; letter-spacing: -.025em; max-width: 14ch; }
+  .tile p { margin-top: 8px; color: var(--ink-2); max-width: 30ch; text-wrap: pretty; }
+  .tile .gap { flex: 1; min-height: 32px; }
+  /* A phone stands on its surface's floor and runs off it. */
+  .tile .phone { margin: 0 auto; width: min(76%, 288px); aspect-ratio: 1206 / 2000; border-radius: 40px 40px 0 0; overflow: hidden; background: #fff; border: 6px solid var(--ink); border-bottom: 0; }
   .tile .phone > * { width: 100%; height: auto; }
-  .tile .gap { flex: 1; min-height: clamp(26px, 3.2vw, 44px); }
-  .tile.words { min-height: 0; padding-bottom: clamp(26px, 3.4vw, 48px); justify-content: center; }
-  .tile.art { align-items: center; justify-content: center; text-align: center; padding-bottom: clamp(26px, 3.4vw, 48px); }
+  .tile.art { align-items: center; justify-content: center; text-align: center; padding-bottom: 24px; }
   .tile.art h3 { max-width: 20ch; }
-  .tile.art p { max-width: 30ch; text-wrap: balance; }
-  .tile p { text-wrap: pretty; }
-  .drawing { width: min(84%, 380px); aspect-ratio: 3 / 2; position: relative; margin-bottom: clamp(14px, 2vw, 26px); }
+  .tile.art p { text-wrap: balance; }
+  .drawing { width: min(84%, 360px); aspect-ratio: 3 / 2; position: relative; margin-bottom: 16px; }
   .drawing .ink { position: absolute; inset: 0; }
   .drawing .crew { --art: url("invite/crew.png"); }
   .drawing .cheer { --art: url("invite/cheer.png"); }
-  .quiet { margin-top: clamp(28px, 3.4vw, 44px); text-align: center; }
-
-  /* The close */
-  .close { text-align: center; padding-bottom: var(--section); }
-  .close .lede { max-width: 24ch; }
-
-  footer { background: var(--tile); }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; justify-content: space-between; padding-top: 22px; padding-bottom: calc(22px + env(safe-area-inset-bottom)); color: var(--ink-2); font-size: 12px; }
-  footer nav { display: flex; gap: 22px; }
-  footer a { text-decoration: none; }
-  footer a:hover { color: var(--ink); text-decoration: underline; }
-
+  .quiet { margin-top: 24px; text-align: center; color: var(--ink-3); font-size: 13px; line-height: 16px; }
   @media (min-width: 760px) {
+    .tile { padding: 32px 32px 0; min-height: 560px; }
+    .tile.art { padding-bottom: 32px; }
     .tile.a { grid-column: span 7; }
     .tile.b { grid-column: span 5; }
-    .tile.third { grid-column: span 4; }
   }
+
+  .close { text-align: center; }
+  .close .call { margin-top: 24px; }
+
+  /* **The tower's lattice is the page's floor** ("hints to the app like the
+     lattice blocks in the footer"): the empty cells a tower grows out of,
+     and the next slot standing where the next win goes. */
+  footer { padding-top: var(--section); }
+  .lattice { --cell: 80px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cell), 1fr)); gap: 4px; -webkit-mask: linear-gradient(180deg, transparent, #000 70%); mask: linear-gradient(180deg, transparent, #000 70%); }
+  .lattice i { display: block; aspect-ratio: 1; border-radius: 8px; background: var(--fill); }
+  .lattice a.slot { display: grid; place-items: center; aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,.7); border: 1px solid var(--rule); box-shadow: inset 0 1px 0 #fff; text-decoration: none; }
+  .lattice a.slot .ink { --art: url("site/tip-plus.png"); width: 24px; height: 24px; opacity: .5; transition: opacity .16s ease; }
+  .lattice a.slot:hover .ink { opacity: 1; }
+  footer .legal { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; padding-top: 16px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); color: var(--ink-3); font-size: 13px; line-height: 16px; }
+  footer nav { display: flex; gap: 24px; }
+  footer nav a { text-decoration: none; }
+  footer nav a:hover { color: var(--ink); }
 
   /* One move: each thing rises a little into place as it arrives. Only
      when the page can run it, and never with Reduce Motion. */
-  .js .rise { opacity: 0; transform: translateY(22px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .js .rise { opacity: 0; transform: translateY(16px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
   .js .rise.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
     .js .rise { opacity: 1; transform: none; transition: none; }
-    .button, header { transition: none; }
+    .button, .glass, .ring .read { transition: none; }
   }
 </style>
 </head>
 <body>
-  <header id="bar">
+  <header>
     <div class="wrap">
-      <a class="mark" href="/" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</a>
-      <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Get</a>
+      <a class="glass" href="#day" aria-label="How it works"><span class="ink" style="--art:url('site/mark-layers.png')" aria-hidden="true"></span></a>
+      <a class="crest" href="#top" aria-label="Some Wins">
+        <span class="ring" id="ring" aria-hidden="true">
+          <svg viewBox="0 0 44 44">
+            <defs><mask id="strokes"><circle class="cut" cx="22" cy="22" r="19.1" pathLength="120"/></mask></defs>
+            <circle class="track" cx="22" cy="22" r="19.1" pathLength="120"/>
+            <circle class="read" cx="22" cy="22" r="19.1" pathLength="120" mask="url(#strokes)"/>
+          </svg>
+          <span class="well"><span class="ink"></span></span>
+        </span>
+        <span class="caption">Some Wins</span>
+      </a>
+      <a class="glass" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download Some Wins">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M5.5 19.5h13"/></svg>
+      </a>
     </div>
   </header>
 
-  <main>
+  <main id="top">
     <div class="wrap hero">
       <h1 class="rise">Win with your people.</h1>
       <p class="lede rise">Every win stacked.</p>
       <div class="call rise">
-        <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
-        <small>For iPhone</small>
+        <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Download Some Wins</a>
+        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="120" height="40"></a>
       </div>
-      <!-- The trailer (the owner, 2026-10-13: "we already made the trailer,
-           can we just have that in the hero section instead"). His launch
-           film, wide on a desk and the vertical cut on a phone, silent until
-           asked. -->
+      <!-- The trailer: his launch film, wide on a desk and the vertical cut
+           on a phone, silent until asked. -->
       <div class="film rise" id="film">
         <video muted loop playsinline preload="metadata" aria-label="The Some Wins trailer"></video>
         <button type="button" class="sound" aria-pressed="false">Sound</button>
@@ -180,95 +232,82 @@
     </div>
 
     <section class="wrap">
-      <p class="statement rise"><b>The good things you did today are the first ones you forget.</b> Some Wins keeps them. Every win is a block, every day is a tower, and a month from now it is all still there.</p>
+      <p class="state rise"><b>The good things you did today are the first ones you forget.</b> Some Wins keeps them.</p>
     </section>
 
-    <section class="wrap">
+    <section class="wrap" id="day">
       <div class="head rise">
-        <p class="eyebrow">Your day</p>
+        <span class="ink glyph" style="--art:url('site/mark-layers.png')" aria-hidden="true"></span>
         <h2>Anything you did counts.</h2>
       </div>
       <div class="tiles">
         <div class="tile a rise">
           <h3>Every win is a block.</h3>
-          <p>Tap the slot and name what you did. Hold it for a quick one. Add a photo and the day is kept.</p>
+          <p>Tap the slot and name what you did. Add a photo and the day is kept.</p>
           <div class="gap"></div>
           <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/tower.jpg" width="480" height="1044"><source src="site/tower.mp4" type="video/mp4"></video></div>
         </div>
         <div class="tile b rise">
           <h3>Plan it. It waits.</h3>
-          <p>What you mean to do stands on the tower as an empty box. Moving it to tomorrow is just planning.</p>
+          <p>What you mean to do stands on the tower as an empty box.</p>
           <div class="gap"></div>
           <div class="phone" aria-hidden="true"><img src="site/plan.jpg" alt="" width="480" height="1044" loading="lazy"></div>
         </div>
         <div class="tile b rise">
           <h3>A month, in your own photos.</h3>
-          <p>Memories builds itself out of what you logged. Each month has its own drawing.</p>
+          <p>Memories builds itself out of what you logged.</p>
           <div class="gap"></div>
           <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/memories.jpg" width="480" height="1044"><source src="site/memories.mp4" type="video/mp4"></video></div>
         </div>
         <div class="tile a rise">
           <h3>Your week, put together.</h3>
-          <p>Every Sunday the week falls back into place, block by block, in the order you lived it.</p>
+          <p>Every Sunday the week falls back into place, block by block.</p>
           <div class="gap"></div>
           <div class="phone" aria-hidden="true"><video class="loop" muted loop playsinline preload="metadata" poster="site/replay.jpg" width="480" height="1044"><source src="site/replay.mp4" type="video/mp4"></video></div>
         </div>
       </div>
-      <p class="quiet rise"><small>Designed with ADHD brains in mind. Nothing is ever marked missed.</small></p>
+      <p class="quiet rise">Designed with ADHD brains in mind. Nothing is ever marked missed.</p>
     </section>
 
-    <section class="wrap">
+    <section class="wrap" id="crews">
       <div class="head rise">
-        <p class="eyebrow">Crews</p>
+        <span class="ink glyph" style="--art:url('site/mark-people.png')" aria-hidden="true"></span>
         <h2>One tower for the day, with a few friends.</h2>
-        <p class="lede">You see what they did. They see what you did. Nobody is ranked.</p>
       </div>
       <div class="tiles">
         <div class="tile b rise">
           <h3>Say it in the chat.</h3>
-          <p>A heart, a crown, a sticker cut from your own photo. Plan something together and it is a box on the crew's tower.</p>
+          <p>A heart, a sticker cut from your own photo, a plan to do together.</p>
           <div class="gap"></div>
           <div class="phone" aria-hidden="true"><img src="site/chat.jpg" alt="" width="603" height="1311" loading="lazy"></div>
         </div>
         <div class="tile a art rise">
           <div class="drawing" aria-hidden="true"><span class="ink crew"></span><span class="ink cheer"></span></div>
           <h3>Winning is better together.</h3>
-          <p>A crew is two to eight people. A crew of two is a crew.</p>
-        </div>
-        <div class="tile third words rise">
-          <h3>Small and private.</h3>
-          <p>Invite with a link. Leave whenever you like.</p>
-        </div>
-        <div class="tile third words rise">
-          <h3>Yours first.</h3>
-          <p>A win is on your own tower before it is anyone else's.</p>
-        </div>
-        <div class="tile third words rise">
-          <h3>You choose.</h3>
-          <p>Each win goes only to the crews you pick for it.</p>
+          <p>Two to eight people. Nobody is ranked. You choose which wins a crew sees.</p>
         </div>
       </div>
     </section>
 
     <section class="wrap close">
-      <div class="head rise">
-        <h2>Win with your people.</h2>
-        <p class="lede">Small wins still count. Start with one.</p>
-      </div>
-      <div class="call rise" style="margin-top:0">
-        <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
-        <small>For iPhone</small>
+      <h2 class="rise">Small wins still count.</h2>
+      <div class="call rise">
+        <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Download Some Wins</a>
+        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="120" height="40" loading="lazy"></a>
       </div>
     </section>
   </main>
 
   <footer>
     <div class="wrap">
-      <span>Some Wins</span>
-      <nav>
-        <a href="privacy.html">Privacy</a>
-        <a href="terms.html">Terms</a>
-      </nav>
+      <div class="lattice" id="lattice" aria-hidden="true"></div>
+      <div class="legal">
+        <span>Some Wins</span>
+        <nav>
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+        </nav>
+      </div>
     </div>
   </footer>
 <script>
@@ -276,10 +315,29 @@
     var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var canWatch = "IntersectionObserver" in window;
 
-    // The bar takes its hairline once the page has moved under it.
-    var bar = document.getElementById("bar");
-    function moved() { bar.classList.toggle("moved", window.scrollY > 8); }
-    window.addEventListener("scroll", moved, { passive: true }); moved();
+    // The ring fills as the page is read, as Wins' ring fills with the day.
+    var ring = document.getElementById("ring");
+    function read() {
+      var room = document.documentElement.scrollHeight - window.innerHeight;
+      var done = room > 0 ? Math.min(1, Math.max(0, window.scrollY / room)) : 0;
+      ring.style.setProperty("--read", (done * 120).toFixed(1));
+    }
+    window.addEventListener("scroll", read, { passive: true });
+    window.addEventListener("resize", read);
+    read();
+
+    // The lattice: three rows of empty cells, and the next slot on the floor.
+    var lattice = document.getElementById("lattice");
+    function lay() {
+      var across = getComputedStyle(lattice).gridTemplateColumns.split(" ").length;
+      var cells = "";
+      for (var i = 0; i < across * 3; i++) {
+        var slot = i === across * 2 + Math.floor((across - 1) / 2);
+        cells += slot ? '<a class="slot" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download Some Wins"><span class="ink"></span></a>' : "<i></i>";
+      }
+      lattice.innerHTML = cells;
+    }
+    lay(); window.addEventListener("resize", lay);
 
     // Each thing rises into place once, as it arrives.
     var rising = [].slice.call(document.querySelectorAll(".rise"));
@@ -309,7 +367,7 @@
       if (film.paused) film.play().catch(function () {});
     });
 
-    // The films in the tiles are short loops recorded in the app.
+    // The films in the surfaces are short loops recorded in the app.
     var films = [film].concat([].slice.call(document.querySelectorAll("video.loop")));
     if (still) { film.controls = true; sound.hidden = true; return; }
     if (!canWatch) { films.forEach(function (f) { f.play().catch(function () {}); }); return; }
