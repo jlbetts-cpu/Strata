@@ -131,6 +131,37 @@ struct FlowFixTests {
         #expect(CrewInviteLink.read(try #require(URL(string: StripMessageActivity.page))) == nil)
     }
 
+    @Test("words typed into a field that grows stay inside its glass")
+    func writingFieldHoldsItsWords() throws {
+        // The first word of a field grown to five lines: 16 in, 8 down
+        // (`gapLabel`, `gapTight`), in a box 300 wide and 126 tall.
+        let size = CGSize(width: 300, height: 126)
+        let word = CGPoint(x: GridConstants.gapLabel, y: GridConstants.gapTight + 2)
+        // As a capsule its end is 63 round, and the word is outside it.
+        #expect(!GlassField.holds(word, in: size, radius: size.height / 2), "the fault, as reported")
+        // Held at one line's half height, the word is inside, at every height.
+        for lines in 1...5 {
+            let grown = CGSize(width: 300, height: CGFloat(lines) * 22 + 22)
+            #expect(GlassField.holds(word, in: grown, radius: GlassField.radius), "\(lines) lines")
+            #expect(GlassField.holds(CGPoint(x: word.x, y: grown.height - word.y), in: grown, radius: GlassField.radius))
+        }
+        #expect(GlassField.radius == GlassIconButton.defaultSide / 2)
+        // Every field that grows uses it: the journal's and the plan's bar, and the chat's.
+        let bar = try code("Strata/Views/DayComposer.swift")
+        #expect(bar.contains(".glassField()") && !bar.contains(".glassCapsule("))
+        let chat = try code("Strata/Views/Crews/CrewChatSheet.swift")
+        let field = try #require(chat.range(of: "TextField(\"Message\", text: draftField, axis: .vertical)"))
+        let after = chat[field.upperBound...].prefix(600)
+        #expect(after.contains(".glassField()") && !after.contains(".glassCapsule("))
+        // And nothing else that grows sits in a capsule.
+        for path in ["Strata/Views/AddWinSheet.swift", "Strata/Views/DayWinNotes.swift", "Strata/Views/PlanItemDetailSheet.swift"] {
+            let source = try code(path)
+            for piece in source.components(separatedBy: "axis: .vertical").dropFirst() {
+                #expect(!piece.prefix(500).contains(".glassCapsule("), "\(path)")
+            }
+        }
+    }
+
     @Test("an album's cover has no rim of light")
     func albumCoverHasNoRim() throws {
         let cover = try code("Strata/Views/AlbumCoverView.swift")

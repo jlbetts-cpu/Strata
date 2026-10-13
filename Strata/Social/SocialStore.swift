@@ -1280,9 +1280,13 @@ final class SocialStore {
     /// seen only by the win's owner; now the crew sees it, and the owner is
     /// still told ("Sam: so proud", `CrewNotifications`).
     @discardableResult
+    ///
+    /// **On your own win too** (the owner, 2026-10-13: "there is no way to
+    /// reply or add doodle to own win"). It was refused: a reply answered a
+    /// friend. A line about your own win is a line in the crew's chat that
+    /// quotes it, as any line is.
     func reply(_ line: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me else { return .notAllowed }
+        guard winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return .notAllowed }
         return await send(line, in: crewID, quoting: winID)
     }
 
@@ -1290,8 +1294,8 @@ final class SocialStore {
     /// quotes it. The same gate as a reply, and the photo check both ways.
     @discardableResult
     func doodle(_ png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
-              win.senderProfileID != me else { return .notAllowed }
+        // On your own win too, as a reply is.
+        guard winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return .notAllowed }
         return await sendDoodle(png, in: crewID, quoting: winID)
     }
 

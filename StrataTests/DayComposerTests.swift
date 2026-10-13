@@ -39,7 +39,10 @@ struct DayComposerTests {
     @Test("the bar is the chat's: page glass, the 44pt floor, the glass ↑")
     func barIsTheChats() throws {
         let bar = SourceSweep.code(try SourceSweep.read("Strata/Views/DayComposer.swift"))
-        #expect(bar.contains(".glassCapsule(onPage: true, interactive: false)"))
+        // The same still page glass, in the shape of a field that grows
+        // (`glassField`, 2026-10-13): as a capsule, words typed past two
+        // lines stood outside its ends.
+        #expect(bar.contains(".glassField()"))
         #expect(bar.contains(".frame(minHeight: GlassIconButton.defaultSide)"))
         #expect(bar.contains("GlassIconButton(systemName: \"arrow.up\""))
         #expect(bar.contains(".disabled(!canSend)"))

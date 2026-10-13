@@ -28,6 +28,22 @@ import SwiftUI
 // is the fourth recipe and argues its own case: `.clear`, no tint, so the
 // lattice behind it reads through. It is an exception, not a precedent.
 
+/// The shape of a field that is written in (`glassField`), and the check a
+/// test can make of it: are the words inside the glass.
+nonisolated enum GlassField {
+    /// Half of one line's height: a pill at one line, a box beyond.
+    static let radius: CGFloat = GlassIconButton.defaultSide / 2
+
+    /// Whether `point` is inside a `size` box whose corners are `radius`.
+    static func holds(_ point: CGPoint, in size: CGSize, radius: CGFloat) -> Bool {
+        guard point.x >= 0, point.y >= 0, point.x <= size.width, point.y <= size.height else { return false }
+        let r = min(radius, size.width / 2, size.height / 2)
+        let cx = min(max(point.x, r), size.width - r), cy = min(max(point.y, r), size.height - r)
+        let dx = point.x - cx, dy = point.y - cy
+        return dx * dx + dy * dy <= r * r + 0.001
+    }
+}
+
 /// A round icon button on iOS 26's Liquid Glass.
 ///
 /// The share and settings buttons were bare glyphs at 45% opacity in the
@@ -194,6 +210,28 @@ extension View {
             self.background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(GlassFallback.rim,
                                                 lineWidth: GlassFallback.rimWidth))
+        }
+    }
+
+    /// **Glass for a field that is written in**: a capsule while it holds
+    /// one line, and a rounded box as it grows (a tester, through the owner,
+    /// 2026-10-13: "the text comes out of the box when you are typing in the
+    /// journal").
+    ///
+    /// The journal's bar and the chat's were `glassCapsule`. A capsule's ends
+    /// are half its height, so a field grown to three lines had ends of 44
+    /// points and more, and the first and last words, 16 in from the side,
+    /// stood outside the curve. The corner is held at half of ONE line's
+    /// height (`GlassField.radius`), whatever the field grows to, which is
+    /// what Messages does. One line still reads as the same pill.
+    @ViewBuilder
+    func glassField() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(GlassRecipe.onPageStill, in: .rect(cornerRadius: GlassField.radius, style: .continuous))
+        } else {
+            let shape = RoundedRectangle(cornerRadius: GlassField.radius, style: .continuous)
+            self.background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(GlassFallback.rim, lineWidth: GlassFallback.rimWidth))
         }
     }
 

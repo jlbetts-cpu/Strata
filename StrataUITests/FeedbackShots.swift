@@ -725,6 +725,45 @@ final class FeedbackShots: XCTestCase {
         XCTAssertTrue(renamed, "today's box does not carry the new name")
     }
 
+    /// **Typed words stay inside the field as it grows** (a tester, through
+    /// the owner, 2026-10-13): the journal's bar and the chat's.
+    func testWritingFields() {
+        let long = "Night market with the crew, then the long way home along the river, and nobody was in a hurry for once"
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenJournal", "today",
+                          "-strataDayTab", "journal"])
+        wait(8)
+        // Tap until the keyboard is up: typing with no focus stops the run.
+        func write(into field: XCUIElement) {
+            guard field.waitForExistence(timeout: 6) else { return }
+            for _ in 0..<3 where !app.keyboards.firstMatch.exists {
+                field.tap()
+                _ = app.keyboards.firstMatch.waitForExistence(timeout: 3)
+            }
+            if app.keyboards.firstMatch.exists { app.typeText(long) }
+        }
+        // The bar at the foot, by what it invites: the first field on the
+        // page is the day's sticker.
+        let bar = NSPredicate(format: "placeholderValue BEGINSWITH 'Write' OR label BEGINSWITH 'Write' OR value BEGINSWITH 'Write'")
+        var field = app.textViews.matching(bar).firstMatch.exists ? app.textViews.matching(bar).firstMatch
+            : app.textFields.matching(bar).firstMatch
+        write(into: field)
+        if !app.keyboards.firstMatch.exists {
+            // By where it stands: the bar at the foot of the page.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.925)).tap()
+            if app.keyboards.firstMatch.waitForExistence(timeout: 4) { app.typeText(long) }
+        }
+        wait(1); snap("fields-journal")
+        print("PLANNING-fields journal: field \(field.exists) frame \(field.exists ? field.frame : .zero)")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "3", "-strataOpenCrew", "0",
+                      "-strataCrewSheet", "chat", "-strataSeedCrewChat", "1"])
+        wait(10)
+        field = app.textFields["Message"].exists ? app.textFields["Message"] : app.textViews["Message"]
+        write(into: field)
+        wait(1); snap("fields-chat")
+        print("PLANNING-fields chat: field \(field.exists) frame \(field.exists ? field.frame : .zero)")
+    }
+
     /// **A note on a win, and the day's wins in that day's journal**
     /// (`WinNote`, 2026-10-13).
     func testWinNote() {

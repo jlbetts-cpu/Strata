@@ -148,6 +148,23 @@ struct CrewReactionTests {
         #expect(a.reactions(to: mine.winID, in: crew.id).map(\.emoji) == ["❤️"])
     }
 
+    /// The owner, 2026-10-13: "there is no way to reply or add doodle to
+    /// own win." Both were refused on a win of your own.
+    @Test func youCanReplyAndDoodleOnYourOwnWin() async throws {
+        let (a, b, crew) = try await pair()
+        let mine = win("Run")
+        await a.post(mine, to: [crew.id])
+        #expect(await a.reply("Slow, but I went.", to: mine.winID, in: crew.id) == .sent)
+        await b.refresh()
+        let line = try #require(b.messages(in: crew.id).last)
+        #expect(line.text == "Slow, but I went." && line.quoteWinID == mine.winID)
+        // A win that is not in this crew is still nothing to answer.
+        #expect(await a.reply("x", to: UUID(), in: crew.id) == .notAllowed)
+        let panel = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewReactions.swift")) ?? "")
+        #expect(!panel.contains("if !mine {\n                            replyChip(\"Reply\")"))
+        #expect(panel.contains("replyChip(\"Reply\")") && panel.contains("replyChip(\"Doodle\")"))
+    }
+
     @Test func aWithdrawnWinTakesItsReactionsWithIt() async throws {
         let (a, b, crew) = try await pair()
         let run = win("Run")

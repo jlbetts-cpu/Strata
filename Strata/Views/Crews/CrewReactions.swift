@@ -346,8 +346,9 @@ struct CrewReactionsPanel: View {
         let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
         let myReaction = store.myReaction(to: winID, in: crewID)
         VStack(spacing: 10) {
-            // On your own win too (the owner, 2026-10-13). Reply and Doodle
-            // answer a friend, so those two stay a friend's.
+            // On your own win too (the owner, 2026-10-13), and Reply and
+            // Doodle with it (the same day: "there is no way to reply or add
+            // doodle to own win"). They were kept a friend's at first.
             if open {
                 ReactionBar(mine: myReaction, onDark: onDark) { emoji in
                     Task { await store.react(emoji, to: winID, in: crewID) }
@@ -362,15 +363,13 @@ struct CrewReactionsPanel: View {
                 // Off together when writing is off (`canReply`).
                 if store.canReply() {
                     HStack(spacing: GridConstants.gapWide) {
-                        if !mine {
-                            replyChip("Reply") {
-                                // What was written last time and not sent: a
-                                // refused reply or a Cancel keeps its words.
-                                draft = CrewDrafts.reply(crewID, to: winID)
-                                replying = true
-                            }
-                            replyChip("Doodle") { doodling = true }
+                        replyChip("Reply") {
+                            // What was written last time and not sent: a
+                            // refused reply or a Cancel keeps its words.
+                            draft = CrewDrafts.reply(crewID, to: winID)
+                            replying = true
                         }
+                        replyChip("Doodle") { doodling = true }
                         // One of your stickers, as a chat line can take one.
                         // Not from someone who may not send photographs.
                         if store.photosAllowed() {
@@ -417,7 +416,7 @@ struct CrewReactionsPanel: View {
         }
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
-        .alert("Reply to \(owner)", isPresented: $replying) {
+        .alert(mine ? "About Your Win" : "Reply to \(owner)", isPresented: $replying) {
             TextField("Message", text: Binding(get: { draft }, set: {
                 draft = $0
                 CrewDrafts.keepReply($0, for: crewID, to: winID)
@@ -497,7 +496,7 @@ struct CrewReactionsPanel: View {
             guard let which = DebugHarness.argument("-strataCrewDoodle") else { return }
             try? await Task.sleep(for: .milliseconds(800))
             open = true
-            if which == "sheet", !mine { doodling = true }
+            if which == "sheet" { doodling = true }
         }
         #endif
     }

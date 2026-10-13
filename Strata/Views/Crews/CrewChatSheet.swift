@@ -517,7 +517,8 @@ struct CrewChatSheet: View {
                     .padding(.horizontal, GridConstants.gapLabel)
                     .padding(.vertical, GridConstants.gapTight)
                     .frame(minHeight: GlassIconButton.defaultSide)
-                    .glassCapsule(onPage: true, interactive: false)
+                    // A box as it grows, never a capsule: see `glassField`.
+                    .glassField()
                     .accessibilityLabel("Message")
                 GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send") { send() }
                     .disabled(isEmpty)
