@@ -1197,7 +1197,10 @@ final class SocialStore {
     /// midnight like every line.
     @discardableResult
     func sendStrip(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
-        await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil)
+        // A strip is photographs. It went out for anyone who could write
+        // (found by review, 2026-10-12), which a 13 to 15 year old can.
+        guard photosAllowed() else { return .notAllowed }
+        return await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil)
     }
 
     /// **A plan the crew can see** (`GroupPlan`): a line in the chat like
@@ -1220,14 +1223,19 @@ final class SocialStore {
     /// (`CrewMessage.pictureMarker`). Checked and paced as a doodle is.
     @discardableResult
     func sendSticker(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
-        await sendSketch(png, text: CrewMessage.pictureMarker + Self.stickerWord, in: crewID, quoting: nil)
+        // A sticker is cut out of a photograph (`react(.sticker)` says the
+        // same): not from someone who may not send one (spec 9.1; found by
+        // review, 2026-10-12).
+        guard photosAllowed() else { return .notAllowed }
+        return await sendSketch(png, text: CrewMessage.pictureMarker + Self.stickerWord, in: crewID, quoting: nil)
     }
 
     /// **A photograph of yours, brought back to the crew it went to**
     /// (`CrewLookBack`), with its line under it.
     @discardableResult
     func sendPicture(_ data: Data, caption: String, in crewID: CrewID) async -> ReplyOutcome {
-        await sendSketch(data, text: CrewMessage.pictureMarker + caption, in: crewID, quoting: nil)
+        guard photosAllowed() else { return .notAllowed }
+        return await sendSketch(data, text: CrewMessage.pictureMarker + caption, in: crewID, quoting: nil)
     }
 
     /// A doodle with `text` beside it: none for the chat's, the marker for a

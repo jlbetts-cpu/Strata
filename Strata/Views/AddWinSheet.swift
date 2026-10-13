@@ -1861,7 +1861,7 @@ struct AddWinSheet: View {
             }
             if let log = editingLog ?? savedLog,
                editingLog == nil || crewChoiceTouched || CrewHold.isHeld(log.id) {
-                if editingLog == nil { CrewChoice.save(crewChoice) }
+                if editingLog == nil { CrewChoice.save(groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice) }
                 CrewSync.setCrews(for: log, to: crewChoice, with: editingLog == nil ? withPeople : [])
                 CrewHold.release(log.id)
             }

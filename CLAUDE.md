@@ -2021,8 +2021,22 @@ is easy to undo by accident:
 - **A strip's link is the app's page, never an invite.** An invite link is
   the crew's key (`StripMessageActivity`).
 - Reactions are paced per thing reacted to, not per crew.
-- The plus row, group plans and a crew's look back are **designed, not
-  built**: `docs/crew-plus-design.md` waits on four answers from him.
+- **The plus row, group plans and a crew's look back are built**
+  (`ChatPlus.swift`, `GroupPlan.swift`; design and "as built" in
+  `docs/crew-plus-design.md`). Rules that are easy to break:
+  - **A group plan is a marked chat line**, like a strip
+    (`CrewMessage.planMarker`), then readable words. Do not make it a new
+    record kind: that is the sync code nobody can run.
+  - Four markers now: strip, toss (hidden on every build), plan, picture.
+    The notification extension has its own copies (`CrewNoteCache`);
+    `GroupPlanTests.pushWords` holds them equal.
+  - **The card names only people who did it.** No count, no list of who
+    is in, nobody who has not.
+  - **Nothing posts by itself.** A look back is sent by a press.
+  - `GroupPlanBook` (UserDefaults) says which of your plan lines is a
+    crew's plan. Finishing one ticks that crew for that win and does not
+    make it your usual.
+  - `-strataSeedCrewPlan 1` seeds a plan, a sticker and a photo line.
 
 ## Words the app says
 

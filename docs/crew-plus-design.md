@@ -160,3 +160,36 @@ Every step is unproven on real iCloud until you have tried it.
   in the link. Small, and needs nothing on the server.
 - **An Invite on a crew of one's own tower**, where today it is two taps
   away.
+
+## As built (2026-10-12)
+
+Built to the design above, with these differences, each for a reason:
+
+- **A group plan is a chat line, not a new kind of record.** It is marked
+  the way a photo strip already is, followed by words anyone can read
+  ("Plan: Workout (tomorrow)"). So it is sealed, paced, word-checked and
+  cleared exactly as every line is, a friend on an older build sees those
+  words as a plain line, and none of the syncing code changed. There is no
+  second "I did this" record either: the proof is the win. The card names
+  whoever sent the crew a win of that name that day.
+- **What that costs:** the proposal is one day long, like every line. On
+  the plan's own day the card is drawn on your phone from your own plan,
+  so it shows to the people who tapped I'm In, and not to someone who did
+  not. They still see the wins arrive.
+- **The card says names, not heads:** "Today. Sam did it." It is the app's
+  one card (`TipCard`), which has no row of faces, and a new card for this
+  alone would have been a second drawing of the same thing.
+- **Strip opens your booth** for today, and its Share sends it to the
+  crew. It does not send by itself: the strip still develops when the
+  day's goal is reached, here as on the tower.
+- **Memory is a sheet** of your photos this crew saw, newest first; a tap
+  sends one with its date under it. The look back itself is a card over
+  the chat on the day, with Send It Again.
+
+Not built yet, from the list above: a sticker on a win, the fix for a win
+sent to several crews telling only one, the invite as a QR, an Invite on a
+crew of one's tower, and a crew's weekly recap.
+
+**Proven:** on the simulator with a seeded crew (looked at), and by a test
+that sends a plan from one phone to another over the pretend cloud.
+**Not proven:** anything on real iCloud, or between two real phones.

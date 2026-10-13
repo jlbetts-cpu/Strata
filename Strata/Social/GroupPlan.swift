@@ -67,7 +67,14 @@ nonisolated struct GroupPlan: Equatable, Identifiable, Sendable {
         guard message.sketch == nil, let rest = CrewMessage.words(after: CrewMessage.planMarker, in: message.text),
               rest.hasPrefix(Self.lead), rest.hasSuffix(")"),
               let open = rest.range(of: " (", options: .backwards) else { return nil }
-        let title = Self.tidy(String(rest[rest.index(rest.startIndex, offsetBy: Self.lead.count)..<open.lowerBound]))
+        // **A line with no title is not a plan, and must not be read as
+        // one** (found by review, 2026-10-12). "Plan: (today)", pasted
+        // after the marker, put the bracket before the end of "Plan: ", and
+        // the slice ran backwards: a trap, in every crew member's chat, on
+        // every open, until the crew's midnight.
+        let start = rest.index(rest.startIndex, offsetBy: Self.lead.count)
+        guard open.lowerBound >= start, open.upperBound < rest.endIndex else { return nil }
+        let title = Self.tidy(String(rest[start..<open.lowerBound]))
         let spec = String(rest[open.upperBound..<rest.index(before: rest.endIndex)])
         guard !title.isEmpty else { return nil }
         let when: When
@@ -126,9 +133,17 @@ nonisolated struct GroupPlan: Equatable, Identifiable, Sendable {
     /// The title as two plans, or a plan and a win, are told to be the same
     /// one: letters and numbers, lowercased, one space between words.
     static func key(_ title: String) -> String {
-        tidy(title).lowercased().folding(options: .diacriticInsensitive, locale: nil)
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        let plain = tidy(title).lowercased().folding(options: .diacriticInsensitive, locale: nil)
+        let words = plain.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        // A title that is only emoji has no letters: it is its own key, or
+        // every such plan would be the same plan and every such win its proof.
+        return words.isEmpty ? plain : words
     }
+
+    /// The name a finished plan's win carries: the title without its time
+    /// ("Gym @ 6" is logged as "Gym", `PlanTime`). What the card looks for
+    /// among the crew's wins.
+    var proofKey: String { Self.key(PlanTime.title(title)) }
 
     /// Which book entry this is: the crew, the title and when.
     var bookKey: String {
@@ -229,6 +244,33 @@ nonisolated enum GroupPlanBook {
         write(table, defaults: defaults)
     }
 
+    /// **The book follows your plan** (found by review, 2026-10-12): a
+    /// line deleted from the plan sheet left its entry here, so the card
+    /// never offered I'm In again and a repeating plan's card came back on
+    /// its days for ever. Entries whose line is gone are dropped.
+    @MainActor
+    static func reconcile(context: ModelContext, defaults: UserDefaults = .standard) {
+        let table = all(defaults: defaults)
+        guard !table.isEmpty, let lines = try? context.fetch(FetchDescriptor<PlanItem>()) else { return }
+        let held = Set(lines.map(\.id))
+        let kept = table.filter { held.contains($0.value.planItem) }
+        if kept.count != table.count { write(kept, defaults: defaults) }
+    }
+
+    private static let closedKey = "crews.groupPlans.closed"
+
+    /// Cards closed on this phone today, by book key.
+    static func closed(today: String, defaults: UserDefaults = .standard) -> Set<String> {
+        guard let kept = defaults.dictionary(forKey: closedKey), kept["day"] as? String == today else { return [] }
+        return Set(kept["keys"] as? [String] ?? [])
+    }
+
+    static func close(_ bookKey: String, today: String, defaults: UserDefaults = .standard) {
+        var keys = closed(today: today, defaults: defaults)
+        keys.insert(bookKey)
+        defaults.set(["day": today, "keys": keys.sorted()] as [String: Any], forKey: closedKey)
+    }
+
     static func leave(_ bookKey: String, defaults: UserDefaults = .standard) {
         var table = all(defaults: defaults)
         table[bookKey] = nil
@@ -265,16 +307,18 @@ extension GroupPlan {
         if let entry = GroupPlanBook.all(defaults: defaults)[bookKey], let held = all.first(where: { $0.id == entry.planItem }) {
             return held
         }
-        let line: PlanItem
-        switch when {
-        case .day(let day):
-            line = PlanItem(text: title, order: (all.map(\.order).max() ?? -1) + 1,
-                            category: HabitCategory.selectable.randomElement() ?? .health, day: day)
-        case .weekdays(let days):
-            line = PlanItem(text: title, order: (all.map(\.order).max() ?? -1) + 1,
-                            category: HabitCategory.selectable.randomElement() ?? .health)
-            line.repeatDaysRaw = days.sorted().map(String.init).joined(separator: ",")
+        let raw: String = switch when {
+        case .day(let day): PlanItem.raw(forDay: day)
+        case .weekdays(let days): days.sorted().map(String.init).joined(separator: ",")
         }
+        // A line of yours with these words for these days is the plan.
+        if let same = all.first(where: { Self.key($0.text) == Self.key(title) && $0.repeatDaysRaw == raw && $0.completedAt == nil }) {
+            GroupPlanBook.keep(self, planItem: same.id, today: today, defaults: defaults)
+            return same
+        }
+        let line = PlanItem(text: title, order: (all.map(\.order).max() ?? -1) + 1,
+                            category: HabitCategory.selectable.randomElement() ?? .health)
+        line.repeatDaysRaw = raw
         context.insert(line)
         try? context.save()
         GroupPlanBook.keep(self, planItem: line.id, today: today, defaults: defaults)

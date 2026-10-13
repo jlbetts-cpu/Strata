@@ -19,9 +19,17 @@ nonisolated enum CrewWords {
         "killyourself", "kill yourself", "hang yourself", "go die", "neck yourself",
     ]
 
+    /// Ordinary words that begin with a refused one. **"Spicy noodles" was
+    /// refused** (found by review, 2026-10-12): a win of that name never
+    /// reached a crew, and a chat line with it would not send.
+    static let innocent: Set<String> = [
+        "spice", "spices", "spiced", "spicy", "spicier", "spiciest", "spicing",
+        "rapeseed",
+    ]
+
     static func isAcceptable(_ text: String) -> Bool {
         let folded = fold(text)
-        let words = folded.split(separator: " ").map(String.init)
+        let words = folded.split(separator: " ").map(String.init).filter { !innocent.contains($0) }
         let joined = words.joined()
         for term in refused {
             let t = fold(term)

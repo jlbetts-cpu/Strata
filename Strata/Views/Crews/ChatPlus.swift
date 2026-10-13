@@ -48,11 +48,12 @@ struct ChatPlusRow: View {
         }
     }
 
+    var choices: [Choice] = Choice.allCases
     let pick: (Choice) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ForEach(Choice.allCases) { choice in
+            ForEach(choices) { choice in
                 VStack(spacing: GridConstants.spacing) {
                     if choice == .sticker {
                         GlassIconButton(drawn: .sticker, onPage: true, accessibilityLabel: choice.spoken) { pick(choice) }
@@ -78,21 +79,29 @@ struct ChatPlusRow: View {
 /// days (`PlanScopeRow`) and its own weekday chips. Cancel on the left, Plan
 /// on the right, as every plan is confirmed (`docs/ten.md`, rule 3).
 struct GroupPlanSheet: View {
+    /// When, counted from the crew's own day by whoever sends it.
+    enum Choice: Equatable {
+        case inDays(Int)
+        case weekdays([Int])
+    }
+
     let crewName: String
-    let send: (String, GroupPlan.When) -> Void
+    /// The host's, so words a send refused are still here to change.
+    @Binding var title: String
+    let send: (String, Choice) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
     @State private var scope: PlanScope = .day(0)
     @State private var days: Set<Int> = [Calendar.current.component(.weekday, from: Date())]
     @FocusState private var writing: Bool
 
     private var words: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    private var when: GroupPlan.When? {
-        if scope == .repeating { return days.isEmpty ? nil : .weekdays(days.sorted()) }
-        guard let date = scope.date() else { return nil }
-        return .day(DateUtils.dateString(from: date))
+    private var when: Choice? {
+        switch scope {
+        case .repeating: days.isEmpty ? nil : .weekdays(days.sorted())
+        case .day(let offset): .inDays(offset)
+        }
     }
 
     var body: some View {
@@ -278,7 +287,8 @@ nonisolated enum CrewLookBack {
     @MainActor
     static func find(for crew: CrewID, context: ModelContext, store: SocialStore = .shared, now: Date = Date()) -> Found? {
         let calendar = DateUtils.keyCalendar()
-        guard !isAnswered(crew, today: DateUtils.dateString(from: now)) else { return nil }
+        // Only for someone who may send a photograph at all.
+        guard store.photosAllowed(), !isAnswered(crew, today: DateUtils.dateString(from: now)) else { return nil }
         let sent = store.winsSent(to: crew)
         guard !sent.isEmpty else { return nil }
         var candidates: [Candidate] = []
@@ -300,7 +310,7 @@ nonisolated enum CrewLookBack {
     static func all(for crew: CrewID, context: ModelContext, store: SocialStore = .shared, now: Date = Date(),
                     limit: Int = 60) -> [Found] {
         let sent = store.winsSent(to: crew)
-        guard !sent.isEmpty else { return [] }
+        guard store.photosAllowed(), !sent.isEmpty else { return [] }
         let calendar = DateUtils.keyCalendar()
         let rungs = Dictionary(Flashback.rungs(today: now, calendar: calendar).map { ($0.day, $0.title) }, uniquingKeysWith: { a, _ in a })
         let logs = (try? context.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.imageFileName != nil }))) ?? []
@@ -328,7 +338,7 @@ extension PhotoStrip {
     /// for a group plan two or more have done.
     @MainActor
     static func crew(_ crewID: CrewID, titled title: String, store: SocialStore = .shared) async -> PhotoStrip {
-        let key = GroupPlan.key(title)
+        let key = GroupPlan.key(PlanTime.title(title))
         var strip = await crew(crewID, store: store)
         let wanted = Set(store.today(in: crewID).filter { GroupPlan.key($0.title) == key }.map(\.winID))
         strip.candidates.removeAll { !wanted.contains($0.id) }
@@ -345,6 +355,10 @@ struct CrewMemorySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var items: [CrewLookBack.Found]?
+    /// The one chosen. **Chosen, then sent** (found by review, 2026-10-12):
+    /// a tap on a photo sent it to the crew at once, and a chat line cannot
+    /// be taken back.
+    @State private var chosen: CrewLookBack.Found?
 
     private static let columns = Array(repeating: GridItem(.flexible(), spacing: GridConstants.gapTight), count: 3)
 
@@ -365,15 +379,22 @@ struct CrewMemorySheet: View {
                         LazyVGrid(columns: Self.columns, spacing: GridConstants.gapTight) {
                             ForEach(items ?? []) { item in
                                 Button {
-                                    send(item)
-                                    dismiss()
+                                    HapticsEngine.tick()
+                                    chosen = chosen == item ? nil : item
                                 } label: {
                                     CachedImageView(fileName: item.fileName, width: side, height: side,
                                                     cornerRadius: GridConstants.radiusSurface)
+                                        .opacity(chosen == nil || chosen == item ? 1 : 0.45)
+                                        .overlay {
+                                            if chosen == item {
+                                                RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+                                                    .strokeBorder(AppColors.inkPrimary, lineWidth: 3)
+                                            }
+                                        }
                                 }
                                 .buttonStyle(.pressSurface)
                                 .accessibilityLabel(item.title)
-                                .accessibilityHint("Sends it to the crew again")
+                                .accessibilityAddTraits(chosen == item ? .isSelected : [])
                             }
                         }
                         .padding(.horizontal, GridConstants.horizontalPadding)
@@ -387,6 +408,15 @@ struct CrewMemorySheet: View {
                 BareToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
                         .buttonStyle(.pressWord)
+                }
+                BareToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        guard let chosen else { return }
+                        send(chosen)
+                        dismiss()
+                    } label: { Text("Send").sheetAction(.confirm) }
+                        .buttonStyle(.pressWord)
+                        .disabled(chosen == nil)
                 }
             }
         }

@@ -249,8 +249,10 @@ struct CrewTowerView: View {
             CrewChatSheet(crewID: crewID, onOpenWin: openQuotedWin, onAddWin: {
                 // The plus row's Win: once the chat has gone, the crew's own
                 // way to add one.
+                // 450, as `openQuotedWin` waits: a presentation asked for
+                // while this sheet is still leaving is dropped.
                 Task {
-                    try? await Task.sleep(for: .milliseconds(350))
+                    try? await Task.sleep(for: .milliseconds(450))
                     onAddWin()
                 }
             })

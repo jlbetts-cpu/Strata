@@ -146,4 +146,9 @@ link as its own card. **7 until you have sent one.**
 ## 9. Crew, items 4, 5 and 9: the plus row, group plans, looking back
 
 Designed first, at your word: `docs/crew-plus-design.md`. **Approved
-2026-10-12, all four as recommended.** Built in the order at its foot.
+2026-10-12, all four as recommended, and built the same night**; the
+design's last section says what differs from it and why. The plus row has
+Win, Plan, Strip, Memory and Sticker. A group plan is a card with I'm In;
+finishing it sends the win to that crew; the card names who did it. A day
+this crew saw is shown to you and sent by a tap. **7 until two real phones
+have tried it**: none of it has touched real iCloud.

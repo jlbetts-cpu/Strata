@@ -66,6 +66,10 @@ struct CrewChatSheet: View {
     /// cards after `GroupPlanBook` changes (it is not observed).
     @State private var closedPlans: Set<String> = []
     @State private var planTick = 0
+    /// The plan being written: kept until it goes, so refused words come
+    /// back to be changed, as a line's do.
+    @State private var planDraft = ""
+    @State private var pictureRefused = false
     @FocusState private var writing: Bool
 
     private var store: SocialStore { SocialStore.shared }
@@ -93,8 +97,9 @@ struct CrewChatSheet: View {
         let crew = store.visible(crewID)
         // A plan card you closed is off your chat for the day; the line is
         // still everyone else's.
+        let closed = closedPlans.union(GroupPlanBook.closed(today: today))
         let messages = store.messages(in: crewID)
-            .filter { ($0.groupPlan?.bookKey).map { !closedPlans.contains($0) } ?? true }
+            .filter { ($0.groupPlan?.bookKey).map { !closed.contains($0) } ?? true }
         let reactions = store.messageReactions(in: crewID)
         NavigationStack {
             thread(messages, reactions: reactions, crew: crew)
@@ -139,11 +144,19 @@ struct CrewChatSheet: View {
                 if showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
             }
         }
-        .task { lookBack = CrewLookBack.find(for: crewID, context: modelContext) }
+        .task {
+            GroupPlanBook.reconcile(context: modelContext)
+            planTick += 1
+            lookBack = CrewLookBack.find(for: crewID, context: modelContext)
+        }
         .sheet(isPresented: $planning) {
-            GroupPlanSheet(crewName: store.crew(crewID)?.displayName(excluding: store.me) ?? "Your Crew") { title, when in
-                propose(title, when)
+            GroupPlanSheet(crewName: store.crew(crewID)?.displayName(excluding: store.me) ?? "Your Crew",
+                           title: $planDraft) { title, choice in
+                propose(title, choice)
             }
+        }
+        .alert("That photo stays with you", isPresented: $pictureRefused) {
+            Button("OK", role: .cancel) {}
         }
         .sheet(isPresented: $choosingSticker) { stickerSheet }
         .stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }
@@ -474,7 +487,11 @@ struct CrewChatSheet: View {
         if store.canReply() {
           VStack(spacing: 0) {
             if showsPlus {
-                ChatPlusRow { choice in choose(choice) }
+                // Strip and Memory are photographs: not offered to someone
+                // who may not send one. Sticker stays, as the doodle pad.
+                ChatPlusRow(choices: store.photosAllowed() ? ChatPlusRow.Choice.allCases : [.win, .plan, .sticker]) { choice in
+                    choose(choice)
+                }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
@@ -582,7 +599,8 @@ struct CrewChatSheet: View {
         case .plan: planning = true
         case .strip: showsStrip = true
         case .memory: choosingMemory = true
-        case .sticker: choosingSticker = true
+        // Without photographs a sticker is not yours to send: the pad alone.
+        case .sticker: if store.photosAllowed() { choosingSticker = true } else { doodling = true }
         }
     }
 
@@ -597,11 +615,24 @@ struct CrewChatSheet: View {
     }
 
     /// A plan, sent, and put in your own plan at once: you proposed it.
-    private func propose(_ title: String, _ when: GroupPlan.When) {
+    ///
+    /// **The day is the crew's** (found by review, 2026-10-12): the sheet
+    /// counted from this phone's date, and a phone behind the crew's zone
+    /// late at night sent "today" as the crew's yesterday.
+    private func propose(_ title: String, _ choice: GroupPlanSheet.Choice) {
+        let when: GroupPlan.When
+        switch choice {
+        case .weekdays(let days): when = .weekdays(days)
+        case .inDays(let offset):
+            guard let base = DateUtils.date(from: today),
+                  let date = DateUtils.keyCalendar().date(byAdding: .day, value: offset, to: base) else { return }
+            when = .day(DateUtils.dateString(from: date))
+        }
         Task {
             let result = await store.sendPlan(title: title, when: when, in: crewID)
             answer(result.outcome)
             if let plan = result.plan {
+                planDraft = ""
                 plan.join(context: modelContext)
                 planTick += 1
             }
@@ -629,7 +660,9 @@ struct CrewChatSheet: View {
     /// first, and whether two of those wins have a photo.
     private func done(_ plan: GroupPlan) -> (names: [String], canStrip: Bool) {
         guard plan.isFor(today) else { return ([], false) }
-        let key = GroupPlan.key(plan.title)
+        // By the name its win carries: a plan with a time is logged
+        // without it ("Gym @ 6" is the win "Gym").
+        let key = plan.proofKey
         let wins = store.today(in: crewID).filter { GroupPlan.key($0.title) == key }
         var senders: [UUID] = []
         for win in wins.sorted(by: { $0.createdAt < $1.createdAt }) where !senders.contains(win.senderProfileID) {
@@ -647,7 +680,10 @@ struct CrewChatSheet: View {
                              canStrip: state.canStrip,
                              join: { join(plan) },
                              strip: { planStrip = plan },
-                             close: { withAnimation(motion) { _ = closedPlans.insert(plan.bookKey) } })
+                             close: {
+                                 GroupPlanBook.close(plan.bookKey, today: today)
+                                 withAnimation(motion) { _ = closedPlans.insert(plan.bookKey) }
+                             })
     }
 
     /// Over the thread: today's look back, and the plans you are in that are
@@ -657,8 +693,9 @@ struct CrewChatSheet: View {
     private func topCards(_ messages: [CrewMessage]) -> some View {
         let _ = planTick
         let inChat = Set(messages.compactMap { $0.groupPlan?.bookKey })
+        let closed = closedPlans.union(GroupPlanBook.closed(today: today))
         let mine = GroupPlanBook.plans(in: crewID, on: today, me: store.me)
-            .filter { !inChat.contains($0.bookKey) && !closedPlans.contains($0.bookKey) }
+            .filter { !inChat.contains($0.bookKey) && !closed.contains($0.bookKey) }
         if lookBack != nil || !mine.isEmpty {
             VStack(spacing: GridConstants.gapTight) {
                 if let found = lookBack {
@@ -684,11 +721,12 @@ struct CrewChatSheet: View {
         HapticsEngine.lightTap()
         Task {
             guard let data = await Task.detached(priority: .userInitiated, operation: { CrewLookBack.picture(found) }).value else {
-                refused = true
+                pictureRefused = true
                 return
             }
             let outcome = await store.sendPicture(data, caption: found.title + ".", in: crewID)
-            answer(outcome)
+            // A photo held back says so as a photo, not as a sticker.
+            if outcome == .refusedSketch || outcome == .notAllowed { pictureRefused = true } else { answer(outcome) }
             if outcome == .sent {
                 CrewLookBack.answer(crewID, today: DateUtils.dateString(from: Date()))
                 withAnimation(motion) { lookBack = nil }

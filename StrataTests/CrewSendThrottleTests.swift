@@ -52,7 +52,10 @@ struct CrewSendThrottleTests {
         store.isEnabled = { true }
         store.canReply = { true }
         store.throttles = true
-        var clock = Date()
+        // Noon, not now: the test walks its clock five minutes on, and run
+        // at 23:56 it crossed the crew's midnight, where the day's count
+        // starts again (it failed exactly that way on 2026-10-12).
+        var clock = Calendar.current.startOfDay(for: Date()).addingTimeInterval(12 * 3600)
         store.now = { clock }
         let (crew, _) = try await store.createCrew(name: "One")
         #expect(await store.send("hi", in: crew.id) == .sent)

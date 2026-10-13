@@ -86,6 +86,83 @@ struct GroupPlanTests {
         #expect(Set(marks).count == 4)
     }
 
+    @Test("a crafted line never traps: no title is no plan")
+    func craftedLines() {
+        let m = CrewMessage.planMarker
+        for text in [m + "Plan: (today)", m + "Plan: ()", m + "Plan:  (today)", m + "Plan: (", m + "Plan: )", m + "Plan: x ()",
+                     m + "Plan:(today)", m, m + "Plan: ", m + " (today)", m + "Plan: a (today) (", m + "Plan: (today) (today)"] {
+            // Reading it is the test: it used to trap on the first.
+            let plan = message(text).groupPlan
+            if let plan { #expect(!plan.title.isEmpty, "\(text.unicodeScalars.count)") }
+        }
+        #expect(message(m + "Plan: (today)").groupPlan == nil)
+        #expect(message(m + "Plan: (today) (today)").groupPlan?.title == "(today)")
+    }
+
+    @Test("a plan with a time is proved by the win it becomes, and an emoji title is its own")
+    func proof() {
+        let crew = CrewID(rawValue: "c")
+        let timed = GroupPlan(id: UUID(), crewID: crew, sender: sam, title: "Gym @ 6", when: .day("2026-10-12"))
+        #expect(timed.proofKey == GroupPlan.key("Gym"))
+        #expect(GroupPlan(id: UUID(), crewID: crew, sender: sam, title: "Lunch at 12", when: .day("2026-10-12")).proofKey == GroupPlan.key("lunch"))
+        #expect(GroupPlan.key("🏃") != GroupPlan.key("🍜"))
+        #expect(!GroupPlan.key("🏃").isEmpty)
+    }
+
+    @Test("someone who may not send photographs sends no sticker, strip or photo, and is offered none")
+    func noPhotographs() async throws {
+        let (a, _, crew) = try await pair()
+        a.photosAllowed = { false }
+        let png = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { _ in }.pngData()!
+        #expect(await a.sendSticker(png, in: crew.id) == .notAllowed)
+        #expect(await a.sendPicture(png, caption: "A year ago today.", in: crew.id) == .notAllowed)
+        #expect(await a.sendStrip(png, in: crew.id) == .notAllowed)
+        #expect(a.messages(in: crew.id).isEmpty)
+        let container = try ModelContainer(for: PlanItem.self, HabitLog.self, Habit.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        #expect(CrewLookBack.all(for: crew.id, context: ModelContext(container), store: a).isEmpty)
+        #expect(CrewLookBack.find(for: crew.id, context: ModelContext(container), store: a) == nil)
+        let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
+        #expect(chat.contains("store.photosAllowed() ? ChatPlusRow.Choice.allCases : [.win, .plan, .sticker]"))
+        // A plan and a doodle are words and ink, and still theirs to send.
+        #expect(await a.sendPlan(title: "Walk", when: .day(CrewDay.string(for: a.now(), in: crew.timeZone)), in: crew.id).outcome == .sent)
+    }
+
+    @Test("the book follows your plan, a closed card stays closed today, and the same words are not written twice")
+    func theBook() throws {
+        let container = try ModelContainer(for: PlanItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let book = defaults()
+        let crew = CrewID(rawValue: "crew-1")
+        let plan = GroupPlan(id: UUID(), crewID: crew, sender: sam, title: "Workout", when: .weekdays([2, 4]))
+        let line = try #require(plan.join(context: context, today: "2026-10-12", defaults: book))
+        // Deleted from the plan sheet: the book lets go, and I'm In is back.
+        context.delete(line)
+        try context.save()
+        GroupPlanBook.reconcile(context: context, defaults: book)
+        #expect(!GroupPlanBook.isIn(plan, defaults: book))
+        #expect(GroupPlanBook.plans(in: crew, on: "2026-10-12", me: jayden, defaults: book).isEmpty)
+        // Words already on your plan for that day are the plan.
+        let mine = PlanItem(text: "workout", order: 0, category: .health, day: "2026-10-13")
+        context.insert(mine)
+        try context.save()
+        let once = GroupPlan(id: UUID(), crewID: crew, sender: sam, title: "Workout", when: .day("2026-10-13"))
+        #expect(once.join(context: context, today: "2026-10-12", defaults: book)?.id == mine.id)
+        #expect(try context.fetch(FetchDescriptor<PlanItem>()).count == 1)
+        // Closed is for today, and is kept.
+        GroupPlanBook.close(once.bookKey, today: "2026-10-12", defaults: book)
+        #expect(GroupPlanBook.closed(today: "2026-10-12", defaults: book) == [once.bookKey])
+        #expect(GroupPlanBook.closed(today: "2026-10-13", defaults: book).isEmpty)
+    }
+
+    @Test("spicy noodles is a win, and the refused words are still refused")
+    func words() {
+        #expect(CrewWords.isAcceptable("Spicy noodles"))
+        #expect(CrewWords.isAcceptable("spice rack, spiced up"))
+        for term in CrewWords.refused { #expect(!CrewWords.isAcceptable("you \(term)"), "\(term)") }
+        #expect(!CrewWords.isAcceptable("spics"))
+    }
+
     @Test("when it is for, and how the card says it")
     func when() {
         let weekly = GroupPlan(id: UUID(), crewID: CrewID(rawValue: "c"), sender: sam, title: "Run", when: .weekdays([2, 4]))
