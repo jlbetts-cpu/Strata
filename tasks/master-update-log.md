@@ -956,3 +956,10 @@ cleared it but said to try one thing first: a tap on what hangs below the
 new header bar. I'm In on the crew's screen did nothing. Fixed, tried
 again (the Wins tip closes, I'm In joins), and the build after it is the
 one that went out.
+
+**Build 133 is in the Friends group**, waiting on Apple's beta review
+(2026-10-13, early morning), at your word ("push to friends, the camera
+looks good from what I tested"). The full suite passed on it with no
+failures. For you when you are up: push (the new landing page and the
+link's card go live with it), and try the crew plan with one friend, since
+none of the crew work has been on real iCloud.
