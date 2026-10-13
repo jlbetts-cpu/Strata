@@ -96,7 +96,14 @@
   .crest { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; transition: opacity .4s var(--ease), transform .4s var(--ease); }
   /* It arrives once the hero's own logo has gone by, so there are never two. */
   .js header:not(.past) .crest { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(.9); pointer-events: none; }
-  .ring { position: relative; width: 56px; height: 56px; }
+  button.crest { appearance: none; border: 0; background: none; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; }
+  button.crest:active .ring { transform: scale(.94); }
+  .menu { position: absolute; left: 50%; top: 100px; transform: translateX(-50%); min-width: 208px; padding: 8px; border-radius: 20px; display: grid; gap: 0; background: rgba(255,255,255,.78); border: 1px solid var(--rule); -webkit-backdrop-filter: blur(24px) saturate(1.8); backdrop-filter: blur(24px) saturate(1.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.95); transform-origin: 50% 0; transition: opacity .2s var(--ease), transform .2s var(--ease); }
+  .menu[hidden] { display: grid; opacity: 0; transform: translateX(-50%) scale(.94); pointer-events: none; visibility: hidden; }
+  .menu a { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 17px; }
+  .menu a:hover { background: rgba(22,23,26,.05); }
+  .menu a .ink { width: 22px; height: 22px; flex: none; }
+  .ring { position: relative; width: 56px; height: 56px; transition: transform .16s var(--ease); }
   .ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
   .ring .track { fill: none; stroke: rgba(22,23,26,.10); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
   .ring .cut { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
@@ -115,21 +122,25 @@
   .button:hover { opacity: .86; }
   .button:active { transform: scale(.97); }
   .call { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .badge img { height: 40px; width: auto; }
-  .badge:active { opacity: .7; }
+  .badge { display: inline-block; transition: transform .16s var(--ease), opacity .16s ease; }
+  .badge img { height: 48px; width: auto; }
+  .badge:hover { opacity: .86; }
+  .badge:active { transform: scale(.97); }
 
   /* The hero */
-  .hero { padding-top: 16px; text-align: center; }
+  .hero { padding-top: 32px; text-align: center; }
   /* The mark, large, leaning a little toward the pointer. */
-  .logo { width: 96px; height: 92px; margin: 0 auto 16px; perspective: 600px; }
+  /* Small on purpose (the owner: "the logo should be smaller, it should
+     look more premium"): the mark is a signature, not a poster. */
+  .logo { width: 56px; height: 54px; margin: 0 auto 12px; perspective: 400px; }
   .logo .ink { --art: url("invite/camera.png"); width: 100%; height: 100%; transform: rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg)); will-change: transform; }
-  @media (min-width: 760px) { .logo { width: 128px; height: 122px; margin-bottom: 24px; } }
-  h1 { margin: 0 auto; font: 700 var(--t-hero)/1.06 "Zen Maru", Inter, sans-serif; letter-spacing: -.02em; }
+  @media (min-width: 760px) { .logo { width: 64px; height: 61px; margin-bottom: 16px; } }
+  h1 { margin: 0 auto; font: 700 var(--t-title)/1.08 "Zen Maru", Inter, sans-serif; letter-spacing: -.02em; }
   .lede { margin: 16px auto 0; max-width: 30ch; color: var(--ink-2); font-size: var(--t-lede); line-height: 1.28; letter-spacing: -.02em; }
   .hero .call { margin-top: 24px; }
 
   /* The trailer, on the page's own white, in a surface. */
-  .film { position: relative; margin: 48px auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--surface); overflow: hidden; background: var(--fill); }
+  .film { scroll-margin-top: 120px; position: relative; margin: 48px auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--surface); overflow: hidden; background: var(--fill); }
   .film.tall { aspect-ratio: 9 / 16; max-width: 360px; }
   .film video { width: 100%; height: 100%; object-fit: cover; }
   .film .sound { position: absolute; right: 12px; bottom: 12px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--rule); background: rgba(255,255,255,.7); color: var(--ink); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font: 600 13px/1 Inter, -apple-system, sans-serif; cursor: pointer; }
@@ -206,7 +217,7 @@
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     .js .rise { opacity: 1; transform: none; transition: none; }
-    .button, .glass, .ring .read, .crest, .state span { transition: none; }
+    .button, .glass, .ring, .ring .read, .crest, .menu, .badge, .state span { transition: none; }
     .logo .ink { transform: none; }
   }
 </style>
@@ -215,7 +226,7 @@
   <header id="bar">
     <div class="wrap">
       <a class="glass" href="#day" aria-label="How it works"><span class="ink" style="--art:url('site/mark-layers.png')" aria-hidden="true"></span></a>
-      <a class="crest" href="#top" aria-label="Some Wins">
+      <button type="button" class="crest" id="crest" aria-label="Some Wins, menu" aria-expanded="false" aria-controls="menu">
         <span class="ring" id="ring" aria-hidden="true">
           <svg viewBox="0 0 44 44">
             <defs><mask id="strokes"><circle class="cut" cx="22" cy="22" r="19.1" pathLength="120"/></mask></defs>
@@ -225,7 +236,18 @@
           <span class="well"><span class="ink"></span></span>
         </span>
         <span class="caption">Some Wins</span>
-      </a>
+      </button>
+      <!-- The crest opens the way round the page (the owner: "make the
+           middle logo do something when you click it, like open a menu ...
+           maybe like navigation"). The app's own block menu: glass, a
+           drawn mark and a word a row. -->
+      <nav class="menu" id="menu" hidden>
+        <a href="#top"><span class="ink" style="--art:url('invite/camera.png')"></span>Some Wins</a>
+        <a href="#film"><span class="ink" style="--art:url('site/tip-sparkle.png')"></span>The trailer</a>
+        <a href="#day"><span class="ink" style="--art:url('site/mark-layers.png')"></span>Your day</a>
+        <a href="#crews"><span class="ink" style="--art:url('site/mark-people.png')"></span>Crews</a>
+        <a href="https://testflight.apple.com/join/ZWQ5cHv6"><span class="ink" style="--art:url('site/tip-plus.png')"></span>Download</a>
+      </nav>
       <a class="glass" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download Some Wins">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M5.5 19.5h13"/></svg>
       </a>
@@ -242,8 +264,10 @@
       <h1 class="rise">Some Wins</h1>
       <p class="lede rise">Win with your people.</p>
       <div class="call rise">
-        <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Download Some Wins</a>
-        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="120" height="40"></a>
+        <!-- One control (the owner: "I don't like how much the Download on
+             the App Store badge is so different than the button"). Apple's
+             own badge, alone, at the height the button was. -->
+        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="144" height="48"></a>
       </div>
       <!-- The trailer: his launch film, wide on a desk and the vertical cut
            on a phone, silent until asked. -->
@@ -314,8 +338,7 @@
     <section class="wrap close">
       <h2 class="rise">Small wins still count.</h2>
       <div class="call rise">
-        <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Download Some Wins</a>
-        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="120" height="40" loading="lazy"></a>
+        <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="144" height="48" loading="lazy"></a>
       </div>
     </section>
   </main>
@@ -403,6 +426,20 @@
       }, { passive: true });
       document.addEventListener("pointerleave", function () { aim(0, 0); });
     }
+
+    // The crest opens the navigation; a choice, a press elsewhere or Escape closes it.
+    var crest = document.getElementById("crest"), menu = document.getElementById("menu");
+    function shut() { menu.hidden = true; crest.setAttribute("aria-expanded", "false"); }
+    crest.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = menu.hidden;
+      menu.hidden = !open;
+      crest.setAttribute("aria-expanded", String(open));
+    });
+    menu.addEventListener("click", shut);
+    document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target)) shut(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") shut(); });
+    window.addEventListener("scroll", function () { if (!menu.hidden && !bar.classList.contains("past")) shut(); }, { passive: true });
 
     // The lattice: three rows of empty cells, and the next slot on the floor.
     var lattice = document.getElementById("lattice");
