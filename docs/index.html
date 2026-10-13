@@ -77,7 +77,10 @@
      pictures. No shadow under them: a hairline and the page. */
   .phones { margin: clamp(48px, 7vw, 96px) auto 0; display: flex; justify-content: center; align-items: flex-end; max-width: 1040px; }
   .phone { flex: 0 0 auto; width: clamp(150px, 27vw, 300px); aspect-ratio: 1206 / 2622; border-radius: 13.5% / 6.2%; overflow: hidden; background: var(--soft); border: clamp(4px, .7vw, 8px) solid var(--ink); }
-  .phone img { width: 100%; height: 100%; object-fit: cover; }
+  .phone img, .phone video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* A loop turns over through the page's own ground, not a hard cut. */
+  .phone video { transition: opacity .32s ease; }
+  .phone video.turn { opacity: 0; }
   .phones .phone:nth-child(1) { transform: rotate(-6deg) translateY(7%); margin-right: -4%; }
   .phones .phone:nth-child(2) { position: relative; z-index: 2; width: clamp(170px, 30vw, 330px); }
   .phones .phone:nth-child(3) { transform: rotate(6deg) translateY(7%); margin-left: -4%; }
@@ -160,10 +163,15 @@
         <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
         <small>For iPhone</small>
       </div>
+      <!-- Three different screens, each a short loop filmed in the app
+           (the owner, 2026-10-13: "make sure the screenshots show different
+           screens and use actual photos ... having the screens have
+           animations playing would make the experience feel a lot cleaner,
+           like a clean loop"). A week's replay, today's tower, Memories. -->
       <div class="phones" aria-hidden="true">
-        <div class="phone"><img src="site/plan.jpg" alt="" width="603" height="1311"></div>
-        <div class="phone"><img src="site/tower.jpg" alt="" width="603" height="1311"></div>
-        <div class="phone"><img src="site/memories.jpg" alt="" width="603" height="1311"></div>
+        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/replay.jpg" width="480" height="1044"><source src="site/replay.mp4" type="video/mp4"></video></div>
+        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/tower.jpg" width="480" height="1044"><source src="site/tower.mp4" type="video/mp4"></video></div>
+        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/memories.jpg" width="480" height="1044"><source src="site/memories.mp4" type="video/mp4"></video></div>
       </div>
     </div>
 
@@ -254,5 +262,29 @@
       </nav>
     </div>
   </footer>
+<script>
+  // The loops play only while they are on screen, and each one fades through
+  // the phone's own ground as it turns over. With Reduce Motion they stay
+  // on their still frame.
+  (function () {
+    var still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var films = [].slice.call(document.querySelectorAll(".phone video"));
+    if (still || !films.length) return;
+    films.forEach(function (film) {
+      film.addEventListener("timeupdate", function () {
+        var left = film.duration - film.currentTime;
+        film.classList.toggle("turn", left < 0.45 || film.currentTime < 0.12);
+      });
+    });
+    if (!("IntersectionObserver" in window)) { films.forEach(function (f) { f.play().catch(function () {}); }); return; }
+    var watch = new IntersectionObserver(function (seen) {
+      seen.forEach(function (one) {
+        if (one.isIntersecting) one.target.play().catch(function () {});
+        else one.target.pause();
+      });
+    }, { threshold: 0.2 });
+    films.forEach(function (f) { watch.observe(f); });
+  })();
+</script>
 </body>
 </html>
