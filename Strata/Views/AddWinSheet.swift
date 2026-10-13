@@ -53,6 +53,8 @@ struct AddWinSheet: View {
     /// The plan line this win is being made from (its box, or its outline
     /// on the tower). The caller ticks that line; nothing is ticked by name.
     var plannedLine: UUID? = nil
+    /// The crew a group plan ticked for this win alone (`GroupPlanBook`).
+    @State private var groupPlanCrew: CrewID?
     /// **A day chosen on Now goes to the plan sheet** (the owner's pick,
     /// 2026-10-11, "make it the plan sheet's bar"). The add sheet had a
     /// plan mode of its own: a bold field at the top where the plan types
@@ -1768,6 +1770,14 @@ struct AddWinSheet: View {
             crewChoice = editingLog.map { log in
                 CrewHold.isHeld(log.id) ? CrewChoice.load() : SocialStore.shared.crews(holding: log.id)
             } ?? initialCrews ?? CrewChoice.load()
+            // **A plan made with a crew goes to that crew** (`GroupPlan`):
+            // finishing it is the proof the crew sees. Ticked here, where it
+            // can be unticked, and only while you are still in that crew.
+            if editingLog == nil, let line = plannedLine, let crew = GroupPlanBook.crew(forPlanItem: line),
+               SocialStore.shared.crew(crew) != nil, !crewChoice.contains(crew) {
+                crewChoice.insert(crew)
+                groupPlanCrew = crew
+            }
         }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
@@ -1920,7 +1930,8 @@ struct AddWinSheet: View {
                 fail(.doodle)
                 return
             }
-            if initialCrews == nil { CrewChoice.save(crewChoice) }
+            // The crew a group plan ticked is this win's, not your usual.
+            if initialCrews == nil { CrewChoice.save(groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
         }
         finish(win.habit)

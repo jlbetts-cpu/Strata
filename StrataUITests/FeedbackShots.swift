@@ -605,6 +605,32 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
+    /// The crew chat's plus row, a group plan's card, a sticker and a photo
+    /// brought back (`docs/crew-plus-design.md`), on a seeded crew.
+    func testCrewPlus() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataCrewSheet", "chat", "-strataSeedCrewChat", "1", "-strataSeedCrewPlan", "1"])
+        wait(9); snap("crewplus-chat")
+        let join = app.buttons["I'm In"].firstMatch
+        print("PLANNING-plan card: I'm In \(join.exists); did it line \(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'did it'")).firstMatch.exists)")
+        if join.exists { join.tap(); wait(2); snap("crewplus-joined") }
+        print("PLANNING-after joining: I'm In \(app.buttons["I'm In"].firstMatch.exists) undo \(app.buttons["Undo"].firstMatch.exists)")
+        let plus = app.buttons["More to send"]
+        print("PLANNING-plus: \(plus.exists)")
+        if plus.exists { plus.tap(); wait(1); snap("crewplus-row") }
+        for name in ["Add a win to this crew", "Plan something with this crew", "Send today's photo strip",
+                     "Bring back a day this crew saw", "Send a sticker or a doodle"] {
+            let b = app.buttons[name]
+            print("PLANNING-\(name): \(b.exists) \(b.exists ? b.frame : .zero)")
+        }
+        let plan = app.buttons["Plan something with this crew"]
+        if plan.exists { plan.tap(); wait(2); snap("crewplus-plan-sheet") }
+        if app.buttons["Cancel"].firstMatch.exists { app.buttons["Cancel"].firstMatch.tap(); wait(1) }
+        if plus.exists { plus.tap(); wait(1) }
+        let sticker = app.buttons["Send a sticker or a doodle"]
+        if sticker.exists { sticker.tap(); wait(2); snap("crewplus-sticker-sheet") }
+    }
+
     /// The camera's lens row and the flash's states (`docs/camera.md`). The
     /// simulator has no lens, so the row is drawn for a made-up phone.
     func testCameraLenses() {

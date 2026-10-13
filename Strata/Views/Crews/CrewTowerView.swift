@@ -246,7 +246,14 @@ struct CrewTowerView: View {
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
         .sheet(isPresented: $showsChat) {
-            CrewChatSheet(crewID: crewID, onOpenWin: openQuotedWin)
+            CrewChatSheet(crewID: crewID, onOpenWin: openQuotedWin, onAddWin: {
+                // The plus row's Win: once the chat has gone, the crew's own
+                // way to add one.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    onAddWin()
+                }
+            })
         }
         .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
         // Report, from the viewer's ⋯: the reasons, and nobody in the crew is

@@ -1200,6 +1200,36 @@ final class SocialStore {
         await sendSketch(png, text: CrewMessage.stripMarker, in: crewID, quoting: nil)
     }
 
+    /// **A plan the crew can see** (`GroupPlan`): a line in the chat like
+    /// any other, so it is sealed, paced, checked and cleared as one. The
+    /// plan as it went, or nil with why it did not.
+    func sendPlan(title: String, when: GroupPlan.When, in crewID: CrewID) async -> (outcome: ReplyOutcome, plan: GroupPlan?) {
+        guard let crew = crew(crewID) else { return (.notAllowed, nil) }
+        let day = CrewDay.string(for: now(), in: crew.timeZone)
+        guard let line = GroupPlan.line(title: title, when: when, sentOn: day) else { return (.notAllowed, nil) }
+        let outcome = await send(line, in: crewID)
+        guard outcome == .sent else { return (outcome, nil) }
+        let sent = (messagesByCrew[crewID] ?? []).last { $0.senderProfileID == me && $0.text == line }
+        return (.sent, sent?.groupPlan)
+    }
+
+    /// What a sticker's line says where nothing draws it as a picture.
+    static let stickerWord = "Sticker"
+
+    /// **A sticker in the chat**, drawn as the picture it is
+    /// (`CrewMessage.pictureMarker`). Checked and paced as a doodle is.
+    @discardableResult
+    func sendSticker(_ png: Data, in crewID: CrewID) async -> ReplyOutcome {
+        await sendSketch(png, text: CrewMessage.pictureMarker + Self.stickerWord, in: crewID, quoting: nil)
+    }
+
+    /// **A photograph of yours, brought back to the crew it went to**
+    /// (`CrewLookBack`), with its line under it.
+    @discardableResult
+    func sendPicture(_ data: Data, caption: String, in crewID: CrewID) async -> ReplyOutcome {
+        await sendSketch(data, text: CrewMessage.pictureMarker + caption, in: crewID, quoting: nil)
+    }
+
     /// A doodle with `text` beside it: none for the chat's, the marker for a
     /// strip. The gate, the photo check and the file are the same for both,
     /// and both count against `CrewSendThrottle`.

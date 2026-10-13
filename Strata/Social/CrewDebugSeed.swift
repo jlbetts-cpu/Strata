@@ -242,6 +242,26 @@ extension DebugHarness {
         if argument("-strataChatReact") != nil {
             await seedChatReactions(first: first, second: second, me: me, crew: crew.id)
         }
+        // `-strataSeedCrewPlan`: a friend plans something for today, another
+        // friend does it (so the card can name who did), a sticker, and a
+        // photo brought back with its line (`GroupPlan`, `ChatPlus`).
+        if argument("-strataSeedCrewPlan") != nil {
+            await second.refresh()
+            _ = await second.sendPlan(title: "Evening walk", when: .day(CrewDay.string(for: Date(), in: crew.timeZone)), in: crew.id)
+            await first.refresh()
+            let now = Date()
+            await first.post(OwnWin(winID: UUID(), title: "Evening walk", colour: .health, icon: .health, blockSize: .medium,
+                                    photoJPEG: nil, cropX: nil, cropY: nil, createdAt: now, updatedAt: now), to: [crew.id])
+            if let png = StickerMaker.sample()?.pngData() {
+                await first.refresh()
+                await first.sendSticker(png, in: crew.id)
+            }
+            if let photo = UIImage(named: "DemoPhoto5")?.jpegData(compressionQuality: 0.8) {
+                await second.refresh()
+                await second.sendPicture(photo, caption: "A year ago today.", in: crew.id)
+            }
+            await me.refresh()
+        }
     }
 
     /// Reactions on the seeded chat (2026-10-06): ❤️ from a friend and from

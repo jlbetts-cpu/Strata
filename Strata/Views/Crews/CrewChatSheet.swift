@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// **Today's crew chat** (the owner, 2026-10-05).
@@ -28,8 +29,12 @@ struct CrewChatSheet: View {
     /// A quoted win was tapped: the crew screen closes this sheet and opens
     /// that win in its viewer.
     var onOpenWin: (UUID) -> Void = { _ in }
+    /// The plus row's Win: the crew screen closes this sheet and opens Add a
+    /// Win with this crew ticked.
+    var onAddWin: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What is in the field. Seeded from `CrewDrafts` and written back to it
     /// on every keystroke (`draftField`), so the words outlive the sheet.
@@ -45,6 +50,22 @@ struct CrewChatSheet: View {
     /// is not also a tap that opens the win.
     @State private var held: UUID?
     @State private var stickerRefused = false
+    /// The plus row (`ChatPlusRow`), and what its five things open.
+    @State private var showsPlus = false
+    @State private var planning = false
+    @State private var choosingSticker = false
+    @State private var makingSticker = false
+    @State private var doodling = false
+    @State private var showsStrip = false
+    @State private var choosingMemory = false
+    /// A group plan two or more have done with a photo, opened as a strip.
+    @State private var planStrip: GroupPlan?
+    /// Today's look back for this crew (`CrewLookBack`), if there is one.
+    @State private var lookBack: CrewLookBack.Found?
+    /// Plan cards closed on this phone today, and a count that redraws the
+    /// cards after `GroupPlanBook` changes (it is not observed).
+    @State private var closedPlans: Set<String> = []
+    @State private var planTick = 0
     @FocusState private var writing: Bool
 
     private var store: SocialStore { SocialStore.shared }
@@ -61,18 +82,23 @@ struct CrewChatSheet: View {
     /// system's half second, which the context menu it replaced waited.
     private static let holdToReact: Double = 0.35
 
-    init(crewID: CrewID, onOpenWin: @escaping (UUID) -> Void = { _ in }) {
+    init(crewID: CrewID, onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.onOpenWin = onOpenWin
+        self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
     }
 
     var body: some View {
         let crew = store.visible(crewID)
+        // A plan card you closed is off your chat for the day; the line is
+        // still everyone else's.
         let messages = store.messages(in: crewID)
+            .filter { ($0.groupPlan?.bookKey).map { !closedPlans.contains($0) } ?? true }
         let reactions = store.messageReactions(in: crewID)
         NavigationStack {
             thread(messages, reactions: reactions, crew: crew)
+                .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
                 // The reaction bar closes on a tap outside it or a scroll,
                 // neither of which VoiceOver can make: escape closes it first.
@@ -105,8 +131,45 @@ struct CrewChatSheet: View {
             Button("OK", role: .cancel) {}
         }
         .overlay(alignment: .bottom) { dialogs }
-        // Writing closes an open bar: the field is where the eye went.
-        .onChange(of: writing) { _, now in if now { closeBar() } }
+        // Writing closes an open bar: the field is where the eye went. And
+        // the plus row, which stands where the keyboard is about to.
+        .onChange(of: writing) { _, now in
+            if now {
+                closeBar()
+                if showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
+            }
+        }
+        .task { lookBack = CrewLookBack.find(for: crewID, context: modelContext) }
+        .sheet(isPresented: $planning) {
+            GroupPlanSheet(crewName: store.crew(crewID)?.displayName(excluding: store.me) ?? "Your Crew") { title, when in
+                propose(title, when)
+            }
+        }
+        .sheet(isPresented: $choosingSticker) { stickerSheet }
+        .stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }
+        .sheet(isPresented: $doodling) {
+            DoodleSheet(owner: store.crew(crewID)?.displayName(excluding: store.me) ?? "") { drawing in
+                guard let png = InkExport.doodlePNG(drawing) else { return }
+                Task { answer(await store.sendDoodle(png, in: crewID)) }
+            }
+        }
+        .sheet(isPresented: $choosingMemory) {
+            CrewMemorySheet(crewID: crewID) { found in bringBack(found) }
+        }
+        .fullScreenCover(isPresented: $showsStrip) {
+            // Your own strip for today, which the booth sends to a crew from
+            // its Share. It develops when the day's goal is reached, here as
+            // on the tower.
+            StripBooth(owner: .me, prints: false, canDevelop: { goalReached }) {
+                await PhotoStrip.mine(context: modelContext)
+            }
+        }
+        .fullScreenCover(item: $planStrip) { plan in
+            StripBooth(owner: .crew(crewID.rawValue), day: today) {
+                await PhotoStrip.crew(crewID, titled: plan.title)
+            }
+        }
+        .undoLine()
         #if DEBUG
         // `-strataChatReact open`: a friend's line held, its bar open, so
         // the bar can be photographed (the seed is `CrewDebugSeed`).
@@ -321,6 +384,10 @@ struct CrewChatSheet: View {
     private func bubbleFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {
         if message.isStrip, let strip = message.sketch {
             CrewStripPicture(url: strip)
+        } else if let plan = message.groupPlan {
+            planCard(plan)
+        } else if message.isPicture, let picture = message.sketch {
+            ChatPicture(url: picture, caption: message.caption == SocialStore.stickerWord ? "" : message.caption, mine: mine)
         } else {
             lineFace(message, mine: mine, quote: quote)
         }
@@ -387,6 +454,14 @@ struct CrewChatSheet: View {
             parts.append("a photo strip")
             return parts.joined(separator: ", ")
         }
+        if let plan = message.groupPlan {
+            parts.append("a plan, \(plan.title), \(plan.whenWords(today: today))")
+            return parts.joined(separator: ", ")
+        }
+        if message.isPicture {
+            parts.append(message.caption == SocialStore.stickerWord || message.caption.isEmpty ? "a sticker" : "a photo, \(message.caption)")
+            return parts.joined(separator: ", ")
+        }
         if message.sketch != nil { parts.append("a doodle") }
         if !message.text.isEmpty { parts.append(message.text) }
         return parts.joined(separator: ", ")
@@ -397,7 +472,18 @@ struct CrewChatSheet: View {
     @ViewBuilder
     private var composer: some View {
         if store.canReply() {
+          VStack(spacing: 0) {
+            if showsPlus {
+                ChatPlusRow { choice in choose(choice) }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
+                GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,
+                                accessibilityLabel: showsPlus ? "Close" : "More to send") {
+                    writing = false
+                    closeBar()
+                    withAnimation(GridConstants.motionSnappy) { showsPlus.toggle() }
+                }
                 TextField("Message", text: draftField, axis: .vertical)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkPrimary)
@@ -420,6 +506,7 @@ struct CrewChatSheet: View {
                 draft = String(text.prefix(CrewMessage.textLimit))
                 CrewDrafts.keepChat(draft, for: crewID)
             }
+          }
         } else {
             // Off for an age not shared (`canReply`): the chat reads, and
             // says so in one line.
@@ -470,6 +557,177 @@ struct CrewChatSheet: View {
                 refused = true
             }
         }
+    }
+
+    // MARK: - The plus row
+
+    /// The crew's day, which is the day a plan's "today" means.
+    private var today: String {
+        store.crew(crewID).map { CrewDay.string(for: store.now(), in: $0.timeZone) } ?? DateUtils.dateString(from: Date())
+    }
+
+    private var goalReached: Bool {
+        let day = DateUtils.dateString(from: Date())
+        let wins = (try? modelContext.fetchCount(FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.dateString == day && $0.completed }))) ?? 0
+        return wins >= DailyGoal.stored(on: day)
+    }
+
+    private func choose(_ choice: ChatPlusRow.Choice) {
+        withAnimation(GridConstants.motionSnappy) { showsPlus = false }
+        switch choice {
+        case .win:
+            dismiss()
+            onAddWin()
+        case .plan: planning = true
+        case .strip: showsStrip = true
+        case .memory: choosingMemory = true
+        case .sticker: choosingSticker = true
+        }
+    }
+
+    /// What a send that did not go says: the same three answers a line gets.
+    private func answer(_ outcome: SocialStore.ReplyOutcome) {
+        switch outcome {
+        case .sent, .throttled: break
+        case .dailyLimit: atDailyLimit = true
+        case .refusedSketch: stickerRefused = true
+        case .refusedWords, .notAllowed: refused = true
+        }
+    }
+
+    /// A plan, sent, and put in your own plan at once: you proposed it.
+    private func propose(_ title: String, _ when: GroupPlan.When) {
+        Task {
+            let result = await store.sendPlan(title: title, when: when, in: crewID)
+            answer(result.outcome)
+            if let plan = result.plan {
+                plan.join(context: modelContext)
+                planTick += 1
+            }
+        }
+    }
+
+    /// **I'm In**: the plan goes in your own plan, and can be taken back.
+    private func join(_ plan: GroupPlan) {
+        HapticsEngine.lightTap()
+        guard let line = plan.join(context: modelContext) else { return }
+        planTick += 1
+        let id = line.id, key = plan.bookKey
+        let context = modelContext
+        UndoLine.shared.show("In your plan", undo: {
+            if let held = try? context.fetch(FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })).first {
+                context.delete(held)
+                try? context.save()
+            }
+            GroupPlanBook.leave(key)
+            planTick += 1
+        })
+    }
+
+    /// The people who sent this crew a win of the plan's name today, you
+    /// first, and whether two of those wins have a photo.
+    private func done(_ plan: GroupPlan) -> (names: [String], canStrip: Bool) {
+        guard plan.isFor(today) else { return ([], false) }
+        let key = GroupPlan.key(plan.title)
+        let wins = store.today(in: crewID).filter { GroupPlan.key($0.title) == key }
+        var senders: [UUID] = []
+        for win in wins.sorted(by: { $0.createdAt < $1.createdAt }) where !senders.contains(win.senderProfileID) {
+            senders.append(win.senderProfileID)
+        }
+        if let mine = senders.firstIndex(of: store.me) { senders.insert(senders.remove(at: mine), at: 0) }
+        return (senders.map { name(of: $0) }, wins.filter { $0.photo != nil }.count >= 2)
+    }
+
+    private func planCard(_ plan: GroupPlan) -> some View {
+        let state = done(plan)
+        // Read on every draw: the book is on this phone and is not observed.
+        _ = planTick
+        return GroupPlanCard(plan: plan, today: today, isIn: GroupPlanBook.isIn(plan), done: state.names,
+                             canStrip: state.canStrip,
+                             join: { join(plan) },
+                             strip: { planStrip = plan },
+                             close: { withAnimation(motion) { _ = closedPlans.insert(plan.bookKey) } })
+    }
+
+    /// Over the thread: today's look back, and the plans you are in that are
+    /// for today and whose own line is not in today's chat (a plan made
+    /// yesterday for today: its line went at midnight, and yours did not).
+    @ViewBuilder
+    private func topCards(_ messages: [CrewMessage]) -> some View {
+        let _ = planTick
+        let inChat = Set(messages.compactMap { $0.groupPlan?.bookKey })
+        let mine = GroupPlanBook.plans(in: crewID, on: today, me: store.me)
+            .filter { !inChat.contains($0.bookKey) && !closedPlans.contains($0.bookKey) }
+        if lookBack != nil || !mine.isEmpty {
+            VStack(spacing: GridConstants.gapTight) {
+                if let found = lookBack {
+                    TipCard(title: found.title,
+                            message: "You sent this here.",
+                            mark: "MarkPhoto",
+                            actionTitle: "Send It Again",
+                            action: { bringBack(found) },
+                            close: {
+                                CrewLookBack.answer(crewID, today: DateUtils.dateString(from: Date()))
+                                withAnimation(motion) { lookBack = nil }
+                            })
+                }
+                ForEach(mine) { plan in planCard(plan) }
+            }
+            .padding(.horizontal, hPad)
+            .padding(.vertical, GridConstants.gapTight)
+        }
+    }
+
+    /// A photograph of yours this crew saw, sent again with its line.
+    private func bringBack(_ found: CrewLookBack.Found) {
+        HapticsEngine.lightTap()
+        Task {
+            guard let data = await Task.detached(priority: .userInitiated, operation: { CrewLookBack.picture(found) }).value else {
+                refused = true
+                return
+            }
+            let outcome = await store.sendPicture(data, caption: found.title + ".", in: crewID)
+            answer(outcome)
+            if outcome == .sent {
+                CrewLookBack.answer(crewID, today: DateUtils.dateString(from: Date()))
+                withAnimation(motion) { lookBack = nil }
+            }
+        }
+    }
+
+    private func sendSticker(_ symbol: String) {
+        guard let name = StickerStore.name(in: symbol), let png = StickerStore.shared.image(name)?.pngData() else { return }
+        Task { answer(await store.sendSticker(png, in: crewID)) }
+    }
+
+    /// Your stickers, and the doodle pad above them.
+    private var stickerSheet: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            BlockMenuRow("Doodle", "scribble") {
+                choosingSticker = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    doodling = true
+                }
+            }
+            StickerPicker(current: nil, purpose: .drawing, onPick: { symbol in
+                choosingSticker = false
+                sendSticker(symbol)
+            }, onNewSticker: {
+                // The photos once this sheet has gone (`StickerMaking`).
+                choosingSticker = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    makingSticker = true
+                }
+            })
+        }
+        .padding(GridConstants.horizontalPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
     }
 
     // MARK: - Report and Block

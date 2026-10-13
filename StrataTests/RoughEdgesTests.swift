@@ -117,7 +117,10 @@ struct RoughEdgesTests {
         // The sticky choice the camera's row used to save is what the sheet
         // opens on for a new win, and saves with it.
         #expect(sheet.contains("?? initialCrews ?? CrewChoice.load()"))
-        #expect(sheet.contains("if initialCrews == nil { CrewChoice.save(crewChoice) }"))
+        // Saved as it was chosen, less the one crew a group plan ticked for
+        // this win alone (`GroupPlanBook`, 2026-10-12): that crew is this
+        // win's, not your usual.
+        #expect(sheet.contains("if initialCrews == nil { CrewChoice.save(groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice) }"))
     }
 
     // MARK: 5. One success per win

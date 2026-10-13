@@ -121,12 +121,34 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
     /// (It counted them at first, "3 new in Roommates". The count was of
     /// pushes, and a phone sends one a minute however many lines are
     /// written, so the number was wrong. Found by review, 2026-10-10.)
+    static let pictureMarker = "\u{2063}\u{2061}"
+    static let planMarker = "\u{2063}\u{2062}"
+    static let stickerWord = "Sticker"
+
+    /// What follows `marker` at the start of `text`, by scalar.
+    static func words(after marker: String, in text: String) -> String? {
+        let scalars = Array(text.unicodeScalars), mark = Array(marker.unicodeScalars)
+        guard scalars.count >= mark.count, Array(scalars.prefix(mark.count)) == mark else { return nil }
+        var rest = String.UnicodeScalarView()
+        rest.append(contentsOf: scalars.dropFirst(mark.count))
+        return String(rest)
+    }
+
     func chatWords(crew crewTag: String, sender: String, text: String?, hasPicture: Bool) -> (title: String, body: String) {
         let crew = crews[crewTag]
         let name = crew?.members[sender].flatMap { $0.name.isEmpty ? nil : $0.name } ?? "A friend"
         let heading = crew?.title ?? "Some Wins"
         let said = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if said == CrewPingRecord.stripMarker { return (heading, "\(name) shared a photo strip") }
+        // A picture shown as it is (a sticker, or a photo brought back),
+        // with the line under it, and a plan (`GroupPlan`, 2026-10-12). A
+        // build from before these reads each as "Sam: " and its words.
+        if let caption = Self.words(after: Self.pictureMarker, in: said) {
+            return (heading, caption.isEmpty || caption == Self.stickerWord ? "\(name) sent a sticker" : "\(name): \(caption)")
+        }
+        if let plan = Self.words(after: Self.planMarker, in: said), plan.hasPrefix("Plan: ") {
+            return (heading, "\(name) planned \(String(plan.dropFirst(6).prefix(120)))")
+        }
         if said.isEmpty { return (heading, hasPicture ? "\(name) sent a doodle" : "\(name) wrote in the chat") }
         return (heading, "\(name): \(String(said.prefix(140)))")
     }
