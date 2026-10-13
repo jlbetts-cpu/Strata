@@ -73,17 +73,21 @@
   .hero .call { margin-top: clamp(26px, 3vw, 40px); display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .hero .call small, .close small { color: var(--ink-3); font-size: 14px; }
 
-  /* Three phones, the middle one upright, as Apollo's hero stands its three
-     pictures. No shadow under them: a hairline and the page. */
-  .phones { margin: clamp(48px, 7vw, 96px) auto 0; display: flex; justify-content: center; align-items: flex-end; max-width: 1040px; }
-  .phone { flex: 0 0 auto; width: clamp(150px, 27vw, 300px); aspect-ratio: 1206 / 2622; border-radius: 13.5% / 6.2%; overflow: hidden; background: var(--soft); border: clamp(4px, .7vw, 8px) solid var(--ink); }
-  .phone img, .phone video { display: block; width: 100%; height: 100%; object-fit: cover; }
-  /* A loop turns over through the page's own ground, not a hard cut. */
-  .phone video { transition: opacity .32s ease; }
-  .phone video.turn { opacity: 0; }
-  .phones .phone:nth-child(1) { transform: rotate(-6deg) translateY(7%); margin-right: -4%; }
-  .phones .phone:nth-child(2) { position: relative; z-index: 2; width: clamp(170px, 30vw, 330px); }
-  .phones .phone:nth-child(3) { transform: rotate(6deg) translateY(7%); margin-left: -4%; }
+  /* The trailer. It is on the page's own white, so it needs no frame but
+     a corner and a hairline. No shadow. */
+  .film { position: relative; margin: clamp(40px, 6vw, 80px) auto 0; width: 100%; max-width: 1120px; aspect-ratio: 16 / 9; border-radius: clamp(16px, 2.2vw, 28px); overflow: hidden; background: var(--soft); border: 1px solid var(--rule); }
+  .film.tall { aspect-ratio: 9 / 16; max-width: min(100%, 380px); }
+  .film video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .film .sound {
+    position: absolute; right: 12px; bottom: 12px; height: 36px; padding: 0 14px; border-radius: 18px;
+    border: 1px solid var(--rule); background: rgba(255,255,255,.86); color: var(--ink);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    font: 500 14px/1 Inter, -apple-system, sans-serif; cursor: pointer;
+  }
+  .film .sound:active { opacity: .7; }
+  /* A phone standing beside words, lower on the page. */
+  .phone { flex: 0 0 auto; aspect-ratio: 1206 / 2622; border-radius: 13.5% / 6.2%; overflow: hidden; background: var(--soft); border: clamp(4px, .7vw, 8px) solid var(--ink); }
+  .phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
   /* `.wrap` sets all four paddings, so the section's own top is named with it. */
   section.wrap { padding-top: var(--section); }
@@ -137,12 +141,6 @@
     header .wrap { height: 60px; }
     .button { height: 40px; padding: 0 16px; font-size: 14px; }
     .button.large { height: 52px; padding: 0 30px; font-size: 17px; }
-    /* The side phones lean off the page's edges rather than shrink to nothing. */
-    .phones { margin-left: calc(var(--gutter) * -1); margin-right: calc(var(--gutter) * -1); overflow: hidden; padding: 0 0 6%; }
-    .phones .phone { width: 40vw; }
-    .phones .phone:nth-child(2) { width: 46vw; }
-    .phones .phone:nth-child(1) { margin-right: -9vw; }
-    .phones .phone:nth-child(3) { margin-left: -9vw; }
   }
   @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
 </style>
@@ -163,15 +161,13 @@
         <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
         <small>For iPhone</small>
       </div>
-      <!-- Three different screens, each a short loop filmed in the app
-           (the owner, 2026-10-13: "make sure the screenshots show different
-           screens and use actual photos ... having the screens have
-           animations playing would make the experience feel a lot cleaner,
-           like a clean loop"). A week's replay, today's tower, Memories. -->
-      <div class="phones" aria-hidden="true">
-        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/replay.jpg" width="480" height="1044"><source src="site/replay.mp4" type="video/mp4"></video></div>
-        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/tower.jpg" width="480" height="1044"><source src="site/tower.mp4" type="video/mp4"></video></div>
-        <div class="phone"><video muted loop playsinline preload="metadata" poster="site/memories.jpg" width="480" height="1044"><source src="site/memories.mp4" type="video/mp4"></video></div>
+      <!-- The trailer (the owner, 2026-10-13: "we already made the trailer,
+           can we just have that in the hero section instead"). His launch
+           film, wide on a desk and the vertical cut on a phone, silent until
+           asked. It was three phones, then three loops filmed for this. -->
+      <div class="film" id="film">
+        <video muted loop playsinline preload="metadata" aria-label="The Some Wins trailer"></video>
+        <button type="button" class="sound" aria-pressed="false">Sound</button>
       </div>
     </div>
 
@@ -263,27 +259,29 @@
     </div>
   </footer>
 <script>
-  // The loops play only while they are on screen, and each one fades through
-  // the phone's own ground as it turns over. With Reduce Motion they stay
-  // on their still frame.
+  // The trailer: the wide cut on a desk, the vertical one on a phone. It
+  // plays silent, only while it is on screen; Sound turns its sound on.
+  // With Reduce Motion it waits to be asked, with the browser's own controls.
   (function () {
-    var still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var films = [].slice.call(document.querySelectorAll(".phone video"));
-    if (still || !films.length) return;
-    films.forEach(function (film) {
-      film.addEventListener("timeupdate", function () {
-        var left = film.duration - film.currentTime;
-        film.classList.toggle("turn", left < 0.45 || film.currentTime < 0.12);
-      });
+    var box = document.getElementById("film");
+    var film = box.querySelector("video"), sound = box.querySelector(".sound");
+    var tall = window.matchMedia("(max-width: 700px)").matches;
+    var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (tall) box.classList.add("tall");
+    film.poster = tall ? "site/trailer-tall.jpg" : "site/trailer-wide.jpg";
+    film.src = tall ? "site/trailer-tall.mp4" : "site/trailer-wide.mp4";
+    sound.addEventListener("click", function () {
+      film.muted = !film.muted;
+      sound.textContent = film.muted ? "Sound" : "Mute";
+      sound.setAttribute("aria-pressed", String(!film.muted));
+      if (film.paused) film.play().catch(function () {});
     });
-    if (!("IntersectionObserver" in window)) { films.forEach(function (f) { f.play().catch(function () {}); }); return; }
-    var watch = new IntersectionObserver(function (seen) {
-      seen.forEach(function (one) {
-        if (one.isIntersecting) one.target.play().catch(function () {});
-        else one.target.pause();
-      });
-    }, { threshold: 0.2 });
-    films.forEach(function (f) { watch.observe(f); });
+    if (still) { film.controls = true; sound.hidden = true; return; }
+    if (!("IntersectionObserver" in window)) { film.play().catch(function () {}); return; }
+    new IntersectionObserver(function (seen) {
+      if (seen[0].isIntersecting) film.play().catch(function () {});
+      else film.pause();
+    }, { threshold: 0.25 }).observe(film);
   })();
 </script>
 </body>
