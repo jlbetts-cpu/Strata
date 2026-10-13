@@ -893,3 +893,25 @@ there are two builds. **127 went to Friends** with everything else.
 **128 is for you alone** and has the camera changes. The eight things to
 try on your phone are lines 5 to 12 of the rubric in `docs/camera.md`.
 Say the word and the next build to Friends carries them.
+
+## 13. The Launch Pack, the safe parts (2026-10-12, night)
+
+Your doc, worked in the order you chose. The item-by-item record with a
+number for each is `docs/launch-pack-log.md`; your voice contract is now
+`docs/voice.md` in the repo. In short:
+
+- **Voice.** About thirty lines changed, inside and outside the app. The
+  tables are in the log.
+- **A crew of two is a crew.** The wording, and one real rule: a pair
+  keeps a day when either of you sends a win.
+- **Sharing.** No name on the strip. A new "Text a Friend" row sends the
+  strip, your line and the app's page. The invite link's card is the app's
+  name, your line and the logo.
+- **The listing.** Checked and ready to paste, in
+  `tasks/app-store-metadata.md`. One thing to decide there: the U.K.
+  keyword field does nothing in the U.S. store.
+- **The crew builds** (plus row, group plans, looking back) are a design
+  waiting on four answers: `docs/crew-plus-design.md`.
+
+**Not proven:** anything about Messages (the simulator sends none), and
+the new lines have not been read on a phone.

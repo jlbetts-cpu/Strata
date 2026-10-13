@@ -1998,6 +1998,32 @@ and `messages(in:)` goes on leaving those out, so nothing shows or alerts
 for one. Doodles on your own wins, in the chat and on the strip are
 untouched.
 
+## The Launch Pack (2026-10-12)
+
+The owner's doc of that name is the brief; `docs/launch-pack-log.md` is
+the item-by-item record, and `docs/voice.md` is his voice contract.
+**Read `docs/voice.md` before writing any string.** What came of it that
+is easy to undo by accident:
+
+- **A pair keeps a day when either sends a win** (`CrewHistory.needed(of:
+  2) == 1`). It was both, and one quiet person ended a pair's run for
+  good. Do not put "at least two" back.
+- **Nothing advertises eight.** "Up to 8" appears only as a refusal. A
+  pair is spoken to as a pair ("You're both in today.").
+- **No question from the lock screen.** `WinCue.roomLeft` is the
+  notification's line; `WinCue.anythingElse` is the bubble's.
+- **A notification invites and holds the detail back.** The past win is
+  "A year ago today." with no body.
+- **`CrewEvening.line` names nobody and claims nothing** about who posted:
+  it is written in the morning.
+- **The strip's foot is the wordmark and the date, no name** (it reversed
+  his 2026-10-07 pick, at his own later word).
+- **A strip's link is the app's page, never an invite.** An invite link is
+  the crew's key (`StripMessageActivity`).
+- Reactions are paced per thing reacted to, not per crew.
+- The plus row, group plans and a crew's look back are **designed, not
+  built**: `docs/crew-plus-design.md` waits on four answers from him.
+
 ## Words the app says
 
 The owner's rules, 2026-09-11: **no long dash (—) in anything a person

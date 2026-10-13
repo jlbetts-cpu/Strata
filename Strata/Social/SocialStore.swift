@@ -1125,14 +1125,14 @@ final class SocialStore {
 
     /// Nil when a write of `kind` to `crew` may go now, and counts it;
     /// otherwise what to answer instead.
-    private func paced(_ kind: CrewSendThrottle.Kind, in crew: Crew) -> ReplyOutcome? {
+    private func paced(_ kind: CrewSendThrottle.Kind, in crew: Crew, item: UUID? = nil) -> ReplyOutcome? {
         guard throttles else { return nil }
         let day = CrewDay.string(for: now(), in: crew.timeZone)
-        switch throttle.verdict(kind, crew: crew.id.rawValue, day: day, at: now()) {
+        switch throttle.verdict(kind, crew: crew.id.rawValue, day: day, at: now(), item: item?.uuidString) {
         case .tooFast: return .throttled
         case .dailyLimit: return .dailyLimit
         case .allowed:
-            throttle.record(kind, crew: crew.id.rawValue, day: day, at: now())
+            throttle.record(kind, crew: crew.id.rawValue, day: day, at: now(), item: item?.uuidString)
             defaults.set(try? JSONEncoder().encode(throttle), forKey: Self.throttleKey)
             return nil
         }
@@ -1329,7 +1329,7 @@ final class SocialStore {
               let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
               win.senderProfileID != me else { return }
         // Too fast is dropped quietly: the reaction already showing stays.
-        guard paced(.reaction, in: crew) == nil else { return }
+        guard paced(.reaction, in: crew, item: winID) == nil else { return }
         Analytics.shared.signal(.crewReaction)
         let name = Reaction.name(winID: winID, profileID: me)
         var list = reactionsByCrew[crewID] ?? []
@@ -1401,7 +1401,7 @@ final class SocialStore {
         let name = Reaction.name(winID: messageID, profileID: me)
         let mark = pick.mark
         guard !mark.isEmpty else { return .notAllowed }
-        if let held = paced(.reaction, in: crew) { return held }
+        if let held = paced(.reaction, in: crew, item: messageID) { return held }
         var sketch: URL?
         if reactionsByCrew[crewID]?.first(where: { $0.id == name })?.emoji != mark,
            case .sticker(_, let png) = pick {

@@ -59,6 +59,7 @@ struct ReplayView: View {
     @State private var load = ReplayImageLoad()
     /// Shown only when nothing could start within `replayLoadingDelay`.
     @State private var showsLoading = false
+    @State private var savingRefused = false
     /// The clock has started: the player replaces the empty ground.
     @State private var started = false
     @State private var scripts = ReplayScriptCache()
@@ -360,6 +361,8 @@ struct ReplayView: View {
         .frame(height: GlassIconButton.defaultSide)
         .animation(GridConstants.motionSnappy, value: video.saveTitle)
         .animation(GridConstants.motionSnappy, value: video.shareState)
+        .onChange(of: video.photosRefused) { _, _ in savingRefused = true }
+        .photoSaveFailed($savingRefused)
     }
 
     private func saveVideo() {
@@ -536,6 +539,13 @@ struct ReplayView: View {
 @MainActor
 @Observable
 final class ReplayVideo {
+    /// How many times Photos would not take the video. **A way on from
+    /// "Couldn't save"** (the voice pass, 2026-10-12): with Photos not
+    /// allowed, the button said so, a press tried again, and failed again,
+    /// for ever. The view answers each one with the app's own "Couldn't
+    /// save to Photos", which has Open Settings.
+    private(set) var photosRefused = 0
+
     enum SaveState: Equatable {
         case idle
         case saving
@@ -597,6 +607,7 @@ final class ReplayVideo {
                 writingToPhotos = false
                 if closed { removeFile() }
                 saveState = saved ? .saved : .failed
+                if !saved { photosRefused += 1 }
                 if saved { HapticsEngine.success() } else { HapticsEngine.warning() }
             }
         }

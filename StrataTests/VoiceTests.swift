@@ -86,6 +86,41 @@ struct VoiceTests {
         #expect(!home.contains("somewins://join"))
     }
 
+    @Test("a strip to a friend is the picture, his line and the app's page, never a crew's key")
+    func stripToAFriend() throws {
+        #expect(StripMessageActivity.line == "Today was a good one. Some of it's in here.")
+        // The link is last and alone on its line, where Messages makes a card of it.
+        #expect(StripMessageActivity.body.hasSuffix("\n" + StripMessageActivity.page))
+        #expect(!StripMessageActivity.page.contains("join"))
+        #expect(!StripMessageActivity.page.contains("#"))
+        #expect(CrewInviteLink.read(URL(string: StripMessageActivity.page)!) == nil)
+        // The sheet's own items are still the picture alone, for a post.
+        let story = try code("Strata/Views/Strip/StripStory.swift")
+        #expect(story.contains("UIActivityViewController(activityItems: [file], applicationActivities: activities)"))
+    }
+
+    @Test("a like on one block does not swallow a like on the next")
+    func reactionsArePacedPerThing() {
+        var throttle = CrewSendThrottle()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(throttle.verdict(.reaction, crew: "c", day: "2026-10-12", at: now, item: "a") == .allowed)
+        throttle.record(.reaction, crew: "c", day: "2026-10-12", at: now, item: "a")
+        let soon = now.addingTimeInterval(0.1)
+        // The same block again, at once: held. Another block: let through.
+        #expect(throttle.verdict(.reaction, crew: "c", day: "2026-10-12", at: soon, item: "a") == .tooFast)
+        #expect(throttle.verdict(.reaction, crew: "c", day: "2026-10-12", at: soon, item: "b") == .allowed)
+        // Old gaps are not kept.
+        throttle.record(.reaction, crew: "c", day: "2026-10-12", at: now.addingTimeInterval(120), item: "b")
+        #expect(throttle.last.count == 1)
+    }
+
+    @Test("a replay that Photos will not take offers the way to Settings")
+    func replaySave() throws {
+        let replay = try code("Strata/Views/ReplayView.swift")
+        #expect(replay.contains("if !saved { photosRefused += 1 }"))
+        #expect(replay.contains(".photoSaveFailed($savingRefused)"))
+    }
+
     @Test("lines that counted against you, or said a thing the app does not do")
     func inApp() throws {
         #expect(GoalHistory(days: Array(repeating: 1, count: 14)).sentence(goal: 2).isEmpty)

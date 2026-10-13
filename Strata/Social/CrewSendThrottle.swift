@@ -44,15 +44,23 @@ nonisolated struct CrewSendThrottle: Codable, Equatable, Sendable {
     private(set) var counts: [String: Int] = [:]
 
     private static func key(_ kind: Kind, _ crew: String) -> String { "\(crew)|\(kind.rawValue)" }
+    /// The gap's own key. **A reaction is paced per thing reacted to**
+    /// (found 2026-10-12): the gap was per crew, so a heart on one block
+    /// and a heart on the next inside half a second showed the second burst
+    /// and quietly dropped it. The gap is there to stop one thing being
+    /// hammered, not to stop two things being liked.
+    private static func gapKey(_ kind: Kind, _ crew: String, _ item: String?) -> String {
+        item.map { "\(key(kind, crew))|\($0)" } ?? key(kind, crew)
+    }
     private static func dayKey(_ kind: Kind, _ crew: String, _ day: String) -> String {
         "\(crew)|\(kind.rawValue)|\(day)"
     }
 
-    func verdict(_ kind: Kind, crew: String, day: String, at now: Date) -> Verdict {
+    func verdict(_ kind: Kind, crew: String, day: String, at now: Date, item: String? = nil) -> Verdict {
         if let cap = Self.dailyCap(kind), counts[Self.dayKey(kind, crew, day), default: 0] >= cap {
             return .dailyLimit
         }
-        if let previous = last[Self.key(kind, crew)],
+        if let previous = last[Self.gapKey(kind, crew, item)],
            now.timeIntervalSince1970 - previous < Self.minimumGap(kind),
            now.timeIntervalSince1970 >= previous {
             return .tooFast
@@ -60,8 +68,11 @@ nonisolated struct CrewSendThrottle: Codable, Equatable, Sendable {
         return .allowed
     }
 
-    mutating func record(_ kind: Kind, crew: String, day: String, at now: Date) {
-        last[Self.key(kind, crew)] = now.timeIntervalSince1970
+    mutating func record(_ kind: Kind, crew: String, day: String, at now: Date, item: String? = nil) {
+        // A gap is seconds long: one from a minute ago decides nothing, and
+        // a key for every block ever liked would be kept for ever.
+        last = last.filter { now.timeIntervalSince1970 - $0.value < 60 }
+        last[Self.gapKey(kind, crew, item)] = now.timeIntervalSince1970
         let prefix = Self.key(kind, crew) + "|"
         let today = Self.dayKey(kind, crew, day)
         // Another day's count for this crew is never read again.

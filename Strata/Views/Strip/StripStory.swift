@@ -264,7 +264,10 @@ struct StripStoryComposer: View {
         let crews = strip.owner == .me ? SocialStore.shared.crews : []
         let flat = crews.isEmpty ? nil
             : StripStory(strip: strip, frames: frames, day: day, paper: paper, decor: decor, pose: StripStoryPose()).flatPNG()
-        let activities = flat.map { png in crews.map { CrewStripActivity(crew: $0, png: png, sent: { _ in }) } } ?? []
+        let crewRows = flat.map { png in crews.map { CrewStripActivity(crew: $0, png: png, sent: { _ in }) } } ?? []
+        // To one person, with a line and a link (`StripMessageActivity`).
+        // The sheet's own items stay the picture alone.
+        let activities: [UIActivity] = [StripMessageActivity(png: file, day: day)] + crewRows
         CrewSharing.present(UIActivityViewController(activityItems: [file], applicationActivities: activities))
     }
 

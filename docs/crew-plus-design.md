@@ -137,3 +137,17 @@ by itself.
 4. Looking back in a crew.
 
 Every step is unproven on real iCloud until you have tried it.
+
+## Found by the audits, to build with these
+
+- **A win sent to several crews tells only one of them.** The notification
+  is filed under one crew, so a friend who shares only another crew with
+  you is never told. The fix: one ping per crew, and the phone folds the
+  copies into one. With step 3, behind a second reader.
+- **A sticker on a win**, as a chat line can already take one. With the
+  plus row's Sticker.
+- **A code you can show** instead of a code you type: the invite link as a
+  QR on the crew's page, for a friend sitting next to you. It keeps the key
+  in the link. Small, and needs nothing on the server.
+- **An Invite on a crew of one's own tower**, where today it is two taps
+  away.
