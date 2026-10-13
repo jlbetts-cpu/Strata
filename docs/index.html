@@ -4,81 +4,254 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Some Wins</title>
-<meta name="description" content="A quiet place to hold the good things, with a few people you love.">
+<meta name="description" content="Log the good things you did today as blocks on a tower, with photos, and a few people you love.">
+<meta property="og:type" content="website">
 <meta property="og:site_name" content="Some Wins">
 <meta property="og:title" content="Some Wins">
 <meta property="og:description" content="A quiet place to hold the good things, with a few people you love.">
+<meta property="og:url" content="https://somewins.xyz/">
 <meta property="og:image" content="https://somewins.xyz/invite/logo.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#f6f7fa" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#211f1e" media="(prefers-color-scheme: dark)">
+<!-- Light only, at the owner's word (2026-10-13): "I'm fine with the site
+     just being in light mode". -->
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* The app's own ground, ink and wordmark (Zen Maru Gothic, SIL Open Font
-     License: invite/ZenMaruGothic-OFL.txt). */
+  /* The layout is the owner's Apollo landing page (a bar with one button, a
+     hero of the app, a large statement beside three short blocks, rows of
+     three, a tilted phone beside words, a closing call). The air and the one
+     black line are HeyTea's. The words and the pictures are the app's.
+     Inter throughout; Zen Maru Gothic (SIL Open Font License,
+     invite/ZenMaruGothic-OFL.txt) is the wordmark and nothing else. */
   @font-face { font-family: "Zen Maru"; src: url("invite/ZenMaruGothic-Bold.ttf") format("truetype"); font-display: swap; }
   :root {
-    --bg-top: #f6f7fa; --bg-bottom: #f1f4f6;
-    --ink: #16171a; --ink-2: rgba(22,23,26,.70); --ink-3: rgba(22,23,26,.55);
-    --fill: #16171a; --on-fill: #f6f7fa; --rule: rgba(22,23,26,.12);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg-top: #211f1e; --bg-bottom: #181716;
-      --ink: #f4f3f1; --ink-2: rgba(244,243,241,.72); --ink-3: rgba(244,243,241,.52);
-      /* The one white button, as in the app. */
-      --fill: #ffffff; --on-fill: #16171a; --rule: rgba(244,243,241,.16);
-    }
+    --ground: #ffffff; --soft: #f6f7f9;
+    --ink: #16171a; --ink-2: rgba(22,23,26,.66); --ink-3: rgba(22,23,26,.44);
+    --rule: rgba(22,23,26,.10);
+    --gutter: clamp(20px, 5.5vw, 80px);
+    --section: clamp(88px, 13vw, 176px);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  /* The ground reaches under Safari's own bars: with none on `html` they
-     were white round a dark page (seen on the live page, 2026-10-13). */
-  html { background: var(--bg-bottom); }
+  html { background: var(--ground); -webkit-text-size-adjust: 100%; }
   body {
-    min-height: 100vh; min-height: 100svh;
-    display: flex; flex-direction: column; align-items: center;
-    padding: calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom)) no-repeat fixed;
-    color: var(--ink);
-    font: 400 17px/1.5 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
-    -webkit-font-smoothing: antialiased; text-align: center;
+    margin: 0; color: var(--ink); background: var(--ground);
+    font: 400 17px/1.55 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
-  .mark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 "Zen Maru", ui-rounded, sans-serif; }
-  /* His drawings are one black line: shown in the page's ink, as the app does. */
-  .ink { background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
-  .mark .ink { --art: url("invite/camera.png"); width: 26px; height: 25px; }
-  main { flex: 1; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0; }
-  .art { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 2; margin-bottom: 20px; }
-  .art .ink { position: absolute; inset: 0; }
-  .art .crew { --art: url("invite/crew.png"); }
-  .art .cheer { --art: url("invite/cheer.png"); }
-  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; margin: 0 0 8px; }
-  p { color: var(--ink-2); margin: 0 0 28px; }
   a { color: inherit; -webkit-tap-highlight-color: transparent; }
-  a.open {
-    display: block; width: 100%; height: 50px; line-height: 50px; border-radius: 25px;
-    background: var(--fill); color: var(--on-fill); text-decoration: none; font-weight: 600;
+  img { display: block; max-width: 100%; }
+  .wrap { width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 var(--gutter); }
+
+  /* His drawings are one black line: a mask, filled with the page's ink. */
+  .ink { display: block; background: var(--ink); -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
+
+  /* The bar */
+  header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.82); -webkit-backdrop-filter: saturate(1.4) blur(18px); backdrop-filter: saturate(1.4) blur(18px); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .mark { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font: 700 21px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
+  .mark .ink { --art: url("invite/camera.png"); width: 27px; height: 26px; }
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 22px;
+    border-radius: 22px; background: var(--ink); color: #fff; text-decoration: none;
+    font-weight: 500; font-size: 15px; letter-spacing: -.005em; white-space: nowrap;
+    transition: opacity .16s ease;
   }
-  a.open:active { opacity: .8; }
-  a.get {
-    display: block; width: 100%; height: 50px; line-height: 48px; border-radius: 25px; margin-top: 12px;
-    border: 1px solid var(--rule); text-decoration: none; font-weight: 600;
+  .button:hover { opacity: .86; }
+  .button:active { opacity: .72; }
+  .button.large { height: 54px; padding: 0 34px; border-radius: 27px; font-size: 17px; }
+
+  /* The hero */
+  .hero { padding-top: clamp(48px, 8vw, 104px); text-align: center; }
+  h1 { margin: 0 auto; max-width: 12ch; font-weight: 600; font-size: clamp(44px, 8.4vw, 104px); line-height: .98; letter-spacing: -.045em; }
+  .hero .sub { margin: clamp(18px, 2.2vw, 28px) auto 0; max-width: 30ch; color: var(--ink-2); font-size: clamp(18px, 2vw, 24px); line-height: 1.4; letter-spacing: -.012em; }
+  .hero .call { margin-top: clamp(26px, 3vw, 40px); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .hero .call small, .close small { color: var(--ink-3); font-size: 14px; }
+
+  /* Three phones, the middle one upright, as Apollo's hero stands its three
+     pictures. No shadow under them: a hairline and the page. */
+  .phones { margin: clamp(48px, 7vw, 96px) auto 0; display: flex; justify-content: center; align-items: flex-end; max-width: 1040px; }
+  .phone { flex: 0 0 auto; width: clamp(150px, 27vw, 300px); aspect-ratio: 1206 / 2622; border-radius: 13.5% / 6.2%; overflow: hidden; background: var(--soft); border: clamp(4px, .7vw, 8px) solid var(--ink); }
+  .phone img { width: 100%; height: 100%; object-fit: cover; }
+  .phones .phone:nth-child(1) { transform: rotate(-6deg) translateY(7%); margin-right: -4%; }
+  .phones .phone:nth-child(2) { position: relative; z-index: 2; width: clamp(170px, 30vw, 330px); }
+  .phones .phone:nth-child(3) { transform: rotate(6deg) translateY(7%); margin-left: -4%; }
+
+  /* `.wrap` sets all four paddings, so the section's own top is named with it. */
+  section.wrap { padding-top: var(--section); }
+  .label { margin: 0 0 clamp(28px, 4vw, 56px); color: var(--ink-3); font-size: clamp(18px, 2vw, 26px); letter-spacing: -.015em; }
+  h2 { margin: 0; font-weight: 500; font-size: clamp(32px, 4.6vw, 60px); line-height: 1.1; letter-spacing: -.035em; }
+  h3 { margin: 0 0 10px; font-weight: 600; font-size: clamp(20px, 2vw, 26px); line-height: 1.25; letter-spacing: -.022em; }
+  p { margin: 0; }
+  /* No word left alone on a last line. */
+  h1, h2, h3, .sub, .close .body { text-wrap: balance; }
+  .body { text-wrap: pretty; }
+  .body { color: var(--ink-2); font-size: clamp(17px, 1.55vw, 21px); line-height: 1.5; letter-spacing: -.011em; }
+  .fade { background: linear-gradient(90deg, var(--ink) 10%, rgba(22,23,26,.22)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* A statement beside three short blocks */
+  .split { display: grid; gap: clamp(40px, 6vw, 96px); }
+  .stack { display: grid; gap: clamp(28px, 3.4vw, 44px); }
+  /* Rows of three */
+  .three { display: grid; gap: clamp(36px, 4vw, 64px); }
+  .note { margin-top: clamp(40px, 5vw, 64px); color: var(--ink-3); font-size: 15px; }
+
+  /* Words beside a tilted phone */
+  .beside { display: grid; gap: clamp(48px, 6vw, 96px); align-items: center; }
+  .beside .phone { width: clamp(200px, 56vw, 320px); margin: 0 auto; transform: rotate(4.5deg); }
+  .beside h2 { max-width: 14ch; }
+  .beside .body { margin-top: clamp(18px, 2vw, 28px); max-width: 34ch; }
+  .beside .body + .body { margin-top: 1em; }
+  .drawing { width: min(100%, 360px); aspect-ratio: 3 / 2; position: relative; margin-top: clamp(28px, 3vw, 44px); }
+  .drawing .ink { position: absolute; inset: 0; }
+  .drawing .crew { --art: url("invite/crew.png"); }
+  .drawing .cheer { --art: url("invite/cheer.png"); }
+
+  /* The close */
+  .close { text-align: center; padding-bottom: var(--section); }
+  .close h2 { font-weight: 600; font-size: clamp(40px, 6.4vw, 84px); line-height: 1; letter-spacing: -.045em; }
+  .close .body { margin: clamp(16px, 2vw, 24px) auto clamp(26px, 3vw, 40px); max-width: 28ch; }
+  .close small { display: block; margin-top: 12px; }
+
+  footer { border-top: 1px solid var(--rule); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between; padding-top: 28px; padding-bottom: calc(28px + env(safe-area-inset-bottom)); color: var(--ink-3); font-size: 14px; }
+  footer nav { display: flex; gap: 24px; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--ink); }
+
+  @media (min-width: 860px) {
+    .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); align-items: start; }
+    .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .beside { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
+    .beside .phone { width: clamp(260px, 26vw, 340px); }
   }
-  a.get:active { opacity: .6; }
-  .note { font-size: 15px; color: var(--ink-3); margin: 20px 0 0; }
-  [hidden] { display: none !important; }
+  @media (max-width: 520px) {
+    header .wrap { height: 60px; }
+    .button { height: 40px; padding: 0 16px; font-size: 14px; }
+    .button.large { height: 52px; padding: 0 30px; font-size: 17px; }
+    /* The side phones lean off the page's edges rather than shrink to nothing. */
+    .phones { margin-left: calc(var(--gutter) * -1); margin-right: calc(var(--gutter) * -1); overflow: hidden; padding: 0 0 6%; }
+    .phones .phone { width: 40vw; }
+    .phones .phone:nth-child(2) { width: 46vw; }
+    .phones .phone:nth-child(1) { margin-right: -9vw; }
+    .phones .phone:nth-child(3) { margin-left: -9vw; }
+  }
+  @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
 </style>
 </head>
 <body>
-  <div class="mark" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</div>
+  <header>
+    <div class="wrap">
+      <a class="mark" href="/" aria-label="Some Wins"><span class="ink" aria-hidden="true"></span>Some Wins</a>
+      <a class="button" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+    </div>
+  </header>
+
   <main>
-    <div class="art" aria-hidden="true"><div class="ink crew"></div><div class="ink cheer"></div></div>
-    <h1>Some Wins</h1>
-    <p>Win with your people.<br>Every win stacked.</p>
-    <a class="open" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+    <div class="wrap hero">
+      <h1>Win with your people.</h1>
+      <p class="sub">Every win stacked. The small things you did today, kept where you can see them.</p>
+      <div class="call">
+        <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+        <small>For iPhone</small>
+      </div>
+      <div class="phones" aria-hidden="true">
+        <div class="phone"><img src="site/plan.jpg" alt="" width="603" height="1311"></div>
+        <div class="phone"><img src="site/tower.jpg" alt="" width="603" height="1311"></div>
+        <div class="phone"><img src="site/memories.jpg" alt="" width="603" height="1311"></div>
+      </div>
+    </div>
+
+    <section class="wrap">
+      <p class="label">The idea.</p>
+      <div class="split">
+        <h2>The good things you did today are the first ones you <span class="fade">forget.</span></h2>
+        <div class="stack">
+          <div>
+            <h3>A win is anything you did</h3>
+            <p class="body">The walk. The call you made. The meal you cooked. There is no list of what you should have done, and nothing is ever marked missed.</p>
+          </div>
+          <div>
+            <h3>It stacks</h3>
+            <p class="body">Each win is a block. A small one, or a big one if it took a lot out of you. By evening the day is a tower.</p>
+          </div>
+          <div>
+            <h3>It stays</h3>
+            <p class="body">Add a photo and the day is kept. A month from now it is all still there, in the order you lived it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <p class="label">How it works.</p>
+      <div class="three">
+        <div>
+          <h3>Log it</h3>
+          <p class="body">Tap the slot and name what you did. Or hold it for a quick one and name nothing at all.</p>
+        </div>
+        <div>
+          <h3>Plan it</h3>
+          <p class="body">Write down what you mean to do. It waits on the tower as an empty box, and moving it to tomorrow is just planning.</p>
+        </div>
+        <div>
+          <h3>Keep it</h3>
+          <p class="body">Reach your goal and the day's photos print as a strip. The month builds itself out of what you logged.</p>
+        </div>
+      </div>
+      <p class="note">Designed with ADHD brains in mind.</p>
+    </section>
+
+    <section class="wrap">
+      <p class="label">With your people.</p>
+      <div class="beside">
+        <div class="words">
+          <h2>One tower for the day, with a few friends.</h2>
+          <p class="body">A crew is two to eight people. You see what they did. They see what you did. Nobody is ranked, and nothing counts against anyone.</p>
+          <p class="body">Plan something together, and it shows up as a box on the crew's tower. Finish it and they know.</p>
+          <div class="drawing" aria-hidden="true"><span class="ink crew"></span><span class="ink cheer"></span></div>
+        </div>
+        <div class="phone" aria-hidden="true"><img src="site/chat.jpg" alt="" width="603" height="1311" loading="lazy"></div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <div class="three">
+        <div>
+          <h3>Crews</h3>
+          <p class="body">Small and private. A crew of two is a crew. Invite with a link, leave whenever you like.</p>
+        </div>
+        <div>
+          <h3>Reactions</h3>
+          <p class="body">A heart, a crown, a sticker you cut out of your own photo. A reply when you have something to say.</p>
+        </div>
+        <div>
+          <h3>Yours first</h3>
+          <p class="body">A win is on your own tower before it is anyone else's. You choose which ones a crew sees.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap close">
+      <h2>Win with your people.</h2>
+      <p class="body">Small wins still count. Start with one.</p>
+      <a class="button large" href="https://testflight.apple.com/join/ZWQ5cHv6">Get Some Wins</a>
+      <small>For iPhone</small>
+    </section>
   </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Some Wins</span>
+      <nav>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </footer>
 </body>
 </html>
