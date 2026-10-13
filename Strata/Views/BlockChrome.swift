@@ -109,8 +109,13 @@ struct BlockSurface<Fill: View>: View {
             }
         }
         .compositingGroup()
-        // One shadow, from the one ladder. See `Elevation`.
-        .elevation(.resting, in: colorScheme, scale: scale)
+        // **No shadow under a block** (the owner, 2026-10-13: "I'm not
+        // feeling the shadows on the blocks, can we take those away, no
+        // shadows"). It stood on `Elevation.resting`: faint in light, and in
+        // dark a soft dark halo over the cells round every block. A block
+        // is told from the page by its colour and its rim. The one shadow a
+        // block still has is while it is in your hand or falling, where the
+        // gap to the page is the thing being shown.
     }
 }
 

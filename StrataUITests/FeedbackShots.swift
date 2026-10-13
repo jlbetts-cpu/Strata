@@ -605,6 +605,28 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
+    /// Memories scrolled under its header (the soft edge), and the tower's
+    /// blocks without a shadow (both 2026-10-13).
+    func testEdgeAndBlocks() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "40"])
+        wait(8); snap("edge-memories-top")
+        let page = app.scrollViews.firstMatch
+        let from = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+        from.press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30)))
+        wait(2); snap("edge-memories-scrolled")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "9"])
+        wait(7); snap("blocks-tower")
+        app.terminate()
+        // A tower tall enough to scroll under its header.
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "44"])
+        wait(8)
+        let tower = app.scrollViews.firstMatch
+        tower.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: tower.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)))
+        wait(2); snap("edge-tower-scrolled")
+    }
+
     /// The rest of the crew list (2026-10-13): the crew's week and Show a
     /// Code on its page, Invite on a crew of one, and Sticker on a win.
     func testCrewRest() {

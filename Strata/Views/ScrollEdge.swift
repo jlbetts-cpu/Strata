@@ -46,6 +46,20 @@ import SwiftUI
 /// exists to avoid.
 extension View {
 
+    /// **A header pinned over a scroll view, as a bar.** On iOS 26 a custom
+    /// bar (`safeAreaBar`) is what the system draws its scroll edge under;
+    /// under a plain `safeAreaInset` the edge drew nothing at all, and the
+    /// calendar's weekdays ran straight through the month's name (looked at
+    /// on Memories, 2026-10-13). Before 26 it is the inset it always was.
+    @ViewBuilder
+    func pinnedBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        if #available(iOS 26.0, *) {
+            self.safeAreaBar(edge: .top, spacing: 0, content: bar)
+        } else {
+            self.safeAreaInset(edge: .top, spacing: 0, content: bar)
+        }
+    }
+
     /// A soft progressive blur where scrolling content meets pinned chrome.
     ///
     /// Apply it to the SCROLL VIEW, not to its content: the effect belongs to

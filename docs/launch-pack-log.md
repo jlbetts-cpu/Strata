@@ -152,3 +152,20 @@ Win, Plan, Strip, Memory and Sticker. A group plan is a card with I'm In;
 finishing it sends the win to that crew; the card names who did it. A day
 this crew saw is shown to you and sent by a tap. **7 until two real phones
 have tried it**: none of it has touched real iCloud.
+
+## 10. The rest of the crew list, and the listing entered (2026-10-13)
+
+You: "build the rest of the things". Built: a sticker on a win; every crew
+told of a win sent to several; the invite as a code; a crew's week as a
+replay. A second reader found six real faults in them (a sticker turning
+into a bare star the next day was the worst) and they are fixed. What
+changed at your word the same day is in `docs/crew-plus-design.md`.
+
+The App Store listing was entered by a separate agent at your word: name,
+subtitle, description and the U.S. keyword arrangement, in three
+languages, on version 1.0. Read back and matched. Nothing submitted.
+**Still empty there:** screenshots, a build, the support URL, the age
+rating.
+
+**Still 7 for the crew work as a whole:** none of it has run on real
+iCloud or between two phones.

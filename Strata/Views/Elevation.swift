@@ -30,7 +30,10 @@ import SwiftUI
 /// something, and the rungs here are exactly that rule counted out: what is
 /// resting, what is hovering, what is in your hand.
 enum Elevation {
-    /// **Standing on the page.** A block in the tower.
+    /// **Standing on the page.** It was a block in the tower. **Nothing
+    /// stands on it any more**: the owner took the blocks' shadows off on
+    /// 2026-10-13 ("no shadows"). Kept as the ladder's lowest rung, and as
+    /// the numbers to come back to; do not put it back on a block.
     ///
     /// These are the numbers the owner settled the blocks on, kept exactly:
     /// wide and nearly nothing, so the tower has footing without the page

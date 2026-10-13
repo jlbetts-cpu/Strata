@@ -915,3 +915,38 @@ number for each is `docs/launch-pack-log.md`; your voice contract is now
 
 **Not proven:** anything about Messages (the simulator sends none), and
 the new lines have not been read on a phone.
+
+## 14. The night of 2026-10-13: the rest of the Launch Pack, and what you asked while it was built
+
+In the order it happened. The item-by-item record is `docs/launch-pack-log.md`.
+
+- **The crew chat's plus row**: Win, Plan, Strip, Memory, Sticker. A group
+  plan is a card with I'm In; finishing it sends the win to that crew; the
+  card says who did it and never who did not. A day this crew saw is shown
+  to you and sent by a tap.
+- **The rest of the crew list**: a sticker on a win; every crew told of a
+  win sent to several; the invite as a code (a glyph in the top left of a
+  crew's page, at your word); This Week and Last Week in a crew's page.
+- **Three second readers** went over the camera, the plus row and the
+  rest. Between them they found fifteen real faults, all fixed before any
+  build: a crafted line that crashed the chat for a whole crew, a teen
+  account able to send pictures, a sticker that turned into a bare star at
+  midnight, and the rest.
+- **What you asked while I worked**, all done:
+  - the zoom folds back into one pill
+  - the bare Invite under a crew of one's name is gone
+  - "With Jolee" is "Shared with Jolee": that album is what you sent there
+  - the crew's plan shows on the crew's own screen
+  - you can react to your own wins
+  - no shadow under blocks
+  - the top of Memories blurs away what scrolls under it. Doing that
+    showed the same blur had never been working on Wins or the crew
+    tower, though the notes said it was; all three are fixed the same way.
+- **The App Store listing is entered** (name, subtitle, description, the
+  U.S. keyword arrangement, three languages), by a separate agent, read
+  back and matched. Nothing submitted. Still empty there: screenshots, a
+  build, the support URL, the age rating.
+
+**Not proven:** the crew work has not run on real iCloud or between two
+phones. A friend still on an older build sees a plan as a plain line, a
+sticker as an ink shape, and a brought-back photo as a solid block.

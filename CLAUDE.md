@@ -2045,7 +2045,27 @@ is easy to undo by accident:
   people have all heard (`crews.pings.told`). A crew of one is told
   nothing. The extension folds two notifications for one win.
 - A crew's week is `ReplayPeriod.week` with the crew's `name`; yours has
-  none and is still "Your week".
+  none and is still "Your week". "This Week" ends today.
+- **A crew album is "Shared with X", never "With X"** (the owner,
+  2026-10-13: "it's not even with Jolee"): it is the photos you sent
+  there. An unnamed pair is shown by the other person's name.
+- **Your own win takes your reaction** (2026-10-13). Reply and Doodle are
+  still only for a friend's. A reaction never pings its own maker.
+- **No Invite standing on a crew's screen**, and the invite code is a
+  glyph in the top left of the crew's page, not a row: both his calls.
+- The crew's plans are also drawn on the crew's screen (`CrewPlanCards`),
+  floating under the header so nothing moves. The card's logic is
+  `GroupPlanActions`, shared with the chat.
+- **No shadow under a block** (the owner, 2026-10-13: "no shadows").
+  `Elevation.resting` is on nothing now. The shadow while a block is in
+  the hand or falling stays: there the gap to the page is the point.
+- **A header pinned over a scroll view is `pinnedBar`, never a plain
+  `safeAreaInset`.** `softScrollEdge` only draws under a bar: under an
+  inset it drew nothing, on Wins and the crew tower for weeks, and nobody
+  had looked. Memories' header is pinned this way too now, at his word
+  ("that transparent blur effect on scroll, not a clean line").
+- A reaction's files are their own family on disk (`PublicCrewCloud
+  .stem`): they began with the win's id and the win's sweep deleted them.
 
 ## Words the app says
 

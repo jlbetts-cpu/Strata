@@ -1173,7 +1173,10 @@ struct MainAppView: View {
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
             // at all.
-            .safeAreaInset(edge: .top, spacing: 0) {
+            // A bar, so the tower blurs away under the header (`pinnedBar`,
+            // 2026-10-13): under a plain inset the soft edge drew nothing,
+            // and the lattice ran crisp behind the crest and the clock.
+            .pinnedBar {
                 // **A Wins tip stands directly under the crest** (2026-10-08,
                 // "the placement of the tips still dont look the best"): in
                 // the header's own inset, so it is placed by layout rather

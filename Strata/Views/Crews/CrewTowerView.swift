@@ -81,7 +81,9 @@ struct CrewTowerView: View {
             let colW: CGFloat = floor(usable / CGFloat(columns))
             tower(colW: colW, viewport: geo.size.height)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        // A bar, so the tower blurs away under it (`pinnedBar`): under a plain
+        // inset the soft edge drew nothing.
+        .pinnedBar {
             // **The crew's plans, on the crew's own screen** (the owner,
             // 2026-10-13: "make sure the crew plan shows up on the crew page
             // as well"). The same card the chat draws, floating under the

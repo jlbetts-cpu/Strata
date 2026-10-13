@@ -140,29 +140,6 @@ struct MemoriesView: View {
             // The honest trade: the map no longer gets the whole screen the
             // moment you arrive, and that WAS the owner's earlier call ("the map
             // is the feature"). This is him changing it, not me forgetting it.
-            VStack(spacing: 0) {
-            pageHeader
-                .task {
-                    // Only ever away: it never arrives mid-visit (see below).
-                    for await status in MonthDrawingTip().statusUpdates where status != .available {
-                        if showsMonthTip {
-                            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueOut) {
-                                showsMonthTip = false
-                            }
-                        }
-                    }
-                }
-            // The month drawing's tip, as every tip is now (`TipCard`): under
-            // the header, in the page, so the drawing makes room for it
-            // rather than standing under it. **And there from the first
-            // frame or not at all this visit** (the owner, 2026-10-12: "the
-            // tips kinda push the page down for a second, looks like a
-            // glitch"). It arrived a moment after the page, when TipKit
-            // said it was due, and the whole month moved down for it. Now
-            // the page asks once, as it appears; a tip that falls due while
-            // you are looking waits for the next visit. (Floating it over
-            // the page instead covered the drawing it is about.)
-            monthTipLayer
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 // **`pinnedViews` here, and the Section at the TOP level.**
@@ -298,6 +275,38 @@ struct MemoriesView: View {
                     proxy.scrollTo("MemoriesContent", anchor: .top)
                 }
             }
+            // On the scroll view itself: hung on the reader round it, the
+            // edge drew nothing and the weekdays ran through the month's name.
+            .softScrollEdge(.top)
+            // `safeAreaBar`, not `safeAreaInset`: a bar is what the system
+            // draws its scroll edge under. Under a plain inset it drew
+            // nothing (looked at, 2026-10-13).
+            .pinnedBar {
+                VStack(spacing: 0) {
+            pageHeader
+                .task {
+                    // Only ever away: it never arrives mid-visit (see below).
+                    for await status in MonthDrawingTip().statusUpdates where status != .available {
+                        if showsMonthTip {
+                            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueOut) {
+                                showsMonthTip = false
+                            }
+                        }
+                    }
+                }
+            // The month drawing's tip, as every tip is now (`TipCard`): under
+            // the header, in the page, so the drawing makes room for it
+            // rather than standing under it. **And there from the first
+            // frame or not at all this visit** (the owner, 2026-10-12: "the
+            // tips kinda push the page down for a second, looks like a
+            // glitch"). It arrived a moment after the page, when TipKit
+            // said it was due, and the whole month moved down for it. Now
+            // the page asks once, as it appears; a tip that falls due while
+            // you are looking waits for the next visit. (Floating it over
+            // the page instead covered the drawing it is about.)
+            monthTipLayer
+                }
+            }
             #if DEBUG
             // `-strataPerfProbe`: the first finger on the page opens a 10s
             // window, so a UI test's flings are counted from their start.
@@ -344,7 +353,16 @@ struct MemoriesView: View {
             // the screen and the header sits above the scroll in its own band —
             // so there is no cut to soften and nothing left for this to do but
             // draw the line it was accused of.
-            }
+            //
+            // **And the header floats again, over the platform's own soft
+            // edge** (the owner, 2026-10-13: "the top of the memories screen
+            // should have that transparent blur effect on scroll, not be a
+            // clean line"). In its own band above the scroll, the page was
+            // cut off flat where it met the header. It is pinned over the
+            // scroll now, as the Wins header is, and what scrolls under it
+            // blurs away (`softScrollEdge`): the system's effect, which has
+            // no colour of its own to disagree with the ground, which is
+            // what the hand-drawn fade above got wrong.
             // Covered by a photograph, a replay or a pushed page: nobody can
             // see the month, so its slideshows hold still. It used to also ask
             // whether the drawer was down; there is no drawer.

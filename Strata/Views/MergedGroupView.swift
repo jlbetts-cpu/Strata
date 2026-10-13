@@ -153,10 +153,8 @@ struct MergedGroupView: View {
         }
         .frame(width: gridWidth, height: gridHeight, alignment: .topLeading)
         .compositingGroup()
-        // The same rung a single block sits on — a merged run is one object
-        // standing on the page, so it casts one object's shadow. See
-        // `Elevation`.
-        .elevation(.resting, in: colorScheme, scale: styleScale)
+        // No shadow, as a single block has none (the owner, 2026-10-13;
+        // `BlockSurface`).
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

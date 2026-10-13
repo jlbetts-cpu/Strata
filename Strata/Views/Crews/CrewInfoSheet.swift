@@ -124,6 +124,9 @@ struct CrewInfoSheet: View {
                 .listSectionSeparator(.hidden)
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
+                // Rows leave under Done softly, not at a clean line (the
+                // owner, 2026-10-13).
+                .softScrollEdge(.top)
                 .background(WarmBackground().ignoresSafeArea())
                 .toolbar {
                     // **The invite as a code, in the sheet's own corner**
