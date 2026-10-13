@@ -52,7 +52,16 @@ nonisolated extension Album {
         // photos. The caller passes the name the crew is shown by (its
         // people, when it has no name), and a crew whose wins are exactly
         // another's adds nothing.
-        var held: [Set<UUID>] = []
+        //
+        // **And not two albums of mostly the same photos either** (the
+        // owner, 2026-10-13: "the album shared with, like there is two and
+        // it's just duplicate photos, I don't like that"). The first check
+        // only caught exact twins: one win sent to one crew and not the
+        // other made the sets differ, and both albums came back. A crew's
+        // album is shown when most of it is new: more than half of its
+        // photos, and three at least, are in no crew album already on the
+        // shelf.
+        var held: Set<UUID> = []
         // The crew with the most of the month's wins first, so of two crews
         // holding the same wins it is always the same one that is kept.
         let groups: [(crew: ShelfCrew, wins: [WinRecord])] = crews
@@ -61,8 +70,9 @@ nonisolated extension Album {
         var crewAlbums: [Album] = []
         for (crew, group) in groups where group.count >= monthCrewMinPhotos {
             let ids = Set(group.compactMap(\.id))
-            if held.contains(ids) { continue }
-            held.append(ids)
+            let fresh = ids.subtracting(held).count
+            guard fresh >= monthCrewMinPhotos, fresh * 2 > ids.count else { continue }
+            held.formUnion(ids)
             let name = crew.name.trimmingCharacters(in: .whitespacesAndNewlines)
             crewAlbums.append(Album(id: "crew:\(crew.id)@\(month)",
                                     kind: .crew("\(crew.id)@\(month)"),

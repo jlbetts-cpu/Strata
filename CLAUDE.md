@@ -2073,6 +2073,56 @@ is easy to undo by accident:
 - A reaction's files are their own family on disk (`PublicCrewCloud
   .stem`): they began with the win's id and the win's sweep deleted them.
 
+
+### Checked against the doc, 2026-10-13 (`docs/launch-pack-log.md`, part 11)
+
+- **`DayNote` is the evening's one true line** ("Your best Sunday in three
+  weeks.", "Day three. Don't look now."). It takes the past win's 8pm
+  passive slot (same identifier, `userInfo["note"]`, lands on Wins) so the
+  evening never holds two. It is said only when true: do not loosen
+  `fewest`, the two-weeks-back rule or `firstDay`, and never add a line
+  about a day that fell short.
+- **The empty tower has three lines** (`EmptyTower`): the teaching one
+  until five wins, then his "Nothing logged yet. Just the start of the
+  day.", and after three quiet days "You've been quiet a few days. No
+  rush." In the app only; no notification may say the last.
+- **"We made this for you." is the month's recap notification body, and
+  nowhere else.** Not the week's, not on a recap screen.
+- **A crew plan you are in is a box on the crew's tower**
+  (`CrewPlannedLayer`, which draws `PlannedOutlines`, the Wins tower's own
+  view). The card under the crew's header (`CrewPlanCards`) is only a
+  proposal you have not answered, and closing it is kept apart
+  (`closedHere`) from the chat.
+- **A plan's line in the chat has no close and is never filtered out.** He
+  closed a card and found the line gone from the chat.
+- **The chat's Strip shows today's strip and Send sends it**
+  (`CrewStripSendSheet`). It must not open the booth: that led nowhere on
+  a day whose goal was not reached.
+- **A crew's album shows only when most of it is new** (more than half,
+  and three at least, in no crew album already on the shelf). Exact-twin
+  checking let near-twins through.
+- **In Add a Win a menu opens after the keyboard has gone**
+  (`afterKeyboard`). Never set `choosingSource` or `tagging` straight:
+  the block sits on the keys and the menu has no room under it.
+- **A repeating line renamed asks Just Today or Every Time**
+  (`PlanRename`); Just Today is a skip plus a one-off, nothing new kept.
+  The sheet cannot be swiped past the question, and a crew's plan is
+  never asked (its copy would leave the crew).
+- **A planned box pressed on a crew's tower makes a win for that crew
+  alone** (`planCrew`). Without it the add sheet opens on your usual crews.
+- **A pending invitation is written down** (`CrewRouter.hold`,
+  `remember`, `forget`) for a week from when it was first held, and let go
+  only by a join that worked or an answer that will not change. Do not
+  set `pendingInvite` anywhere else, and do not make a join already
+  agreed to open the list: it popped you off the crew you were on.
+- `HabitLog.note` is unused and already private to you (a test holds it
+  out of crews). A note on a win needs no new field. Design in
+  `docs/launch-pack-log.md`, part 12; not built, his call.
+- `-strataSeedInvite 1` opens a friend's invitation after launch, for the
+  join flow; `docs/.well-known/apple-app-site-association` is ready for
+  the day somewins.xyz is live (the app still needs Associated Domains and
+  a new profile, and `CrewInviteLink.page` changed, in that order).
+
 ## Words the app says
 
 The owner's rules, 2026-09-11: **no long dash (—) in anything a person

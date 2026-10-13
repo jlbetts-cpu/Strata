@@ -19,6 +19,13 @@ struct CrewTowerView: View {
     /// block for the crew chats they should function pretty much the exact
     /// same"). Nil hides the slot.
     var onLogWin: ((BlockSize, HabitCategory) -> Void)? = nil
+    /// A crew plan's box, pressed: the camera, the library and the sheets
+    /// are the Wins page's (`PlannedAction`).
+    var onPlanned: (PlanItem, PlannedAction) -> Void = { _, _ in }
+    /// The rows the crew's planned boxes need (`CrewPlannedLayer`), and a
+    /// count that has them read again.
+    @State private var plannedRows = 0
+    @State private var plannedNudge = 0
     /// The size the slot is being drawn out to, and the colour it shows.
     @State private var drawingSize: BlockSize = .small
     @State private var slotColour: HabitCategory = HabitCategory.selectable.randomElement() ?? .health
@@ -61,11 +68,13 @@ struct CrewTowerView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     init(crewID: CrewID, onBack: @escaping () -> Void, onAddWin: @escaping () -> Void = {},
-         onLogWin: ((BlockSize, HabitCategory) -> Void)? = nil) {
+         onLogWin: ((BlockSize, HabitCategory) -> Void)? = nil,
+         onPlanned: @escaping (PlanItem, PlannedAction) -> Void = { _, _ in }) {
         self.crewID = crewID
         self.onBack = onBack
         self.onAddWin = onAddWin
         self.onLogWin = onLogWin
+        self.onPlanned = onPlanned
         _parking = State(initialValue: CrewParking(crewID: crewID))
     }
 
@@ -85,17 +94,18 @@ struct CrewTowerView: View {
         // A bar, so the tower blurs away under it (`pinnedBar`): under a plain
         // inset the soft edge drew nothing.
         .pinnedBar({ header }, below: {
-            // **The crew's plans, on the crew's own screen** (the owner,
+            // **A crew's plan waiting for your answer** (the owner,
             // 2026-10-13: "make sure the crew plan shows up on the crew page
-            // as well"). The same card the chat draws, floating under the
-            // header as the tower's tips do, so nothing on the page moves.
-            // Under the bar and not in it, or I'm In takes no touch.
-            CrewPlanCards(crewID: crewID, refresh: plansRefresh)
+            // as well"). The card the chat draws, floating under the header
+            // as the tower's tips do, so nothing on the page moves. Under
+            // the bar and not in it, or I'm In takes no touch. Once you are
+            // in, it is a box on the tower below (`CrewPlannedLayer`).
+            CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
                 .padding(.horizontal, hPad)
                 .padding(.top, GridConstants.gapTight)
         })
         // What was joined or closed in the chat shows here when it shuts.
-        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1 } }
+        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1; plannedNudge += 1 } }
         // **The page answers a touch, as Wins does**, header and all: rings
         // on water behind the content, consuming nothing. It was missing
         // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
@@ -313,11 +323,16 @@ struct CrewTowerView: View {
     /// A tapped notification named a win: open it in the carousel, as a tap
     /// on its block would, once it is here.
     private func openWinFromNotification() {
-        guard let id = CrewRouter.shared.openWin,
-              store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
+        // **Among the days the crew still holds, not today's alone** (found
+        // by review, 2026-10-13): last night's win, tapped in the morning,
+        // opened an empty tower. As a quoted win opens (`openQuotedWin`).
+        guard let id = CrewRouter.shared.openWin, let crew,
+              let win = store.wins(in: crewID).first(where: { $0.winID == id }) else { return }
         CrewRouter.shared.openWin = nil
+        let today = CrewDay.string(for: Date(), in: crew.timeZone)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
+            viewingDay = win.crewDay == today ? nil : win.crewDay
             viewing = id.uuidString
         }
     }
@@ -669,7 +684,7 @@ struct CrewTowerView: View {
     private func tower(colW: CGFloat, viewport: CGFloat) -> some View {
         let tower = model.tower
         let slot = onLogWin == nil ? nil : tower.computeGhostPosition(for: drawingSize)
-        let rows = max(tower.totalRows, slot.map { $0.row + drawingSize.rowSpan } ?? 0)
+        let rows = max(tower.totalRows, slot.map { $0.row + drawingSize.rowSpan } ?? 0, plannedRows)
         let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let gridH = rows > 0 ? CGFloat(rows) * colW + CGFloat(rows - 1) * spacing : 0
         return ScrollView(.vertical, showsIndicators: false) {
@@ -727,6 +742,19 @@ struct CrewTowerView: View {
                                    onOpenMenu: onAddWin)
                         .frame(width: f.width, height: f.height)
                         .offset(x: f.minX, y: gridH - f.minY - f.height)
+                }
+                // **This crew's plans you are in, as boxes behind the slot**
+                // (the owner, 2026-10-13). Your own tower's box, by the same
+                // view, holding only this crew's lines.
+                if !model.animation.isCascading {
+                    CrewPlannedLayer(crewID: crewID, grid: tower.currentGrid, slot: slot, slotSize: drawingSize,
+                                     cellSize: colW, gridHeight: gridH, cornerRadius: GridConstants.cornerRadius,
+                                     nudge: plannedNudge, rowsNeeded: $plannedRows) { item, action in
+                        onPlanned(item, action)
+                        // Not Today is kept beside the model, where no query
+                        // sees it.
+                        if action == .notToday { plannedNudge += 1 }
+                    }
                 }
             }
             // The hearts, over the block each one landed on. An OVERLAY, never

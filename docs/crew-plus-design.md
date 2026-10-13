@@ -212,3 +212,23 @@ Built to the design above, with these differences, each for a reason:
 **Proven:** on the simulator with a seeded crew (looked at), and by a test
 that sends a plan from one phone to another over the pretend cloud.
 **Not proven:** anything on real iCloud, or between two real phones.
+
+**Changed at your word, 2026-10-13, later the same day:**
+
+- **A plan you are in is a box on the crew's tower**, not a card under its
+  header. The clear box your own tower draws for a planned win, by the
+  same view, after the slot, holding only that crew's lines. Press it:
+  Take Photo, Choose from Library, Log Without a Photo, Edit, Not Today.
+  Whoever says I'm In gets the box on their own phone. Two crews with two
+  goals are two towers with two sets of boxes.
+- **The card under the crew's header is only a plan still waiting for
+  your answer.** Closing it closes it there, for the day, and nowhere else.
+- **A plan's line in the chat has no close and is never hidden.** It was
+  hidden for the day by closing its card, here or on the crew's screen.
+- **A plan done is said as done**: "Sam just did Evening walk".
+- It is still a line of your own plan, so the same box stands on your own
+  tower. One win finishes both, and goes to that crew.
+- **Strip in the plus row shows today's strip and Send sends it.** It
+  opened your booth, which develops only at the goal: "you can't even
+  send it to the chat" (you, 2026-10-13).
+- A box pressed on a crew's tower makes a win for that crew alone.

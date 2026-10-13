@@ -79,6 +79,7 @@ enum ReplayReminder {
     /// with the replay playing, so the sentence would describe a journey the
     /// person has already finished. Cut, as written.
     private static let whereToLook = ""
+    static let gift = "We made this for you."
 
     static func upcoming(now: Date, calendar: Calendar = .current,
                          hasWins: (ReplayPeriod) -> Bool) -> [(period: ReplayPeriod, date: Date, title: String, body: String)] {
@@ -89,7 +90,12 @@ enum ReplayReminder {
             // The owner's own words for a recap (`docs/voice.md`): "Your
             // week, put together." It said "is ready", as any app's does.
             (week, week.notificationDate, "Your week, put together.", Self.whereToLook),
-            (month, month.notificationDate, "\(monthName), put together.", Self.whereToLook)
+            // **"We made this for you."** (the Launch Pack: an album or a
+            // recap is a gift, and says so). Under the month's, once a
+            // month. Not under the week's, where it would be said fifty
+            // times a year and stop meaning it; and nowhere on the recap's
+            // own screens, which carry no sentences at his word.
+            (month, month.notificationDate, "\(monthName), put together.", Self.gift)
         ]
         .filter { $0.1 > now && hasWins($0.0) }
         .map { (period: $0.0, date: $0.1, title: $0.2, body: $0.3) }

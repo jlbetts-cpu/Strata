@@ -81,7 +81,7 @@ enum CrewNotifications {
         let center = UNUserNotificationCenter.current()
         for win in fresh {
             guard let crew = store.crew(win.crewID) else { continue }
-            let text = Text.of(win, in: crew, me: store.me)
+            let text = Text.of(win, in: crew, me: store.me, plans: store.planKeys(in: crew.id))
             let content = UNMutableNotificationContent()
             content.title = text.title
             content.body = text.body
@@ -313,7 +313,7 @@ enum CrewNotifications {
 
     /// The words, kept apart so a test can read them.
     enum Text {
-        static func of(_ win: SharedWin, in crew: Crew, me: UUID) -> (title: String, body: String) {
+        static func of(_ win: SharedWin, in crew: Crew, me: UUID, plans: Set<String> = []) -> (title: String, body: String) {
             let name = crew.member(win.senderProfileID)?.shortName ?? ""
             let who = name.isEmpty ? "A friend" : name
             let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -327,6 +327,9 @@ enum CrewNotifications {
                 body = title.isEmpty ? "\(who) added you to a win" : "\(who) added you to \(title)"
             } else if title.isEmpty {
                 body = win.photo != nil ? "\(who) added a photo" : "\(who) added a win"
+            } else if plans.contains(CrewNoteCache.planKey(title)) {
+                // A crew's plan, done (`CrewNoteCache.didPlan`).
+                body = CrewNoteCache.didPlan(who, title)
             } else {
                 body = "\(who): \(title)"
             }

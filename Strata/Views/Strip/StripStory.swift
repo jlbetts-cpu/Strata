@@ -73,7 +73,10 @@ struct StripStory: View {
     /// draws, and small enough to send in a moment.
     @MainActor
     func flatPNG() -> Data? {
-        let renderer = ImageRenderer(content: paperView.fixedSize())
+        // Without the rim: see `StripView.rimmed`.
+        let flat = StripView(frames: frames, day: day, signature: strip.signature, paper: paper,
+                             width: Self.stripWidth, developed: 1, decor: decor, rimmed: false)
+        let renderer = ImageRenderer(content: flat.fixedSize())
         renderer.scale = 3 * CrewStripPicture.width / Self.stripWidth
         renderer.isOpaque = false
         return renderer.uiImage?.pngData()

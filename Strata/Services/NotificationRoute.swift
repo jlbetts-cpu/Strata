@@ -33,12 +33,16 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
 
     /// The `userInfo` key for the past win's day.
     static let dayKey = "day"
+    /// The `userInfo` key for the day's own note (`DayNote`), which shares
+    /// the past win's slot and lands on Wins, where it is said in full.
+    static let noteKey = "note"
 
     static func of(identifier: String, userInfo: [AnyHashable: Any]) -> NotificationRoute? {
         if let crew = userInfo["crew"] as? String {
             return .crew(crew, win: (userInfo["win"] as? String).flatMap(UUID.init(uuidString:)))
         }
         if identifier.hasPrefix(Prefix.pastWin) {
+            if userInfo[noteKey] != nil { return .wins }
             if let day = userInfo[dayKey] as? String, !day.isEmpty { return .memoriesDay(day) }
             return .memories
         }

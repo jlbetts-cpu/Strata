@@ -33,6 +33,45 @@ final class CrewRouter {
     /// (2026-10-08). Joined the moment `CrewGate` opens; let go on Not Now,
     /// under 13, or below iOS 26. Never joined first and checked after.
     private(set) var pendingInvite: CrewInvite?
+
+    /// **Kept across launches** (found by review, 2026-10-13). It lived in
+    /// memory, so someone who came by a link, was asked the rules or was
+    /// still in the first run, and closed the app, came back to a Crews
+    /// page offering only Start a Crew, with the invitation gone. A real
+    /// link only, for a week, and let go the moment it is joined or refused.
+    static let pendingKey = "crews.pendingInvite"
+    static let pendingDays: TimeInterval = 7 * 86_400
+
+    func hold(_ invite: CrewInvite?, defaults: UserDefaults = .standard) {
+        pendingInvite = invite
+        if let invite { Self.remember(invite, defaults: defaults) } else { Self.forget(defaults: defaults) }
+    }
+
+    /// Written down, with the time it was FIRST held: opening the app
+    /// again does not start its week again (found by review, 2026-10-13).
+    static func remember(_ invite: CrewInvite, now: Date = Date(), defaults: UserDefaults = .standard) {
+        guard CrewInviteLink.read(invite.url) != nil else { return }
+        let text = invite.url.absoluteString
+        let kept = defaults.dictionary(forKey: pendingKey)
+        let first = (kept?["url"] as? String) == text ? kept?["at"] as? Double : nil
+        defaults.set(["url": text, "at": first ?? now.timeIntervalSince1970] as [String: Any], forKey: pendingKey)
+    }
+
+    static func forget(defaults: UserDefaults = .standard) { defaults.removeObject(forKey: pendingKey) }
+
+    /// The invitation kept from an earlier launch, if it is still fresh.
+    static func kept(now: Date = Date(), defaults: UserDefaults = .standard) -> CrewInvite? {
+        guard let kept = defaults.dictionary(forKey: pendingKey), let text = kept["url"] as? String,
+              let at = kept["at"] as? Double, now.timeIntervalSince1970 - at < pendingDays,
+              let url = URL(string: text), CrewInviteLink.read(url) != nil else { return nil }
+        return CrewInvite(url: url)
+    }
+
+    /// At launch: an invitation still waiting is taken up where it was left.
+    func resumePending() {
+        guard pendingInvite == nil, !joining, CrewsFlag.isOn, let invite = Self.kept() else { return }
+        join(invite)
+    }
     /// **A join on its way** (the crews audit, 2026-10-08): the list says
     /// "Joining" rather than inviting a person who came by a link to start a
     /// crew of their own while theirs is being opened.
@@ -46,16 +85,20 @@ final class CrewRouter {
     func join(_ invite: CrewInvite) {
         switch CrewGate.current {
         case .open:
+            // **Written down until it is answered** (found by review,
+            // 2026-10-13): let go here, a join that failed with no signal
+            // lost the link for good.
             pendingInvite = nil
+            Self.remember(invite)
             Task { await accept(invite) }
         case .needsRules, .needsAge:
-            pendingInvite = invite
+            hold(invite)
             opensList = true
         case .tooYoung:
-            pendingInvite = nil
+            hold(nil)
             opensList = true
         case .needsNewerOS:
-            pendingInvite = nil
+            hold(nil)
             joinProblem = CrewGate.newerOSWords
         }
     }
@@ -70,12 +113,12 @@ final class CrewRouter {
             pendingInvite = nil
             Task { await accept(invite) }
         } else if gate.isFinal {
-            pendingInvite = nil
+            hold(nil)
         }
     }
 
     /// Not Now on the rules: the invitation is not joined.
-    func dropPendingInvite() { pendingInvite = nil }
+    func dropPendingInvite() { hold(nil) }
 
     private static let log = Logger(subsystem: "Strata", category: "crews.invite")
 
@@ -84,8 +127,13 @@ final class CrewRouter {
         defer { joining = false }
         do {
             let crew = try await SocialStore.shared.accept(invite)
+            Self.forget()
             open = crew.id
         } catch {
+            // An answer that will not change (a full crew, five already) is
+            // an answer. One the person can mend, or no signal, keeps the
+            // invitation for the next time the app opens.
+            if let known = error as? CrewError, known != .notSignedIn { Self.forget() }
             joinProblem = CrewErrorWords.say(error, while: .joining)
         }
     }

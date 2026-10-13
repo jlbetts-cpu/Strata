@@ -291,7 +291,7 @@ struct GroupPlanTests {
         let found = CrewLookBack.pick(candidates, sent: [year, month], today: today, calendar: calendar)
         #expect(found?.logID == year)
         #expect(found?.title == "A year ago today")
-        #expect(CrewLookBack.pick(candidates, sent: [month], today: today, calendar: calendar)?.title == "A month ago today")
+        #expect(CrewLookBack.pick(candidates, sent: [month], today: today, calendar: calendar)?.title == "This day last month")
         #expect(CrewLookBack.pick(candidates, sent: [], today: today, calendar: calendar) == nil)
         #expect(CrewLookBack.pick(candidates, sent: [year], today: DateUtils.date(from: "2026-10-13")!, calendar: calendar) == nil)
         let book = defaults()

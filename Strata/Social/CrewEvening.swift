@@ -46,4 +46,13 @@ nonisolated enum CrewEvening {
     /// "Sam is sharing tonight's wins." about someone who might not have
     /// (`docs/voice.md`: honest, and nobody named for a quiet day).
     static let line = "Your crew's tower is open too."
+
+    /// **When the crew has had a day, it is said** (the Launch Pack: "Your
+    /// crew had a day."). Only when it is already true as this is written:
+    /// friends have sent this many wins there today. It still names nobody
+    /// and counts nothing aloud.
+    static let hadADay = "Your crew had a day."
+    static let dayAfter = 3
+
+    static func line(othersToday: Int) -> String { othersToday >= dayAfter ? hadADay : line }
 }

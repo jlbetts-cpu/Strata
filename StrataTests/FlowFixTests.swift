@@ -1,0 +1,194 @@
+import Foundation
+import SwiftData
+import Testing
+@testable import Strata
+
+/// What the owner and two readers found on 2026-10-13, going through the
+/// app's flows: a menu opening over the keyboard, a repeating line renamed
+/// for one day, and a handful of places a person was left with no way on.
+@MainActor
+@Suite("Flows: the dead ends found on 2026-10-13", .serialized)
+struct FlowFixTests {
+    private func context() throws -> ModelContext {
+        ModelContext(try ModelContainer(for: Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanItem.self,
+                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    }
+    private func code(_ path: String) throws -> String { SourceSweep.code(try SourceSweep.read(path)) }
+
+    @Test("in Add a Win, every menu waits for the keyboard to go")
+    func menusAfterTheKeyboard() throws {
+        let add = try code("Strata/Views/AddWinSheet.swift")
+        // The block's menu from a press, from the photo's Replace, and from
+        // the hold's two Replaces; and the names of who was there.
+        #expect(add.components(separatedBy: "afterKeyboard { choosingSource = true }").count - 1 == 4)
+        #expect(add.contains("afterKeyboard { tagging = true }"))
+        // None of them opens straight over the keys any more.
+        #expect(!add.contains("\n            choosingSource = true\n"))
+        #expect(!add.contains("\n            tagging = true\n"))
+        #expect(add.contains("guard titleFocused else { open(); return }"))
+    }
+
+    @Test("Add waits for a photo chosen from the library")
+    func addWaitsForTheLibrary() throws {
+        let add = try code("Strata/Views/AddWinSheet.swift")
+        #expect(add.contains("photoLoading = loading"))
+        #expect(add.contains("if photoLoading == loading { photoLoading = nil }"))
+    }
+
+    @Test("a repeating line renamed is asked about only when there is something to ask")
+    func renameAsks() {
+        #expect(PlanRename.asks(repeated: true, repeats: true, before: "Gym", now: "Gym with Sam", onToday: true))
+        // Not a repeat, or made one in this sitting: there is no "every time" yet.
+        #expect(!PlanRename.asks(repeated: false, repeats: true, before: "Gym", now: "Run", onToday: true))
+        #expect(!PlanRename.asks(repeated: true, repeats: false, before: "Gym", now: "Run", onToday: true))
+        // The same words, or only spaces changed.
+        #expect(!PlanRename.asks(repeated: true, repeats: true, before: "Gym", now: " Gym ", onToday: true))
+        #expect(!PlanRename.asks(repeated: true, repeats: true, before: "Gym", now: "  ", onToday: true))
+        // Not on today's plan: today has nothing to be different from.
+        #expect(!PlanRename.asks(repeated: true, repeats: true, before: "Gym", now: "Run", onToday: false))
+        // A crew's plan: today's copy would be a line the crew's book does
+        // not know, off the crew's tower and no longer the crew's win.
+        #expect(!PlanRename.asks(repeated: true, repeats: true, before: "Gym", now: "Run", onToday: true, isCrewPlan: true))
+    }
+
+    @Test("just today: the repeating line keeps its name and steps aside, and today has the new one")
+    func renameJustToday() throws {
+        let ctx = try context()
+        let defaults = try #require(UserDefaults(suiteName: "plan-rename-\(UUID().uuidString)"))
+        let today = Date()
+        let calendar = Calendar.current
+        let gym = PlanItem(text: "Gym", order: 3, category: .health)
+        gym.repeatDays = [calendar.component(.weekday, from: today)]
+        gym.sizeRaw = BlockSize.medium.rawValue
+        ctx.insert(gym)
+        // As the sheet leaves it: the new words typed straight onto the line.
+        gym.text = "Gym with Sam"
+        let line = PlanRename.justToday(gym, before: "Gym", context: ctx, today: today, defaults: defaults)
+        #expect(gym.text == "Gym" && gym.repeats)
+        #expect(PlanSkips.isSkipped(gym.id, on: today, defaults: defaults))
+        #expect(line.text == "Gym with Sam" && !line.repeats)
+        #expect(line.day == DateUtils.dateString(from: today))
+        #expect(line.order == 3 && line.category == .health && line.size == .medium)
+        #expect(line.isOpen(on: today, calendar: calendar, today: today))
+        // Tomorrow the repeat is itself again, and the one-off is not there.
+        let next = calendar.date(byAdding: .day, value: 7, to: today)!
+        #expect(!PlanSkips.isSkipped(gym.id, on: next, defaults: defaults))
+        #expect(!line.belongs(on: next, calendar: calendar, today: next))
+        let all = try ctx.fetch(FetchDescriptor<PlanItem>())
+        #expect(all.count == 2)
+        let sheet = try code("Strata/Views/PlanItemDetailSheet.swift")
+        #expect(sheet.contains("Button(\"Just Today\")") && sheet.contains("Button(\"Every Time\")"))
+        // The words are written straight onto the line, so while there is a
+        // question the sheet cannot be swiped away past it.
+        #expect(sheet.contains(".interactiveDismissDisabled(asksScope)"))
+        // What it opened on is read as the sheet is made.
+        #expect(sheet.contains("_nameBefore = State(initialValue: item.text)"))
+        #expect(sheet.contains("isCrewPlan: GroupPlanBook.crew(forPlanItem: item.id) != nil"))
+    }
+
+    @Test("a crew plan pressed on a crew's tower makes a win for that crew alone")
+    func crewPlanGoesToItsCrew() throws {
+        let main = try code("Strata/Views/MainAppView.swift")
+        // Both ways a planned win becomes a draft carry the tower it came from.
+        #expect(main.components(separatedBy: "crews: planCrew.map { [$0] }").count == 3)
+        #expect(main.contains("private func planned(_ crew: CrewID?, _ item: PlanItem, _ action: PlannedAction) {\n        planCrew = crew"))
+        // This page's own boxes say so, so a crew is never left over from before.
+        #expect(main.components(separatedBy: "planned(nil, $0, .").count == 6)
+        #expect(try code("Strata/Views/Crews/CrewsListView.swift").contains("onPlanned: { planned(id, $0, $1) }"))
+    }
+
+    @Test("a strip sent as a picture carries no rim of light")
+    func stripHasNoRimInTheChat() throws {
+        let story = try code("Strata/Views/Strip/StripStory.swift")
+        let flat = try #require(story.range(of: "func flatPNG() -> Data? {"))
+        let posed = try #require(story.range(of: "func png() -> Data? {"))
+        #expect(flat.lowerBound < posed.lowerBound)
+        #expect(story[flat.lowerBound..<posed.lowerBound].contains("rimmed: false"))
+        let view = try code("Strata/Views/Strip/StripView.swift")
+        #expect(view.contains("if rimmed {\n                        RoundedRectangle(cornerRadius: outerCorner, style: .continuous)\n                            .strokeBorder(BlockRim.gradient(in: colorScheme)"))
+    }
+
+    @Test("an album's cover has no rim of light")
+    func albumCoverHasNoRim() throws {
+        let cover = try code("Strata/Views/AlbumCoverView.swift")
+        #expect(!cover.contains("strokeBorder"))
+        #expect(!cover.contains("blockRimWidth"))
+    }
+
+    @Test("Not Today says what it did and can be taken back")
+    func notTodayUndo() throws {
+        let main = try code("Strata/Views/MainAppView.swift")
+        #expect(main.contains("UndoLine.shared.show(repeats ? PlanWords.skipped : PlanWords.moved"))
+        #expect(main.contains("PlanSkips.unskip(item.id, on: now)"))
+        #expect(main.contains("item.day = dayBefore"))
+        for line in [PlanWords.moved, PlanWords.skipped] {
+            #expect(!line.contains("!") && !line.lowercased().contains("miss"))
+        }
+    }
+
+    @Test("an invitation is kept until it is answered, for a week from when it was first held, and only a real link")
+    func invitationKept() throws {
+        let defaults = try #require(UserDefaults(suiteName: "invite-kept-\(UUID().uuidString)"))
+        #expect(CrewRouter.kept(defaults: defaults) == nil)
+        let key = String(repeating: "A", count: 43)
+        let link = try #require(URL(string: "\(CrewInviteLink.page)#crew-0123abcd.\(key)"))
+        let router = CrewRouter()
+        // Held: written down by the router itself.
+        router.hold(CrewInvite(url: link), defaults: defaults)
+        #expect(router.pendingInvite?.url == link)
+        #expect(CrewRouter.kept(defaults: defaults)?.url == link)
+        // The week runs from the first time, however often it is held again.
+        let first = Date().addingTimeInterval(-6 * 86_400)
+        defaults.set(["url": link.absoluteString, "at": first.timeIntervalSince1970] as [String: Any], forKey: CrewRouter.pendingKey)
+        CrewRouter.remember(CrewInvite(url: link), defaults: defaults)
+        #expect((defaults.dictionary(forKey: CrewRouter.pendingKey)?["at"] as? Double) == first.timeIntervalSince1970)
+        #expect(CrewRouter.kept(now: first.addingTimeInterval(6.5 * 86_400), defaults: defaults) != nil)
+        #expect(CrewRouter.kept(now: first.addingTimeInterval(8 * 86_400), defaults: defaults) == nil)
+        // A different invitation starts its own week.
+        let other = try #require(URL(string: "\(CrewInviteLink.page)#crew-9999ffff.\(key)"))
+        CrewRouter.remember(CrewInvite(url: other), defaults: defaults)
+        #expect((defaults.dictionary(forKey: CrewRouter.pendingKey)?["at"] as? Double ?? 0) > first.timeIntervalSince1970)
+        // Refused or answered: gone.
+        router.hold(nil, defaults: defaults)
+        #expect(router.pendingInvite == nil && CrewRouter.kept(defaults: defaults) == nil)
+        // Something that is not an invitation is never written or taken up.
+        let stray = try #require(URL(string: "https://example.com/join#x"))
+        router.hold(CrewInvite(url: stray), defaults: defaults)
+        #expect(defaults.object(forKey: CrewRouter.pendingKey) == nil)
+        defaults.set(["url": stray.absoluteString, "at": Date().timeIntervalSince1970] as [String: Any], forKey: CrewRouter.pendingKey)
+        #expect(CrewRouter.kept(defaults: defaults) == nil)
+        let source = try code("Strata/Social/StrataAppDelegate.swift")
+        // Let go only once it is answered: on a join that worked, or an
+        // answer that will not change.
+        #expect(source.contains("let crew = try await SocialStore.shared.accept(invite)\n            Self.forget()"))
+        #expect(source.contains("if let known = error as? CrewError, known != .notSignedIn { Self.forget() }"))
+        // And a join already agreed to does not move the page under you.
+        #expect(!source.contains("opensList = true\n            Task { await accept(invite) }"))
+        #expect(try code("Strata/StrataApp.swift").contains(".task { CrewRouter.shared.resumePending() }"))
+    }
+
+    @Test("Never Show Past Days stops the evening's line too")
+    func pastDaysSwitch() throws {
+        #expect(PastWinReminder.pastDaysKey == "moment:onThisDay")
+        #expect(RemovedAlbums.familyKey(for: .day("2025-10-13")) == PastWinReminder.pastDaysKey)
+        let never = RemovedAlbums.Entry(title: "Past Days", at: 0, never: true)
+        let once = RemovedAlbums.Entry(title: "Past Days", at: 0, never: false)
+        #expect(PastWinReminder.pastDaysOff(in: [PastWinReminder.pastDaysKey: never]))
+        // Removed for a day is not switched off.
+        #expect(!PastWinReminder.pastDaysOff(in: [PastWinReminder.pastDaysKey: once]))
+        #expect(!PastWinReminder.pastDaysOff(in: ["curated:gym": never]))
+        #expect(!PastWinReminder.pastDaysOff(in: [:]))
+        #expect(try code("Strata/Services/PastWin.swift").contains("note == nil && !Self.pastDaysOff(in: RemovedAlbums.all())"))
+    }
+
+    @Test("a crew notification tapped another day still opens its win; the chat's undo line clears the field")
+    func crewSmallThings() throws {
+        let tower = try code("Strata/Views/Crews/CrewTowerView.swift")
+        #expect(tower.contains("let win = store.wins(in: crewID).first(where: { $0.winID == id }) else { return }\n        CrewRouter.shared.openWin = nil"))
+        let chat = try code("Strata/Views/Crews/CrewChatSheet.swift")
+        let undo = try #require(chat.range(of: ".undoLine()"))
+        let field = try #require(chat.range(of: ".safeAreaInset(edge: .bottom, spacing: 0) { composer }"))
+        #expect(undo.lowerBound < field.lowerBound)
+        #expect(chat.components(separatedBy: ".undoLine()").count == 2)
+    }
+}

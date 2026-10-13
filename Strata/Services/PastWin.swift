@@ -99,6 +99,13 @@ enum PastWinReminder {
     static let defaultsKey = "pastWinRemindersOn"
     static let prefix = NotificationRoute.Prefix.pastWin
     static let hour = 20
+    /// The family every look back is removed under.
+    static let pastDaysKey = RemovedAlbums.familyKey(for: .day("")) ?? "moment:onThisDay"
+
+    /// Whether every look back was switched off (Never Show Past Days).
+    static func pastDaysOff(in removed: [String: RemovedAlbums.Entry]) -> Bool {
+        removed[pastDaysKey]?.never == true
+    }
 
     static var isEnabled: Bool {
         UserDefaults.standard.register(defaults: [defaultsKey: true])
@@ -113,14 +120,38 @@ enum PastWinReminder {
         let today = DateUtils.dateString(from: now)
         let loggedToday = ((try? context.fetchCount(FetchDescriptor<HabitLog>(
             predicate: #Predicate { $0.dateString == today && $0.completed }))) ?? 0) > 0
+        // **One true thing about today, when there is one** (`DayNote`, the
+        // Launch Pack: "Your best Sunday in three weeks."). Kept for the
+        // app to say in full, and sent in this slot in place of the past
+        // win, so the evening still holds one quiet line.
+        let note = loggedToday ? DayNote.find(context: context, now: now) : nil
+        DayNote.keep(note)
         guard loggedToday,
-              let at = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), at > now,
-              let pick = PastWin.pick(from: PastWin.candidates(context: context), today: now, calendar: calendar)
-        else { return }
+              let at = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now), at > now else { return }
+        // **Never Show Past Days is one switch for every look back**
+        // (`RemovedAlbums.familyKey`), and this was not reading it (found
+        // by review, 2026-10-13): the card was gone and "A year ago
+        // today." still came.
+        let pick = note == nil && !Self.pastDaysOff(in: RemovedAlbums.all())
+            ? PastWin.pick(from: PastWin.candidates(context: context), today: now, calendar: calendar) : nil
+        guard note != nil || pick != nil else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
+        if let note {
+            content.title = note.outside
+            content.interruptionLevel = .passive
+            content.threadIdentifier = NotificationRoute.Thread.pastWin
+            // A tap lands on Wins, where the rest is said (`NotificationRoute`).
+            content.userInfo = [NotificationRoute.noteKey: note.day]
+            let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: at)
+            try? await center.add(UNNotificationRequest(
+                identifier: prefix + today, content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+            return
+        }
+        guard let pick else { return }
         // **It invites, it does not report** (`docs/voice.md`): "A year ago
         // today." and nothing more. The win's name was the body, which is
         // the thing to find when you open it.

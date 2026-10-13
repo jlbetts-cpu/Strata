@@ -71,12 +71,9 @@ struct AlbumCoverView: View {
             }
         }
         .frame(width: side, height: height)
-        .overlay {
-            // A block with a photograph on it wears the block's rim.
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(AppColors.onDarkQuiet,
-                              lineWidth: GridConstants.blockRimWidth
-                                  * (side / GridConstants.blockReferenceCell))
-        }
+        // **No rim** (the owner, 2026-10-13: "I don't like the rim on the
+        // albums in the memories as well", the same day he had the light
+        // taken off the strip). It wore the block's rim as a light line
+        // round every cover. A photograph's own edge is its edge.
     }
 }

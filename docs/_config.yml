@@ -1,0 +1,3 @@
+# The site is plain pages. This one line lets the folder iPhone reads for
+# links that open the app (.well-known) be published with them.
+include: [".well-known"]

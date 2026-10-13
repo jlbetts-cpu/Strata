@@ -538,6 +538,8 @@ struct CrewDestinations: ViewModifier {
     var addWin: (CrewID) -> Void
     /// The empty slot's one-tap win, into a crew.
     var logWin: (CrewID, BlockSize, HabitCategory) -> Void = { _, _, _ in }
+    /// A crew plan's box on the crew's tower, pressed.
+    var planned: (CrewID, PlanItem, PlannedAction) -> Void = { _, _, _ in }
     private var router: CrewRouter { CrewRouter.shared }
 
     func body(content: Content) -> some View {
@@ -563,7 +565,8 @@ struct CrewDestinations: ViewModifier {
                 case .crew(let id):
                     CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
                                   onAddWin: { addWin(id) },
-                                  onLogWin: { logWin(id, $0, $1) })
+                                  onLogWin: { logWin(id, $0, $1) },
+                                  onPlanned: { planned(id, $0, $1) })
                 }
             }
             .onChange(of: router.open) { _, crew in

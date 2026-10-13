@@ -288,6 +288,71 @@ struct PlannedLayer: View {
     }
 }
 
+/// What a planned win's box can be asked to do, for a screen that is not
+/// the Wins page and has none of its sheets: the crew's tower.
+enum PlannedAction: Sendable {
+    case camera, library, log, edit, notToday
+}
+
+/// **A crew's plans you are in, as boxes on the crew's own tower** (the
+/// owner, 2026-10-13: "when you plan something in the crew chat they should
+/// show up as a checkbox block in the crew tower ... if the other person
+/// accepts it it also goes as a checkbox on their crew tower. This allows
+/// separate crews with different goals to live on the app").
+///
+/// **The same box, drawn by the same view** (`PlannedOutlines`): clear
+/// glass, the line's words, the plan's empty box, after the slot, one cell
+/// each, never counted. Only this crew's lines stand here
+/// (`GroupPlanBook.planItems`), so two crews with two goals are two towers
+/// with two sets of boxes. It is still a line of your own plan, so it is on
+/// your own tower too, and finishing it in either place is one win, sent to
+/// this crew.
+///
+/// **Only yours.** A friend who is in sees their own box on their own
+/// phone. Nothing here shows who is in and who is not.
+struct CrewPlannedLayer: View {
+    @Query(sort: \PlanItem.order) private var lines: [PlanItem]
+
+    let crewID: CrewID
+    let grid: [[Bool]]
+    let slot: (column: Int, row: Int)?
+    let slotSize: BlockSize
+    let cellSize: CGFloat
+    let gridHeight: CGFloat
+    let cornerRadius: CGFloat
+    /// Bumped when the book or a skip changed: neither is in the query.
+    let nudge: Int
+    @Binding var rowsNeeded: Int
+    var act: (PlanItem, PlannedAction) -> Void
+
+    /// This crew's lines among today's open ones, in the plan's order.
+    static func lines(_ open: [PlanItem], held: Set<UUID>) -> [PlanItem] {
+        open.filter { held.contains($0.id) }
+    }
+
+    /// This crew's lines, read from the book when it may have changed (a
+    /// line added or gone, or the host's nudge) and not on every draw: the
+    /// crew's screen is redrawn every few seconds while it is live.
+    @State private var held: Set<UUID>?
+
+    var body: some View {
+        let open = Self.lines(PlannedSlots.open(lines), held: held ?? GroupPlanBook.planItems(in: crewID))
+        let cells = PlannedSlots.cells(count: open.count, grid: grid, slot: slot, slotSize: slotSize)
+        PlannedOutlines(items: open, cells: cells, cellSize: cellSize, gridHeight: gridHeight,
+                        cornerRadius: cornerRadius,
+                        onCamera: { act($0, .camera) }, onLibrary: { act($0, .library) },
+                        onLog: { act($0, .log) }, onEdit: { act($0, .edit) },
+                        onNotToday: { act($0, .notToday) })
+            .onChange(of: PlannedSlots.rows(cells), initial: true) { _, rows in
+                if rowsNeeded != rows { rowsNeeded = rows }
+            }
+            .onChange(of: "\(nudge)|\(lines.count)", initial: true) { _, _ in
+                held = GroupPlanBook.planItems(in: crewID)
+            }
+            .onDisappear { rowsNeeded = 0 }
+    }
+}
+
 // MARK: - Finishing one from the tower
 
 /// The camera a planned win opens, and the sheet that changes one: kept out

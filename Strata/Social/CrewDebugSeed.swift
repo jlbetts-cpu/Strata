@@ -50,6 +50,50 @@ extension DebugHarness {
 
     @MainActor private static var friends: [SocialStore] = []
 
+    /// `-strataSeedInvite 1`: a friend's crew this phone is not in, and its
+    /// invitation opened a few seconds after launch, as a tap on the link
+    /// in Messages would: the rules, the join, then the crew.
+    @MainActor
+    static func seedInviteIfAsked() async {
+        guard argument("-strataSeedInvite") != nil, CrewsFlag.isOn else { return }
+        let store = SocialStore.shared
+        NSLog("[strata-invite] cloud %@, crews %d", String(describing: type(of: store.cloud)), store.crews.count)
+        // Whatever crews an earlier run left on this simulator do not matter
+        // here: the invitation is to a crew this phone is not in.
+        guard let mine = store.cloud as? FakeCrewCloud else { return }
+        CrewAge.save(.adult)
+        store.announces = false
+        let support = FileManager.default.temporaryDirectory.appending(path: "crew-invite-seed", directoryHint: .isDirectory)
+        try? FileManager.default.removeItem(at: support)
+        func friend(_ name: String, _ i: Int) -> SocialStore {
+            let made = SocialStore(cloud: FakeCrewCloud(world: mine.world, me: UUID()),
+                                   defaults: UserDefaults(suiteName: "crew-invite-seed-\(i)")!,
+                                   directory: support.appending(path: "\(i)", directoryHint: .isDirectory))
+            made.isEnabled = { true }
+            made.myFirstName = { name }
+            return made
+        }
+        let host = friend("Sam", 0), other = friend("Ana", 1)
+        let picture = UIImage(named: "DemoPhoto3")?.jpegData(compressionQuality: 0.8)
+        let made: (crew: Crew, invite: URL)
+        do { made = try await host.createCrew(name: "Roommates", photoJPEG: picture) } catch {
+            NSLog("[strata-invite] createCrew failed: %@", String(describing: error))
+            return
+        }
+        _ = try? await other.accept(CrewInvite(url: made.invite))
+        for (k, poster) in [host, other, host, other].enumerated() {
+            await poster.refresh()
+            await poster.post(win(k, minutesAgo: 90 - k * 20), to: [made.crew.id])
+        }
+        friends.append(contentsOf: [host, other])
+        try? await Task.sleep(for: .seconds(3))
+        store.announces = true
+        NSLog("[strata-invite] opening, gate %@", String(describing: CrewGate.current))
+        // Past the link's reader, which a pretend cloud's address does not
+        // satisfy: straight to what a read link does.
+        CrewRouter.shared.join(CrewInvite(url: made.invite))
+    }
+
     /// Builds the crews. Runs once, at launch, when asked.
     @MainActor
     static func seedCrewIfAsked() async {

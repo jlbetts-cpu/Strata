@@ -202,7 +202,7 @@ nonisolated enum EveningCheckIn {
                 defaults.removeObject(forKey: crewEveningKey)
                 return nil
             }
-            let line = CrewEvening.line
+            let line = CrewEvening.line(othersToday: store.today(in: crew.id).filter { $0.senderProfileID != store.me }.count)
             defaults.set(["day": today, "at": at.timeIntervalSince1970, "line": line] as [String: Any], forKey: crewEveningKey)
             return (at, line)
         }

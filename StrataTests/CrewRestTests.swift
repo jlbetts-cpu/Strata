@@ -154,7 +154,10 @@ struct CrewRestTests {
         #expect(a.myReaction(to: win.winID, in: crew.id) == nil)
     }
 
-    @Test("the crew's screen shows each plan once: today's proposals, then yours for today, less the closed")
+    /// It showed the plans you were in as cards too. Those are boxes on the
+    /// crew's tower now (the owner, 2026-10-13), so the cards are only the
+    /// proposals still waiting for you.
+    @Test("the crew's screen shows each waiting plan once, never one you are in or one closed there")
     func plansOnTheCrewScreen() {
         let crew = CrewID(rawValue: "crew-1")
         func plan(_ title: String, _ day: String) -> GroupPlan {
@@ -162,16 +165,38 @@ struct CrewRestTests {
         }
         let walk = plan("Walk", "2026-10-13"), gym = plan("Gym", "2026-10-14"), walkMine = plan("walk", "2026-10-13")
         let read = plan("Read", "2026-10-13")
-        let shown = CrewPlanCards.plans(proposed: [walk, gym], mine: [walkMine, read], closed: [])
+        let shown = CrewPlanCards.plans(proposed: [walk, gym, walkMine, read], joined: [], closed: [])
         #expect(shown.map(\.title) == ["Walk", "Gym", "Read"])
-        #expect(CrewPlanCards.plans(proposed: [walk, gym], mine: [read], closed: [gym.bookKey]).map(\.title) == ["Walk", "Read"])
-        #expect(CrewPlanCards.plans(proposed: [], mine: [], closed: []).isEmpty)
+        #expect(CrewPlanCards.plans(proposed: [walk, gym, read], joined: [walk.bookKey], closed: [gym.bookKey]).map(\.title) == ["Read"])
+        #expect(CrewPlanCards.plans(proposed: [], joined: [], closed: []).isEmpty)
         #expect(CrewPlanCards.most == 2)
         let tower = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewTowerView.swift")) ?? "")
         // Floating under the header, so nothing on the page moves.
         // Under the header's bar, never in it: in it, I'm In took no touch.
         #expect(tower.contains(".pinnedBar({ header }, below: {"))
-        #expect(tower.contains("CrewPlanCards(crewID: crewID, refresh: plansRefresh)"))
+        #expect(tower.contains("CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })"))
+        // A plan you are in is a box on the tower, by your own tower's view.
+        #expect(tower.contains("CrewPlannedLayer(crewID: crewID, grid: tower.currentGrid"))
+        let planned = SourceSweep.code((try? SourceSweep.read("Strata/Views/PlannedBlocks.swift")) ?? "")
+        #expect(planned.components(separatedBy: "PlannedOutlines(items: open").count == 3)
+        // Closing a card on the crew's screen is kept apart from the chat.
+        let book = UserDefaults(suiteName: "crew-rest-closed-\(UUID().uuidString)")!
+        CrewPlanCards.closeHere(walk.bookKey, today: "2026-10-13", defaults: book)
+        #expect(CrewPlanCards.closedHere(today: "2026-10-13", defaults: book) == [walk.bookKey])
+        #expect(GroupPlanBook.closed(today: "2026-10-13", defaults: book).isEmpty)
+        #expect(CrewPlanCards.closedHere(today: "2026-10-14", defaults: book).isEmpty)
+        // And a plan's line is never filtered out of the chat.
+        let chat = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift")) ?? "")
+        #expect(!chat.contains("groupPlan?.bookKey).map { !closed.contains"))
+        #expect(chat.contains("planCard(plan, pinned: false)"))
+        #expect(chat.contains("close: !pinned ? nil : {"))
+        // Only this crew's lines stand on its tower.
+        let mine = UUID(), other = UUID()
+        GroupPlanBook.keep(walk, planItem: mine, today: "2026-10-13", defaults: book)
+        GroupPlanBook.keep(GroupPlan(id: UUID(), crewID: CrewID(rawValue: "crew-2"), sender: sam, title: "Swim", when: .day("2026-10-13")),
+                           planItem: other, today: "2026-10-13", defaults: book)
+        #expect(GroupPlanBook.planItems(in: crew, defaults: book) == [mine])
+        #expect(GroupPlanBook.planItems(in: CrewID(rawValue: "crew-2"), defaults: book) == [other])
         #expect(!tower.contains("header.overlay(alignment: .bottom)"))
     }
 

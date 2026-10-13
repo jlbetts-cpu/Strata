@@ -231,6 +231,14 @@ struct MainAppView: View {
     /// The rows the outlines need, told by the layer that draws them
     /// (`PlannedLayer`), so the grid is tall enough for them.
     @State private var plannedRows = 0
+    /// What the empty tower says (`EmptyTower`): worked out off the body,
+    /// and opened on the line it last was.
+    @State private var emptyTowerLine = EmptyTower.kept()
+    /// The crew whose tower a planned win's box was pressed on, or nil for
+    /// this page's own: the win it makes goes there alone.
+    @State private var planCrew: CrewID?
+    /// Tonight's note while its card is up (`DayNote`).
+    @State private var shownNote: DayNote.Note?
     /// **The day's cue over the slot** (`WinCue`), while it is up, and where
     /// the slot is on screen for it to rise from.
     @State private var winCue: String?
@@ -608,7 +616,8 @@ struct MainAppView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .modifier(CrewDestinations(path: $crewPath,
                                            addWin: { winDraft = WinDraft(crews: [$0]) },
-                                           logWin: { logCrewWin(size: $1, colour: $2, to: $0) }))
+                                           logWin: { logCrewWin(size: $1, colour: $2, to: $0) },
+                                           planned: { planned($0, $1, $2) }))
         }
         // The first-win invitation (`FirstWinInvite`): once after your very
         // first win, once more after your first reaction, never again.
@@ -771,14 +780,34 @@ struct MainAppView: View {
     private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint) {
         guard stillThere(item) else { return }
         winDraft = WinDraft(title: PlanTime.title(item.text), photo: photo, size: size, place: place, crop: crop,
-                            colour: item.category, planItemID: item.id)
+                            colour: item.category, planItemID: item.id, crews: planCrew.map { [$0] })
     }
 
     /// The same, with no photo: the sheet a plan line's tick always opened.
     private func logPlanned(_ item: PlanItem) {
         guard stillThere(item), !alreadyWon(item) else { return }
         // At the line's own size, as its box in the plan logs it.
-        winDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category, planItemID: item.id)
+        winDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category, planItemID: item.id,
+                            crews: planCrew.map { [$0] })
+    }
+
+    /// A planned win's box on a crew's tower (`CrewPlannedLayer`) does what
+    /// the one here does, with this page's camera and sheets.
+    ///
+    /// **`crew`: the tower it was pressed on** (found by review,
+    /// 2026-10-13). Without it the add sheet opened on your usual crews
+    /// with the plan's crew added, so a plan finished on one crew's tower
+    /// also went to whichever crew your last win did. From a crew's tower
+    /// it is that crew alone, as the slot beside it is.
+    private func planned(_ crew: CrewID?, _ item: PlanItem, _ action: PlannedAction) {
+        planCrew = crew
+        switch action {
+        case .camera: if stillThere(item), !alreadyWon(item) { capturingPlan = item }
+        case .library: if stillThere(item), !alreadyWon(item) { pickingPlan = item }
+        case .log: logPlanned(item)
+        case .edit: editingPlan = item
+        case .notToday: notToday(item)
+        }
     }
 
     /// **Its win is already there** (unticked in the plan after it was
@@ -809,16 +838,33 @@ struct MainAppView: View {
     /// its next day. Never "missed": moving a plan is planning.
     private func notToday(_ item: PlanItem) {
         HapticsEngine.lightTap()
+        guard stillThere(item) else { return }
+        let now = Date()
+        let repeats = item.repeats
+        let dayBefore = item.day
         withAnimation(GridConstants.motionSnappy) {
-            guard stillThere(item) else { return }
-            if item.repeats {
-                PlanSkips.skip(item.id, on: Date())
-            } else if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
+            if repeats {
+                PlanSkips.skip(item.id, on: now)
+            } else if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) {
                 item.day = DateUtils.dateString(from: tomorrow)
                 try? modelContext.save()
             }
             plannedNudge += 1
         }
+        // **It can be taken back** (found by review, 2026-10-13): the box
+        // left at a touch, with no word and no way back but the plan.
+        UndoLine.shared.show(repeats ? PlanWords.skipped : PlanWords.moved, undo: {
+            guard stillThere(item) else { return }
+            withAnimation(GridConstants.motionSnappy) {
+                if repeats {
+                    PlanSkips.unskip(item.id, on: now)
+                } else {
+                    item.day = dayBefore
+                    try? modelContext.save()
+                }
+                plannedNudge += 1
+            }
+        })
     }
 
     /// Marks the plan line a win was written from as done.
@@ -1084,11 +1130,14 @@ struct MainAppView: View {
         } else if let line = winCue {
             // A hint teaches and has no press of its own; the day's cue is
             // pressed to add a win.
-            let teaches = line == DayOneHint.drawOut || line == PlannedHint.line
+            // **Tonight's note in full** (`DayNote`): the number and what it
+            // means. It says, and asks for nothing.
+            let note = shownNote.flatMap { $0.headline == line ? $0 : nil }
+            let teaches = line == DayOneHint.drawOut || line == PlannedHint.line || note != nil
             TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title
                         : line == PlannedHint.line ? PlannedHint.title : line,
-                    message: teaches ? line : WinCue.tapToAdd,
-                    mark: teaches ? "TipPlus" : "DoodleSticker",
+                    message: note?.detail ?? (teaches ? line : WinCue.tapToAdd),
+                    mark: note != nil ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
                     onTap: teaches ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
                         winDraft = WinDraft()
@@ -1144,6 +1193,27 @@ struct MainAppView: View {
                     guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
                     drawOutHintShown = true
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = hint }
+                    try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
+                // **Tonight's note, said in full** (`DayNote`): after eight,
+                // once, whether or not the lock screen's line was pressed.
+                if ringIsClear, DayNote.due() != nil {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    await Self.waitForLaunchToFinish()
+                    await Self.waitForRing()
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
+                    // **Worked out now, not read from what was kept** (found
+                    // by review, 2026-10-13): a win logged a moment ago had
+                    // not reached the kept copy, and the card said three
+                    // over a tower of four.
+                    guard let note = DayNote.find(context: modelContext) else { return }
+                    DayNote.keep(note)
+                    DayNote.markShown(note)
+                    shownNote = note
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = note.headline }
                     try? await Task.sleep(for: .seconds(9))
                     withAnimation(GridConstants.cueOut) { winCue = nil }
                     return
@@ -2354,6 +2424,9 @@ struct MainAppView: View {
     /// question for itself, so asking it here first was asking twice.
     private func refreshReplayWindow() {
         replayEdge = ReplayEntry.nextEdge(after: Date())
+        // The empty tower's line, for the next time the tower is empty.
+        let line = EmptyTower.find(context: modelContext)
+        if line != emptyTowerLine { emptyTowerLine = line }
         Task {
             await ReplayReminder.schedule(context: modelContext)
             // Tonight's past win, once today has a win of its own.
@@ -3785,11 +3858,11 @@ struct MainAppView: View {
         PlannedLayer(grid: towerVM.currentGrid, slot: slotPos, slotSize: drawingSize, cellSize: colW,
                      gridHeight: gridH, cornerRadius: cornerRadius, nudge: plannedNudge,
                      rowsNeeded: $plannedRows,
-                     onCamera: { if stillThere($0), !alreadyWon($0) { capturingPlan = $0 } },
-                     onLibrary: { if stillThere($0), !alreadyWon($0) { pickingPlan = $0 } },
-                     onLog: { logPlanned($0) },
-                     onEdit: { editingPlan = $0 },
-                     onNotToday: { notToday($0) })
+                     onCamera: { planned(nil, $0, .camera) },
+                     onLibrary: { planned(nil, $0, .library) },
+                     onLog: { planned(nil, $0, .log) },
+                     onEdit: { planned(nil, $0, .edit) },
+                     onNotToday: { planned(nil, $0, .notToday) })
     }
 
     @ViewBuilder
@@ -3915,7 +3988,14 @@ struct MainAppView: View {
         // press opens Add, a hold logs one at once. The hold is the app's
         // fastest move and was taught once, in onboarding, then never said
         // again; this line is there every morning.
-        Text("Tap the slot to add a win. Hold it for a quick one.")
+        //
+        // **And then his own line for the morning** (the Launch Pack,
+        // 2026-10-12: "Nothing logged yet. Just the start of the day.", and
+        // of a return after a few days, in the app only: "You've been quiet
+        // a few days. No rush."). Newer than the cut above, and his words.
+        // The line that teaches the slot is said until the slot plainly
+        // needs no teaching (`EmptyTower`), and to anyone new.
+        Text(emptyTowerLine)
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
             .fixedSize(horizontal: false, vertical: true)

@@ -63,7 +63,9 @@ struct StrataApp: App {
         // fake too: it is a pretend crew on a pretend iCloud.
         if CrewsFlag.isOn {
             #if DEBUG
-            if DebugHarness.seedsCrew == nil { SocialStore.makeCloud = { PublicCrewCloud() } }
+            if DebugHarness.seedsCrew == nil, DebugHarness.argument("-strataSeedInvite") == nil {
+                SocialStore.makeCloud = { PublicCrewCloud() }
+            }
             #else
             SocialStore.makeCloud = { PublicCrewCloud() }
             #endif
@@ -194,6 +196,11 @@ struct StrataApp: App {
             .environment(focusFilterService)
             #if DEBUG
             .task { await DebugHarness.seedCrewIfAsked() }
+            .task { await DebugHarness.seedInviteIfAsked() }
+            #endif
+            // An invitation left unanswered by an earlier launch.
+            .task { CrewRouter.shared.resumePending() }
+            #if DEBUG
             // `-strataInitCloudSchema 1`, on a phone signed in to iCloud:
             // writes the store's CloudKit schema to Development (`CloudSchemaInit`).
             .task {

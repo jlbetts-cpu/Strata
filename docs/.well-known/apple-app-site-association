@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["W34J6358L7.JaydenBetts.Strata"],
+        "components": [
+          { "/": "/join", "comment": "A crew's invitation: the app opens it." },
+          { "/": "/join.html" }
+        ]
+      }
+    ]
+  }
+}

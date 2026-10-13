@@ -634,6 +634,165 @@ final class FeedbackShots: XCTestCase {
         XCTAssertFalse(app.buttons["I'm In"].firstMatch.exists, "I'm In took no touch under the bar")
     }
 
+    /// **A tap on a crew's invitation, start to finish** (the owner,
+    /// 2026-10-13: "send me the flow of clicking on a crew link making sure
+    /// it has all the features and is simple"): the rules the first time,
+    /// then the crew.
+    func testInviteFlow() {
+        // Someone new to crews: the rules first. (The launch argument holds
+        // the rules at "not agreed" for the whole launch, so the join itself
+        // is walked in the second launch.)
+        var app = launch(["-strataCrews", "1", "-strataSeedInvite", "1", "-strataStartTab", "tower",
+                          "-strataSeedWins", "2", "-crews.rulesAccepted.v1", "NO"])
+        let agree = app.buttons["I Agree"].firstMatch
+        let asked = agree.waitForExistence(timeout: 25)
+        wait(1); snap("invite-1-rules")
+        if asked { agree.tap() }
+        wait(2); snap("invite-2-joining")
+        print("PLANNING-invite: rules \(asked) joining \(app.staticTexts["Joining your crew"].exists)")
+        app.terminate()
+        // With the rules agreed: the link, then the crew.
+        app = launch(["-strataCrews", "1", "-strataSeedInvite", "1", "-strataStartTab", "tower",
+                      "-strataSeedWins", "2", "-crews.rulesAccepted.v1", "YES"])
+        let landed = app.buttons["Chat"].firstMatch.waitForExistence(timeout: 40)
+        wait(3); snap("invite-3-in-the-crew")
+        print("PLANNING-invite: in crew \(landed) alerts \(app.alerts.count) \(app.alerts.firstMatch.exists ? app.alerts.firstMatch.label : "")")
+        XCTAssertTrue(asked, "someone new was not shown the rules")
+        XCTAssertTrue(landed, "the invitation did not end in the crew")
+    }
+
+    /// **In Add a Win the block's menu opens whole while the name is being
+    /// typed** (the owner, 2026-10-13: "when I click to add a photo in the
+    /// add a win it doesn't pop up right when the keyboard is there").
+    func testAddMenuOverKeyboard() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
+        wait(6)
+        let keysUp = app.keyboards.firstMatch.exists
+        snap("addmenu-before")
+        let block = app.buttons["Add a photo"].firstMatch
+        let found = block.waitForExistence(timeout: 4)
+        if found { block.tap() }
+        wait(2); snap("addmenu-open")
+        let screen = app.windows.firstMatch.frame
+        var rows: [String] = []
+        var whole = true
+        for name in ["Take Photo", "Choose from Library", "Doodle"] {
+            let row = app.buttons[name].firstMatch
+            let ok = row.exists && row.isHittable && screen.contains(row.frame)
+            if row.exists { rows.append("\(name) \(Int(row.frame.minY))-\(Int(row.frame.maxY)) hittable \(row.isHittable)") }
+            if name != "Doodle", !ok { whole = false }
+        }
+        print("PLANNING-addmenu: keyboard-before \(keysUp) block \(found) keyboard-after \(app.keyboards.firstMatch.exists) rows \(rows) screen \(Int(screen.height))")
+        XCTAssertTrue(found, "no block in the add sheet")
+        XCTAssertTrue(whole, "the block's menu did not open whole")
+    }
+
+    /// **A repeating line renamed asks: just today, or every time** (the
+    /// owner, 2026-10-13).
+    func testPlanRename() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedPlan", "3",
+                          "-strataPlanOnTower", "1", "-hint.planned.shown", "YES"])
+        wait(8)
+        func openEdit() -> Bool {
+            let box = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Planned: '")).firstMatch
+            guard box.waitForExistence(timeout: 6) else { return false }
+            box.tap(); wait(1)
+            let edit = app.buttons["Edit"].firstMatch
+            guard edit.waitForExistence(timeout: 3) else { return false }
+            edit.tap(); wait(2)
+            return true
+        }
+        let opened = openEdit()
+        let repeats = app.switches.firstMatch
+        if repeats.exists, (repeats.value as? String) == "0" {
+            repeats.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); wait(1)
+        }
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2) }
+        let again = openEdit()
+        let field = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+        if field.exists { field.tap(); wait(1); app.typeText(" with Sam") }
+        snap("planrename-typed")
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2) }
+        snap("planrename-asked")
+        let today = app.buttons["Just Today"].firstMatch
+        let asked = today.waitForExistence(timeout: 3)
+        print("PLANNING-planrename: opened \(opened) again \(again) field \(field.exists) asked \(asked) every \(app.buttons["Every Time"].firstMatch.exists)")
+        XCTAssertTrue(asked, "a renamed repeating line did not ask")
+        if asked { today.tap(); wait(3) }
+        snap("planrename-after")
+        let renamed = app.buttons.matching(NSPredicate(format: "label CONTAINS 'with Sam'")).firstMatch.exists
+        print("PLANNING-planrename: renamed box on the tower \(renamed)")
+        XCTAssertTrue(renamed, "today's box does not carry the new name")
+    }
+
+    /// The chat's Strip: today's strip shown, and Send puts it in the chat.
+    func testChatStrip() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataCrewSheet", "chat", "-strataSeedCrewChat", "1", "-strataSeedHistory", "2",
+                          "-strataSeedTodayPhotos", "all"])
+        wait(9)
+        let plus = app.buttons["More to send"]
+        if plus.waitForExistence(timeout: 5) { plus.tap(); wait(1) }
+        let strip = app.buttons["Send today's photo strip"]
+        let offered = strip.exists
+        if offered { strip.tap(); wait(3) }
+        snap("chatstrip-sheet")
+        let send = app.buttons["Send"].firstMatch
+        let before = app.images.matching(NSPredicate(format: "label == 'A photo strip'")).count
+            + app.otherElements.matching(NSPredicate(format: "label == 'A photo strip'")).count
+        print("PLANNING-chatstrip: offered \(offered) send \(send.exists) enabled \(send.exists && send.isEnabled) empty-line \(app.staticTexts["No photos today. Yet."].exists)")
+        if send.exists, send.isEnabled { send.tap(); wait(3) }
+        snap("chatstrip-sent")
+        let after = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'A photo strip'")).count
+        print("PLANNING-chatstrip: strips before \(before) after \(after)")
+    }
+
+    /// **A crew's plan you are in is a box on the crew's tower, and its line
+    /// stays in the chat** (the owner, 2026-10-13: "when you plan something
+    /// in the crew chat they should show up as a checkbox block in the crew
+    /// tower", and "why did it disappear from the chat when I dismissed the
+    /// notification").
+    func testCrewPlanBlock() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataSeedCrewPlan", "1"])
+        wait(10)
+        let box = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Planned: Evening walk'")).firstMatch
+        // Waiting for an answer: a card, and no box yet.
+        let join = app.buttons["I'm In"].firstMatch
+        let offered = join.waitForExistence(timeout: 3)
+        let before = box.exists
+        snap("planblock-offered")
+        // Closing the card on this screen must not take the line from the chat.
+        let close = app.buttons["Close"].firstMatch
+        if close.exists { close.tap(); wait(1) }
+        let closedHere = !app.buttons["I'm In"].firstMatch.exists
+        app.buttons["Chat"].firstMatch.tap(); wait(3)
+        let inChat = app.buttons["I'm In"].firstMatch
+        let stillInChat = inChat.waitForExistence(timeout: 4)
+        snap("planblock-chat-after-close")
+        // The line's own card has nothing to close it with.
+        let closesInChat = app.buttons.matching(identifier: "Close").count
+        if stillInChat { inChat.tap(); wait(2) }
+        snap("planblock-chat-joined")
+        // Back to the crew: the box stands on its tower.
+        app.swipeDown(velocity: .fast); wait(2)
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2) }
+        let standing = box.waitForExistence(timeout: 6)
+        snap("planblock-on-tower")
+        print("PLANNING-planblock: offered \(offered) box-before \(before) closed-here \(closedHere) still-in-chat \(stillInChat) closes-in-chat \(closesInChat) box-after \(standing) frame \(standing ? box.frame : .zero)")
+        XCTAssertTrue(offered, "no plan card on the crew's screen")
+        XCTAssertFalse(before, "a box before anyone said I'm In")
+        XCTAssertTrue(stillInChat, "closing the card on the crew's screen took the plan's line out of the chat")
+        XCTAssertTrue(standing, "no box on the crew's tower after I'm In")
+        if standing {
+            box.tap(); wait(1); snap("planblock-menu")
+            let log = app.buttons["Log Without a Photo"].firstMatch
+            print("PLANNING-planblock menu: photo \(app.buttons["Take Photo"].firstMatch.exists) library \(app.buttons["Choose from Library"].firstMatch.exists) log \(log.exists)")
+            XCTAssertTrue(log.exists, "the box's menu did not open")
+            if log.exists { log.tap(); wait(3); snap("planblock-add-sheet") }
+        }
+    }
+
     /// Memories scrolled under its header (the soft edge), and the tower's
     /// blocks without a shadow (both 2026-10-13).
     func testEdgeAndBlocks() {
@@ -759,7 +918,7 @@ final class FeedbackShots: XCTestCase {
         var app = launch(["-strataStartTab", "memories", "-strataSeedFlashback", "1",
                           "-memories.flashback.lastUnderAYear", ""])
         wait(8); snap("flashback-alone")
-        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'A month ago today'")).firstMatch
+        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'This day last month'")).firstMatch
         if card.waitForExistence(timeout: 4) {
             card.press(forDuration: 1.0); wait(2); snap("flashback-menu")
             if app.buttons["Remove Album"].exists { app.buttons["Remove Album"].tap(); wait(2); snap("flashback-removed") }

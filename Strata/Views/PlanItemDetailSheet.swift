@@ -32,6 +32,29 @@ struct PlanItemDetailSheet: View {
     /// The day a one-off had before Repeats was switched on in this
     /// sitting, so switching it off again puts the line back where it was.
     @State private var dayBefore: String?
+    /// The words and the repeat this sheet opened on, for `PlanRename`.
+    @State private var nameBefore: String
+    @State private var repeatedBefore: Bool
+    /// Done, on a repeating line whose words changed: today, or every time.
+    @State private var askingScope = false
+
+    /// **Read as the sheet is made**, not when a toolbar button appears
+    /// (found by review, 2026-10-13): had that never fired, Done would
+    /// never have asked, and said nothing about it.
+    init(item: PlanItem) {
+        self.item = item
+        _nameBefore = State(initialValue: item.text)
+        _repeatedBefore = State(initialValue: item.repeats)
+    }
+
+    /// Whether leaving now has a question to answer first (`PlanRename`).
+    private var asksScope: Bool {
+        let today = Date()
+        return PlanRename.asks(repeated: repeatedBefore, repeats: item.repeats, before: nameBefore, now: item.text,
+                               onToday: item.isOpen(on: today, calendar: calendar, today: today)
+                                   && !PlanSkips.isSkipped(item, on: today),
+                               isCrewPlan: GroupPlanBook.crew(forPlanItem: item.id) != nil)
+    }
 
     /// Monday-first, matching the week the rest of the app groups by.
 
@@ -238,6 +261,11 @@ struct PlanItemDetailSheet: View {
         // came from.
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // **The question cannot be walked past** (found by review,
+        // 2026-10-13): the words are written straight onto the line, so a
+        // swipe down kept the new name for every day without asking. While
+        // there is something to ask, the sheet leaves by Done.
+        .interactiveDismissDisabled(asksScope)
         // The same ground the other two sheets declare, so the sheet's own
         // material is the app's page and never the system's frosted glass.
         .presentationBackground { WarmBackground().ignoresSafeArea() }
@@ -314,12 +342,29 @@ struct PlanItemDetailSheet: View {
     private var detailDoneButton: some View {
         Button {
             HapticsEngine.lightTap()
-            try? modelContext.save()
-            dismiss()
+            if asksScope {
+                askingScope = true
+            } else {
+                try? modelContext.save()
+                dismiss()
+            }
         } label: {
             Text("Done").sheetAction()
         }
         .buttonStyle(.pressWord)
+        // Hung on the button: iOS 26 draws a dialog from the view it hangs
+        // on, and from a whole sheet it can fail to appear (`CrewTowerView`).
+        .confirmationDialog("This one repeats", isPresented: $askingScope, titleVisibility: .visible) {
+            Button("Just Today") {
+                PlanRename.justToday(item, before: nameBefore, context: modelContext)
+                dismiss()
+            }
+            Button("Every Time") {
+                try? modelContext.save()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     /// **The delete, in the shape the app's other two `Form` deletes already

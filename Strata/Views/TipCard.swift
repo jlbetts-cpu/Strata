@@ -28,7 +28,9 @@ struct TipCard: View {
     /// The whole card answers a tap when the tip IS the action (the daily
     /// cue opens Add a Win).
     var onTap: (() -> Void)? = nil
-    var close: () -> Void
+    /// Nil for a card that is part of what it sits in and is not put away:
+    /// a plan's own line in a crew's chat.
+    var close: (() -> Void)?
 
     private static let tapTarget: CGFloat = 44
     private static let pillHeight: CGFloat = 34
@@ -51,11 +53,13 @@ struct TipCard: View {
             HStack(alignment: .center, spacing: GridConstants.gapItem) {
                 markWell
                 words
-                closeButton
-                    // The 44pt target reaches into the card's own margin, so
-                    // the glyph, not the target, sits 16 from the edge.
-                    .padding(.trailing, -Self.closeInset)
-                    .padding(.vertical, -2)
+                if let close {
+                    closeButton(close)
+                        // The 44pt target reaches into the card's own margin, so
+                        // the glyph, not the target, sits 16 from the edge.
+                        .padding(.trailing, -Self.closeInset)
+                        .padding(.vertical, -2)
+                }
             }
             if let actionTitle, let action {
                 pill(actionTitle, action)
@@ -128,7 +132,7 @@ struct TipCard: View {
         .buttonStyle(.pressWord)
     }
 
-    private var closeButton: some View {
+    private func closeButton(_ close: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.lightTap()
             close()

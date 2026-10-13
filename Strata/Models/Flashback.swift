@@ -35,7 +35,9 @@ nonisolated enum Flashback {
     /// The titles, all of them: nothing else is ever shown.
     static func title(years: Int) -> String { years == 1 ? "A year ago today" : "\(years) years ago today" }
     static let sixMonths = "6 months ago today"
-    static let oneMonth = "A month ago today"
+    /// His own line (the Launch Pack: "This day last month"). It was "A
+    /// month ago today", written to match the years.
+    static let oneMonth = "This day last month"
     /// What Settings calls every look back, once Never Show Past Days is
     /// chosen.
     static let familyName = "Past Days"

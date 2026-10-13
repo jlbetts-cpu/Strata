@@ -169,3 +169,117 @@ rating.
 
 **Still 7 for the crew work as a whole:** none of it has run on real
 iCloud or between two phones.
+
+## 11. The doc checked against the app (2026-10-13)
+
+You: "check the doc make sure you executed everything and check your work,
+rate it, if it's under a 10 fix the changes". Read again line by line. What
+the first pass left out, and what was done about each:
+
+| The doc | What the app had | Now |
+|---|---|---|
+| "Your best Sunday in three weeks." / "Day three. Don't look now.", with the full detail inside the app | Nothing: the evening had only "Still room on today's tower." | `DayNote`. Said only when true (three wins at least, and more than the same weekday for two weeks back that the app has any record of; or day 3, 7, 14, 30, 50, 100 running). It takes the evening's one quiet 8pm slot in place of the past win, so the evening still holds one line. In the app, after eight, once: "Eight wins today." over "Your best Sunday in three weeks.", with "Good one to look back on." about one day in three. It follows the Past Wins switch. |
+| Empty: "Nothing logged yet. Just the start of the day." | "Tap the slot to add a win. Hold it for a quick one.", every morning, to everyone | His line, once someone has five wins and so knows the slot. The teaching line stays for anyone new. |
+| Quiet stretch, in the app only: "You've been quiet a few days. No rush." | Nothing | The empty tower says it after three days without a win. Never in a notification, never a number. |
+| "Your crew had a day." | The crew's evening always said "Your crew's tower is open too." | Said when it is already true as it is written: friends have sent three wins there today. Otherwise the line that is true whoever posts. |
+| "Rildy just did the workout." | A crew plan done read like any win: "Sam: Workout" | "Sam just did Workout", in the app's own notification and the one iPhone draws when the app is shut. |
+| "We made this for you." | Left out on purpose: the recap screens carry no sentences | Under the month's recap notification, once a month. Still nowhere on the recap's own screens, and not under the week's, where fifty times a year would wear it out. |
+| "This day last month" | "A month ago today" | His words. |
+| Landing headline "Win with your people." and "Every win stacked." | The page said the link card's line | On the app's page. The link card keeps your card line. |
+| Validate the keywords in Google Trends | Not done | Done, U.S., past 12 months, four terms compared: "adhd app" leads most of the year (about 45 on average, 75 at its June peak), "photo journal" is close behind, "habit tracker" spikes once at New Year (100) and otherwise sits near 30, "accountability app" is the weakest (about 12). Rising under "adhd app": "adhd cleaning planner". So the listing's lead words are the right ones, and "accountability" earns its place only as a hidden keyword, which is where it is. All four fall together in mid July, which reads as Trends changing its sampling, not as people. |
+
+**Written down as not built, with the reason:** invite codes that are typed
+and one link that installs and then joins (`docs/crew-plus-design.md`, part
+4); inviting from Contacts (the share sheet's own row of people is that,
+and reading Contacts would be a permission this app has never asked for).
+
+### Found the same day, by you
+
+- **A crew's plan is a box on the crew's tower.** "When you plan something
+  in the crew chat they should show up as a checkbox block in the crew
+  tower ... if the other person accepts it it also goes as a checkbox on
+  their crew tower." Your own tower's box, drawn by the same view, holding
+  only that crew's lines. Press it for the same menu. It is still a line of
+  your own plan, so it stands on your own tower too.
+- **The plan's line stays in the chat.** "Why did it disappear from the
+  chat when I dismissed the notification." Closing the card, in the chat or
+  on the crew's screen, hid the line in your chat for the day. The line has
+  no close now, and a card closed on the crew's screen closes only there.
+- **One album for mostly the same photos.** "The album shared with, like
+  there is two and it's just duplicate photos." The check caught exact
+  twins only. A crew's album now shows when most of it is new.
+
+### The marks, after this pass
+
+| Item | Was | Now | What holds it there |
+|---|---|---|---|
+| 1. Listing | 10 once pasted | 10 | Entered and read back. Screenshots, build, support address and age rating are still empty there, and are yours. |
+| 2. Voice and copy | 7 | 9 | Every line the doc wrote is in the app. One short of 10 until you have read them on a phone. |
+| 3. Any size | 9 | 9 | |
+| 4. No scorekeeping | 9 | 9 | |
+| 5. Invites | 7 | 7 | The address still says github. It is your three steps at the registrar and GitHub (`tasks/unification-log.md`, "somewins.xyz"). |
+| 6. Notifications across crews | 6 | 8 | Built on 2026-10-13. Unproven between two phones. |
+| 7. Reactions | 8 | 9 | A sticker on a win, and your own win takes yours. |
+| 8. Sharing | 7 | 7 | Until you have sent one and seen the card in Messages. |
+| 9. Plus row, plans, looking back | 7 | 8 | The plan is a box on the crew's tower now. Unproven on real iCloud. |
+
+## 12. The flows, read end to end (2026-10-13)
+
+You: "look through all the flows and doc to see if we are missing anything
+or can help the user's experience become smoother", and four things you
+found yourself the same afternoon. Three readers went through the code
+apart (the keyboard and every popup; every flow against these docs; then
+the day's own changes, looking for what they broke).
+
+**Yours, fixed**
+
+| You said | What was wrong | Now |
+|---|---|---|
+| "When I click to add a photo in the add a win it doesn't pop up right when the keyboard is there" | With the name being typed the block sits just above the keys and its menu hangs below it: 20 to 90 points of room for a menu of 213 | The keyboard is put away first and the menu opens into the room. The same for Who Was There and the two Replaces. Walked on the simulator: three rows, all pressable |
+| "The strip, you can't even send it to the chat" | The plus row's Strip opened your booth, which develops only once the goal is reached | Today's strip is shown and Send puts it in the chat |
+| "When editing a planned win should have the option ... just for that day or change it for all" | A rename changed every day | Done on a renamed repeating line asks: Just Today, Every Time. Just Today keeps the repeat's name, takes it off today and puts a one-off with the new words in its place. Not asked of a crew's plan |
+| "It still sends me the url" | Checked with the phone's own link previewer against the live page: the link makes a card with the logo and "Some Wins". The address under it is github's, and a tap goes through a web page | Both end when somewins.xyz is on: `tasks/launch-checklist.md`, part 2. The page that lets a link open the app is in the repo, waiting |
+
+**Found by the readers, fixed**
+
+- An invitation is kept until it is answered. It lived in memory: close
+  the app at the rules, or during the first run, and it was gone.
+- Not Today on a planned box says what it did and can be taken back.
+- Add waits for a photo chosen from the library.
+- "In your plan · Undo" no longer lies on the chat's message field.
+- A crew notification tapped the next morning opens its win.
+- Never Show Past Days stops the evening's "A year ago today." as well.
+- A crew plan finished from one crew's tower goes to that crew alone. As
+  first built it also went to whichever crew your last win did.
+- Tonight's note is worked out when it is shown, so it cannot say three
+  over a tower of four; and a Sunday with nothing on it ends the count
+  ("in eleven weeks" after a lapse was a count of the gap).
+
+**Found, not done: yours to call**
+
+1. **A build from the App Store has no crews.** They are on in TestFlight
+   only, by design, until you say so. An invite link does nothing in a
+   store build, and the page's Get Some Wins button points at TestFlight.
+2. **Onboarding, page one.** A plain hold drops a block, but only a block
+   pulled wider lets you go on, and only VoiceOver is told why.
+3. **Replays and Past Wins in Settings** show as on before notifications
+   were ever allowed, and then send nothing.
+4. **Delete, then Undo, on a win a crew has.** The crew's copy goes at
+   once and Undo brings back only yours. Sync code: wants a second reader
+   and your phone.
+5. **Joining without iCloud.** The account is checked last, after the
+   rules and the age; the alert has only OK.
+6. **The booth marks the day as printed before it opens.** Close it early
+   and today's strip has no way back in from the tower.
+7. Smaller: Settings never says iCloud is off; the note's notification
+   tapped next morning lands on a bare tower; one join error still speaks
+   of "a different Apple Account".
+
+**A note on a win, in the journal** (your idea, researched, not built):
+`HabitLog.note` already exists, is in backups, is held out of crews by a
+test, and no screen uses it. So no new iCloud field. The quiet apps
+(BeReal's caption, Things, Gentler Streak) add the note after the thing
+exists, at the thing, with nothing drawn until then. Recommended: one line
+under the name in a win's Edit sheet; once a day has a note, the journal
+draws that day's wins above your own words, live, never saved into them.
+Not in Add, where a second line would push the block behind the keys.

@@ -233,6 +233,26 @@ struct AddWinSheet: View {
     /// thing to have done.
     private var canSave: Bool { !isSaving && photoLoading == nil }
 
+    /// **A menu opens once the keyboard has gone** (the owner, 2026-10-13:
+    /// "when I click to add a photo in the add a win it doesn't pop up
+    /// right when the keyboard is there"). With the name being typed, the
+    /// sheet parks the block just above the keys, and the block's menu
+    /// hangs below the block: it had 20 to 90 points for a menu of 213, so
+    /// it came up cut or behind the keyboard. The keyboard is put away
+    /// first, and the menu opens into the room that leaves, as the chat's
+    /// reactions and the day sheet's stickers already do.
+    private func afterKeyboard(_ open: @escaping () -> Void) {
+        guard titleFocused else { open(); return }
+        titleFocused = false
+        Task { @MainActor in
+            // The keyboard's own going, and the block growing back.
+            try? await Task.sleep(for: .milliseconds(Self.keyboardBeat))
+            open()
+        }
+    }
+
+    static let keyboardBeat = 350
+
     var body: some View {
         NavigationStack {
             // **THE SHEET IS A FIELD, AND THE BLOCK STANDS ON ITS FLOOR.**
@@ -526,6 +546,11 @@ struct AddWinSheet: View {
         .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
+            // **Add waits for the photo** (found by review, 2026-10-13): it
+            // stayed live while a library photo loaded, so a quick press
+            // saved the win without it. The photo tiles already hold it.
+            let loading = "library-\(UUID().uuidString)"
+            photoLoading = loading
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = await ImageManager.downsampled(data, maxPixel: ImageManager.storedMaxDimension) {
@@ -533,6 +558,7 @@ struct AddWinSheet: View {
                     photoChanged = true
                 }
                 pickerItem = nil
+                if photoLoading == loading { photoLoading = nil }
             }
         }
     }
@@ -766,7 +792,7 @@ struct AddWinSheet: View {
     private var withButton: some View {
         Button {
             HapticsEngine.lightTap()
-            tagging = true
+            afterKeyboard { tagging = true }
         } label: {
             HStack(spacing: GridConstants.spacing) {
                 Image(systemName: withPeople.isEmpty ? "person.badge.plus" : "person.2")
@@ -1083,7 +1109,7 @@ struct AddWinSheet: View {
                         // silently, which is the same trap the plan sheet
                         // documents.
                         peeking = false
-                        choosingSource = true
+                        afterKeyboard { choosingSource = true }
                     },
                     onRemove: {
                         peeking = false
@@ -1304,7 +1330,7 @@ struct AddWinSheet: View {
             // opened the menu, a block with a photo opened the photo, and a
             // block with a doodle opened the doodle: three answers to one
             // press, and Move, Replace and Remove were behind a hold.
-            choosingSource = true
+            afterKeyboard { choosingSource = true }
         } label: {
             ZStack {
                 // **THE WELL IS THE BLOCK, NOT A HOLE WHERE ONE GOES.**
@@ -1505,7 +1531,7 @@ struct AddWinSheet: View {
                 }
                 Button("Replace Photo") {
                     doodleAspect = w / max(h, 1)
-                    choosingSource = true
+                    afterKeyboard { choosingSource = true }
                 }
                 Button("Remove Photo", role: .destructive) {
                     photo = nil
@@ -1515,7 +1541,7 @@ struct AddWinSheet: View {
                 // A drawing is swapped for a photograph the same way.
                 Button("Replace Doodle") {
                     doodleAspect = w / max(h, 1)
-                    choosingSource = true
+                    afterKeyboard { choosingSource = true }
                 }
                 Button("Remove Doodle", role: .destructive) {
                     doodle = nil

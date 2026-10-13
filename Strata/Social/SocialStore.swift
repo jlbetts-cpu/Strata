@@ -2564,9 +2564,21 @@ final class SocialStore {
                 .map { ($0.winID.uuidString, $0.title) }, uniquingKeysWith: { first, _ in first })
             out[CrewPingRecord.tag(crew.id.rawValue)] = .init(
                 title: crew.displayName(excluding: me), zoneName: crew.id.rawValue, zoneOwner: zone.owner,
-                joined: zone.joined, members: members, myWins: mine)
+                joined: zone.joined, members: members, myWins: mine,
+                plans: planKeys(in: crew.id).sorted())
         }
         return CrewNoteCache(me: me.uuidString, crews: out)
+    }
+
+    /// Today's plans `crew` can see, by key: the ones proposed in today's
+    /// chat and the ones you are in that are for today. What a friend's win
+    /// is read against, to say "Sam just did Workout".
+    func planKeys(in crewID: CrewID) -> Set<String> {
+        guard let crew = crew(crewID) else { return [] }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        let proposed = messages(in: crewID).compactMap(\.groupPlan).filter { $0.isFor(today) }
+        let mine = GroupPlanBook.plans(in: crewID, on: today, me: me)
+        return Set((proposed + mine).map { CrewNoteCache.planKey(PlanTime.title($0.title)) })
     }
 
     private func writeNoteCache() {

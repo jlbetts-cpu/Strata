@@ -169,7 +169,8 @@ struct GroupPlanCard: View {
     let canStrip: Bool
     var join: () -> Void
     var strip: () -> Void
-    var close: () -> Void
+    /// Nil where the card is the plan's own line in the chat.
+    var close: (() -> Void)? = nil
 
     var body: some View {
         TipCard(title: plan.title,
@@ -237,16 +238,27 @@ enum GroupPlanActions {
     }
 }
 
-/// **The crew's plans on the crew's own screen** (the owner, 2026-10-13:
-/// "make sure the crew plan shows up on the crew page as well"). The plans
-/// proposed in today's chat, and the ones you are in that are for today,
-/// each once, as the same card the chat draws. Two at most: the screen is
-/// the tower's.
+/// **A crew's plan waiting for your answer, on the crew's own screen** (the
+/// owner, 2026-10-13: "make sure the crew plan shows up on the crew page as
+/// well"). The plans proposed in today's chat that you are not in, each
+/// once, as the card the chat draws, with its I'm In. Two at most: the
+/// screen is the tower's.
+///
+/// **A plan you are in is not a card here: it is a box on the crew's
+/// tower** (the owner, the same day: "when you plan something in the crew
+/// chat they should show up as a checkbox block in the crew tower ... if
+/// the other person accepts it it also goes as a checkbox on their crew
+/// tower"). `CrewPlannedLayer` draws it. So a card closed here closes a
+/// proposal on this screen and nothing else: the plan's line stays in the
+/// chat, where he found it gone ("why did it disappear from the chat when
+/// I dismissed the notification, doesn't make sense").
 struct CrewPlanCards: View {
     let crewID: CrewID
     /// Counted up by the host when something else may have changed the book
     /// (the chat closing): the book is on this phone and is not observed.
     var refresh = 0
+    /// You are in one, or took that back: the tower's boxes are read again.
+    var onChanged: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -258,11 +270,30 @@ struct CrewPlanCards: View {
 
     static let most = 2
 
-    /// Today's plans for a crew: proposed in today's chat first, then yours
-    /// for today whose line has gone, each once, without the closed ones.
-    static func plans(proposed: [GroupPlan], mine: [GroupPlan], closed: Set<String>) -> [GroupPlan] {
+    private static let closedHereKey = "crews.groupPlans.closedOnCrew"
+
+    /// Proposals closed on the crew's screen today. Its own list, apart
+    /// from the chat's (`GroupPlanBook.closed`): closing one here says
+    /// nothing about the chat.
+    static func closedHere(today: String, defaults: UserDefaults = .standard) -> Set<String> {
+        guard let kept = defaults.dictionary(forKey: closedHereKey), kept["day"] as? String == today else { return [] }
+        return Set(kept["keys"] as? [String] ?? [])
+    }
+
+    static func closeHere(_ bookKey: String, today: String, defaults: UserDefaults = .standard) {
+        var keys = closedHere(today: today, defaults: defaults)
+        keys.insert(bookKey)
+        defaults.set(["day": today, "keys": keys.sorted()] as [String: Any], forKey: closedHereKey)
+    }
+
+    /// The plans proposed in today's chat that are waiting for you: each
+    /// once, without the ones you are in (those are boxes on the tower) and
+    /// the ones closed here.
+    static func plans(proposed: [GroupPlan], joined: Set<String>, closed: Set<String>) -> [GroupPlan] {
         var seen: Set<String> = []
-        return (proposed + mine).filter { !closed.contains($0.bookKey) && seen.insert($0.bookKey).inserted }
+        return proposed.filter {
+            !joined.contains($0.bookKey) && !closed.contains($0.bookKey) && seen.insert($0.bookKey).inserted
+        }
     }
 
     var body: some View {
@@ -270,17 +301,17 @@ struct CrewPlanCards: View {
         let today = store.crew(crewID).map { CrewDay.string(for: store.now(), in: $0.timeZone) }
             ?? DateUtils.dateString(from: Date())
         let plans = Self.plans(proposed: store.messages(in: crewID).compactMap(\.groupPlan),
-                               mine: GroupPlanBook.plans(in: crewID, on: today, me: store.me),
-                               closed: closed.union(GroupPlanBook.closed(today: today)))
+                               joined: Set(GroupPlanBook.all().keys),
+                               closed: closed.union(Self.closedHere(today: today)))
         VStack(spacing: GridConstants.gapTight) {
             ForEach(plans.prefix(Self.most)) { plan in
                 let state = GroupPlanActions.done(plan, today: today)
-                GroupPlanCard(plan: plan, today: today, isIn: GroupPlanBook.isIn(plan), done: state.names,
+                GroupPlanCard(plan: plan, today: today, isIn: false, done: state.names,
                               canStrip: state.canStrip,
-                              join: { GroupPlanActions.join(plan, context: modelContext) { tick += 1 } },
+                              join: { GroupPlanActions.join(plan, context: modelContext) { tick += 1; onChanged() } },
                               strip: { strip = plan },
                               close: {
-                                  GroupPlanBook.close(plan.bookKey, today: today)
+                                  Self.closeHere(plan.bookKey, today: today)
                                   withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
                                       _ = closed.insert(plan.bookKey)
                                   }
@@ -449,6 +480,94 @@ extension PhotoStrip {
         let wanted = Set(store.today(in: crewID).filter { GroupPlan.key($0.title) == key }.map(\.winID))
         strip.candidates.removeAll { !wanted.contains($0.id) }
         return strip
+    }
+}
+
+/// **The plus row's Strip: today's strip, shown, and Send sends it into
+/// this chat** (the owner, 2026-10-13: "the strip, you can't even send it
+/// to the chat. If there is a + button it should be able to be sent to the
+/// chat"). It opened your booth, which develops only once the day's goal is
+/// reached and sends from a share sheet two screens in: on most days the
+/// button led nowhere.
+///
+/// The strip is what the booth would print: the frames you chose there, on
+/// your paper, with what you drew on it. Shown first, since a chat line
+/// cannot be taken back (`CrewMemorySheet` does the same).
+struct CrewStripSendSheet: View {
+    let send: (Data) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var scheme
+    @State private var png: Data?
+    @State private var picture: UIImage?
+    @State private var looked = false
+
+    static let empty = "No photos today. Yet."
+
+    /// Today's strip as the chat shows it, or nil on a day with no picture.
+    @MainActor
+    static func flat(context: ModelContext, scheme: ColorScheme) async -> Data? {
+        let strip = await PhotoStrip.mine(context: context)
+        let frames = strip.frames(excluding: StripKeeping.excluded(.me, day: strip.day))
+        guard !frames.isEmpty else { return nil }
+        return StripStory(strip: strip, frames: frames, day: strip.day, paper: StripKeeping.paper(for: scheme),
+                          decor: StripDecor.picture(owner: .me, day: strip.day, frames: frames),
+                          pose: StripStoryPose()).flatPNG()
+    }
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geo in
+                Group {
+                    if let picture {
+                        // At a strip's own width, as the booth holds it:
+                        // stretched to the sheet it ran off both edges and
+                        // went soft (looked at, 2026-10-13).
+                        Image(uiImage: picture)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: StripStory.stripWidth)
+                            .padding(.vertical, GridConstants.gapWide)
+                            .accessibilityLabel("Today's photo strip")
+                    } else if looked {
+                        // The page's one sentence, as every empty page says its own.
+                        Text(Self.empty)
+                            .font(Typography.headerMedium)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .background { WarmBackground().ignoresSafeArea() }
+            .sheetTitle("Today's Strip", drawn: false)
+            .toolbar {
+                BareToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
+                        .buttonStyle(.pressWord)
+                }
+                BareToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        guard let png else { return }
+                        send(png)
+                        dismiss()
+                    } label: { Text("Send").sheetAction(.confirm) }
+                        .buttonStyle(.pressWord)
+                        .disabled(png == nil)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .task {
+            let data = await Self.flat(context: modelContext, scheme: scheme)
+            png = data
+            picture = data.flatMap(UIImage.init(data:))
+            looked = true
+        }
     }
 }
 

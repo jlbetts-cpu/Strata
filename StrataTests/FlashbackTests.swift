@@ -155,7 +155,7 @@ struct FlashbackTests {
             Flashback.rungs(today: today, calendar: calendar).forEach { titles.insert($0.title) }
             today = calendar.date(byAdding: .day, value: 1, to: today)!
         }
-        #expect(titles == ["A year ago today", "2 years ago today", "3 years ago today", "6 months ago today", "A month ago today"])
+        #expect(titles == ["A year ago today", "2 years ago today", "3 years ago today", "6 months ago today", "This day last month"])
         for title in titles {
             #expect(!title.contains("\u{2014}") && !title.contains("\u{2013}"))
             #expect(!title.lowercased().contains("miss"))
@@ -186,7 +186,8 @@ struct FlashbackTests {
         let today = day("2026-10-12")
         func c(_ title: String, _ key: String) -> PastWin.Candidate { .init(title: title, dateString: key) }
         let month = PastWin.pick(from: [c("Morning Run", "2026-09-12"), c("Laundry", "2026-08-30")], today: today, calendar: calendar)
-        #expect(month?.line == "A month ago today: Morning Run")
+        // His own words for the month (the Launch Pack): it was "A month ago today".
+        #expect(month?.line == "This day last month: Morning Run")
         #expect(month?.dateString == "2026-09-12")
         // The furthest back first, as the card.
         let year = PastWin.pick(from: [c("Morning Run", "2026-09-12"), c("Gym", "2025-10-12")], today: today, calendar: calendar)

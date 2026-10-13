@@ -98,4 +98,45 @@ struct MonthShelfTests {
         // No crew album says a person is in the pictures.
         #expect(!both.contains { $0.title.hasPrefix("With ") })
     }
+
+    /// The owner, 2026-10-13: "the album shared with, like there is two and
+    /// it's just duplicate photos, I don't like that."
+    @Test("two crews holding mostly the same photos are one album, not two")
+    func noNearTwin() {
+        let shared = (0..<6).map { _ in UUID() }
+        let onlyOne = UUID()
+        let records = (shared + [onlyOne]).enumerated().map {
+            record("Run \($0.offset)", "2026-10-0\($0.offset + 1)", id: $0.element)
+        }
+        // Seven went to one crew, six of the same to the other: not twins,
+        // and still the same pictures.
+        let big = Album.ShelfCrew(id: "crew-1", name: "Roommates", wins: Set(shared + [onlyOne]))
+        let small = Album.ShelfCrew(id: "crew-2", name: "Jolee", wins: Set(shared))
+        let shelf = Album.monthShelf(records: records, month: "2026-10", crews: [small, big], moments: [])
+        #expect(shelf.map(\.title) == ["Shared with Roommates"])
+        // Two new photos beside six shown already: still mostly the same.
+        let two = (0..<2).map { _ in UUID() }
+        let more = two.enumerated().map { record("Read \($0.offset)", "2026-10-1\($0.offset)", id: $0.element) }
+        let mostlySame = Album.ShelfCrew(id: "crew-3", name: "Run Club", wins: Set(shared + two))
+        let stillOne = Album.monthShelf(records: records + more, month: "2026-10", crews: [big, mostlySame], moments: [])
+        #expect(stillOne.count == 1)
+        // **Three new beside six shown already.** Three is enough to be an
+        // album by itself, and it is still two thirds the same pictures:
+        // this is the case only the "most of it is new" half decides.
+        let four = (0..<4).map { _ in UUID() }
+        let three = (0..<3).map { _ in UUID() }
+        let fourRecords = four.enumerated().map { record("Swim \($0.offset)", "2026-10-1\($0.offset + 2)", id: $0.element) }
+        let threeRecords = three.enumerated().map { record("Hike \($0.offset)", "2026-10-1\($0.offset + 6)", id: $0.element) }
+        let ten = Album.ShelfCrew(id: "crew-5", name: "Team", wins: Set(shared + four))
+        let nine = Album.ShelfCrew(id: "crew-6", name: "Hikers", wins: Set(shared + three))
+        let third = Album.monthShelf(records: records + fourRecords + threeRecords, month: "2026-10",
+                                     crews: [nine, ten], moments: [])
+        #expect(third.map(\.title) == ["Shared with Team"])
+        // Mostly its own photos: its own album.
+        let own = (0..<5).map { _ in UUID() }
+        let ownRecords = own.enumerated().map { record("Cook \($0.offset)", "2026-10-2\($0.offset)", id: $0.element) }
+        let different = Album.ShelfCrew(id: "crew-4", name: "Family", wins: Set(own + [shared[0]]))
+        let twoAlbums = Album.monthShelf(records: records + ownRecords, month: "2026-10", crews: [big, different], moments: [])
+        #expect(Set(twoAlbums.map(\.title)) == ["Shared with Roommates", "Shared with Family"])
+    }
 }

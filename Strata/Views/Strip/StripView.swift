@@ -19,6 +19,14 @@ struct StripView: View {
     var developed: Double = 1
     var decor: InkPicture? = nil
     var style: StripStyle = .current
+    /// **Off for a strip that leaves as a picture** (the owner, 2026-10-13,
+    /// of the strip in a crew's chat: "why does the strip have that light,
+    /// should not have that"). The rim is the page's own colour, so that
+    /// the paper's edge meets its ground (`BlockRim`). A picture made off
+    /// screen is drawn as if on a white page, so on black paper the rim
+    /// was baked in as a bright outline, and it cannot know what it will
+    /// be laid on anyway.
+    var rimmed = true
 
     private var margin: CGFloat { width * style.edge }
     private var gap: CGFloat { width * style.gap }
@@ -68,9 +76,11 @@ struct StripView: View {
             Rectangle().fill(paper.fill)
                 .overlay(BlockWash(opacity: GridConstants.blockScrimOpacity))
                 .overlay {
-                    RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
-                        .strokeBorder(BlockRim.gradient(in: colorScheme),
-                                      lineWidth: GridConstants.blockRimWidth * min(1, width / 177))
+                    if rimmed {
+                        RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
+                            .strokeBorder(BlockRim.gradient(in: colorScheme),
+                                          lineWidth: GridConstants.blockRimWidth * min(1, width / 177))
+                    }
                 }
         }
         .overlay { decoration }

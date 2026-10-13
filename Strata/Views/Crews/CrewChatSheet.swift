@@ -57,6 +57,8 @@ struct CrewChatSheet: View {
     @State private var makingSticker = false
     @State private var doodling = false
     @State private var showsStrip = false
+    /// Why a strip did not go, in the words its share sheet uses.
+    @State private var stripProblem: String?
     @State private var choosingMemory = false
     /// A group plan two or more have done with a photo, opened as a strip.
     @State private var planStrip: GroupPlan?
@@ -95,14 +97,19 @@ struct CrewChatSheet: View {
 
     var body: some View {
         let crew = store.visible(crewID)
-        // A plan card you closed is off your chat for the day; the line is
-        // still everyone else's.
-        let closed = closedPlans.union(GroupPlanBook.closed(today: today))
+        // **A plan's line is a line of the chat, and stays in it** (the
+        // owner, 2026-10-13: "why did it disappear from the chat when I
+        // dismissed the notification, doesn't make sense"). Its card had a
+        // close, and closing it, here or on the crew's screen, took the
+        // line out of this chat for the day. Nothing takes it out now.
         let messages = store.messages(in: crewID)
-            .filter { ($0.groupPlan?.bookKey).map { !closed.contains($0) } ?? true }
         let reactions = store.messageReactions(in: crewID)
         NavigationStack {
             thread(messages, reactions: reactions, crew: crew)
+                // Over the thread and above the message field (found by
+                // review, 2026-10-13): hung on the whole sheet, "In your
+                // plan · Undo" lay on the field for five seconds.
+                .undoLine()
                 .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
                 // The reaction bar closes on a tap outside it or a scroll,
@@ -169,20 +176,21 @@ struct CrewChatSheet: View {
         .sheet(isPresented: $choosingMemory) {
             CrewMemorySheet(crewID: crewID) { found in bringBack(found) }
         }
-        .fullScreenCover(isPresented: $showsStrip) {
-            // Your own strip for today, which the booth sends to a crew from
-            // its Share. It develops when the day's goal is reached, here as
-            // on the tower.
-            StripBooth(owner: .me, prints: false, canDevelop: { goalReached }) {
-                await PhotoStrip.mine(context: modelContext)
-            }
+        .sheet(isPresented: $showsStrip) {
+            // **Today's strip, shown, and Send puts it in this chat**
+            // (`CrewStripSendSheet`). It opened the booth, which on most
+            // days would not develop, and sent from a share sheet.
+            CrewStripSendSheet { png in sendStrip(png) }
+        }
+        .alert(stripProblem ?? "", isPresented: Binding(get: { stripProblem != nil },
+                                                        set: { if !$0 { stripProblem = nil } })) {
+            Button("OK", role: .cancel) {}
         }
         .fullScreenCover(item: $planStrip) { plan in
             StripBooth(owner: .crew(crewID.rawValue), day: today) {
                 await PhotoStrip.crew(crewID, titled: plan.title)
             }
         }
-        .undoLine()
         #if DEBUG
         // `-strataChatReact open`: a friend's line held, its bar open, so
         // the bar can be photographed (the seed is `CrewDebugSeed`).
@@ -398,7 +406,7 @@ struct CrewChatSheet: View {
         if message.isStrip, let strip = message.sketch {
             CrewStripPicture(url: strip)
         } else if let plan = message.groupPlan {
-            planCard(plan)
+            planCard(plan, pinned: false)
         } else if message.isPicture, let picture = message.sketch {
             ChatPicture(url: picture, caption: message.caption == SocialStore.stickerWord ? "" : message.caption, mine: mine)
         } else {
@@ -604,6 +612,23 @@ struct CrewChatSheet: View {
         }
     }
 
+    /// Today's strip, into this chat.
+    private func sendStrip(_ png: Data) {
+        Task {
+            let outcome = await store.sendStrip(png, in: crewID)
+            if outcome == .sent {
+                HapticsEngine.success()
+                Analytics.shared.signal(.stripShared, [.destination(.crew)])
+            } else {
+                HapticsEngine.warning()
+                // After the sheet has gone: an alert asked for while it is
+                // still leaving is dropped.
+                try? await Task.sleep(for: .milliseconds(450))
+                stripProblem = CrewStripActivity.words(for: outcome)
+            }
+        }
+    }
+
     /// What a send that did not go says: the same three answers a line gets.
     private func answer(_ outcome: SocialStore.ReplyOutcome) {
         switch outcome {
@@ -649,7 +674,9 @@ struct CrewChatSheet: View {
         GroupPlanActions.done(plan, today: today)
     }
 
-    private func planCard(_ plan: GroupPlan) -> some View {
+    /// `pinned`: the card over the thread, which can be put away for the
+    /// day. A plan's own line in the thread cannot.
+    private func planCard(_ plan: GroupPlan, pinned: Bool) -> some View {
         let state = done(plan)
         // Read on every draw: the book is on this phone and is not observed.
         _ = planTick
@@ -657,7 +684,7 @@ struct CrewChatSheet: View {
                              canStrip: state.canStrip,
                              join: { join(plan) },
                              strip: { planStrip = plan },
-                             close: {
+                             close: !pinned ? nil : {
                                  GroupPlanBook.close(plan.bookKey, today: today)
                                  withAnimation(motion) { _ = closedPlans.insert(plan.bookKey) }
                              })
@@ -686,7 +713,7 @@ struct CrewChatSheet: View {
                                 withAnimation(motion) { lookBack = nil }
                             })
                 }
-                ForEach(mine) { plan in planCard(plan) }
+                ForEach(mine) { plan in planCard(plan, pinned: true) }
             }
             .padding(.horizontal, hPad)
             .padding(.vertical, GridConstants.gapTight)

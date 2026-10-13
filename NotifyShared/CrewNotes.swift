@@ -90,7 +90,25 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
         var members: [String: Member]
         /// Your own wins in this crew, win id to title, for "Sam reacted to Gym".
         var myWins: [String: String]
+        /// Today's plans this crew can see, by key (`planKey`), so a win of
+        /// that name reads "Sam just did Workout". Absent in a cache written
+        /// by a build from before it.
+        var plans: [String]? = nil
     }
+
+    /// A title as a plan and its win are told to be the same one: letters
+    /// and numbers, lowercased, one space between words (`GroupPlan.key`
+    /// is this, in the app).
+    static func planKey(_ title: String) -> String {
+        let plain = title.lowercased().folding(options: .diacriticInsensitive, locale: nil)
+        let words = plain.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        return words.isEmpty ? plain.trimmingCharacters(in: .whitespaces) : words
+    }
+
+    /// **A crew's plan, done, is said as that** (the Launch Pack:
+    /// "completion surfaces as living proof, like 'Rildy just did the
+    /// workout'"). The same words in the app (`CrewNotifications.Text`).
+    static func didPlan(_ name: String, _ title: String) -> String { "\(name) just did \(title)" }
 
     var me: String
     /// Each crew by the tag a ping carries.
@@ -188,6 +206,9 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
             let said = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if tagsMe {
                 return (heading, said.isEmpty ? "\(name) added you to a win" : "\(name) added you to \(said)")
+            }
+            if !said.isEmpty, crew?.plans?.contains(Self.planKey(said)) == true {
+                return (heading, Self.didPlan(name, said))
             }
             return (heading, said.isEmpty ? "\(name) added a win" : "\(name): \(said)")
         case .message:

@@ -277,6 +277,12 @@ nonisolated enum GroupPlanBook {
         write(table, defaults: defaults)
     }
 
+    /// The lines of your own plan that are plans with `crew`: what the
+    /// crew's tower draws a box for (`CrewPlannedLayer`).
+    static func planItems(in crew: CrewID, defaults: UserDefaults = .standard) -> Set<UUID> {
+        Set(all(defaults: defaults).values.filter { $0.crew == crew.rawValue }.map(\.planItem))
+    }
+
     /// The crew a line of your plan belongs to, if it is a group plan.
     static func crew(forPlanItem id: UUID, defaults: UserDefaults = .standard) -> CrewID? {
         all(defaults: defaults).values.first { $0.planItem == id }.map { CrewID(rawValue: $0.crew) }

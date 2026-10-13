@@ -299,6 +299,53 @@ extension PlanItem {
 /// this Tuesday" is kept beside it: on this phone, by day, and forgotten a
 /// week on. Nothing is counted and nothing is marked: the outline is not on
 /// that day's tower, and the line is back on its next day.
+/// What the plan says after it has done something you can take back.
+nonisolated enum PlanWords {
+    static let moved = "Moved to tomorrow"
+    static let skipped = "Off today"
+}
+
+/// **A repeating line renamed: for today, or for every time** (the owner,
+/// 2026-10-13: "when editing a planned win should have the option after
+/// changing the name to be just for that day or change it for all").
+///
+/// **Just today needs nothing new kept.** The repeating line gets its name
+/// back and steps aside for today (`PlanSkips`), and a one-off with the new
+/// name takes its place for today: the same colour, size and place in the
+/// list. Tomorrow the repeating line comes round under its own name, and
+/// today's one-off is today's: done, it is swept as any is; not done, it
+/// waits where any unfinished line of an earlier day waits.
+///
+/// **Not asked of a crew's plan** (found by review, 2026-10-13): today's
+/// copy would be a new line the crew's book does not know, so its box left
+/// the crew's tower and its win was no longer the crew's.
+enum PlanRename {
+    /// Whether Done asks: the line repeated when the sheet opened and
+    /// still does, the words changed, it is on today's plan, and it is not
+    /// a crew's.
+    static func asks(repeated: Bool, repeats: Bool, before: String, now: String, onToday: Bool,
+                     isCrewPlan: Bool = false) -> Bool {
+        let was = before.trimmingCharacters(in: .whitespacesAndNewlines)
+        let new = now.trimmingCharacters(in: .whitespacesAndNewlines)
+        return repeated && repeats && onToday && !isCrewPlan && !was.isEmpty && !new.isEmpty && was != new
+    }
+
+    /// The new words for today only. Returns today's line.
+    @MainActor
+    @discardableResult
+    static func justToday(_ item: PlanItem, before: String, context: ModelContext, today: Date = Date(),
+                          defaults: UserDefaults = .standard) -> PlanItem {
+        let line = PlanItem(text: item.text.trimmingCharacters(in: .whitespacesAndNewlines), order: item.order,
+                            category: item.category, day: DateUtils.dateString(from: today))
+        line.sizeRaw = item.sizeRaw
+        item.text = before
+        PlanSkips.skip(item.id, on: today, defaults: defaults)
+        context.insert(line)
+        try? context.save()
+        return line
+    }
+}
+
 enum PlanSkips {
     private static let key = "plan.skipped"
 

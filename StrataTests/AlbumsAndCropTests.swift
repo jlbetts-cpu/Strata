@@ -112,7 +112,9 @@ struct AlbumsAndCropTests {
     @Test("every hint waits for a clear tower and the ring, and says what the app does")
     func hints() throws {
         let main = try code("Strata/Views/MainAppView.swift")
-        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 3)
+        // Four since 2026-10-13: tonight's note (`DayNote`) is a fourth
+        // thing said under the header, and waits as the other three do.
+        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 4)
         #expect(!main.contains("guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil"))
         #expect(try code("Strata/Views/Crews/FirstWinInviteCard.swift").contains("await MainAppView.waitForRing()"))
         // "Pull", the verb onboarding uses twice for the same gesture: one
@@ -134,7 +136,11 @@ struct AlbumsAndCropTests {
         let plain = try #require(outline.range(of: "Button(\"Log Without a Photo\", systemImage: \"checkmark\") { onLog(item) }"))
         #expect(take.lowerBound < library.lowerBound && library.lowerBound < plain.lowerBound)
         #expect(outline.contains(".photosPicker(isPresented:"))
-        #expect(try code("Strata/Views/MainAppView.swift").contains("onLibrary: { if stillThere($0), !alreadyWon($0) { pickingPlan = $0 } }"))
+        // Through `planned` since 2026-10-13, which a crew's tower shares:
+        // the same guard, one place.
+        let main = try code("Strata/Views/MainAppView.swift")
+        #expect(main.contains("onLibrary: { planned(nil, $0, .library) }"))
+        #expect(main.contains("case .library: if stillThere(item), !alreadyWon(item) { pickingPlan = item }"))
     }
 
     @Test("the slot's glass is made again when the appearance changes")
