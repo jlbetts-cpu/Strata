@@ -12,6 +12,9 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f7fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#211f1e" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex">
 <style>
   /* The app's own ground, ink and wordmark (Zen Maru Gothic, SIL Open Font
@@ -32,6 +35,9 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
+  /* The ground reaches under Safari's own bars: with none on `html` they
+     were white round a dark page (seen on the live page, 2026-10-13). */
+  html { background: var(--bg-bottom); }
   body {
     min-height: 100vh; min-height: 100svh;
     display: flex; flex-direction: column; align-items: center;
