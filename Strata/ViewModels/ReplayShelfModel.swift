@@ -161,6 +161,7 @@ final class ReplayShelfModel {
             h.combine(b.win.title)
             h.combine(b.win.crop.x)
             h.combine(b.win.crop.y)
+            h.combine(b.win.zoom)
         }
         return h.finalize()
     }

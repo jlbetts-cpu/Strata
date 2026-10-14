@@ -1185,6 +1185,11 @@ enum PhotoRemoval {
             try context.transaction {
                 for log in try context.fetch(descriptor) {
                     log.imageFileName = nil
+                    // Its window goes with it (`AddWinSheet.writePhoto`).
+                    log.cropPositionX = nil
+                    log.cropPositionY = nil
+                    log.cropZoom = 1
+                    StripKeeping.forgetWindow(of: log.id, day: log.dateString)
                     // And its iCloud copy, in the same transaction (2026-10-08).
                     WinPhotoStore.detach(from: log, context: context)
                 }

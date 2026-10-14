@@ -630,6 +630,7 @@ enum BackupRestore {
         log.imageFileName = photographRestored ? exported.imageFileName : nil
         log.cropPositionX = exported.cropPositionX
         log.cropPositionY = exported.cropPositionY
+        log.cropZoom = exported.cropZoom ?? 1
         log.towerOrder = exported.towerOrder
         log.latitude = exported.latitude
         log.longitude = exported.longitude

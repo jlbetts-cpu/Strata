@@ -95,10 +95,13 @@ struct AlbumsAndCropTests {
     func cropIsWired() throws {
         let add = try code("Strata/Views/AddWinSheet.swift")
         #expect(add.contains("Button(\"Move Photo\""))
-        #expect(add.contains("CropEditor(image: photo, aspect: cropAspect, crop: crop)"))
-        #expect(add.contains("CachedImageView.shift(crop: CropEditor.clamped(crop, photo: photo.size, frame: well)"),
+        // Each call hands over the zoom as well since 2026-10-13, when a
+        // photo could be pinched in its frame (`PhotoWindowTests`): the same
+        // three wirings, with one more number each.
+        #expect(add.contains("CropEditor(image: photo, aspect: cropAspect, crop: crop, zoom: zoom)"))
+        #expect(add.contains("CachedImageView.shift(crop: CropEditor.clamped(crop, photo: photo.size, frame: well, zoom: zoom)"),
                 "the sheet's block drew the middle whatever the crop was")
-        #expect(try code("Strata/Views/Strip/StripEditor.swift").contains("CropEditor(image: frame.picture, aspect: aspect(of: frame.id), crop: frame.crop)"))
+        #expect(try code("Strata/Views/Strip/StripEditor.swift").contains("CropEditor(image: frame.picture, aspect: aspect(of: frame.id), crop: frame.crop, zoom: frame.zoom)"))
         #expect(try code("Strata/Views/Strip/StripView.swift").contains("CropEditor.clamped(frame.crop"))
     }
 

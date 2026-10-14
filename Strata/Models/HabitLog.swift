@@ -24,9 +24,10 @@ final class HabitLog {
     // fall back on, a default is not part of the version hash, and the
     // initialiser still assigns all six, so nothing moves.
     //
-    // Five fields on this model are dead: `imageURL`, `videoURL`,
-    // `imageFlipped`, `pendingXP` and `verifiedByHealthKit`, plus `surgeMode`,
+    // Four fields on this model are dead: `imageURL`, `videoURL`,
+    // `imageFlipped` and `verifiedByHealthKit`, plus `surgeMode`,
     // `xpCollected` and `isBonusBlock`, which only `StoreRecordDigest` reads.
+    // `pendingXP` was the fifth and now carries the photo's zoom (`cropZoom`).
     // They were kept when CloudKit went on, deliberately; the reasoning and the
     // condition for ever removing them is the one block in `Habit`, so that
     // there is one copy of it.
@@ -69,7 +70,17 @@ final class HabitLog {
     var cropPositionX: Double?
     var cropPositionY: Double?
     var surgeMode: Bool = false
+    /// Dead as XP since `b189dae`. It holds the photo's zoom now, through
+    /// `cropZoom`: read and write that, never this.
     var pendingXP: Int?
+    /// **How far the block is zoomed into its photo.** One is the photo
+    /// filled into the block. Not a column of its own: a new one needs a
+    /// CloudKit deploy, and `PhotoWindow.stored` says why the dead field
+    /// can carry it safely.
+    var cropZoom: Double {
+        get { Double(PhotoWindow.zoom(stored: pendingXP)) }
+        set { pendingXP = PhotoWindow.stored(CGFloat(newValue)) }
+    }
     var xpCollected: Bool = false
     var isBonusBlock: Bool = false
     var skipped: Bool = false

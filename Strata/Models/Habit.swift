@@ -169,7 +169,8 @@ final class Habit {
     // `isStepCompleted`, `isInProgress`, `isSaved`, `todoOrder` and
     // `customDurationMinutes` (with `effectiveDurationMinutes`, the only thing
     // that reads it, which has no callers either); on `HabitLog`, `imageURL`,
-    // `videoURL`, `imageFlipped`, `pendingXP` and `verifiedByHealthKit`; on
+    // `videoURL`, `imageFlipped` and `verifiedByHealthKit` (`pendingXP` was
+    // one, and holds a photo's zoom now: `HabitLog.cropZoom`); on
     // `MoodLog`, `imageURL` and `videoURL`. Read only by `StoreRecordDigest`,
     // which exists to notice values going missing: `creationXP`, `surgeMode`,
     // `xpCollected`, `isBonusBlock`. Still alive: `imageData`, which

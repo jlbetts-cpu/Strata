@@ -22,8 +22,12 @@ struct PhotoStrip: Identifiable, Equatable {
         /// Where the frame's window sits on the photo, moved in the strip's
         /// editor (`CropEditor`, `StripKeeping.crops`). Zero is the middle.
         var crop: CGPoint = .zero
+        /// How far in that window is (`PhotoWindow`). One is the photo filled.
+        var zoom: CGFloat = 1
 
-        static func == (a: Frame, b: Frame) -> Bool { a.id == b.id && a.size == b.size && a.crop == b.crop }
+        static func == (a: Frame, b: Frame) -> Bool {
+            a.id == b.id && a.size == b.size && a.crop == b.crop && a.zoom == b.zoom
+        }
     }
 
     /// Whose strip: yours, or a crew's.
@@ -54,9 +58,11 @@ struct PhotoStrip: Identifiable, Equatable {
     /// The frames on the strip: the chosen ones, at most `most`.
     func frames(excluding excluded: Set<UUID>) -> [Frame] {
         let crops = StripKeeping.crops(owner, day: day)
+        let zooms = StripKeeping.zooms(owner, day: day)
         return candidates.filter { !excluded.contains($0.id) }.prefix(Self.most).map { frame in
             var frame = frame
             frame.crop = crops[frame.id] ?? .zero
+            frame.zoom = zooms[frame.id] ?? 1
             return frame
         }
     }
@@ -118,15 +124,50 @@ enum StripKeeping {
     static func crops(_ owner: PhotoStrip.Owner, day: String) -> [UUID: CGPoint] {
         let raw = defaults.dictionary(forKey: "strip.crop.\(owner.key).\(day)") as? [String: [Double]] ?? [:]
         var out: [UUID: CGPoint] = [:]
-        for (key, value) in raw where value.count == 2 {
+        // Two numbers, or three since a photo could be zoomed (`zooms`).
+        for (key, value) in raw where value.count >= 2 {
             if let id = UUID(uuidString: key) { out[id] = CGPoint(x: value[0], y: value[1]) }
         }
         return out
     }
 
-    static func setCrops(_ crops: [UUID: CGPoint], _ owner: PhotoStrip.Owner, day: String) {
+    /// How far each photo was zoomed in its frame: the third number beside
+    /// its crop, there only when it was zoomed.
+    static func zooms(_ owner: PhotoStrip.Owner, day: String) -> [UUID: CGFloat] {
+        let raw = defaults.dictionary(forKey: "strip.crop.\(owner.key).\(day)") as? [String: [Double]] ?? [:]
+        var out: [UUID: CGFloat] = [:]
+        for (key, value) in raw where value.count >= 3 {
+            let zoom = PhotoWindow.zoom(CGFloat(value[2]))
+            if let id = UUID(uuidString: key), zoom > 1 { out[id] = zoom }
+        }
+        return out
+    }
+
+    /// **A win's photo was replaced or removed**: where it was moved to and
+    /// how far it was zoomed, on every strip of that day (yours and each
+    /// crew's), was said of the old picture. Keyed by the win, it stayed, and
+    /// the new photo came up zoomed to three round a point chosen on another
+    /// (found by review, 2026-10-13).
+    static func forgetWindow(of win: UUID, day: String) {
+        let id = win.uuidString
+        for key in defaults.dictionaryRepresentation().keys
+        where key.hasPrefix("strip.crop.") && key.hasSuffix(".\(day)") {
+            guard var raw = defaults.dictionary(forKey: key), raw[id] != nil else { continue }
+            raw[id] = nil
+            defaults.set(raw, forKey: key)
+        }
+    }
+
+    static func setCrops(_ crops: [UUID: CGPoint], zooms: [UUID: CGFloat] = [:],
+                         _ owner: PhotoStrip.Owner, day: String) {
         var raw: [String: [Double]] = [:]
-        for (id, point) in crops where point != .zero { raw[id.uuidString] = [point.x, point.y] }
+        for id in Set(crops.keys).union(zooms.keys) {
+            let point = crops[id] ?? .zero
+            let zoom = PhotoWindow.zoom(zooms[id] ?? 1)
+            // The middle of the whole photo is not kept: it is what nothing means.
+            guard point != .zero || zoom > 1 else { continue }
+            raw[id.uuidString] = zoom > 1 ? [point.x, point.y, zoom] : [point.x, point.y]
+        }
         defaults.set(raw, forKey: "strip.crop.\(owner.key).\(day)")
     }
 

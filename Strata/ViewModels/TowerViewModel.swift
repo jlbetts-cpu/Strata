@@ -38,6 +38,9 @@ struct PlacedBlock: Identifiable, Equatable {
         var doodleFileName: String? = nil
         let cropX: Double?
         let cropY: Double?
+        /// How far in the window is (`PhotoWindow`). A crew's copy is
+        /// always one: a zoomed photo is cut before it is sent.
+        var cropZoom: Double = 1
         /// The day the win belongs to, `yyyy-MM-dd`.
         let dateString: String
         /// A friend's photograph, cached under `Application Support/Crews`.
@@ -81,6 +84,7 @@ struct PlacedBlock: Identifiable, Equatable {
             doodleFileName = log.imageFileName == nil ? log.doodleFileName : nil
             cropX = log.cropPositionX
             cropY = log.cropPositionY
+            cropZoom = log.cropZoom
             dateString = log.dateString
         }
 

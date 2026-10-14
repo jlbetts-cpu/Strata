@@ -516,7 +516,7 @@ struct ReplayFrame: View {
                               // cache, so a rendered frame has it too.
                               doodle: block.win.doodle) {
                         if let image, let source = block.win.photo {
-                            photo(image, crop: block.win.crop, width: f.width, height: f.height)
+                            photo(image, crop: block.win.crop, zoom: block.win.zoom, width: f.width, height: f.height)
                                 .opacity(photoOpacity?(source) ?? 1)
                         }
                     }
@@ -612,13 +612,14 @@ struct ReplayFrame: View {
     /// picture by a fraction of its drawn size, then frame, then clip. Offset
     /// after the frame moves the picture off its own clip and leaves a strip
     /// of the block's colour showing.
-    private func photo(_ image: UIImage, crop: CGPoint, width: CGFloat, height: CGFloat) -> some View {
-        let size = image.size
-        let scale = size.width > 0 && size.height > 0 ? max(width / size.width, height / size.height) : 1
+    private func photo(_ image: UIImage, crop: CGPoint, zoom: CGFloat, width: CGFloat, height: CGFloat) -> some View {
+        let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: CGSize(width: width, height: height),
+                                          zoom: zoom)
         return Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .offset(x: -crop.x * size.width * scale, y: -crop.y * size.height * scale)
+            .scaleEffect(PhotoWindow.zoom(zoom))
+            .offset(shift)
             .frame(width: width, height: height)
             .clipped()
     }

@@ -117,6 +117,8 @@ struct AddWinSheet: View {
     @State private var photoChanged = false
     /// Which part of the photograph the block shows. Carried from the review.
     @State private var crop: CGPoint = .zero
+    /// How far in the block's window is, pinched in Move Photo (`PhotoWindow`).
+    @State private var zoom: CGFloat = 1
     /// The block's own shape, for moving its photo in (`CropEditor`).
     @State private var movingPhoto = false
     @State private var cropAspect: CGFloat = 1
@@ -190,12 +192,13 @@ struct AddWinSheet: View {
         var category: HabitCategory
         var size: BlockSize
         var crop: CGPoint
+        var zoom: CGFloat
         var crews: Set<CrewID>
     }
 
     private var asItStands: Opening {
         Opening(title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                category: category, size: size, crop: crop, crews: crewChoice)
+                category: category, size: size, crop: crop, zoom: zoom, crews: crewChoice)
     }
 
     /// **A swipe down no longer throws a win away** (the QoL review,
@@ -549,14 +552,21 @@ struct AddWinSheet: View {
         }
         .sheet(isPresented: $movingPhoto) {
             if let photo {
-                CropEditor(image: photo, aspect: cropAspect, crop: crop) { moved in
+                CropEditor(image: photo, aspect: cropAspect, crop: crop, zoom: zoom) { moved, pinched in
                     crop = moved
+                    zoom = pinched
                 }
             }
         }
         // A block is a photograph OR a doodle: a photograph put on, from
         // anywhere, takes the doodle off.
         .onChange(of: photo) { _, now in
+            // A photo taken off takes its window with it: the next thing on
+            // the block (a doodle, another photo) starts in its own middle.
+            if now == nil {
+                crop = .zero
+                zoom = 1
+            }
             if now != nil, doodle != nil {
                 doodle = nil
                 doodleStickers = []
@@ -576,6 +586,10 @@ struct AddWinSheet: View {
                    let image = await ImageManager.downsampled(data, maxPixel: ImageManager.storedMaxDimension) {
                     photo = image
                     photoChanged = true
+                    // A new picture starts in its own middle: the window
+                    // was on the one it replaced.
+                    crop = .zero
+                    zoom = 1
                 }
                 pickerItem = nil
                 if photoLoading == loading { photoLoading = nil }
@@ -993,6 +1007,7 @@ struct AddWinSheet: View {
                 photo = image
                 photoChanged = true
                 crop = .zero
+                zoom = 1
                 // The new photo's place, or none: a screenshot or a photo
                 // with its location stripped must not keep the place of the
                 // photo it replaced (2026-10-09, "the map behaves
@@ -1090,6 +1105,7 @@ struct AddWinSheet: View {
                     photo = image
                     photoChanged = true
                     crop = window
+                    zoom = 1
                     // A size drawn out of the shutter wins over the sheet's
                     // own picker: it is the more recent thing you said, and
                     // you said it with your hand.
@@ -1343,8 +1359,13 @@ struct AddWinSheet: View {
             // replacing or removing moves to a long press — which is where
             // iOS puts a secondary action on something you are mainly looking
             // at.
-            // The block's shape now, for a doodle begun from the menu.
+            // The block's shape now, for a doodle begun from the menu, and
+            // for Move Photo from it: that one opened on the last shape a
+            // long press had left, or a square, so a wide block's photo was
+            // framed in a square and saved with a crop the block cannot
+            // hold (found by review, 2026-10-13).
             doodleAspect = w / max(h, 1)
+            cropAspect = w / max(h, 1)
             // **A press opens the block's menu, whatever is on it** (the
             // flows pass, 2026-10-11, `docs/flows.md`). An empty block
             // opened the menu, a block with a photo opened the photo, and a
@@ -1408,9 +1429,9 @@ struct AddWinSheet: View {
                         // camera's review, or by Move Photo (`CropEditor`).
                         // It drew the middle whatever the crop was.
                         let well = CGSize(width: w, height: h)
-                        let drawn = CachedImageView.filled(photo.size, in: well)
-                        let shift = CachedImageView.shift(crop: CropEditor.clamped(crop, photo: photo.size, frame: well),
-                                                          photo: photo.size, frame: well)
+                        let drawn = CachedImageView.filled(photo.size, in: well, zoom: zoom)
+                        let shift = CachedImageView.shift(crop: CropEditor.clamped(crop, photo: photo.size, frame: well, zoom: zoom),
+                                                          photo: photo.size, frame: well, zoom: zoom)
                         Image(uiImage: photo)
                             .resizable()
                             .frame(width: drawn.width, height: drawn.height)
@@ -1830,6 +1851,14 @@ struct AddWinSheet: View {
             category = habit.displayCategory
             size = habit.blockSize
             winNote = editingLog?.note ?? ""
+            // **Where its window was left** (found 2026-10-13). A win being
+            // edited opened on the middle of its photo whatever it had been
+            // moved to, and Move Photo on it saved nothing: the window was
+            // only ever written beside a new photo.
+            if let log = editingLog, log.imageFileName != nil {
+                crop = CGPoint(x: log.cropPositionX ?? 0, y: log.cropPositionY ?? 0)
+                zoom = CGFloat(log.cropZoom)
+            }
             if let name = editingLog?.imageFileName {
                 Task { photo = await ImageManager.shared.loadFullImage(fileName: name) }
             } else if let name = editingLog?.doodleFileName, let kept = BlockDoodles.drawing(for: name) {
@@ -1894,6 +1923,9 @@ struct AddWinSheet: View {
                 // A first note: said once where it will show.
                 if log.note == nil, kept != nil { WinNote.noteSaved() }
                 if log.note != kept { log.note = kept }
+                // A photo moved or zoomed, and not replaced: `writePhoto`
+                // below does not run, so its window is written here.
+                if !photoChanged, photo != nil, log.imageFileName != nil { writeWindow(to: log) }
             }
             // **Not `try?`.** A rename that did not save closed the sheet as
             // if it had, and the next launch quietly showed the old name.
@@ -2043,6 +2075,14 @@ struct AddWinSheet: View {
         // same rule in the viewer.
         let name = log.imageFileName
         log.imageFileName = nil
+        // The photo's window goes with it. Left behind, it was sent to a
+        // crew beside the doodle that replaced the photo, and the doodle was
+        // drawn shifted off its block (found by review, 2026-10-13).
+        let window = (x: log.cropPositionX, y: log.cropPositionY, zoom: log.cropZoom)
+        log.cropPositionX = nil
+        log.cropPositionY = nil
+        log.cropZoom = 1
+        StripKeeping.forgetWindow(of: log.id, day: log.dateString)
         // Its iCloud copy goes in the same save (2026-10-08), so iCloud never
         // holds a picture of a win that no longer has one.
         WinPhotoStore.detach(from: log, context: modelContext)
@@ -2053,6 +2093,9 @@ struct AddWinSheet: View {
         } catch {
             NSLog("[strata-photo] could not remove the photo from the win, so the file stays: \(error)")
             log.imageFileName = name
+            log.cropPositionX = window.x
+            log.cropPositionY = window.y
+            log.cropZoom = window.zoom
             return false
         }
     }
@@ -2074,6 +2117,19 @@ struct AddWinSheet: View {
     /// `CachedImageView` draws with `.scaledToFill()`, so the block crops to
     /// its own shape at display time, from the whole image, every time. Which
     /// means a resize now re-frames rather than re-crops, and is reversible.
+    /// Where the block's window sits on the picture, and how far in it is.
+    /// Zero and one are the middle and the whole, which is every win nobody
+    /// touched. Written only when it differs, so an untouched edit does not
+    /// mark the log changed.
+    private func writeWindow(to log: HabitLog) {
+        // Compared as what they mean, not as what is stored: a nil and a
+        // zero are the same middle, and an XP count left in the zoom's field
+        // by a 2025 build is the same one as nothing.
+        if (log.cropPositionX ?? 0) != Double(crop.x) { log.cropPositionX = crop.x == 0 ? nil : crop.x }
+        if (log.cropPositionY ?? 0) != Double(crop.y) { log.cropPositionY = crop.y == 0 ? nil : crop.y }
+        if PhotoWindow.zoom(CGFloat(log.cropZoom)) != PhotoWindow.zoom(zoom) { log.cropZoom = Double(zoom) }
+    }
+
     @discardableResult
     private func attach(_ image: UIImage, to log: HabitLog) async -> Bool {
         let id = log.id
@@ -2087,10 +2143,6 @@ struct AddWinSheet: View {
         log.latitude = place?.latitude
         log.longitude = place?.longitude
         log.locationAccuracy = place?.accuracy
-        // Where the block's window sits on the picture. Zero is the middle,
-        // which is every win nobody dragged.
-        log.cropPositionX = crop.x == 0 ? nil : crop.x
-        log.cropPositionY = crop.y == 0 ? nil : crop.y
         // The file this is replacing, if any. Deleted only AFTER the new one
         // is safely written — the other order loses the photograph outright if
         // the save fails.
@@ -2116,7 +2168,17 @@ struct AddWinSheet: View {
             NSLog("[strata] photo write failed: \(error)")
             return false
         }
+        // **The window is written with the file's name, not before it**
+        // (found by review, 2026-10-13). It was written above the awaited
+        // write, so for as long as the write took the log named the OLD
+        // photo with the NEW photo's window, and a crew could be sent the
+        // old photo whole, the part its owner had zoomed away from included.
+        let window = (x: log.cropPositionX, y: log.cropPositionY, zoom: log.cropZoom)
         log.imageFileName = name
+        writeWindow(to: log)
+        // A strip's own window on this win was set on the photo this one
+        // replaces.
+        if previous != nil, previous != name { StripKeeping.forgetWindow(of: log.id, day: log.dateString) }
         // Not `try?`: a save that fails here is a photograph written to disk
         // that no win points at, and silence is how that stays invisible. On
         // failure the log goes back to the file it had and the new one is
@@ -2127,6 +2189,9 @@ struct AddWinSheet: View {
         } catch {
             NSLog("[strata] photo save failed: \(error)")
             log.imageFileName = previous
+            log.cropPositionX = window.x
+            log.cropPositionY = window.y
+            log.cropZoom = window.zoom
             ImageManager.shared.deleteImage(fileName: name)
             return false
         }

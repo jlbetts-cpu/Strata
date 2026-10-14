@@ -41,21 +41,31 @@ struct ReplayImages {
     /// Capped at the two cells every photograph got before, so no block's
     /// photograph is sharper or heavier than it was, only the smaller ones
     /// lighter (a 1x1's decode is 44% of the pixels it was).
-    static func decodeSide(cellPixels: CGFloat, span: Int) -> CGFloat {
-        (min(cellPixels * CGFloat(span) * 4 / 3, cellPixels * 2)).rounded()
+    ///
+    /// **A zoomed block asks for that much more** (found by review,
+    /// 2026-10-13): it shows a part of its photograph across its whole
+    /// width, and decoded at the block's own size a photo zoomed to three
+    /// was drawn from a third of the pixels it had room for, in the replay
+    /// and in the video made from it. Never past what the file holds.
+    static func decodeSide(cellPixels: CGFloat, span: Int, zoom: CGFloat = 1) -> CGFloat {
+        let plain = min(cellPixels * CGFloat(span) * 4 / 3, cellPixels * 2)
+        return min(plain * PhotoWindow.zoom(zoom), max(plain, ImageManager.storedMaxDimension)).rounded()
     }
 
     /// Each photograph `replay` shows once, in the order it first appears,
-    /// with the largest span any block showing it has.
-    static func photos(_ replay: Replay) -> [(photo: ReplayPhoto, span: Int)] {
+    /// with the largest span any block showing it has, and the furthest any
+    /// of them is zoomed into it.
+    static func photos(_ replay: Replay) -> [(photo: ReplayPhoto, span: Int, zoom: CGFloat)] {
         var order: [ReplayPhoto] = []
         var spans: [ReplayPhoto: Int] = [:]
+        var zooms: [ReplayPhoto: CGFloat] = [:]
         for block in replay.blocks {
             guard let photo = block.win.photo else { continue }
             if spans[photo] == nil { order.append(photo) }
             spans[photo] = max(spans[photo] ?? 0, max(block.columnSpan, block.rowSpan))
+            zooms[photo] = max(zooms[photo] ?? 1, PhotoWindow.zoom(block.win.zoom))
         }
-        return order.map { ($0, spans[$0]!) }
+        return order.map { ($0, spans[$0]!, zooms[$0] ?? 1) }
     }
 
     /// How many decodes run at once. Enough to use every core, few enough
@@ -74,20 +84,27 @@ struct ReplayImages {
         return out
     }
 
+    /// Photos nobody zoomed, as this was called before a block could be
+    /// zoomed into its photograph.
+    static func decode(_ photos: [(photo: ReplayPhoto, span: Int)], cellPixels: CGFloat,
+                       arrived: (ReplayPhoto, UIImage?) -> Void) async {
+        await decode(photos.map { (photo: $0.photo, span: $0.span, zoom: CGFloat(1)) }, cellPixels: cellPixels, arrived: arrived)
+    }
+
     /// Decodes `photos` in order, `concurrentDecodes` at a time, calling
     /// `arrived` on the calling actor as each finishes, with nil for one that
     /// could not be decoded. Only this function's own task calls `arrived`,
     /// so what it writes needs no lock. Stops starting new decodes when its
     /// task is cancelled.
-    static func decode(_ photos: [(photo: ReplayPhoto, span: Int)], cellPixels: CGFloat,
+    static func decode(_ photos: [(photo: ReplayPhoto, span: Int, zoom: CGFloat)], cellPixels: CGFloat,
                        arrived: (ReplayPhoto, UIImage?) -> Void) async {
         await withTaskGroup(of: (ReplayPhoto, UIImage?).self) { group in
             var next = 0
             func addNext() {
                 guard next < photos.count, !Task.isCancelled else { return }
-                let (photo, span) = photos[next]
+                let (photo, span, zoom) = photos[next]
                 next += 1
-                let width = decodeSide(cellPixels: cellPixels, span: span)
+                let width = decodeSide(cellPixels: cellPixels, span: span, zoom: zoom)
                 switch photo {
                 case .bundled(let name):
                     group.addTask { (photo, await decodeBundled(name, width: width)) }

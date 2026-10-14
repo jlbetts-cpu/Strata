@@ -14,6 +14,9 @@ struct CachedImageView: View {
     /// overflowing axis can move at all. Sliding the window right means
     /// sliding the picture left, which is the minus below.
     var crop: CGPoint = .zero
+    /// **How far in the window is** (`PhotoWindow`): one is the picture
+    /// filled into the frame, which is every picture nobody pinched.
+    var zoom: CGFloat = 1
 
     /// The full-resolution picture, for the viewer. Thumbnails come from
     /// `ThumbnailStore` instead — see `body`.
@@ -56,8 +59,19 @@ struct CachedImageView: View {
         if fullResolution { return (fullImage, fullFailed) }
         // A caller with its own stable decode width (the map) gets exactly
         // that; everything else is rounded up to a shared bucket.
-        return ThumbnailStore.shared.state(for: fileName, width: (decodeWidth ?? width) * displayScale,
-                                           exact: decodeWidth != nil)
+        return ThumbnailStore.shared.state(for: fileName, width: decodePixels, exact: decodeWidth != nil)
+    }
+
+    /// The width to decode at, in pixels. A zoomed block shows a part of its
+    /// picture across its whole width, so it asks for that much more of it:
+    /// decoded at the block's own width, a picture zoomed to three was drawn
+    /// from a third of the pixels it had room for.
+    private var decodePixels: CGFloat {
+        let plain = (decodeWidth ?? width) * displayScale
+        // No further than the photo has pixels (`storedMaxDimension`): past
+        // that it is the whole file decoded, 20 MB a block, for nothing.
+        return min((decodeWidth ?? width) * displayScale * PhotoWindow.zoom(zoom),
+                   max(plain, ImageManager.storedMaxDimension))
     }
 
     var body: some View {
@@ -100,10 +114,14 @@ struct CachedImageView: View {
                     .transition(.identity)
             }
             if let image {
-                let shift = Self.shift(crop: crop, photo: image.size, frame: CGSize(width: width, height: height))
+                let shift = Self.shift(crop: crop, photo: image.size, frame: CGSize(width: width, height: height),
+                                       zoom: zoom)
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    // About its middle, then moved: `shift` is measured on
+                    // the picture as it is drawn, zoom and all.
+                    .scaleEffect(PhotoWindow.zoom(zoom))
                     .offset(x: shift.width, y: shift.height)
                     .frame(width: width, height: height)
                     .clipped()
@@ -125,8 +143,7 @@ struct CachedImageView: View {
         #if DEBUG
         .onDisappear {
             guard PerfProbe.isOn, !fullResolution, let fileName else { return }
-            ThumbnailStore.shared.debugViewLeft(fileName, width: (decodeWidth ?? width) * displayScale,
-                                                exact: decodeWidth != nil)
+            ThumbnailStore.shared.debugViewLeft(fileName, width: decodePixels, exact: decodeWidth != nil)
         }
         #endif
         // Only the viewer's full-resolution read needs a lifecycle: it is one
@@ -148,29 +165,54 @@ struct CachedImageView: View {
         }
     }
 
-    /// How big the picture is drawn once it has filled the frame.
-    nonisolated static func filled(_ photo: CGSize, in frame: CGSize) -> CGSize {
+    /// How big the picture is drawn once it has filled the frame, and been
+    /// zoomed into from there.
+    nonisolated static func filled(_ photo: CGSize, in frame: CGSize, zoom: CGFloat = 1) -> CGSize {
         guard photo.width > 0, photo.height > 0 else { return frame }
-        let scale = max(frame.width / photo.width, frame.height / photo.height)
+        let scale = max(frame.width / photo.width, frame.height / photo.height) * PhotoWindow.zoom(zoom)
         return CGSize(width: photo.width * scale, height: photo.height * scale)
     }
 
     /// **How far the picture moves inside the frame** for a window moved by
     /// `crop`. Sliding the window right means sliding the picture left, which
     /// is the minus. `ReplayFrame` and `FlippableBlockView` do the same.
-    nonisolated static func shift(crop: CGPoint, photo: CGSize, frame: CGSize) -> CGSize {
-        let drawn = filled(photo, in: frame)
+    ///
+    /// **The window is held inside the photo here, for every caller** (found
+    /// by review, 2026-10-13). Nothing checked it at the point of drawing, so
+    /// a crop that was right for one frame and drawn in another (a block
+    /// resized after it was moved; a square editor on a wide block) showed a
+    /// bare band of the block's colour down one side.
+    nonisolated static func shift(crop: CGPoint, photo: CGSize, frame: CGSize, zoom: CGFloat = 1) -> CGSize {
+        let drawn = filled(photo, in: frame, zoom: zoom)
+        let crop = held(crop, photo: photo, frame: frame, zoom: zoom)
         return CGSize(width: -crop.x * drawn.width, height: -crop.y * drawn.height)
+    }
+
+    /// How far the window may sit from the middle on each axis, for a photo
+    /// filled into `frame`: half of what hangs outside it. Zoomed in, more
+    /// hangs outside, so there is further to go.
+    nonisolated static func range(photo: CGSize, frame: CGSize, zoom: CGFloat = 1) -> CGSize {
+        let drawn = filled(photo, in: frame, zoom: zoom)
+        guard drawn.width > 0, drawn.height > 0 else { return .zero }
+        return CGSize(width: max(0, (drawn.width - frame.width) / 2 / drawn.width),
+                      height: max(0, (drawn.height - frame.height) / 2 / drawn.height))
+    }
+
+    /// `crop` held inside the photo, so the frame never shows past its edge.
+    nonisolated static func held(_ crop: CGPoint, photo: CGSize, frame: CGSize, zoom: CGFloat = 1) -> CGPoint {
+        let range = range(photo: photo, frame: frame, zoom: zoom)
+        return CGPoint(x: min(max(crop.x, -range.width), range.width),
+                       y: min(max(crop.y, -range.height), range.height))
     }
 
     /// **What the block ends up showing**, in fractions of the photograph: the
     /// picture filled into the frame, moved by `shift`, and cut by the frame.
     /// The camera's review draws its hairline over the same rectangle
     /// (`BlockCropOutline`), so the two must agree.
-    nonisolated static func visibleRect(crop: CGPoint, photo: CGSize, frame: CGSize) -> CGRect {
-        let drawn = filled(photo, in: frame)
+    nonisolated static func visibleRect(crop: CGPoint, photo: CGSize, frame: CGSize, zoom: CGFloat = 1) -> CGRect {
+        let drawn = filled(photo, in: frame, zoom: zoom)
         guard drawn.width > 0, drawn.height > 0 else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
-        let shift = shift(crop: crop, photo: photo, frame: frame)
+        let shift = shift(crop: crop, photo: photo, frame: frame, zoom: zoom)
         return CGRect(x: ((drawn.width - frame.width) / 2 - shift.width) / drawn.width,
                       y: ((drawn.height - frame.height) / 2 - shift.height) / drawn.height,
                       width: frame.width / drawn.width, height: frame.height / drawn.height)

@@ -42,12 +42,14 @@ struct StripEditor: View {
 
     /// Photos moved in their frames in this sitting, written on Done.
     @State private var crops: [UUID: CGPoint] = [:]
+    @State private var zooms: [UUID: CGFloat] = [:]
     @State private var movingFrame: PhotoStrip.Frame?
 
     private var frames: [PhotoStrip.Frame] {
         strip.frames(excluding: current).map { frame in
             var frame = frame
             if let moved = crops[frame.id] { frame.crop = moved }
+            if let pinched = zooms[frame.id] { frame.zoom = pinched }
             return frame
         }
     }
@@ -126,8 +128,10 @@ struct StripEditor: View {
                                     owner: strip.owner, day: strip.day)
                     if !crops.isEmpty {
                         var kept = StripKeeping.crops(strip.owner, day: strip.day)
+                        var keptZooms = StripKeeping.zooms(strip.owner, day: strip.day)
                         for (id, point) in crops { kept[id] = point }
-                        StripKeeping.setCrops(kept, strip.owner, day: strip.day)
+                        for (id, zoom) in zooms { keptZooms[id] = zoom }
+                        StripKeeping.setCrops(kept, zooms: keptZooms, strip.owner, day: strip.day)
                     }
                     if let draft { excluded = draft }
                     dismiss()
@@ -136,8 +140,9 @@ struct StripEditor: View {
             .background { WarmBackground().ignoresSafeArea() }
         }
         .sheet(item: $movingFrame) { frame in
-            CropEditor(image: frame.picture, aspect: aspect(of: frame.id), crop: frame.crop) { moved in
+            CropEditor(image: frame.picture, aspect: aspect(of: frame.id), crop: frame.crop, zoom: frame.zoom) { moved, pinched in
                 crops[frame.id] = moved
+                zooms[frame.id] = pinched
                 self.moved = true
             }
         }

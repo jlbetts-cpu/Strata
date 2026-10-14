@@ -148,9 +148,17 @@ final class SocialStore {
     /// 1080px takes tens of milliseconds, and on the main actor it landed as a
     /// 54 to 92ms hitch exactly as a win was sent, which is when your block is
     /// falling (measured with `-strataPerfProbe`, 2026-10-02).
-    private func derived(_ jpeg: Data) async -> Data? {
+    private func derived(_ jpeg: Data, cut: CGRect? = nil) async -> Data? {
         let make = derive
-        return await Task.detached(priority: .userInitiated) { make(jpeg) }.value
+        return await Task.detached(priority: .userInitiated) {
+            // A zoomed photo is cut to its window first (`PhotoWindow.cut`).
+            // **If the cut cannot be made, no photo goes.** Sending it whole
+            // would show a crew what its owner zoomed in to leave out (found
+            // by review, 2026-10-13): a win with no picture is the safe loss.
+            guard let cut else { return make(jpeg) }
+            guard let piece = PhotoWindow.jpeg(jpeg, cutTo: cut) else { return nil }
+            return make(piece)
+        }.value
     }
     /// The photo check before anything is sent (`CrewSafety.photoIsFine`).
     @ObservationIgnored var photoCheck: (Data) async -> Bool = { _ in true }
@@ -2770,7 +2778,8 @@ final class SocialStore {
     /// The derivative, once per post, or nothing when photos may not leave
     /// or the check held it back.
     private func checkedPhoto(for win: OwnWin) async -> Data? {
-        guard photosAllowed(), let jpeg = win.photoJPEG, let small = await derived(jpeg) else { return nil }
+        guard photosAllowed(), let jpeg = win.photoJPEG,
+              let small = await derived(jpeg, cut: win.photoCut) else { return nil }
         guard await photoCheck(small) else {
             heldBackPhoto = win.winID
             return nil

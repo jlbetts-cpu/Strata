@@ -162,6 +162,9 @@ nonisolated enum BackupArchive {
         var imageFileName: String?
         var cropPositionX: Double?
         var cropPositionY: Double?
+        /// How far the block is zoomed into its photo (`PhotoWindow`). Absent
+        /// in a backup made before 2026-10-13 and for any photo not zoomed.
+        var cropZoom: Double? = nil
         var towerOrder: Int?
         var latitude: Double?
         var longitude: Double?

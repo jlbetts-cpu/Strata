@@ -31,6 +31,8 @@ struct ReplayWin: Identifiable, Equatable {
     let size: BlockSize
     let photo: ReplayPhoto?
     var crop: CGPoint = .zero
+    /// How far in the window is (`PhotoWindow`).
+    var zoom: CGFloat = 1
     /// A doodle on the block (`BlockDoodles`), on a win with no photograph.
     var doodle: String? = nil
 }
@@ -114,6 +116,7 @@ struct Replay: Equatable {
                 size: habit.blockSize,
                 photo: log.imageFileName.map { .stored($0) },
                 crop: CGPoint(x: log.cropPositionX ?? 0, y: log.cropPositionY ?? 0),
+                zoom: CGFloat(log.cropZoom),
                 doodle: log.imageFileName == nil ? log.doodleFileName : nil
             )
         }

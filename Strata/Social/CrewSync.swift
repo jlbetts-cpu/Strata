@@ -131,6 +131,11 @@ enum CrewSync {
         let photo = entry.imageFileName.flatMap {
             try? Data(contentsOf: ImageManager.shared.imageDirectory.appendingPathComponent($0))
         } ?? doodle.flatMap { BlockDoodles.crewPicture($0, colour: habit.displayCategory) }
+        // A zoomed photo goes cut to its window (the owner's pick, 2026-10-13:
+        // "The cut picture"), since a crew's copy of a win has no zoom.
+        let cut = entry.imageFileName == nil ? nil
+            : PhotoWindow.cut(crop: CGPoint(x: entry.cropPositionX ?? 0, y: entry.cropPositionY ?? 0),
+                              zoom: CGFloat(entry.cropZoom))
         return OwnWin(winID: entry.id,
                       // The placeholder name is not a name: an unnamed win
                       // shows no text on anyone's tower.
@@ -141,9 +146,19 @@ enum CrewSync {
                       photoJPEG: photo,
                       // The colour is in a doodle's picture, so a recolour
                       // sends it again.
-                      photoKey: entry.imageFileName ?? doodle.map { "\($0)-\(habit.displayCategory.rawValue)" },
-                      cropX: entry.cropPositionX,
-                      cropY: entry.cropPositionY,
+                      // The cut is part of which picture it is, so moving
+                      // or zooming a zoomed photo sends it again.
+                      photoKey: entry.imageFileName.map { name in cut.map { "\(name)@\(PhotoWindow.key($0.rect))" } ?? name }
+                          ?? doodle.map { "\($0)-\(habit.displayCategory.rawValue)" },
+                      photoCut: cut?.rect,
+                      // A crop is a photograph's. A doodle's picture is the
+                      // block's own shape and has nowhere to move, so one
+                      // left on the log by a photo since taken off is not
+                      // sent (found by review, 2026-10-13).
+                      cropX: entry.imageFileName == nil ? nil
+                          : cut.map { $0.crop.x == 0 ? nil : Double($0.crop.x) } ?? entry.cropPositionX,
+                      cropY: entry.imageFileName == nil ? nil
+                          : cut.map { $0.crop.y == 0 ? nil : Double($0.crop.y) } ?? entry.cropPositionY,
                       createdAt: entry.createdAt,
                       updatedAt: entry.updatedAt)
     }

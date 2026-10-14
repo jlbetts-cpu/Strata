@@ -187,6 +187,11 @@ nonisolated struct OwnWin: Sendable, Equatable {
     /// nothing is told from one that changed the photo, without comparing
     /// bytes.
     var photoKey: String? = nil
+    /// **The part of the photo to send**, in fractions of it, when the block
+    /// was zoomed (`PhotoWindow.cut`). Never sent itself: `SocialStore` cuts
+    /// the photo to it, and `cropX`/`cropY` are already where the window
+    /// sits on what is left. Nil sends the photo whole, as before.
+    var photoCut: CGRect? = nil
     var cropX: Double?
     var cropY: Double?
     let createdAt: Date

@@ -79,6 +79,7 @@ enum BackupExport {
                     imageFileName: log.imageFileName,
                     cropPositionX: log.cropPositionX,
                     cropPositionY: log.cropPositionY,
+                    cropZoom: log.cropZoom > 1 ? log.cropZoom : nil,
                     towerOrder: log.towerOrder,
                     latitude: log.latitude,
                     longitude: log.longitude,

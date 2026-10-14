@@ -336,15 +336,78 @@ final class FeedbackShots: XCTestCase {
         wait(8); snap("move-0-sheet")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
         wait(2); snap("move-1-menu")
-        let move = app.buttons["Move Photo"].firstMatch
-        if move.waitForExistence(timeout: 3) { move.tap() }
+        // The row that can be pressed: the block carries the same words as
+        // an accessibility action, and `firstMatch` was sometimes that.
+        _ = app.buttons["Move Photo"].firstMatch.waitForExistence(timeout: 3)
+        let rows = app.buttons.matching(identifier: "Move Photo").allElementsBoundByIndex
+        (rows.last { $0.isHittable } ?? rows.last)?.tap()
         wait(2); snap("move-2-crop")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         wait(1); snap("move-3-dragged")
+        // A pinch zooms it (2026-10-13).
+        let stage = app.descendants(matching: .any)["cropStage"].firstMatch
+        let found = stage.waitForExistence(timeout: 3)
+        let before = (stage.value as? String) ?? ""
+        if found { stage.pinch(withScale: 2.2, velocity: 2) }
+        wait(1); snap("move-4-zoomed")
+        let after = (stage.value as? String) ?? ""
         let done = app.buttons["Done"].firstMatch
         if done.exists { done.tap() }
-        wait(2); snap("move-4-block")
+        wait(2); snap("move-5-block")
+        let add = app.buttons["Add"].firstMatch
+        if add.exists { add.tap() }
+        wait(5); snap("move-6-tower")
+        print("PLANNING-move: stage \(found) before '\(before)' after '\(after)' add \(add.exists)")
+        XCTAssertTrue(found, "no stage to pinch on Move Photo")
+        XCTAssertEqual(before, "Zoom 100 percent")
+        XCTAssertNotEqual(after, before, "a pinch did not zoom the photo")
+    }
+
+    /// Move Photo on a real photograph, for looking at: the box, the photo
+    /// faded outside it, and the header's blur over what runs under it.
+    func testMovePhotoLook() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto",
+                          "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
+        wait(2)
+        _ = app.buttons["Move Photo"].firstMatch.waitForExistence(timeout: 3)
+        let rows = app.buttons.matching(identifier: "Move Photo").allElementsBoundByIndex
+        (rows.last { $0.isHittable } ?? rows.last)?.tap()
+        wait(2); snap("look-0-open")
+        let stage = app.descendants(matching: .any)["cropStage"].firstMatch
+        XCTAssertTrue(stage.waitForExistence(timeout: 3), "Move Photo did not open")
+        stage.pinch(withScale: 1.6, velocity: 1)
+        wait(1); snap("look-1-zoomed")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.62)))
+        wait(1); snap("look-2-moved")
+    }
+
+    /// Move Photo from a PRESS on a block that is not square: the box is the
+    /// block's own shape (it opened square, found by review 2026-10-13).
+    func testMovePhotoShapes() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto",
+                          "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        for size in ["Regular", "Deep"] {
+            let pick = app.buttons[size].firstMatch
+            if pick.waitForExistence(timeout: 3) { pick.tap() }
+            wait(1); snap("shape-\(size)-0-sheet")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
+            wait(2)
+            _ = app.buttons["Move Photo"].firstMatch.waitForExistence(timeout: 3)
+            let rows = app.buttons.matching(identifier: "Move Photo").allElementsBoundByIndex
+            (rows.last { $0.isHittable } ?? rows.last)?.tap()
+            wait(2)
+            let stage = app.descendants(matching: .any)["cropStage"].firstMatch
+            XCTAssertTrue(stage.waitForExistence(timeout: 3), "Move Photo did not open on a \(size) block")
+            stage.pinch(withScale: 1.5, velocity: 1)
+            wait(1); snap("shape-\(size)-1-editor")
+            app.buttons["Done"].firstMatch.tap()
+            wait(2); snap("shape-\(size)-2-block")
+        }
     }
 
     /// "Gym @ 2" typed on the add sheet, then a day chosen on Now: the plan

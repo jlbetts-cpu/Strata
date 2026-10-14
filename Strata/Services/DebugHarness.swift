@@ -912,6 +912,11 @@ enum DebugHarness {
     /// footage that has to look like a person's day (the launch video,
     /// 2026-10-07). Taken in turn, so a tower shows a dozen different ones.
     nonisolated(unsafe) private static var demoPhotoNext = 0
+    /// The photo `-strataOpenSheet addphoto` opens holding: a demo photograph
+    /// under `-strataSeedRealPhotos demo`, so Move Photo can be looked at on
+    /// a picture a person would take, else the striped one.
+    static func addSheetPhoto() -> UIImage { demoPhoto() ?? stripedPhoto() }
+
     /// A picture whose every part is different, so a moved crop can be seen:
     /// five coloured bands and a dark disc left of the middle.
     static func stripedPhoto() -> UIImage {

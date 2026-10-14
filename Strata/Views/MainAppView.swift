@@ -2874,7 +2874,7 @@ struct MainAppView: View {
         // `-strataOpenSheet addphoto`: Add holding a picture, so the block's
         // menu and Move Photo can be photographed on a simulator, which has
         // no camera and no photo library a script can reach.
-        case "addphoto": selectedTab = .tower; winDraft = WinDraft(photo: DebugHarness.stripedPhoto())
+        case "addphoto": selectedTab = .tower; winDraft = WinDraft(photo: DebugHarness.addSheetPhoto())
         case "booth-open": selectedTab = .tower; booth = BoothOpening(prints: false)
         // Your day (`-strataOpenSheet yourday`), and with its three being
         // chosen (`yourthree`): both are behind a tap on the crest.
