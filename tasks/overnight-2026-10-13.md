@@ -22,12 +22,30 @@ means. Nothing goes to Friends; the build in the morning is for you only.
   and no friend chat. Not built unless you say so.
 - A friend chat is **a crew of two**: the same screen, no iCloud change.
 
+## Rules for tonight (yours, 2026-10-13)
+
+- Every new string tonight (menus, banners, empty states, "All crews",
+  TestFlight notes) is written against the voice contract in the Launch
+  Pack (`docs/voice.md`). If a line could appear in another app, rewrite it.
+- The Crews empty state is in scope: what a person with no crew sees, one
+  tap from an invite, in our voice. "Winning is better together" goes.
+- Hold menu on someone else's message: Reply, Heart, Copy, Report. Block is
+  reachable from their face. Required for App Store review.
+- Research (7½) for the chat and crew tower runs before sections 3 to 5
+  are built, not after.
+- Counts: a heart on a bubble shows a number only past one ("♥ 3"); one
+  heart is just the heart (your pick). Crew flame counts stay as they are.
+- The month's drawing goes at the end of Memories, after the albums and
+  photos (your pick).
+
 ## 1. Small fixes (first hour)
 
-- [ ] **No shadow on the + block.** The empty slot on every tower: no
-      shadow, as no block has one.
-- [ ] **The month's drawing goes to the bottom of Memories**, under the
-      calendar, not above it.
+- [x] **No shadow on the + block.** The shadow was the system glass's own,
+      which cannot be switched off; the slot and the planned boxes (one
+      pane) are drawn with the translucent material and their ink edge now.
+      Looked at in light and dark.
+- [ ] **The month's drawing goes to the end of Memories**, after the albums
+      and photos.
 - [ ] **Select all crews when adding a win.** One "All crews" choice on the
       Add sheet's crew row, so a win goes everywhere in one press.
 - [ ] **A strip export never cuts off its top.** Find why it happens
