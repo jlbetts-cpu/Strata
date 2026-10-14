@@ -474,14 +474,20 @@ struct GoalCrest: View {
 /// colour (the owner, 2026-10-14: the head is "an identity").
 struct CrestFace: View {
     let side: CGFloat
-    /// **Your head is out on the tower** (2026-10-14): the blank head holds
-    /// the ring, as a crew's bubble shows its faces once its heads are out.
-    /// Never the head twice.
+    /// **Your head is out on the tower** (2026-10-14): the ring stands
+    /// empty, his dock waiting for him. Never the head twice, and never the
+    /// blank head, which says you have not made one.
     var headIsOut = false
 
     var body: some View {
-        PersonHead(person: .me, side: side * PersonHead.ringShare, life: .calm,
-                   setting: .free, showsHead: !headIsOut)
-            .frame(width: side, height: side)
+        Group {
+            if headIsOut {
+                Color.clear
+            } else {
+                PersonHead(person: .me, side: side * PersonHead.ringShare, life: .calm, setting: .free)
+            }
+        }
+        .frame(width: side, height: side)
+        .animation(GridConstants.crossFade, value: headIsOut)
     }
 }

@@ -1160,6 +1160,34 @@ final class FeedbackShots: XCTestCase {
         snap("drawer-writing")
     }
 
+    /// **The head as everyone's identity** (the owner, 2026-10-14): every
+    /// surface it changed, photographed.
+    func testHeadsWalk() {
+        let runs: [(String, [String])] = [
+            ("heads-1-wins-blank", ["-strataStartTab", "tower", "-strataSeedWins", "2"]),
+            ("heads-2-wins-head", ["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedHead", "1"]),
+            ("heads-3-crew-blank", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"]),
+            ("heads-4-crew-info", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "info"]),
+            ("heads-5-profile", ["-strataStartTab", "tower", "-strataOpenSheet", "profile"]),
+            ("heads-6-profile-head", ["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataSeedHead", "1"]),
+            ("heads-7-onboarding", ["-strataShowOnboarding", "1", "-strataOnboardingStep", "4"]),
+            ("heads-8-catchup", ["-strataStartTab", "tower", "-strataHeadCatchUp", "1"]),
+            ("heads-9-maker-denied", ["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataOpenHeadMaker", "denied"]),
+            ("heads-10-crews-list", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews", "-strataCrewFaces", "none"]),
+        ]
+        for (name, args) in runs {
+            let app = launch(args)
+            wait(9); snap(name)
+            app.terminate()
+        }
+    }
+
+    /// Your head out on the tower leaves the crest empty (2026-10-14).
+    func testCrestEmptyWhileOut() {
+        _ = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedHead", "1"])
+        wait(9); snap("crest-out")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
