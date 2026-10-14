@@ -516,7 +516,7 @@ em dashes, nothing that reads as watching):
 | Where | Line |
 |---|---|
 | Head page title (unchanged) | Make your own head |
-| Head page line, replacing `OnboardingView.swift:1273` | It's how your crews see you. About fifteen seconds with the front camera. |
+| Head page line, replacing `OnboardingView.swift:1273` | It's you, in every crew. About fifteen seconds with the front camera. ("see you" was caught by the voice test) |
 | Head page, after it is made (replacing `:1276`) | That's you, on your wins and in your crews. |
 | Maker, second way in | Use a Photo |
 | Maker, camera off | Turn the camera on in Settings, or use a photo of you. |

@@ -179,10 +179,10 @@ struct CrestDockTests {
         #expect(press.contains("guard canLetOut else {"))
         #expect(press.contains("openDay()"))
         #expect(ring.contains("HeadStore.shared.headForCrews != nil && !Self.headIsOut"))
-        // Out on the tower, the ring holds the blank head, never a second
-        // head. It held your picture until the owner's 2026-10-14 call
-        // ("remove the option for a pfp"): there is no picture now, and
-        // `PersonHead` draws the placeholder when told not to show the head.
-        #expect(ring.contains("setting: .free, showsHead: !headIsOut)"))
+        // Out on the tower, the ring stands empty: never a second head, and
+        // never the blank head, which reads as having made none (2026-10-14,
+        // seen on the simulator: the placeholder sat in the crest while his
+        // head walked the tower).
+        #expect(ring.contains("if headIsOut {\n                Color.clear"))
     }
 }

@@ -64,7 +64,9 @@ final class HeadAsk {
     /// and nothing about the camera that reads as watching (never scan,
     /// detect, recognise, track, analyse, watch or face data).
     enum Copy {
-        static let pageLine = "It's how your crews see you. About fifteen seconds with the front camera."
+        // Not "how your crews see you" (2026-10-14: the voice test caught
+        // it; nothing about a face may read as being looked at).
+        static let pageLine = "It's you, in every crew. About fifteen seconds with the front camera."
         static let pageMade = "That's you, on your wins and in your crews."
         static let usePhoto = "Use a Photo"
         static let later = "Later"

@@ -155,8 +155,12 @@ struct MemoriesConsistencyTests {
         // hard day thing"; his pick: remove it).
         // Seventeen since 2026-10-08: Settings' "Share Anonymous Usage", on
         // by default, the switch for `Analytics`. It wears the token.
-        #expect(rowTints.count == 17,
-                "there are \(rowTints.count) switches in the app and there were 17; a new one needs the token too")
+        // Thirteen since 2026-10-14: the head is who you are (the owner:
+        // "the heads dont need to be an option in the settings"), so Use as
+        // Profile Picture, Show My Head on the Map, Add My Head to Photos and
+        // the crew's Heads switch went.
+        #expect(rowTints.count == 13,
+                "there are \(rowTints.count) switches in the app and there were 13; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
