@@ -387,8 +387,7 @@ struct PlannedCapture: ViewModifier {
                         taken = (item, image, drawn, place, crop, zoom)
                         capturing = nil
                     },
-                    onClose: { capturing = nil },
-                    fillsScreen: true
+                    onClose: { capturing = nil }
                 )
             }
             // **A photo from the library finishes it too.** The picker, then

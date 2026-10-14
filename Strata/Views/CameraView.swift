@@ -340,14 +340,13 @@ struct CameraView: View {
             // stops short of one — the shape the Figma draws, and one that
             // only makes sense because something is behind it. Full screen, it
             // rounds nothing.
-            .clipShape(
-                .rect(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: fillsScreen ? 0 : cornerRadius,
-                    bottomTrailingRadius: fillsScreen ? 0 : cornerRadius,
-                    topTrailingRadius: 0
-                )
-            )
+            // **A card with a band above and below** (the owner, 2026-10-14:
+            // "the way snapchat does it is there is a bar at the bottom and a
+            // bar at the top ... just to frame the experience"). The picture
+            // starts under the status bar's band, round at all four corners,
+            // and stops above the tab bar's, on the page in the phone's own
+            // appearance. A camera over a sheet is framed the same.
+            .clipShape(CameraCard(top: topInset, radius: cornerRadius))
             .offset(y: -topInset)
         }
         // No `.ignoresSafeArea` on the GeometryReader: it reports ZERO insets
@@ -2295,5 +2294,17 @@ enum RingBrightness {
         guard let previous = before else { return }
         UIScreen.main.brightness = previous
         before = nil
+    }
+}
+
+/// The viewfinder's card: the whole frame below `top`, round at every
+/// corner, continuous as the system's own.
+private struct CameraCard: Shape {
+    var top: CGFloat
+    var radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(roundedRect: CGRect(x: rect.minX, y: rect.minY + top, width: rect.width, height: max(0, rect.height - top)),
+             cornerRadius: radius, style: .continuous)
     }
 }

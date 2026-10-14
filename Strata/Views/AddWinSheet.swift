@@ -1223,8 +1223,7 @@ struct AddWinSheet: View {
                     place = where_
                     showCamera = false
                 },
-                onClose: { showCamera = false },
-                fillsScreen: true
+                onClose: { showCamera = false }
             )
             // No colour-scheme override on this one.
             //

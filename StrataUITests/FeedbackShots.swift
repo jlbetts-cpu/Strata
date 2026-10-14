@@ -466,6 +466,20 @@ final class FeedbackShots: XCTestCase {
         wait(5); snap("review-6-tower")
     }
 
+    /// **The add sheet's camera, framed as the tab's is** (the owner,
+    /// 2026-10-14: "make sure the camera fixes are implemented everywhere the
+    /// camera is for consistency").
+    func testSheetCamera() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "addphoto",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/tower.mp4"])
+        wait(8)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42)).tap()
+        wait(2)
+        let take = app.buttons["Take Photo"].firstMatch
+        if take.waitForExistence(timeout: 3) { take.tap() }
+        wait(4); snap("sheet-camera")
+    }
+
     /// **The camera review's crop, as a thumb uses it** (the owner,
     /// 2026-10-14: "the cropping its super not smooth and black bars appear
     /// and it looks very jank ... mainly in the camera screen"). Slow drags
