@@ -3,6 +3,11 @@ import UIKit
 
 enum StrataTab: String, CaseIterable {
     case tower = "Wins"
+    /// **Crews, a tab of their own, right of Wins** (the owner, 2026-10-13,
+    /// from his phone: "the big one I want the crew to be its own tab on the
+    /// right of the wins tab"). They lived behind a button in Wins' top
+    /// right, which is the Journal's now. Only where crews are on.
+    case crews = "Crews"
     case camera = "Camera"
     case memories = "Memories"
 
@@ -49,6 +54,7 @@ enum StrataTab: String, CaseIterable {
     func image(selected: Bool) -> Image {
         switch self {
         case .tower: Image("TabWins")
+        case .crews: Image("TabCrews")
         case .camera: Image("TabCamera")
         case .memories: Image("TabMemories")
         }
@@ -79,9 +85,80 @@ enum StrataTab: String, CaseIterable {
         Label(rawValue, image: assetName)
     }
 
+    /// **The tab with the app's dot on it** (2026-10-13). A tab bar badge
+    /// can only be the system's red circle or its grey one; the owner called
+    /// the red one terrifying. The app's news is its own coral dot, drawn by
+    /// hand (`NewsDot`), so it is drawn into the glyph: overlapping its top
+    /// right with a clear ring cut round it, as he liked it ("I liked the
+    /// overlapped look"), with the number of crews that have something new
+    /// in it ("maybe a number in the middle"). Drawn as it is, not tinted,
+    /// so the dot keeps its colour; the glyph is drawn in the bar's own ink
+    /// for the appearance.
+    func label(news count: Int, lit: Bool, scheme: ColorScheme) -> some View {
+        Group {
+            if count > 0 || lit, let marked = Self.marked(assetName, count: count, dark: scheme == .dark) {
+                Label { Text(rawValue) } icon: { Image(uiImage: marked) }
+            } else {
+                Label(rawValue, image: assetName)
+            }
+        }
+    }
+
+    @MainActor private static var markedCache: [String: UIImage] = [:]
+
+    /// The glyph in ink with the coral dot over its corner, and the count in
+    /// it (nothing written for none: a dot alone for "go and look").
+    @MainActor static func marked(_ name: String, count: Int, dark: Bool) -> UIImage? {
+        let key = "\(name)|\(count)|\(dark)"
+        if let hit = markedCache[key] { return hit }
+        guard let glyph = UIImage(named: name) else { return nil }
+        let size = glyph.size
+        let written = count > 9 ? "9+" : count > 0 ? "\(count)" : ""
+        // **Over the drawing's second head, all of it** (the owner,
+        // 2026-10-13: "make sure the second head is completely covered,
+        // right now it's like slipping out"). Measured off his drawing at
+        // 84px: that head spans x 56 to 70 and y 9 to 30, five pixels clear
+        // of the first. The numbered dot is centred on it and wide enough to
+        // hide it whole; its left edge stops at the gap, so the clear ring
+        // only grazes the first head's widest point instead of biting a
+        // crescent out of it (seen in the first try). The plain dot is the
+        // smallest that still covers it.
+        let u = size.width / 84
+        let side = (written.isEmpty ? 28 : 36) * u
+        let centre = CGPoint(x: (written.isEmpty ? 63.5 : 67) * u, y: 19.5 * u)
+        let dot = CGRect(x: centre.x - side / 2, y: centre.y - side / 2, width: side, height: side)
+        let canvas = CGRect(origin: .zero, size: size).union(dot).integral
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = glyph.scale
+        let ink = dark ? UIColor.white : UIColor.black
+        let image = UIGraphicsImageRenderer(size: canvas.size, format: format).image { context in
+            let cg = context.cgContext
+            cg.translateBy(x: -canvas.minX, y: -canvas.minY)
+            glyph.withTintColor(ink, renderingMode: .alwaysOriginal).draw(in: CGRect(origin: .zero, size: size))
+            // The ring of clear round the dot, so the two read apart.
+            cg.setBlendMode(.clear)
+            cg.addPath(DoodleDot.cgPath(in: dot.insetBy(dx: -1.5 * u, dy: -1.5 * u)))
+            cg.fillPath()
+            cg.setBlendMode(.normal)
+            cg.setFillColor(AppColors.notifyUI.cgColor)
+            cg.addPath(DoodleDot.cgPath(in: dot))
+            cg.fillPath()
+            guard !written.isEmpty else { return }
+            let font = UIFont.systemFont(ofSize: side * 0.62, weight: .semibold)
+            let words = NSAttributedString(string: written, attributes: [.font: font, .foregroundColor: UIColor.white])
+            let box = words.size()
+            words.draw(at: CGPoint(x: dot.midX - box.width / 2, y: dot.midY - box.height / 2))
+        }.withRenderingMode(.alwaysOriginal)
+        markedCache[key] = image
+        return image
+    }
+
     var assetName: String {
         switch self {
         case .tower: "TabWins"
+        // A stand-in, drawn to the others' size and weight, until the owner
+        // draws his own; his social doodle, at the others' size (his call).
+        case .crews: "TabCrews"
         case .camera: "TabCamera"
         case .memories: "TabMemories"
         }
@@ -95,6 +172,7 @@ enum StrataTab: String, CaseIterable {
     func picture(selected: Bool, scheme: ColorScheme) -> UIImage {
         let name = switch self {
         case .tower: "TabWins"
+        case .crews: "TabCrews"
         case .camera: "TabCamera"
         case .memories: "TabMemories"
         }

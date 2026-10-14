@@ -125,10 +125,18 @@ struct StripStory: View {
             }
         }
         guard maxX >= minX, maxY >= minY else { return nil }
-        // The bitmap's rows run bottom-up in a CGContext; the image's top-down.
-        let rect = CGRect(x: max(0, minX - margin), y: max(0, (h - 1 - maxY) - margin),
-                          width: min(w, maxX + margin + 1) - max(0, minX - margin),
-                          height: min(h, (h - 1 - minY) + margin + 1) - max(0, (h - 1 - maxY) - margin))
+        // **The buffer's rows are the image's rows, top first** (found
+        // 2026-10-13, from the owner's "when exporting strips sometimes the
+        // top gets cut off a bit"). A bitmap context's drawing space runs
+        // bottom-up, but its memory runs top-down, as `cropping(to:)` does.
+        // This flipped the crop about the middle: harmless for a strip lying
+        // flat, centred in its padding, and for a tipped one (the near end
+        // drawn larger) the crop slid off that end, cutting a band from it
+        // and leaving the same band clear past the other.
+        let x0 = max(0, minX - margin), y0 = max(0, minY - margin)
+        let rect = CGRect(x: x0, y: y0,
+                          width: min(w, maxX + margin + 1) - x0,
+                          height: min(h, maxY + margin + 1) - y0)
         return image.cropping(to: rect)
     }
 }

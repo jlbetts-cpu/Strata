@@ -29,6 +29,9 @@ final class CrewRouter {
     /// waiting for the rules and the age, or one this phone cannot join (too
     /// young, or below iOS 26), whose list says why. Cleared by the list.
     var opensList = false
+    /// Not Now on the crew rules, from the Crews tab: back to Wins, since the
+    /// tab has nothing to show behind rules that were declined.
+    var leaveCrews = false
     /// **An invitation held while the rules and the age are asked**
     /// (2026-10-08). Joined the moment `CrewGate` opens; let go on Not Now,
     /// under 13, or below iOS 26. Never joined first and checked after.
@@ -78,7 +81,9 @@ final class CrewRouter {
     private(set) var joining = false
 
     /// What the Wins tab watches to come to the front: a crew, or the list.
-    var wantsWinsTab: Bool { open != nil || opensList }
+    /// A crew asked for from outside, or the list: both are on the Crews
+    /// tab (Wins until 2026-10-13).
+    var wantsCrewsTab: Bool { open != nil || opensList }
 
     /// An invitation, from a link or the system's share sheet. Joined now if
     /// the gate is open; otherwise the list opens and asks what it needs.

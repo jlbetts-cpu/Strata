@@ -25,17 +25,20 @@ struct WinsBatchTests {
     /// merged... there uis are pretty similar"; his pick for the one button
     /// is `checklist`). So this pins one day button where it pinned Journal
     /// then Plan; `DaySheetTests.oneHeaderButton` pins the rest.
-    @Test("the day's one button leads, Crews stands alone at the trailing end")
+    /// Since 2026-10-13 Crews is a tab right of Wins and the trailing corner
+    /// is the Journal's (the owner's call), so this pins the day's button
+    /// leading and the Journal alone at the trailing end, where Crews was.
+    @Test("the day's one button leads, the Journal stands alone at the trailing end")
     func headerOrder() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
         let row = header.components(separatedBy: ".accessibilityElement(children: .contain)").first ?? ""
         let day = try #require(row.range(of: "headerDay"))
         let spacer = try #require(row.range(of: "Spacer(minLength: 0)"))
-        let crews = try #require(row.range(of: "CrewsButton"))
+        let journal = try #require(row.range(of: "JournalButton("))
         #expect(day.lowerBound < spacer.lowerBound, "the day's button leads the row")
-        #expect(spacer.lowerBound < crews.lowerBound, "Crews is alone at the trailing end")
-        #expect(!row.contains("JournalButton("), "the journal has its own button on Wins again")
+        #expect(spacer.lowerBound < journal.lowerBound, "the Journal is alone at the trailing end")
+        #expect(!row.contains("CrewsButton"), "Crews is in Wins' corner again; it is a tab")
     }
 
     /// The pair's glass group went with the pair (2026-10-05). What it

@@ -113,7 +113,14 @@ struct TenTests {
     func haptics() throws {
         #expect(try code("Strata/Views/YourThreePicker.swift").contains("HapticsEngine.tick()"))
         #expect(try code("Strata/Views/Crews/MakeYourHead.swift").contains("HapticsEngine.lightTap()"))
-        #expect(try code("Strata/Views/Crews/CrewsListView.swift").contains("Button { HapticsEngine.lightTap(); open(crew.id) }"))
+        // The crew row's press opens a crew, and on 2026-10-13 it learned to
+        // open on the chat when a message is the news: the tap is still the
+        // open's light one, now on its own line before the choice.
+        let list = try code("Strata/Views/Crews/CrewsListView.swift")
+        let label = try #require(list.range(of: "} label: { row(store.visible(crew.id) ?? crew) }"))
+        let start: String.Index = list.index(label.lowerBound, offsetBy: -600, limitedBy: list.startIndex) ?? list.startIndex
+        let press = String(list[start..<label.lowerBound])
+        #expect(press.contains("HapticsEngine.lightTap()") && press.contains("open(crew.id)"))
     }
 
     @Test("rule 8: a save to Photos that did not happen says so, in one way")

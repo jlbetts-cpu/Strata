@@ -171,16 +171,82 @@ enum CrewPictures {
 /// **Something new, said with a dot.** One size and one ink in the three
 /// places it stands: a crew's row, the Crews button, a crew's chat button.
 /// They were 9, 10 and 8 points (rule 1 of `docs/ten.md`, 2026-10-11).
+extension AppColors {
+    /// **The colour of "something new"** (the owner, 2026-10-13). He liked
+    /// coral and asked for it researched, "the most friendly and clean",
+    /// then "softer and more premium since our app is so minimal". His pick
+    /// from five, side by side in light and dark: terracotta, his coral
+    /// muted toward earth. It is still seen and read as well as the brighter
+    /// coral the research proposed (#DE5F57): 3.32:1 on the light page and
+    /// 4.83:1 on dark, against the 3:1 a mark needs, and a white number on
+    /// it 3.52:1, iOS's own red badge's legibility, without its alarm. One
+    /// colour in both appearances, and none of the block colours.
+    static let notify = Color(hex: 0xC9705F)
+    static let notifyUI = UIColor(red: 0xC9 / 255, green: 0x70 / 255, blue: 0x5F / 255, alpha: 1)
+}
+
 struct NewsDot: View {
     static let side: CGFloat = 9
+
+    /// **How a dot comes and goes, everywhere** (the owner, 2026-10-13: "make
+    /// sure the animation of the notification coming in and out is clean
+    /// and minimal"). It grows a little into place, from 60%, on one smooth
+    /// curve with no bounce, and it leaves by fading, a beat quicker. With
+    /// Reduce Motion it only fades. One motion for the row's dot and the
+    /// chat's, where one popped elastically and the other did not move.
+    static func motion(reduceMotion: Bool) -> Animation {
+        reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.28)
+    }
+
+    static func transition(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity
+            : .asymmetric(insertion: .scale(scale: 0.6).combined(with: .opacity),
+                          removal: .opacity.animation(.easeOut(duration: 0.18)))
+    }
     /// A ring of the page's colour round it, where it sits on a glass button's rim.
     var ringed = false
 
+    /// **A dot drawn by hand** (the owner, 2026-10-13: "make the notification
+    /// indicator consistent everywhere and a doodle but like a slight doodle
+    /// variation dot"). The one dot for "something new" in the app, on a
+    /// crew's row, a crew's chat and the Crews tab (`StrataTab.picture`),
+    /// never the system's red badge, which he called terrifying.
     var body: some View {
-        Circle()
-            .fill(AppColors.inkPrimary)
+        DoodleDot()
+            .fill(AppColors.notify)
             .frame(width: Self.side, height: Self.side)
-            .overlay { if ringed { Circle().strokeBorder(WarmBackground.top, lineWidth: GridConstants.strokeDefault) } }
+            .overlay {
+                if ringed {
+                    DoodleDot().stroke(WarmBackground.top, lineWidth: GridConstants.strokeDefault)
+                        .padding(-GridConstants.strokeDefault / 2)
+                }
+            }
             .accessibilityHidden(true)
+    }
+}
+
+/// **A dot as a pen makes one**: round, a touch fuller on one side, its edge
+/// never quite a circle. Two slow ripples round the rim, a few percent of
+/// the radius, fixed, so every dot in the app is the same mark.
+struct DoodleDot: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path(DoodleDot.cgPath(in: rect))
+    }
+
+    /// The same outline for UIKit drawing (the tab's glyph).
+    nonisolated static func cgPath(in rect: CGRect) -> CGPath {
+        let path = CGMutablePath()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let r = min(rect.width, rect.height) / 2
+        let steps = 48
+        for i in 0...steps {
+            let t = CGFloat(i) / CGFloat(steps) * 2 * .pi
+            // Within the frame at the widest: the ripples only take away.
+            let k = 0.94 + 0.04 * sin(2 * t + 0.7) + 0.02 * sin(3 * t + 2.1)
+            let p = CGPoint(x: c.x + cos(t) * r * k, y: c.y + sin(t) * r * k * 0.97)
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+        return path
     }
 }

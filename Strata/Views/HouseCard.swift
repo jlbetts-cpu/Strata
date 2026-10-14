@@ -38,7 +38,7 @@ nonisolated enum HouseCard: String, Equatable {
 
     var title: String {
         switch self {
-        case .crew: "Winning is better together"
+        case .crew: CrewLine.forWho
         case .tip: "Made by one person"
         }
     }

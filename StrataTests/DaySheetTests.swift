@@ -295,17 +295,21 @@ struct DaySheetTests {
     /// 2026-10-05), replacing the Journal and Plan pair, because they are one
     /// page now. Crews stays alone at the trailing end, for the three reasons
     /// `WinsBatchTests.headerOrder` records.
-    @Test("the Wins header leads with one day button and Crews trails alone")
+    /// **Crews became a tab and the Journal took its corner** (the owner,
+    /// 2026-10-13: "journal on the right side as it's own button since it's
+    /// taking over for the crew button on the top right"). So the row is the
+    /// Plan, then the Journal; still no pair glass, and no second plan.
+    @Test("the Wins header leads with the Plan and the Journal trails")
     func oneHeaderButton() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
         let row = header.components(separatedBy: ".accessibilityElement(children: .contain)").first ?? ""
         let day = try #require(row.range(of: "headerDay"))
         let spacer = try #require(row.range(of: "Spacer(minLength: 0)"))
-        let crews = try #require(row.range(of: "CrewsButton"))
-        #expect(day.lowerBound < spacer.lowerBound && spacer.lowerBound < crews.lowerBound)
+        let journal = try #require(row.range(of: "JournalButton("))
+        #expect(day.lowerBound < spacer.lowerBound && spacer.lowerBound < journal.lowerBound)
         #expect(!row.contains("HeaderGlassPair"), "the pair is back: the day is one page and one button")
-        #expect(!row.contains("JournalButton("), "a second button for the journal is back on Wins")
+        #expect(!row.contains("CrewsButton"), "Crews is back in Wins' corner; it is a tab")
         #expect(!row.contains("headerPlan"), "a second button for the plan is back on Wins")
         let button = header.components(separatedBy: "private var headerDay: some View {").dropFirst().first ?? ""
         #expect(button.contains("systemName: DayIcon.name"))

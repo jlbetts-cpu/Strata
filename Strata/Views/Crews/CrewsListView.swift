@@ -15,6 +15,7 @@ nonisolated enum CrewRoute: Hashable {
 /// A native `List` under a native large title, because this is a list of
 /// conversations and that is what one looks like on this phone.
 struct CrewsListView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var open: (CrewID) -> Void
 
     @State private var startsCrew = false
@@ -40,8 +41,24 @@ struct CrewsListView: View {
                 empty
             } else {
                 List {
-                    ForEach(store.crews) { crew in
-                        Button { HapticsEngine.lightTap(); open(crew.id) } label: { row(store.visible(crew.id) ?? crew) }
+                    // **Newest first, as Messages** (the owner's pick,
+                    // 2026-10-13): the crew with the latest win, line or
+                    // reaction on top, so the one you came for leads.
+                    ForEach(store.crews.sorted { a, b in
+                        (store.activity(in: a.id)?.date ?? .distantPast) > (store.activity(in: b.id)?.date ?? .distantPast)
+                    }) { crew in
+                        Button {
+                            HapticsEngine.lightTap()
+                            // **Into the chat when a message is the news** (the
+                            // owner, 2026-10-13: "if the notification is for a
+                            // chat message when you open that crew it should
+                            // just open with the crew chat"). The way a tapped
+                            // notification opens it (`CrewRouter.openChat`).
+                            if store.unreadChats.contains(crew.id), Self.newsIsChat(store.activity(in: crew.id)) {
+                                CrewRouter.shared.openChat = true
+                            }
+                            open(crew.id)
+                        } label: { row(store.visible(crew.id) ?? crew) }
                             .buttonStyle(.pressSurface)
                             .listRowBackground(Color.clear)
                             // Space between crews, never a rule: the app
@@ -71,7 +88,9 @@ struct CrewsListView: View {
                     // and its line (2026-10-03): what a crew is for, said
                     // once, where the list ends.
                     if let art = UIImage(named: "CrewsTogether") {
-                        Illustration(art: art, line: "Winning is better together", height: 160,
+                        // The owner's line for a crew since 2026-10-13 (his
+                        // pick from the night's research): who a crew is for.
+                        Illustration(art: art, line: CrewLine.forWho, height: 160,
                                      motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
                             .padding(.top, GridConstants.gapSection)
                             .padding(.bottom, GridConstants.gapWide)
@@ -186,9 +205,17 @@ struct CrewsListView: View {
         let newWins = store.unread.contains(crew.id)
         let newChat = store.unreadChats.contains(crew.id)
         let unread = newWins || newChat
-        let latest = store.latest(in: crew.id)
+        let latest = store.activity(in: crew.id)
         return HStack(spacing: 12) {
-            NewsDot().opacity(unread ? 1 : 0)
+            // Its room is kept whether or not it is lit, so the rows never
+            // shift; the dot comes and goes inside it (`NewsDot.motion`).
+            ZStack {
+                if unread {
+                    NewsDot().transition(NewsDot.transition(reduceMotion: reduceMotion))
+                }
+            }
+            .frame(width: NewsDot.side, height: NewsDot.side)
+            .animation(NewsDot.motion(reduceMotion: reduceMotion), value: unread)
             CrewFaces(crew: crew, me: store.me, side: 56)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -223,7 +250,7 @@ struct CrewsListView: View {
                     }
                     Spacer(minLength: 8)
                     if let latest {
-                        Text(Self.when(latest.createdAt))
+                        Text(Self.when(latest.date))
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkSecondary)
                     }
@@ -248,16 +275,24 @@ struct CrewsListView: View {
 
     /// "Sam: Gym", "Sam added a photo", "You: Read", or, before anything,
     /// who is in it.
-    static func preview(_ win: SharedWin?, in crew: Crew, me: UUID) -> String {
-        guard let win else {
+    static func preview(_ latest: CrewActivity?, in crew: Crew, me: UUID) -> String {
+        guard let latest else {
             let count = crew.members.count
             return count <= 1 ? "Just you so far." : "No wins yet today."
         }
-        let who = win.senderProfileID == me ? "You"
-            : (crew.member(win.senderProfileID)?.shortName).flatMap { $0.isEmpty ? nil : $0 } ?? "A friend"
-        let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if title.isEmpty { return win.photo != nil ? "\(who) added a photo" : "\(who) added a win" }
-        return "\(who): \(title)"
+        return latest.preview(name: { id in
+            (crew.member(id)?.shortName).flatMap { $0.isEmpty ? nil : $0 } ?? "A friend"
+        }, me: me)
+    }
+
+    /// Whether the newest thing in a crew is said in its chat: a line, or a
+    /// reaction to a line (one on a win is the tower's news).
+    nonisolated static func newsIsChat(_ newest: CrewActivity?) -> Bool {
+        switch newest {
+        case .message: true
+        case .reaction(_, let win): win == nil
+        default: false
+        }
     }
 
     /// The time today, "Yesterday", or the weekday, as Messages does.
@@ -343,11 +378,13 @@ struct CrewsListView: View {
                 // question (who, what happens, who sees it), and New Crew where
                 // every page keeps its action, at the foot.
                 if let art = UIImage(named: "CrewsTogether") {
-                    Illustration(art: art, line: "Winning is better together", height: 190,
+                    Illustration(art: art, line: CrewLine.forWho, height: 190,
                                  motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
                 }
                 FeatureList(rows: [
-                    ("MarkPeople", "You and a friend, or a few", "Two is a crew. So is eight."),
+                    // Not "So is eight": the Launch Pack has nothing advertise
+                    // the cap (found by the 2026-10-13 research).
+                    ("MarkPeople", "You and a friend, or a few", "Two is a crew."),
                     ("MarkLayers", "One tower for the day", "Send a win and it lands there."),
                     ("MarkLock", "Private", "Only people you invite can see it."),
                 ])
@@ -526,11 +563,24 @@ struct CrewsButton: View {
     }
 }
 
-/// The Wins tab's crew screens, and the router that opens one from outside
+/// **What a crew is for, in one line** (the owner's pick, 2026-10-13, from
+/// three the research wrote to `docs/voice.md`; it retires "Winning is
+/// better together"). With his drawing of three friends wherever it stands.
+nonisolated enum CrewLine {
+    static let forWho = "For the people you'd tell anyway."
+}
+
+/// The Crews tab's crew screens, and the router that opens one from outside
 /// (an accepted invitation, a tapped notification). A modifier so
 /// `MainAppView`'s body, already at the type-checker's ceiling, gains one line.
 struct CrewDestinations: ViewModifier {
     @Binding var path: [CrewRoute]
+    /// **The Crews tab's list is its root**, so a crew is one step in, not
+    /// two, and "the list" is no step at all (2026-10-13).
+    var listIsRoot = false
+    /// Whether Crews is in front of the person, for the rules: on the tab,
+    /// that is the tab being chosen; pushed, it was the path being non-empty.
+    var isShown = true
     /// The crew rules, once, the first time anything of Crews is opened:
     /// the list, a crew, or an invitation (`CrewRules`).
     @State private var rulesAccepted = CrewRules.accepted
@@ -546,7 +596,7 @@ struct CrewDestinations: ViewModifier {
         content
             // Not below iOS 26 or for a known child: the rules are for
             // something they can join (2026-10-08).
-            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted && !CrewGate.current.isFinal
+            .sheet(isPresented: Binding(get: { (listIsRoot ? isShown : !path.isEmpty) && !rulesAccepted && !CrewGate.current.isFinal
                                                 && !CrewsFilm.holdsRules },
                                         set: { _ in })) {
                 CrewRulesSheet(onAgree: {
@@ -556,6 +606,7 @@ struct CrewDestinations: ViewModifier {
                     // Not Now is a no to the invitation too: it is not joined.
                     router.dropPendingInvite()
                     path = []
+                    if listIsRoot { router.leaveCrews = true }
                 })
             }
             .navigationDestination(for: CrewRoute.self) { route in
@@ -576,16 +627,16 @@ struct CrewDestinations: ViewModifier {
             .onChange(of: router.opensList) { _, opens in
                 guard opens else { return }
                 router.opensList = false
-                path = [.list]
+                path = listIsRoot ? [] : [.list]
             }
             .onAppear {
                 if let crew = router.open { route(to: crew) }
                 if router.opensList {
                     router.opensList = false
-                    path = [.list]
+                    path = listIsRoot ? [] : [.list]
                 }
                 #if DEBUG
-                if DebugHarness.opensCrewList, path.isEmpty { path = [.list] }
+                if !listIsRoot, DebugHarness.opensCrewList, path.isEmpty { path = [.list] }
                 #endif
             }
             .alert("This photo stays with you", isPresented: Binding(
@@ -611,9 +662,9 @@ struct CrewDestinations: ViewModifier {
         if CrewGate.current.isFinal {
             router.openWin = nil
             router.openChat = false
-            path = [.list]
+            path = listIsRoot ? [] : [.list]
         } else {
-            path = [.list, .crew(crew)]
+            path = listIsRoot ? [.crew(crew)] : [.list, .crew(crew)]
         }
     }
 }

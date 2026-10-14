@@ -13,7 +13,10 @@ import SwiftUI
 struct FirstWinInvitePrompt: ViewModifier {
     /// Today's blocks on the tower. A rise is a win landing.
     let blockCount: Int
-    @Binding var crewPath: [CrewRoute]
+    /// Crews is in front of the person (its tab): the card stands down.
+    var crewsShown: Bool
+    /// Opens the Crews tab, where a first crew is started.
+    var openCrews: () -> Void
     /// The tower as a 9:16 picture, drawn only when the card is answered.
     var towerCard: () -> UIImage?
 
@@ -41,7 +44,7 @@ struct FirstWinInvitePrompt: ViewModifier {
             // control, `gapWide`.
             // Drawn by the Wins header, under the crest, where every Wins tip
             // stands (`TipStage.invite`, 2026-10-08); this decides when.
-            .onChange(of: showing == nil || !crewPath.isEmpty, initial: true) { _, hidden in
+            .onChange(of: showing == nil || crewsShown, initial: true) { _, hidden in
                 if hidden {
                     TipStage.shared.invite = nil
                     TipStage.shared.release("invite")
@@ -107,7 +110,7 @@ struct FirstWinInvitePrompt: ViewModifier {
             // and the age question, and opens New Crew once those are done.
             CrewSharing.nextCard = card
             CrewRouter.shared.startsCrew = true
-            crewPath = [.list]
+            openCrews()
         }
     }
 

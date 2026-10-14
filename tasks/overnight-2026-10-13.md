@@ -42,6 +42,10 @@ means. Nothing goes to Friends; the build in the morning is for you only.
 - The Crews empty state's line: "For the people you'd tell anyway."
 - The Crews list: newest activity first, as Messages.
 - Hiding a win in a crew: there was no way to bring it back. It gets one.
+- Notification dots: one hand-drawn dot everywhere, in terracotta #C9705F
+  (researched, then softened at your word); on the Crews tab it overlaps
+  the glyph with the number of crews that have something new.
+- The goal ring round your head is drawn in your pen's line (doodle style).
 
 ## 1. Small fixes (first hour)
 

@@ -655,11 +655,11 @@ struct CrewTowerView: View {
             if unread {
                 NewsDot()
                     .offset(x: -Self.dotInset, y: Self.dotInset)
-                    .transition(.scale.combined(with: .opacity))
+                    .transition(NewsDot.transition(reduceMotion: reduceMotion))
                     .allowsHitTesting(false)
             }
         }
-        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: unread)
+        .animation(NewsDot.motion(reduceMotion: reduceMotion), value: unread)
         .accessibilityValue(unread ? "New" : "")
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
     }

@@ -605,24 +605,52 @@ struct MainAppView: View {
             }
     }
 
-    /// Extracted from `mainContent`: that body is a four-Tab TabView already at
-    /// the type-checker's ceiling, and removing the toolbar was enough to tip
-    /// it over.
-    private var towerTabRoot: some View {
+    /// **The Crews tab** (2026-10-13): the list of crews is its root, and a
+    /// crew, its info and its chat are pushed from it, as they were from
+    /// Wins' top right before. The add sheet, the slot's quick win and a
+    /// planned box are still Wins' own, so a win made in a crew is the same
+    /// win, made the same way.
+    private var crewsTabRoot: some View {
         NavigationStack(path: $crewPath) {
-            // No navigation bar at all. The header below carries the count, and
-            // there is no longer a filter to put anywhere.
-            towerTab
-                .toolbar(.hidden, for: .navigationBar)
+            CrewsListView { crewPath.append(.crew($0)) }
                 .modifier(CrewDestinations(path: $crewPath,
+                                           listIsRoot: true,
+                                           isShown: selectedTab == .crews,
                                            addWin: { winDraft = WinDraft(crews: [$0]) },
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) },
                                            planned: { planned($0, $1, $2) }))
         }
+    }
+
+    /// How many crews have a new win, reaction or chat line not seen yet:
+    /// the number on the tab's dot (the owner's pick, 2026-10-13, "Crews with
+    /// something new").
+    private var crewsWithNews: Int {
+        guard CrewsFlag.isOn else { return 0 }
+        let store = SocialStore.shared
+        return store.unread.union(store.unreadChats).count
+    }
+
+    /// Crews never opened: the dot alone, to lead a new person's eye there.
+    private var crewsNeverOpened: Bool {
+        CrewsFlag.isOn && !UserDefaults.standard.bool(forKey: CrewsButton.openedKey)
+    }
+
+    /// Extracted from `mainContent`: that body is a four-Tab TabView already at
+    /// the type-checker's ceiling, and removing the toolbar was enough to tip
+    /// it over.
+    private var towerTabRoot: some View {
+        NavigationStack {
+            // No navigation bar at all. The header below carries the count, and
+            // there is no longer a filter to put anywhere.
+            towerTab
+                .toolbar(.hidden, for: .navigationBar)
+        }
         // The first-win invitation (`FirstWinInvite`): once after your very
         // first win, once more after your first reaction, never again.
         .modifier(FirstWinInvitePrompt(blockCount: towerVM.placedBlocks.count,
-                                       crewPath: $crewPath,
+                                       crewsShown: selectedTab == .crews,
+                                       openCrews: { crewPath = []; selectedTab = .crews },
                                        towerCard: { shareCard() }))
         // The first day, for the review ask (`ReviewAsk`), which itself is
         // asked as a developed strip's booth closes.
@@ -973,6 +1001,15 @@ struct MainAppView: View {
             // different moments: you photograph the thing when it happens, and
             // you can name it after. Shooting from here logs the win straight
             // away with the photo already on it.
+            // **Crews, right of Wins** (2026-10-13). Only where crews are on;
+            // without them the bar is the three it always was.
+            if CrewsFlag.isOn {
+                Tab(value: StrataTab.crews) {
+                    crewsTabRoot.undoLine()
+                } label: {
+                    StrataTab.crews.label(news: crewsWithNews, lit: crewsNeverOpened, scheme: colorScheme)
+                }
+            }
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
@@ -984,15 +1021,10 @@ struct MainAppView: View {
                 StrataTab.memories.label
             }
         }
-        // A crew asked for from outside (a notification, an invitation) is on
-        // the Wins tab: go there, wherever the app was.
-        // An invitation waiting on the rules and the age opens the list
-        // there too (`CrewRouter.opensList`, 2026-10-08).
-        .onChange(of: CrewRouter.shared.wantsWinsTab) { _, wants in if wants { selectedTab = .tower } }
-        // A cold launch from a crew's notification: the crew was asked for
-        // before this view existed, so there was no change to hear and the
-        // app opened on the camera (found 2026-10-06).
-        .onAppear { if CrewRouter.shared.wantsWinsTab { selectedTab = .tower } }
+        // Crews asked for from outside, and the tab's quiet dot
+        // (`CrewsTabRouting`). One modifier: this body is at the type
+        // checker's ceiling.
+        .modifier(CrewsTabRouting(selectedTab: $selectedTab))
         // The app's own notifications, tapped: the tab their subject is on.
         .modifier(NotificationLanding(selectedTab: $selectedTab))
         // The window's appearance, changed without an animation.
@@ -1410,11 +1442,12 @@ struct MainAppView: View {
             // No dot on it: on Wins only Crews ever carries one.
             headerDay
             Spacer(minLength: 0)
-            // Empty while crews are off, so the pair has the row to itself.
-            // The unread dot is `CrewsButton`'s own, from `SocialStore.unread`.
-            if CrewsFlag.isOn {
-                CrewsButton { crewPath = [.list] }
-            }
+            // **The Journal, its own button** (the owner, 2026-10-13: "journal
+            // on the right side as its own button since it's taking over for
+            // the crew button on the top right"). Crews are a tab now. The
+            // past day's button, the same one, straight into today's note;
+            // the top left is the Plan.
+            JournalButton(dateString: DateUtils.dateString(from: Date()))
         }
         // **The day's goal in the middle** (`GoalCrest`), laid out as a
         // crew's tower lays out its faces and name: your head in the ring,
@@ -1570,7 +1603,7 @@ struct MainAppView: View {
         GlassIconButton(
             systemName: DayIcon.name,
             onPage: true,
-            accessibilityLabel: "Plan and Journal"
+            accessibilityLabel: "Plan"
         ) {
             openDay()
         }
@@ -1584,9 +1617,11 @@ struct MainAppView: View {
     /// Opens the day's sheet on the tab used last. Only the Journal asks
     /// `JournalLock`, once a session, as it always did; refused, the sheet
     /// opens on the Plan, because the lock is for the note.
+    /// **The Plan, always**, since the Journal has a button of its own in
+    /// the other corner (2026-10-13). The sheet keeps its switch.
     private func openDay() {
         Task {
-            var stored = lastDayTab
+            var stored = DayTab.plan.rawValue
             #if DEBUG
             // `-strataDayTab plan|journal`: a screenshot script picks the tab.
             if let pick = DebugHarness.dayTab { stored = pick }
@@ -2277,7 +2312,7 @@ struct MainAppView: View {
         // over the crew). And not while a win ticked from the plan is on
         // its way back to the plan: the sheet returns in under a second
         // and cut the ring off mid-air.
-        selectedTab == .tower && scenePhase == .active && crewPath.isEmpty
+        selectedTab == .tower && scenePhase == .active
             && handoffLogs == nil && winDraft == nil && !isPlanning && !returnsToPlan
             && editingHabit == nil && capturingPlan == nil && editingPlan == nil && pickingPlan == nil
             && expandedBlockID == nil && booth == nil && !showsYourDay && !showsTipAsk
@@ -4322,4 +4357,26 @@ struct BoothOpening: Identifiable {
     let prints: Bool
     /// An earlier day's strip (`YourDaySheet`), or nil for today's.
     var day: String? = nil
+}
+
+/// **The Crews tab, asked for from outside** (2026-10-13; it was Wins). A
+/// crew asked for by a notification or an invitation is on the Crews tab:
+/// go there, wherever the app was; an invitation waiting on the rules and the
+/// age opens the list there too (`CrewRouter.opensList`, 2026-10-08). A cold
+/// launch from a crew's notification asked before this view existed, so
+/// there was no change to hear (found 2026-10-06): `onAppear` answers it.
+/// The rules declined from the tab go back to Wins.
+private struct CrewsTabRouting: ViewModifier {
+    @Binding var selectedTab: StrataTab
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: CrewRouter.shared.wantsCrewsTab) { _, wants in if wants { selectedTab = .crews } }
+            .onAppear { if CrewRouter.shared.wantsCrewsTab { selectedTab = .crews } }
+            .onChange(of: CrewRouter.shared.leaveCrews) { _, leaves in
+                guard leaves else { return }
+                CrewRouter.shared.leaveCrews = false
+                selectedTab = .tower
+            }
+    }
 }

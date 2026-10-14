@@ -150,7 +150,10 @@ struct GoalRingMomentTests {
                 "the goal's dance waits for the ring to go home")
         let clear = try #require(main.components(separatedBy: "private var ringIsClear: Bool").dropFirst().first)
         let body = clear.components(separatedBy: "private var blocksToday").first ?? ""
-        for covering in ["crewPath.isEmpty", "winDraft == nil", "!isPlanning", "!returnsToPlan", "booth == nil",
+        // `crewPath.isEmpty` went with crews leaving Wins for a tab of their
+        // own (2026-10-13): a crew can no longer be over the tower, and
+        // `selectedTab == .tower` says the tower is what is in front.
+        for covering in ["selectedTab == .tower", "winDraft == nil", "!isPlanning", "!returnsToPlan", "booth == nil",
                          "expandedBlockID == nil", "scenePhase == .active"] {
             #expect(body.contains(covering), "\(covering): the ring never plays over something else")
         }

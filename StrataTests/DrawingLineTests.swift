@@ -40,11 +40,16 @@ struct DrawingLineTests {
         #expect(DrawingLine.kept(long)?.count == DrawingLine.maxLength)
     }
 
+    /// The crews' drawing's line is the owner's pick of 2026-10-13, "For the
+    /// people you'd tell anyway.", which retired "Winning is better
+    /// together" (his rule for the night: "Winning is better together goes").
     @Test("October's scarecrow has its quote, and the crews' drawing keeps its own")
     func octoberHasAQuote() throws {
         #expect(MemoriesView.monthLine["October"] == "Small wins still count")
         let crews = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewsListView.swift"))
-        #expect(crews.contains("line: \"Winning is better together\""))
+        #expect(crews.contains("line: CrewLine.forWho"))
+        #expect(CrewLine.forWho == "For the people you'd tell anyway.")
+        #expect(!crews.contains("Winning is better together"), "the retired line is back")
     }
 
     @Test("your own drawing shows its line, in the one style lines have")
