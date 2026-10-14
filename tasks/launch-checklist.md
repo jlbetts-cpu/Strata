@@ -10,9 +10,17 @@ was dropped.
 
 ## 1. This week
 
-- [ ] **Push.** `cd ~/Desktop/Strata && git push origin main`
-      It also publishes the new landing page line and the file that will
-      let a link open the app.
+- [ ] **Push** whenever I say there are commits: `cd ~/Desktop/Strata && git push origin main`
+      The site is whatever is pushed; nothing I change on it is live until you do.
+- [ ] **Free some disk space, or move the repo off iCloud Desktop.** The Mac
+      is 98% full (about 10 GB free). On 2026-10-13 iCloud evicted about
+      4,000 of this repo's files to make room, which stalled a commit and
+      slows every build while they download again. Either is enough:
+  - free 30 GB or more (Xcode's DerivedData and old simulators are the
+    usual big ones: Xcode, Settings, Platforms; and
+    `~/Library/Developer/Xcode/DerivedData`), or
+  - move `~/Desktop/Strata` to a folder iCloud does not manage (for example
+    `~/Developer/Strata`) and tell me the new path.
 - [ ] **Try the newest build on your phone**, then tell me to send it to
       Friends. What to look at:
   - A crew chat: plus, Plan. The plan stays in the chat, and on the crew's
@@ -33,31 +41,37 @@ was dropped.
 
 ## 2. somewins.xyz (about 20 minutes, in this order)
 
-The domain is at Namecheap and still shows their parking page.
+Done on 2026-10-13: the domain, GitHub Pages with HTTPS, and Associated
+Domains. Invites are `somewins.xyz/join` from build 135. Two left: the
+email, and the decision at the end.
 
-- [ ] **Namecheap**, Domain List, somewins.xyz, Manage, Advanced DNS.
+- [x] **Namecheap**, Domain List, somewins.xyz, Manage, Advanced DNS.
   - Delete what is there for `@` and `www` (the parking redirect and the
     `www` CNAME to parkingpage.namecheap.com).
   - Add four **A** records, host `@`, values `185.199.108.153`,
     `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
   - Add one **CNAME**, host `www`, value `jlbetts-cpu.github.io`.
-- [ ] **GitHub**, the Strata repo, Settings, Pages, Custom domain: type
+- [x] **GitHub**, the Strata repo, Settings, Pages, Custom domain: type
       `somewins.xyz`, Save. When the check goes green, tick **Enforce
       HTTPS**. Then `cd ~/Desktop/Strata && git pull`.
       Old github links keep working: GitHub forwards them.
-- [ ] **Apple Developer**, Certificates, IDs and Profiles, Identifiers,
+- [x] **Apple Developer**, Certificates, IDs and Profiles, Identifiers,
       `JaydenBetts.Strata`: tick **Associated Domains**, Save.
-- [ ] **Tell me all three are done.** Then I make the new signing profile,
+- [x] **Tell me all three are done.** Then I make the new signing profile,
       switch the invite link to `somewins.xyz/join`, and a tapped invite
       opens the app with no web page in between. The card's thumbnail is
       already only the logo; the address under it becomes somewins.xyz.
 - [ ] **Email:** Namecheap, Email Forwarding, `hello@somewins.xyz` to your
       own address. Tell me when a test mail arrives and I change the
       support address in the app (it is still your Hotmail).
-- [ ] **Decide:** your repo is public and `docs/` is the website, so the
-      planning docs in it (launch plan, monetization research) are web
-      pages anyone can open. Say the word and I move the site into its own
-      folder so only the site is published.
+- [ ] **Decide (checked live on 2026-10-13):** `docs/` is the website, so
+      every planning note in it is a page on your domain. These all open
+      for anyone today: `somewins.xyz/monetization-research` ("How Strata
+      should make money"), `/launch-plan`, `/aso-plan`, `/launch-pack-log`,
+      `/case-study`, and the specs under `/superpowers/specs/`. Say the
+      word and I stop the site serving them: one line in `docs/_config.yml`,
+      no file moves, and it can be undone. (They stay readable on GitHub
+      for as long as the repo is public; that is a separate switch.)
 
 ## 3. Drawings (Procreate)
 
@@ -151,8 +165,10 @@ This is research, not legal advice.
 
 ## 8. Calls I am waiting on from you (asked in chat)
 
-- A note on a win that shows up in that day's journal: the design is ready
-  and needs no new iCloud field.
+- The planning notes on somewins.xyz (section 2): stop serving them, or leave.
+- The landing page's two "Download on the App Store" badges open
+  TestFlight until the app is on the Store. Fine for friends; Apple's badge
+  rules want it to open the App Store, so swap the link the day it is live.
 - Onboarding's first page: a plain hold drops a block but only a pulled
   block lets you go on. Let any block count, or keep it.
 - Settings: Replays and Past Wins show as on before notifications were
