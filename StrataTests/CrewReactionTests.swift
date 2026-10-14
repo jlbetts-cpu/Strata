@@ -16,6 +16,10 @@ struct CrewReactionTests {
         let store = SocialStore(cloud: FakeCrewCloud(world: world, me: me), defaults: UserDefaults(suiteName: suite)!,
                                 directory: FileManager.default.temporaryDirectory.appending(path: suite))
         store.isEnabled = { true }
+        // Set here, not read off the phone: the gate is `CrewAge`, which is
+        // whatever the simulator last saved, and a launch that changed it
+        // failed this suite (2026-10-14).
+        store.canReply = { true }
         store.myFirstName = { me == jayden ? "Jayden" : "Sam" }
         store.derive = { $0 }
         return store

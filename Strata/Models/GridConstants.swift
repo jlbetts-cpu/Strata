@@ -435,6 +435,8 @@ enum GridConstants {
     /// fix 4). It had four. A spring, so a drawer caught moving stops under
     /// the finger and a release carries the throw's speed into it.
     static var drawerMove: Animation { calm(.smooth(duration: 0.36)) }
+    /// The Crews drawing leaving on its one launch, for the lattice under it.
+    static var drawingLeaves: Animation { calm(.easeOut(duration: 0.6)) }
     /// The drawer under the finger: tight, so it follows 1:1, and a spring,
     /// so the release spring takes over its speed (WWDC24, "Enhance your UI
     /// animations").

@@ -159,8 +159,10 @@ struct MemoriesConsistencyTests {
         // "the heads dont need to be an option in the settings"), so Use as
         // Profile Picture, Show My Head on the Map, Add My Head to Photos and
         // the crew's Heads switch went.
-        #expect(rowTints.count == 13,
-                "there are \(rowTints.count) switches in the app and there were 13; a new one needs the token too")
+        // Twelve since later that day: Let My Head Onto the Tower went too
+        // (the owner: "no need to have the option of letting head on tower").
+        #expect(rowTints.count == 12,
+                "there are \(rowTints.count) switches in the app and there were 12; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**

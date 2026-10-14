@@ -106,7 +106,9 @@ struct HeadSwitchesGoneTests {
                      "Show My Head on the Map", "Add My Head to Photos", ".photosPicker("] {
             #expect(!profile.contains(gone), "\(gone) is back in Profile")
         }
-        #expect(profile.contains("Let My Head Onto the Tower"), "the one switch the owner kept")
+        // The one switch he had kept went later the same day (the owner,
+        // 2026-10-14: "no need to have the option of letting head on tower").
+        #expect(!profile.contains("Let My Head Onto the Tower"), "the tower switch is back in Profile")
         let crew = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewInfoSheet.swift"))
         #expect(!crew.contains("setShowsHeads"), "the per-crew Heads switch is back")
         let social = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))

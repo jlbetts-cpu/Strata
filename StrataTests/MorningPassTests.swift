@@ -144,11 +144,16 @@ struct LastFourToTenTests {
         #expect(picker.contains("if summary.kind != .empty {"))
     }
 
-    @Test("while typing, a block that does not fit scales to fit above the keyboard")
-    func wellFitsAboveKeyboard() throws {
+    /// **Reversed on 2026-10-14 by the owner's call**: the block scaling down
+    /// as the keyboard rose was one of three things moving at once when Add a
+    /// Win opened ("the block shrinking ... elements need to feel clean and
+    /// not like affecting other elements"). This used to pin the shrink; it
+    /// pins its absence, so it cannot quietly come back.
+    @Test("while typing, the block keeps its size: the keyboard stands over it")
+    func wellKeepsItsSizeOverTheKeyboard() throws {
         let text = try MorningSource.read("Views/AddWinSheet.swift")
-        #expect(text.contains("guard titleFocused, wellTop > 0 else { return 1 }"))
-        #expect(text.contains("return min(1, room / h)"))
+        #expect(!text.contains("func wellFit("))
+        #expect(text.contains("return (CGSize(width: fullW, height: fullH),"))
     }
 
     @Test("onboarding's camera picture has no tab labels in it")

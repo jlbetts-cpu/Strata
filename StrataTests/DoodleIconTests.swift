@@ -49,9 +49,12 @@ struct DoodleIconTests {
     /// They came off for a night under "less is so much more"; he wants them.
     /// This used to assert the opposite, and is turned round rather than
     /// deleted, so taking them off again has to be a decision, not a sweep.
+    /// Profile's least is 4 since 2026-10-14: its last switch, Let My Head
+    /// Onto the Tower, went with its glyph (the owner: "no need to have the
+    /// option of letting head on tower").
     @Test("Settings and Profile rows have their glyphs")
     func rowGlyphs() throws {
-        for (path, least) in [("Strata/Views/SettingsView.swift", 15), ("Strata/Views/ProfileView.swift", 5),
+        for (path, least) in [("Strata/Views/SettingsView.swift", 15), ("Strata/Views/ProfileView.swift", 4),
                               ("Strata/Views/Ink/MonthDrawingSettings.swift", 1)] {
             let code = SourceSweep.code(try SourceSweep.read(path))
             let uses = code.components(separatedBy: "SettingsIcon(").count - 1

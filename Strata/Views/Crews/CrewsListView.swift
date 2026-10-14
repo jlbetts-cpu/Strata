@@ -136,7 +136,7 @@ struct CrewsListView: View {
                     if !showsArt { return }
                     // Long enough to be seen and read, on the one launch.
                     try? await Task.sleep(for: .seconds(6))
-                    withAnimation(.easeOut(duration: 0.6)) { showsArt = false }
+                    withAnimation(GridConstants.drawingLeaves) { showsArt = false }
                 }
                 .refreshable { await store.refresh() }
             }

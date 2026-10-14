@@ -75,8 +75,6 @@ struct AddWinSheet: View {
     @State private var winNote = ""
     @FocusState private var noteFocused: Bool
     @AppStorage(JournalLock.defaultsKey) private var journalLocked = false
-    /// Where the well starts on the page, for `wellFit`.
-    @State private var wellTop: CGFloat = 0
 
     @State private var title = ""
     /// **Now, or later** (`WhenRow`). Nil is now: the sheet adds a win, as
@@ -495,7 +493,6 @@ struct AddWinSheet: View {
                                 .padding(.top, GridConstants.gapSection)
                         }
                     }
-                    .coordinateSpace(name: Self.pageSpace)
                     // **The app's page margin, not a private one.** This was
                     // 20 while every other screen is `horizontalPadding` (16),
                     // so the add sheet's content sat four points further in
@@ -1434,25 +1431,15 @@ struct AddWinSheet: View {
         return true
     }
 
-    /// The page's own coordinate space, so the well can read where it starts.
-    private static let pageSpace = "addWinPage"
 
-    /// **While you type, the block fits above the keyboard** (2026-10-02).
-    ///
-    /// A Deep block from the shutter is a 370pt well, and the room above a
-    /// 402x874 keyboard is about 290 once the name and the size control are
-    /// placed: no spacing fits it, and the block's lower half sat behind the
-    /// keys. So while the name has focus the well scales down, both sides by
-    /// one factor, until its bottom stands `gapWide` above the keyboard, and
-    /// grows back when the keyboard goes. Its proportion is kept, so Deep is
-    /// still visibly the biggest; only a block that does not fit is touched,
-    /// so a Quick or a Regular never moves.
-    private func wellFit(height h: CGFloat, visibleHeight: CGFloat) -> CGFloat {
-        guard titleFocused, wellTop > 0 else { return 1 }
-        let room = visibleHeight - wellTop - GridConstants.gapWide
-        guard room > 0 else { return 1 }
-        return min(1, room / h)
-    }
+    // **`wellFit` is gone: the block keeps its size while you type** (the
+    // owner, 2026-10-14: "the add a win animation ... elements on the screen
+    // arent clean and clear like the block shrinking"; "elements need to
+    // feel clean and not like affecting other elements"). The name took
+    // focus as the sheet rose, so the sheet, the keyboard and a block scaling
+    // down to fit above the keys all moved at once. The keyboard stands over
+    // the foot of a big block now, as it does over any sheet, and nothing on
+    // the page moves for it.
 
     /// The block's size on this page and its corner, shared by the well and
     /// the photographs beside it so they are one shape. The reasoning for
@@ -1464,8 +1451,7 @@ struct AddWinSheet: View {
         let gap = GridConstants.spacing
         let fullW = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
         let fullH = CGFloat(size.rowSpan) * cell + CGFloat(size.rowSpan - 1) * gap
-        let fit = wellFit(height: fullH, visibleHeight: visibleHeight)
-        return (CGSize(width: fullW * fit, height: fullH * fit),
+        return (CGSize(width: fullW, height: fullH),
                 GridConstants.blockCornerRadius(forCell: cell))
     }
 
@@ -1656,11 +1642,6 @@ struct AddWinSheet: View {
                 }
             }
             .frame(width: w, height: h)
-            // Where it starts, for `wellFit`. The top does not move when the
-            // well scales (it is anchored top-leading), so this cannot loop.
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.pageSpace)).minY } action: {
-                wellTop = $0
-            }
             // And the hit area is the shape, not whatever the content grew to.
             .contentShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
             // No overlay stroke. `BlockSurface` draws the rim, which is the

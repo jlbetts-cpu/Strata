@@ -480,6 +480,22 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **Add a Win opening from the empty slot, for a recording** (the owner,
+    /// 2026-10-14: "the add a win animation ... elements on the screen arent
+    /// clean and clear like the block shrinking").
+    func testAddWinOpening() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3"])
+        wait(8); snap("addopen-0-tower")
+        let adds = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'add' OR label CONTAINS[c] 'log'")).allElementsBoundByIndex
+        for b in adds { print("PLANNING-add: '\(b.label)' \(b.frame)") }
+        let slot = adds.first { $0.frame.width > 40 && $0.frame.minY > 200 }
+        if let slot { slot.press(forDuration: 0.08) } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.11, dy: 0.865)).tap() }
+        wait(3); snap("addopen-1-sheet")
+        let cancel = app.buttons["Cancel"].firstMatch
+        if cancel.exists { cancel.tap() }
+        wait(3); snap("addopen-2-closed")
+    }
+
     /// **The camera review's crop, as a thumb uses it** (the owner,
     /// 2026-10-14: "the cropping its super not smooth and black bars appear
     /// and it looks very jank ... mainly in the camera screen"). Slow drags

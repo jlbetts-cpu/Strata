@@ -196,11 +196,10 @@ struct CameraView: View {
     /// stops above the tab bar, so the curve is a real edge you look at rather
     /// than a corner tucked into the phone's own — and at 20 it read as a
     /// square that had been slightly softened rather than as a shape.
-    /// 40, his Apollo frame's (node 14172:8010), where the viewfinder stops
-    /// above the tab bar's strip (the owner, 2026-10-14: "closer to like
-    /// snapchats camera ... not going completely to the bottom at the bottom
-    /// we can have that curve design we did in the apollo branch").
-    private let cornerRadius: CGFloat = 40
+    /// The app's own large-surface corner (`radiusSurface`, 20). It was 40,
+    /// his Apollo frame's, for the card between the two bands; on seeing it
+    /// he asked for "a lot less kinda like our corner roundness" (2026-10-14).
+    private let cornerRadius: CGFloat = GridConstants.radiusSurface
     /// Air between the bottom of the viewfinder and the tab bar: the 20 the
     /// Apollo build measured as the bar's breathing room (`35b88cc`).
     private let tabGap: CGFloat = 20
@@ -340,13 +339,15 @@ struct CameraView: View {
             // stops short of one — the shape the Figma draws, and one that
             // only makes sense because something is behind it. Full screen, it
             // rounds nothing.
-            // **A card with a band above and below** (the owner, 2026-10-14:
-            // "the way snapchat does it is there is a bar at the bottom and a
-            // bar at the top ... just to frame the experience"). The picture
-            // starts under the status bar's band, round at all four corners,
-            // and stops above the tab bar's, on the page in the phone's own
-            // appearance. A camera over a sheet is framed the same.
-            .clipShape(CameraCard(top: topInset, radius: cornerRadius))
+            // **Up to the top edge, rounded at the foot, on a band below**
+            // (the owner, 2026-10-14). A band above as well, Snapchat's frame,
+            // was tried the same day and taken out on sight ("i dont think i
+            // like the look maybe lets remove the top bar again"). The picture
+            // runs under the status bar and stops above the tab bar's band,
+            // on the page in the phone's own appearance. A camera over a
+            // sheet is framed the same.
+            .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: cornerRadius,
+                                              bottomTrailingRadius: cornerRadius, style: .continuous))
             .offset(y: -topInset)
         }
         // No `.ignoresSafeArea` on the GeometryReader: it reports ZERO insets
@@ -2297,14 +2298,3 @@ enum RingBrightness {
     }
 }
 
-/// The viewfinder's card: the whole frame below `top`, round at every
-/// corner, continuous as the system's own.
-private struct CameraCard: Shape {
-    var top: CGFloat
-    var radius: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        Path(roundedRect: CGRect(x: rect.minX, y: rect.minY + top, width: rect.width, height: max(0, rect.height - top)),
-             cornerRadius: radius, style: .continuous)
-    }
-}

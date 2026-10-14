@@ -91,7 +91,11 @@ struct PhotoMarksTests {
                 "measured in the photograph's own space, a drag that moves the photograph chases itself")
         #expect(overlay.contains("crop = CachedImageView.held(moved, photo: photo, frame: box, zoom: zoom)"))
         let camera = try code("Strata/Views/CameraView.swift")
-        #expect(camera.contains("CropBox(box: box, radius: CropBox.radius(for: box), ground: .black, ink: AppColors.drawingInkOnBlock)"))
+        // The page and its ink in light mode, black and the block's ink in
+        // dark (the owner, 2026-10-14: "the photo edit screen is still so
+        // dark shouldnt that be light").
+        #expect(camera.contains("CropBox(box: box, radius: CropBox.radius(for: box),"))
+        #expect(camera.contains("ground: reviewIsLight ? WarmBackground.top : .black,"))
         #expect(!camera.contains("BlockCropOutline(crop:"), "the hairline window is back on the review")
         // At rest the photograph is the size it always was: the box is the block's part of it.
         #expect(camera.contains("let box = CGSize(width: fitted.width * window.width, height: fitted.height * window.height)"))
