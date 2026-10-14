@@ -29,8 +29,11 @@ struct CrewChatSheet: View {
     /// A quoted win was tapped: the crew screen closes this sheet and opens
     /// that win in its viewer.
     var onOpenWin: (UUID) -> Void = { _ in }
-    /// The plus row's Win: the crew screen closes this sheet and opens Add a
-    /// Win with this crew ticked.
+    /// **Unused since the plus row's Win opens over the chat** (2026-10-14,
+    /// `addingWin`). It closed this sheet and opened Add a Win on the crew,
+    /// so the win landed on the tower and never in the chat, which broke the
+    /// owner's rule that a plus-row button does its thing in the chat. Kept
+    /// so a caller passing it still builds.
     var onAddWin: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
@@ -60,6 +63,13 @@ struct CrewChatSheet: View {
     /// Why a strip did not go, in the words its share sheet uses.
     @State private var stripProblem: String?
     @State private var choosingMemory = false
+    /// **Add a Win, over the chat** (the plus row's Win, and the empty
+    /// strip's way forward). The chat stays open underneath.
+    @State private var addingWin = false
+    /// A sticker just lifted out of a photo: shown chosen in the grid, and
+    /// sent only by a tap on it (the research, section 3, item 3: it sent on
+    /// the lift, a sticker nobody had seen yet).
+    @State private var newSticker: String?
     /// A group plan two or more have done with a photo, opened as a strip.
     @State private var planStrip: GroupPlan?
     /// Today's look back for this crew (`CrewLookBack`), if there is one.
@@ -165,8 +175,19 @@ struct CrewChatSheet: View {
         .alert("That photo stays with you", isPresented: $pictureRefused) {
             Button("OK", role: .cancel) {}
         }
-        .sheet(isPresented: $choosingSticker) { stickerSheet }
-        .stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }
+        .sheet(isPresented: $choosingSticker, onDismiss: { if !makingSticker { newSticker = nil } }) { stickerSheet }
+        .stickerMaking(isPresented: $makingSticker) { symbol in
+            // Back to the grid with it chosen, once the lift has gone.
+            newSticker = symbol
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                choosingSticker = true
+            }
+        }
+        .sheet(isPresented: $addingWin) {
+            AddWinSheet(modelContext: modelContext, tower: activeTower, initialCrews: [crewID],
+                        onSaved: { habit in sayWin(habit) })
+        }
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: store.crew(crewID)?.displayName(excluding: store.me) ?? "") { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
@@ -180,7 +201,7 @@ struct CrewChatSheet: View {
             // **Today's strip, shown, and Send puts it in this chat**
             // (`CrewStripSendSheet`). It opened the booth, which on most
             // days would not develop, and sent from a share sheet.
-            CrewStripSendSheet { png in sendStrip(png) }
+            CrewStripSendSheet(send: { png in sendStrip(png) }, addWin: { afterSheet { addingWin = true } })
         }
         .alert(stripProblem ?? "", isPresented: Binding(get: { stripProblem != nil },
                                                         set: { if !$0 { stripProblem = nil } })) {
@@ -409,9 +430,22 @@ struct CrewChatSheet: View {
             planCard(plan, pinned: false)
         } else if message.isPicture, let picture = message.sketch {
             ChatPicture(url: picture, caption: message.caption == SocialStore.stickerWord ? "" : message.caption, mine: mine)
+        } else if let quote, let photo = winPhoto(message, mine: mine) {
+            // **A win said in the chat, with its photo**: the picture, and
+            // its title under it with the quote's mark. No sentence: the win
+            // speaks for itself (the research, section 3, Wording).
+            ChatPicture(url: photo, caption: "\u{21AA}\u{FE0E} \(quote)", mine: mine)
         } else {
             lineFace(message, mine: mine, quote: quote)
         }
+    }
+
+    /// The photo on a win said in the chat, when the line is one and its win
+    /// has one this phone may show.
+    private func winPhoto(_ message: CrewMessage, mine: Bool) -> URL? {
+        guard store.isWinLine(message), let id = message.quoteWinID,
+              let photo = store.wins(in: crewID).first(where: { $0.winID == id })?.photo else { return nil }
+        return mine || store.photoIsShown(photo) ? photo : nil
     }
 
     private func lineFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {
@@ -422,8 +456,11 @@ struct CrewChatSheet: View {
         // yours it keeps the page's colour, since no ink token inverts onto
         // ink, and the arrow and the smaller size already make it the quote.
         let quoteInk = mine ? WarmBackground.top : AppColors.inkTertiary
+        // A win said in the chat with no photo: its title, once, behind the
+        // quote's mark. Drawn as a reply it read "↪ Gym / Gym".
+        let saysWin = quote != nil && store.isWinLine(message)
         return VStack(alignment: .leading, spacing: GridConstants.spacing) {
-            if let quote {
+            if let quote, !saysWin {
                 // U+FE0E: the arrow as type, never the emoji tile it draws as bare.
                 Text("\u{21AA}\u{FE0E} \(quote)")
                     .font(Typography.screenSubtitle)
@@ -436,7 +473,7 @@ struct CrewChatSheet: View {
                     .frame(maxWidth: Self.doodleSide, maxHeight: Self.doodleSide * 3 / 4)
             }
             if !message.text.isEmpty {
-                Text(message.text)
+                Text(saysWin ? "\u{21AA}\u{FE0E} \(message.text)" : message.text)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -470,6 +507,10 @@ struct CrewChatSheet: View {
 
     private func spoken(_ message: CrewMessage, quote: String?) -> String {
         var parts = [name(of: message.senderProfileID)]
+        if let quote, store.isWinLine(message) {
+            parts.append("a win, \(quote)")
+            return parts.joined(separator: ", ")
+        }
         if let quote { parts.append("replying to \(quote)") }
         if message.isStrip {
             parts.append("a photo strip")
@@ -495,9 +536,9 @@ struct CrewChatSheet: View {
         if store.canReply() {
           VStack(spacing: 0) {
             if showsPlus {
-                // Strip and Memory are photographs: not offered to someone
-                // who may not send one. Sticker stays, as the doodle pad.
-                ChatPlusRow(choices: store.photosAllowed() ? ChatPlusRow.Choice.allCases : [.win, .plan, .sticker]) { choice in
+                // Strip and a sticker are photographs: not offered to
+                // someone who may not send one. Their third is Doodle.
+                ChatPlusRow(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos) { choice in
                     choose(choice)
                 }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -602,14 +643,48 @@ struct CrewChatSheet: View {
     private func choose(_ choice: ChatPlusRow.Choice) {
         withAnimation(GridConstants.motionSnappy) { showsPlus = false }
         switch choice {
-        case .win:
-            dismiss()
-            onAddWin()
+        // Over the chat, which stays open: the win lands here as a line.
+        case .win: addingWin = true
         case .plan: planning = true
         case .strip: showsStrip = true
+        case .doodle: doodling = true
+        // Off the row (`ChatPlusRow.Choice.memory`); its sheet stays.
         case .memory: choosingMemory = true
         // Without photographs a sticker is not yours to send: the pad alone.
         case .sticker: if store.photosAllowed() { choosingSticker = true } else { doodling = true }
+        }
+    }
+
+    /// Something asked for as a sheet leaves: after it has gone, since a
+    /// presentation asked for while one is still dismissing is dropped.
+    private func afterSheet(_ then: @escaping () -> Void) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            then()
+        }
+    }
+
+    /// The tower a new win stands on: the one the Wins tab shows.
+    private var activeTower: Tower? {
+        let towers = TowerManager()
+        towers.loadActiveTower(context: modelContext)
+        return towers.activeTower
+    }
+
+    /// **The win, said in the chat once it has reached this crew.** It goes
+    /// a moment after Add (its photo is checked first), so the line waits
+    /// for it, fifteen seconds at most. A win whose crew was unticked on the
+    /// sheet never arrives here, and nothing is said.
+    private func sayWin(_ habit: Habit) {
+        guard let id = (habit.logs ?? []).max(by: { $0.createdAt < $1.createdAt })?.id else { return }
+        Task {
+            var tries = 0
+            while tries < 60, !store.wins(in: crewID).contains(where: { $0.winID == id }) {
+                tries += 1
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            guard store.wins(in: crewID).contains(where: { $0.winID == id }) else { return }
+            answer(await store.sendWinLine(id, in: crewID))
         }
     }
 
@@ -744,31 +819,47 @@ struct CrewChatSheet: View {
         Task { answer(await store.sendSticker(png, in: crewID)) }
     }
 
-    /// Your stickers, and the doodle pad above them.
+    /// Your stickers, and the doodle pad above them. **The app's sheet
+    /// layout** (`docs/ten.md` rule 3; the research, section 3, item 6): it
+    /// had no title and no way out but a swipe. "Stickers" in the middle,
+    /// Cancel on the left, and no right word: a tap on a sticker sends it.
     private var stickerSheet: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-            BlockMenuRow("Doodle", "scribble") {
-                choosingSticker = false
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    doodling = true
+        NavigationStack {
+            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                BlockMenuRow("Doodle", "scribble") {
+                    choosingSticker = false
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        doodling = true
+                    }
+                }
+                // A sticker just lifted stands chosen: one look, then a tap.
+                StickerPicker(current: newSticker, purpose: .drawing, onPick: { symbol in
+                    choosingSticker = false
+                    newSticker = nil
+                    sendSticker(symbol)
+                }, onNewSticker: {
+                    // The photos once this sheet has gone (`StickerMaking`).
+                    choosingSticker = false
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        makingSticker = true
+                    }
+                })
+            }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.top, GridConstants.gapItem)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background { WarmBackground().ignoresSafeArea() }
+            .sheetTitle("Stickers", drawn: false)
+            .toolbar {
+                BareToolbarItem(placement: .topBarLeading) {
+                    Button { choosingSticker = false } label: { Text("Cancel").sheetAction(.cancel) }
+                        .buttonStyle(.pressWord)
                 }
             }
-            StickerPicker(current: nil, purpose: .drawing, onPick: { symbol in
-                choosingSticker = false
-                sendSticker(symbol)
-            }, onNewSticker: {
-                // The photos once this sheet has gone (`StickerMaking`).
-                choosingSticker = false
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    makingSticker = true
-                }
-            })
         }
-        .padding(GridConstants.horizontalPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
     }

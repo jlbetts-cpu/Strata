@@ -175,10 +175,20 @@ struct ChatReactionTests {
         #expect(world.records(of: .reaction, in: crew.id).isEmpty)
     }
 
-    @Test("your own line takes no reaction from you, and a sticker needs photos allowed and the photo check")
+    /// **Your own line takes your reaction now** (the owner, 2026-10-13: a
+    /// hold on your own line offers "Reply, Heart, Copy, Delete", and a double
+    /// tap hearts "yours or a friend's"). This pinned the refusal; it pins the
+    /// heart instead, and that nobody is woken by it.
+    @Test("your own line takes your heart, and a sticker needs photos allowed and the photo check")
     func whoMayReact() async throws {
         let (a, b, crew, line) = try await pairWithALine()
-        #expect(await a.react(.emoji("🔥"), toMessage: line.messageID, in: crew.id) == .notAllowed)
+        a.sendsPings = true
+        #expect(await a.react(.emoji("❤️"), toMessage: line.messageID, in: crew.id) == .sent)
+        #expect(a.myReaction(toMessage: line.messageID, in: crew.id)?.emoji == "❤️")
+        #expect(world.pings.values.allSatisfy { $0[CrewPingRecord.kind] != CrewPingRecord.Kind.reaction.rawValue },
+                "a heart on your own line woke someone")
+        #expect(await a.react(.emoji("❤️"), toMessage: line.messageID, in: crew.id) == .sent)
+        #expect(a.myReaction(toMessage: line.messageID, in: crew.id) == nil, "the same heart again takes it back")
         #expect(await b.react(.emoji("🔥"), toMessage: UUID(), in: crew.id) == .notAllowed, "a line nobody can see")
         b.photosAllowed = { false }
         #expect(await b.react(.sticker(name: "sticker-aa11bb22.png", png: sticker()),

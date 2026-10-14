@@ -1176,6 +1176,8 @@ final class SocialStore {
                     && !blocked.contains(message.senderProfileID)
                     && (message.text.isEmpty || message.isStrip || CrewWords.isAcceptable(message.text))
                     && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? true)
+                    // A line of yours deleted a moment ago, while its Undo stands.
+                    && !deletingLines.contains(message.messageID)
             }
             .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
     }
@@ -1187,7 +1189,11 @@ final class SocialStore {
     func send(_ text: String, in crewID: CrewID, quoting winID: UUID? = nil) async -> ReplyOutcome {
         let words = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(CrewMessage.textLimit))
         guard canReply(), isEnabled(), let crew = crew(crewID), !words.isEmpty else { return .notAllowed }
-        if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }) { return .notAllowed }
+        // A win in this crew, or **one of today's lines** (Reply on a line,
+        // 2026-10-14): `quoteWinID` holds either, as a reaction's `winID`
+        // does, since a line's id is never a win's.
+        if let winID, !(winsByCrew[crewID] ?? []).contains(where: { $0.winID == winID }),
+           !messages(in: crewID).contains(where: { $0.messageID == winID }) { return .notAllowed }
         guard CrewWords.isAcceptable(words) else { return .refusedWords }
         if let held = paced(.message, in: crew) { return held }
         Analytics.shared.signal(.crewMessageSent)
@@ -1305,6 +1311,103 @@ final class SocialStore {
         // On your own win too, as a reply is.
         guard winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return .notAllowed }
         return await sendDoodle(png, in: crewID, quoting: winID)
+    }
+
+    // MARK: The chat's own lines
+
+    /// **A win, said in the chat** (the plus row's Win, the owner's
+    /// 2026-10-13 "a button in the chat's plus row must do its thing IN the
+    /// chat"). Add a Win opens over the chat, and once the win has reached
+    /// this crew a line quoting it lands under it: its title, its photo on
+    /// the bubble. An ordinary line on the record (`text` and `quoteWinID`),
+    /// so no new iCloud field; an older build sees "↪ Gym / Gym".
+    @discardableResult
+    func sendWinLine(_ winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID == me else { return .notAllowed }
+        return await send(CrewMessage.winLineText(win.title), in: crewID, quoting: winID)
+    }
+
+    /// Whether `message` is a win said in the chat (`sendWinLine`).
+    func isWinLine(_ message: CrewMessage) -> Bool {
+        guard let quote = message.quoteWinID else { return false }
+        return CrewMessage.isWinLine(text: message.text, sender: message.senderProfileID, sketch: message.sketch != nil,
+                                     quoting: winsByCrew[message.crewID]?.first(where: { $0.winID == quote }))
+    }
+
+    /// **Reply on a line**: a line that quotes one of today's, by its id in
+    /// `quoteWinID`. A line gone meanwhile (deleted, or the day ended) sends
+    /// the words as a plain line rather than refusing them.
+    @discardableResult
+    func send(_ text: String, in crewID: CrewID, answering lineID: UUID) async -> ReplyOutcome {
+        let there = messages(in: crewID).contains { $0.messageID == lineID }
+        return await send(text, in: crewID, quoting: there ? lineID : nil)
+    }
+
+    /// Lines of yours deleted a moment ago: off every screen on this phone
+    /// while "Line deleted · Undo" stands, and only then taken out of the
+    /// crew's chat (`deleteLine`). Undo puts one back (`keepLine`).
+    private(set) var deletingLines: Set<UUID> = []
+
+    /// Whether a line of yours may be deleted. **Not a plan's line**: his
+    /// rule is that a plan's line never leaves the chat (2026-10-13); the
+    /// research's question 5 on it is his to answer.
+    func canDelete(_ message: CrewMessage) -> Bool {
+        message.senderProfileID == me && message.groupPlan == nil && !message.isToss
+    }
+
+    /// The first half of Delete: the line leaves the screen at once.
+    func holdBack(line id: UUID) {
+        deletingLines.insert(id)
+    }
+
+    /// Undo: it comes back as it was.
+    func keepLine(_ id: UUID) {
+        deletingLines.remove(id)
+    }
+
+    /// **Delete on your own line** (M2, the owner's 2026-10-13 hold menu):
+    /// out of everyone's chat with nothing left in its place, its doodle or
+    /// picture with it. Only the writer's phone may delete a record, which is
+    /// why only your own lines offer it. Your reaction to it, if any, goes
+    /// at the next prune as an orphan's does.
+    func deleteLine(_ id: UUID, in crewID: CrewID) async {
+        deletingLines.remove(id)
+        guard var list = messagesByCrew[crewID], let i = list.firstIndex(where: { $0.messageID == id }),
+              canDelete(list[i]) else { return }
+        let message = list.remove(at: i)
+        messagesByCrew[crewID] = list
+        if let sketch = message.sketch { try? FileManager.default.removeItem(at: sketch) }
+        // A line still waiting to go is replaced by its delete (`put`), so a
+        // line deleted offline never reaches anyone.
+        enqueue(.init(crew: crewID, type: .message, name: CrewRecords.name(of: message), fields: nil))
+        nudgeLive()
+        await flush()
+    }
+
+    /// **A line of yours that has not gone** (M1): still in the outbox, a
+    /// while after it was written. A line goes in well under a second on any
+    /// signal, so ten seconds is a line that is stuck, not one on its way.
+    func isUnsent(_ message: CrewMessage, now: Date) -> Bool {
+        _ = outboxRevision
+        guard message.senderProfileID == me,
+              now.timeIntervalSince(message.createdAt) >= CrewMessage.unsentAfter else { return false }
+        return outbox.entries.contains {
+            $0.crew == message.crewID && $0.type == .message && $0.name == CrewRecords.name(of: message) && $0.fields != nil
+        }
+    }
+
+    /// Try Again on a line that did not go: its write, asked for once more,
+    /// whatever wait an earlier failure set. A write the outbox gave up on is
+    /// put back.
+    func retry(_ message: CrewMessage) async {
+        guard message.senderProfileID == me,
+              messagesByCrew[message.crewID]?.contains(where: { $0.messageID == message.messageID }) == true else { return }
+        enqueue(.init(crew: message.crewID, type: .message, name: CrewRecords.name(of: message),
+                      fields: CrewRecords.fields(message)))
+        retryAfter = .distantPast
+        nudgeLive()
+        await flush()
     }
 
     /// Whether a friend has said something in the crew's chat today that you
@@ -1503,9 +1606,12 @@ final class SocialStore {
     /// as a win's reactions are.
     @discardableResult
     func react(_ pick: Reaction.Pick, toMessage messageID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        // **Your own line takes your heart too** (the owner, 2026-10-13: a
+        // hold on your own line offers "Reply, Heart, Copy, Delete", and a
+        // double tap hearts "yours or a friend's"). It was refused, as your
+        // own win once was. Nobody is told: a line's reaction pings no one.
         guard isEnabled(), let crew = crew(crewID),
-              let line = messages(in: crewID).first(where: { $0.messageID == messageID }),
-              line.senderProfileID != me else { return .notAllowed }
+              messages(in: crewID).contains(where: { $0.messageID == messageID }) else { return .notAllowed }
         let name = Reaction.name(winID: messageID, profileID: me)
         let mark = pick.mark
         guard !mark.isEmpty else { return .notAllowed }
@@ -2371,6 +2477,12 @@ final class SocialStore {
         let text = fields["text"]?.string ?? ""
         guard text != CrewMessage.tossMarker else { return }
         guard let made = fields["createdAt"]?.date, now().timeIntervalSince(made) < 3600 else { return }
+        // **A win said in the chat rings nothing** (2026-10-14): the win
+        // itself already told the crew (`pingIfNew`, `.sharedWin`), and the
+        // line that quotes it is the same news a second time.
+        if let quote = fields["quoteWinID"]?.uuid,
+           CrewMessage.isWinLine(text: text, sender: me, sketch: fields["sketch"] != nil,
+                                 quoting: winsByCrew[crewID]?.first(where: { $0.winID == quote })) { return }
         let isStrip = text == CrewMessage.stripMarker
         if !isStrip, let last = lastMessagePing[crewID], now().timeIntervalSince(last) < Self.messagePingGap { return }
         lastMessagePing[crewID] = now()
