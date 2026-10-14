@@ -176,7 +176,7 @@ struct GoalRingStroke: View {
         ZStack {
             ForEach(0..<segments, id: \.self) { i in
                 let span = 1.0 / Double(segments)
-                Circle()
+                DoodleRing()
                     .trim(from: Double(i) * span + Self.gap, to: Double(i + 1) * span - Self.gap)
                     .stroke(i < wins ? AppColors.inkPrimary : AppColors.inkPrimary.opacity(0.08),
                             style: StrokeStyle(lineWidth: line, lineCap: .round))
@@ -187,6 +187,50 @@ struct GoalRingStroke: View {
         .accessibilityHidden(true)
     }
 
+}
+
+/// **The ring as his pen draws one** (the owner, 2026-10-13: he picked "The
+/// goal ring round my head" drawn in his doodle style; "finish the
+/// recommended making sure the aesthetic is perfect and clean").
+///
+/// The same hand as `DoodleDot`, the one dot for "something new": round, a
+/// touch fuller on one side, its edge never quite a circle. Two slow
+/// ripples round the rim and a hair less tall than wide, **fixed**, so every
+/// ring in the app is the same mark and nothing shimmers. Gentler than the
+/// dot's, because a ring is a line, not a fill: the dot's 6% would read as a
+/// wobble on a 52pt ring, where 2% reads as a hand. At the crest that is
+/// about half a point either side of true. A slight variation, not a
+/// scribble.
+///
+/// Begins at three o'clock and runs clockwise, as `Circle` does, so a
+/// segment trimmed from it lands where the circle's did and the ring's
+/// `rotationEffect(-90)` still puts the first segment at the top.
+struct DoodleRing: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let r = min(rect.width, rect.height) / 2
+        for i in 0...Self.steps {
+            let t = Double(i) / Double(Self.steps) * 2 * .pi
+            let k = Self.radiusShare(at: t)
+            let p = CGPoint(x: c.x + cos(t) * r * k, y: c.y + sin(t) * r * k * Self.squash)
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        return path
+    }
+
+    /// Enough points that no corner shows under a 2.6pt round pen even on
+    /// the moment's 220pt ring: 1.7pt apart at the crest, 5.8 at full size.
+    static let steps = 120
+    /// A hair less tall than wide, as the dot is (0.97 there).
+    static let squash = 0.99
+
+    /// **The radius at angle `t`, as a share of the frame's**: within the
+    /// frame at its widest (the ripples only take away, as the dot's do),
+    /// and back where it began at a full turn, so the line closes on itself.
+    nonisolated static func radiusShare(at t: Double) -> Double {
+        0.98 + 0.014 * sin(2 * t + 0.7) + 0.006 * sin(3 * t + 2.1)
+    }
 }
 
 /// **The caption under a tower's middle**: a crew's name, or the goal's
@@ -243,13 +287,25 @@ struct GoalCrest: View {
     @State private var swell = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let line: CGFloat = 4
+    /// **His pen's weight** (2026-10-14, the doodle ring): about 2.6pt,
+    /// the line `skeleton.py` was settled at (2026-10-07: 2.3 "too thin",
+    /// 4.0 "a bit too thick") and beside `InkPen.width` 2.5. It was 4, a
+    /// system weight; a hand-drawn ring at 4 reads as a marker, not a pen.
+    static let line: CGFloat = 2.6
+    /// From the crest's edge to the middle of the ring's line: where the 4pt
+    /// ring's middle was, so the thinner pen sits on the same circle and
+    /// neither the face nor the glass round it moves.
+    static let ringInset: CGFloat = 4
+    /// From the crest's edge to the face: the ring, and a little glass
+    /// between it and you. Kept at the 10 the 4pt ring left, so the face is
+    /// the size it was.
+    static let faceInset: CGFloat = 10
 
-    /// The face inside a crest of `side`: the ring and a little glass round
-    /// it. One sum for the crest, its trip (`GoalRingMomentLayer`) and the
-    /// head's flight in and out (`CompanionParking.crestHeadSide`).
-    static func faceSide(crest side: CGFloat, line: CGFloat = line) -> CGFloat {
-        side - 2 * (line + 6)
+    /// The face inside a crest of `side`. A share of the side, so the crest,
+    /// its trip (`GoalRingMomentLayer`) and the head's flight in and out
+    /// (`CompanionParking.crestHeadSide`) agree at any size.
+    static func faceSide(crest side: CGFloat) -> CGFloat {
+        side * (1 - 2 * faceInset / 60)
     }
 
     /// The caption under the ring and its 44pt target: how far below the
@@ -281,7 +337,7 @@ struct GoalCrest: View {
             Button { pressFace() } label: {
                 ZStack {
                     GoalRingStroke(wins: shown, goal: goal, line: Self.line)
-                        .padding(Self.line / 2 + 2)
+                        .padding(Self.ringInset)
                     CrestFace(side: Self.faceSide(crest: side), headIsOut: Self.headIsOut)
                 }
                 .frame(width: side, height: side)
@@ -305,7 +361,7 @@ struct GoalCrest: View {
                         // was the crest's whole size and hid the ring).
                         ZStack {
                             Circle().fill(WarmBackground.top)
-                                .padding(Self.line + 6)
+                                .padding(Self.faceInset)
                             Image("MarkCheck")
                                 .renderingMode(.template)
                                 .resizable()

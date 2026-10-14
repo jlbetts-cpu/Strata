@@ -125,11 +125,11 @@ final class CompanionParking {
         HapticsEngine.success()
     }
 
-    /// His height in the crest, crown to chin, for a crest of `side` with a
-    /// ring of `line`: the face `GoalCrest` hands `CrestFace`, times the
-    /// share a face gives its head (`ProfileAvatar.headShare`).
-    static func crestHeadSide(crest side: CGFloat, line: CGFloat = GoalCrest.line) -> CGFloat {
-        GoalCrest.faceSide(crest: side, line: line) * ProfileAvatar.headShare
+    /// His height in the crest, crown to chin, for a crest of `side`: the
+    /// face `GoalCrest` hands `CrestFace`, times the share a face gives its
+    /// head (`ProfileAvatar.headShare`).
+    static func crestHeadSide(crest side: CGFloat) -> CGFloat {
+        GoalCrest.faceSide(crest: side) * ProfileAvatar.headShare
     }
 
     /// Whether the bubble is on screen at all.

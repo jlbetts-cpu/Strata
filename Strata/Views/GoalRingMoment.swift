@@ -189,17 +189,18 @@ private struct RingSweep: View {
                 let span = 1.0 / Double(segments)
                 let start = Double(i) * span + Self.gap
                 let end = Double(i + 1) * span - Self.gap
-                // The track, under everything.
-                Circle()
+                // The track, under everything. The same drawn ring as at
+                // home (`DoodleRing`), so it does not turn true on the trip.
+                DoodleRing()
                     .trim(from: start, to: end)
                     .stroke(AppColors.inkPrimary.opacity(0.08), style: StrokeStyle(lineWidth: line, lineCap: .round))
                 if i < from {
-                    Circle()
+                    DoodleRing()
                         .trim(from: start, to: end)
                         .stroke(AppColors.inkPrimary, style: StrokeStyle(lineWidth: line, lineCap: .round))
                 } else if i < to {
                     // What this win earned, drawn round.
-                    Circle()
+                    DoodleRing()
                         .trim(from: start, to: start + (end - start) * progress)
                         .stroke(AppColors.inkPrimary, style: StrokeStyle(lineWidth: line, lineCap: .round))
                         .opacity(progress > 0 ? 1 : 0)
@@ -241,14 +242,15 @@ struct GoalRingMomentLayer: View {
     /// The crest at `side`: the glass, the ring, the face or the check, and
     /// the fraction under it once it has grown.
     private func crest(side: CGFloat, big: CGFloat) -> some View {
-        // Everything is a share of the side, so it is one object at any size.
-        let line = max(4, side * 4 / 60)
+        // Everything is a share of the side, so it is one object at any size:
+        // his pen's line and the ring's place, as at home (`GoalCrest`).
+        let line = side * GoalCrest.line / 60
         return ZStack {
             RingSweep(from: moment.from, to: moment.to, goal: moment.goal, line: line,
                       progress: moment.filled ? 1 : 0)
-                .padding(line / 2 + side * 2 / 60)
+                .padding(side * GoalCrest.ringInset / 60)
             ZStack {
-                CrestFace(side: side - 2 * (line + side * 6 / 60), headIsOut: GoalCrest.headIsOut)
+                CrestFace(side: GoalCrest.faceSide(crest: side), headIsOut: GoalCrest.headIsOut)
                     .opacity(moment.filled ? 0 : 1)
                     .scaleEffect(moment.filled ? 0.86 : 1)
                 // His drawn check, in ink: done.
