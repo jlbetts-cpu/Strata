@@ -127,6 +127,12 @@ struct GroupPlanSheet: View {
 
     private var words: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// The crew chosen in the row, as it changes; the given name otherwise.
+    private var shownName: String {
+        let store = SocialStore.shared
+        return crews?.wrappedValue.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? crewName
+    }
+
     private var when: Choice? {
         switch scope {
         case .repeating: days.isEmpty ? nil : .weekdays(days.sorted())
@@ -162,7 +168,7 @@ struct GroupPlanSheet: View {
             }
             .padding(.top, GridConstants.gapItem)
             .background { WarmBackground().ignoresSafeArea() }
-            .sheetTitle("Plan with \(crewName)", drawn: false)
+            .sheetTitle("Plan with \(shownName)", drawn: false)
             .toolbar {
                 BareToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }

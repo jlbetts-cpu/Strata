@@ -130,11 +130,7 @@ struct CrewsListView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         HapticsEngine.lightTap()
-                        if planCrews.isEmpty || !planCrews.isSubset(of: Set(store.crews.map(\.id))) {
-                            // The top row's crew: the one with the newest news.
-                            planCrews = store.crews.max { (store.activity(in: $0.id)?.date ?? .distantPast)
-                                < (store.activity(in: $1.id)?.date ?? .distantPast) }.map { [$0.id] } ?? []
-                        }
+                        choosePlanCrew()
                         planning = true
                     } label: {
                         Image(systemName: "checklist").sheetAction(.confirm, as: .glyph)
@@ -152,6 +148,11 @@ struct CrewsListView: View {
                 .accessibilityLabel(CrewLine.newCrew)
             } }
         }
+        // Chosen before the press, so the sheet's title has its crew from
+        // the first frame (it read "Plan with a Crew" while Run Club stood
+        // ticked under it).
+        .onAppear(perform: choosePlanCrew)
+        .onChange(of: store.crews.map(\.id)) { _, _ in choosePlanCrew() }
         .sheet(isPresented: $planning) {
             GroupPlanSheet(crewName: planCrews.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? "a Crew",
                            title: $planDraft, crews: $planCrews) { title, choice in
@@ -391,6 +392,14 @@ struct CrewsListView: View {
     /// The one New Crew sheet, or why not at the cap.
     private func newCrew() {
         if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
+    }
+
+    /// The top row's crew (the one with the newest news) unless one is
+    /// already chosen and still yours.
+    private func choosePlanCrew() {
+        guard planCrews.isEmpty || !planCrews.isSubset(of: Set(store.crews.map(\.id))) else { return }
+        planCrews = store.crews.max { (store.activity(in: $0.id)?.date ?? .distantPast)
+            < (store.activity(in: $1.id)?.date ?? .distantPast) }.map { [$0.id] } ?? []
     }
 
     /// The chat's own plan (`CrewChatSheet.propose`): counted from the

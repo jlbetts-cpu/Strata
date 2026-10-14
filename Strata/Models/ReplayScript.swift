@@ -65,7 +65,13 @@ struct ReplayScript {
                                closeTop: baseY + GridConstants.gapWide)
             }
             let air = GridConstants.gapWide
-            let bottom = max(bottomInset + GridConstants.gapWide, GridConstants.gapSection)
+            // **Where the system puts its own controls** (the owner,
+            // 2026-10-14: "for the recap too like the buttons are up too high
+            // if the tabs arent there"). The home indicator's band plus a full
+            // gap stood them 58pt off the bottom, room for a tab bar this
+            // screen does not have; they sit as every bar does now
+            // (`GridConstants.barSink`), about 25pt off.
+            let bottom = max(bottomInset + GridConstants.gapTight - GridConstants.barSink, GridConstants.gapWide)
             let closeTop = (frame.height - bottom - controlsHeight).rounded()
             let baseY = controlsHeight > 0 ? closeTop - air : closeTop
             let fitTopY = (topInset + topCopy + air).rounded()

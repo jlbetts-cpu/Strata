@@ -545,8 +545,12 @@ struct ReplayScriptTests {
         let copy: CGFloat = 76
         let m = ReplayScript.Metrics.standard(frame: size, topInset: top, topCopy: copy, bottomInset: bottom, controlsHeight: 44)
         let air = GridConstants.gapWide
-        // The controls sit on the bottom margin, not hung from the tower.
-        #expect(abs(size.height - (m.closeTop + 44) - max(bottom + GridConstants.gapWide, GridConstants.gapSection)) < 0.001)
+        // The controls sit on the bottom margin, not hung from the tower:
+        // where the system's own controls stand since 2026-10-14 (the owner:
+        // "the buttons are up too high if the tabs arent there"), the shared
+        // bar sink, and a gapWide floor on a phone with no home indicator.
+        let margin = max(bottom + GridConstants.gapTight - GridConstants.barSink, GridConstants.gapWide)
+        #expect(abs(size.height - (m.closeTop + 44) - margin) < 0.001)
         // The same air above the finished tower as below it.
         #expect(abs(m.closeTop - m.baseY - air) < 0.001)
         #expect(abs(m.fitTopY - (top + copy) - air) < 0.001)

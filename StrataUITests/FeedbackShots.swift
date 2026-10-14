@@ -1260,6 +1260,39 @@ final class FeedbackShots: XCTestCase {
         snap("ep-2-photo-menu")
     }
 
+    /// **Full-screen pages' bottom controls, and the Crews list's Plan**
+    /// (the owner, 2026-10-14: "the buttons are up too high if the tabs
+    /// arent there").
+    func testFullScreenBottoms() {
+        let runs: [(String, [String], Double)] = [
+            ("fs-1-replay", ["-strataStartTab", "memories", "-strataSeedHistory", "14", "-strataOpenReplay", "sampleWeek", "-strataReplayAt", "30"], 10),
+            ("fs-2-photo", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo", "-strataOpenPhoto", "0"], 9),
+            ("fs-3-booth", ["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo", "-strataOpenSheet", "booth"], 10),
+            ("fs-4-maker", ["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataOpenHeadMaker", "denied"], 9),
+            ("fs-5-onboarding", ["-strataShowOnboarding", "1", "-strataOnboardingStep", "2"], 9),
+        ]
+        for (name, args, delay) in runs {
+            let app = launch(args)
+            wait(delay); snap(name)
+            app.terminate()
+        }
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])
+        wait(8); snap("fs-6-crews-plan-corner")
+        let plan = app.buttons["Plan"].firstMatch
+        if plan.exists { plan.tap(); wait(2.5) }
+        snap("fs-7-crews-plan-sheet")
+    }
+
+    func testCrewsPlanCorner() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])
+        wait(8)
+        app.buttons["Plan"].firstMatch.tap(); wait(2.5)
+        snap("plan-corner-sheet")
+        let other = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if other.exists { other.tap(); wait(1) }
+        snap("plan-corner-switched")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
