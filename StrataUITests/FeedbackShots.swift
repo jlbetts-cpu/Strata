@@ -480,6 +480,19 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **A crew's photo grows out of its block** (the motion pass,
+    /// 2026-10-14), for a recording.
+    func testCrewPhotoZoom() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataCrewFaces", "none"])
+        wait(9)
+        let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Morning run'")).firstMatch
+        if block.exists { block.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)).tap() }
+        wait(3); snap("zoom-open")
+        app.buttons["Close photo"].firstMatch.tap()
+        wait(2); snap("zoom-closed")
+    }
+
     /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
     /// to react reply should pop up as an option and the chat should pop up").
     func testReplyFromHold() {

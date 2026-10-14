@@ -75,8 +75,8 @@ struct CrewDayView: View {
                         },
                         reactions: { photo in
                             guard let id = UUID(uuidString: photo.id) else { return AnyView(EmptyView()) }
-                            return AnyView(CrewReactionsPanel(winID: id, crewID: crew.id,
-                                                              mine: photo.byline == nil, onDark: true))
+                            return AnyView(CrewPhotoReactions(winID: id, crewID: crew.id,
+                                                              mine: photo.byline == nil))
                         })
         }
         .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: crew.id) }

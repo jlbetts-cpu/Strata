@@ -934,14 +934,20 @@ struct CrewTowerView: View {
     }
 }
 
-/// Over a crew photograph in the viewer: `CrewReactionsPanel`, on the dark.
-private struct CrewPhotoReactions: View {
+/// Over a crew photograph in the viewer: `CrewReactionsPanel`, in the
+/// viewer's own appearance. It was always on the dark while the viewer was
+/// always black; the viewer is the page at rest now (2026-10-14), and on a
+/// light one the button's mark stayed white (the owner: "the reaction button
+/// doesnt seem to be switching to light mode like the icon isnt becoming
+/// ink").
+struct CrewPhotoReactions: View {
     let winID: UUID
     let crewID: CrewID
     let mine: Bool
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        CrewReactionsPanel(winID: winID, crewID: crewID, mine: mine, onDark: true)
+        CrewReactionsPanel(winID: winID, crewID: crewID, mine: mine, onDark: scheme == .dark)
     }
 }
 
