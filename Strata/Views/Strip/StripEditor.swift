@@ -209,6 +209,7 @@ struct StripEditor: View {
                     }
                 }
             }
+            .edgeFade()
             // The paper moved to the booth's one colour button.
             HStack(spacing: GridConstants.gapLabel) {
                 if strip.candidates.count > PhotoStrip.most {

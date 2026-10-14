@@ -62,7 +62,11 @@ struct CropEditor: View {
     static let step: CGFloat = 0.25
     /// How tall the line of words under the photo is, measured, so the box
     /// sits in the middle of what is left.
-    @State private var hintHeight: CGFloat = 0
+    /// Starts at the line's own height (its 6pt padding, `headerSmall`, and
+    /// `gapItem` above and below), so the box is where it belongs on the first
+    /// frame: from 0 it jumped up and grew a frame after the sheet opened
+    /// (seen frame by frame, 2026-10-14). The measure still has the last word.
+    @State private var hintHeight: CGFloat = 57
 
     var body: some View {
         NavigationStack {

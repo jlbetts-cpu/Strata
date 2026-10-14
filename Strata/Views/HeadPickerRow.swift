@@ -87,6 +87,7 @@ struct HeadPickerRow: View {
             }
             .padding(.vertical, GridConstants.gapTight)
         }
+        .edgeFade()
     }
 
     private func tile(_ entry: HeadStore.Entry) -> some View {

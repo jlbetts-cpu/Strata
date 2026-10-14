@@ -193,6 +193,17 @@ struct PhotoViewer: View {
                         Filmstrip(photos: photos, position: position,
                                   currentID: currentID, select: select)
                             .frame(height: Self.stripHeight)
+                            // Soft where it runs off the screen's sides, as
+                            // Photos' strip is (the owner, 2026-10-14: "a
+                            // little fade when it gets to the margin").
+                            .mask {
+                                LinearGradient(stops: [.init(color: .clear, location: 0),
+                                                       .init(color: .black, location: 0.12),
+                                                       .init(color: .black, location: 0.88),
+                                                       .init(color: .clear, location: 1)],
+                                               startPoint: .leading, endPoint: .trailing)
+                                    .padding(.vertical, -20)
+                            }
                             .viewerChrome(hidden: immersive)
                     }
 

@@ -49,6 +49,7 @@ struct CrewWithRow: View {
                         }
                     }
                 }
+                .edgeFade()
                 .scrollClipDisabled()
                 }
                 Text("They'll be asked if they want to keep it too.")

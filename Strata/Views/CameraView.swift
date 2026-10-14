@@ -207,43 +207,34 @@ struct CameraView: View {
     private let shutterBottomGap: CGFloat = 40
 
 
-    /// **The picture the lens sees, under the system's soft edge at the tab
-    /// bar** (the owner, 2026-10-14: "add the blur to the camera tab at the
-    /// bottom like it is in all the other tabs"). The other tabs get it from
-    /// their scroll views; the live picture ran hard against the bar, and
-    /// over a bright scene the bar's white words were lost on light glass.
-    /// The edge belongs to a scroll view, so the lens is in one, held still,
-    /// as Move Photo holds its photograph (`CropEditor`).
+    /// **The picture the lens sees.** It sat in a held-still scroll view for
+    /// the system's soft edge under the tab bar (2026-10-14); once every
+    /// camera stopped above its own band the edge had nothing to soften, and
+    /// the scroll view under the review was slowing its buttons' presses
+    /// (walked: the Looks press landed seconds late). Gone again.
     private func lens(w: CGFloat, h: CGFloat) -> some View {
-        ScrollView {
-            ZStack {
-                CameraPreview(session: camera.session, box: previewBox, camera: camera)
-                #if DEBUG
-                // `-strataFakeLens`: a video where the lens would be, so the
-                // camera can be filmed in the simulator (`FakeLens`).
-                if let lens = FakeLens.shared {
-                    FakeLensView(lens: lens)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-                #endif
-                // **The front camera, touched, live** (`LiveRetouch`). Over
-                // the plain preview, which stays underneath for focus and
-                // exposure taps and shows until the first touched frame is
-                // drawn, so flipping never flashes black.
-                if (camera.facing == .front && !camera.isDenied) || Self.debugRetouchStill {
-                    RetouchPreview(retouch: camera.retouch)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+        ZStack {
+            CameraPreview(session: camera.session, box: previewBox, camera: camera)
+            #if DEBUG
+            // `-strataFakeLens`: a video where the lens would be, so the
+            // camera can be filmed in the simulator (`FakeLens`).
+            if let lens = FakeLens.shared {
+                FakeLensView(lens: lens)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
-            .frame(width: w, height: h)
+            #endif
+            // **The front camera, touched, live** (`LiveRetouch`). Over
+            // the plain preview, which stays underneath for focus and
+            // exposure taps and shows until the first touched frame is
+            // drawn, so flipping never flashes black.
+            if (camera.facing == .front && !camera.isDenied) || Self.debugRetouchStill {
+                RetouchPreview(retouch: camera.retouch)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
-        .scrollDisabled(true)
-        .scrollIndicators(.hidden)
-        .contentMargins(0, for: .scrollContent)
-        .ignoresSafeArea()
-        .softScrollEdge(fillsScreen ? .bottom : [])
+        .frame(width: w, height: h)
     }
 
     /// Whether the arrival dissolve has finished. See the overlay on the body.
@@ -957,14 +948,20 @@ struct CameraView: View {
                         // under the darker panel below, 0.75 white lands at
                         // 5.83:1 and the lit word at 8.1:1, so the two are
                         // still plainly different and both are readable.
+                        // On the review's own scheme (2026-10-14): ink on
+                        // the light glass of a light review, where white
+                        // washed out over a bright photograph.
                         .foregroundStyle(option == drawnSize
-                                         ? AppColors.onDarkStrong : AppColors.onDarkSecondary)
+                                         ? AppColors.cameraStrong(reviewScheme) : AppColors.cameraSecondary(reviewScheme))
                         // The app's named treatment for light type over
                         // imagery it does not control. The panel carries most
                         // of it; this is what holds the words up over a
                         // blown-out sky, where a translucent material is at
                         // its lightest.
-                        .legibleOnImagery()
+                        // A dark halo holds white words up over a sky; under
+                        // ink on light glass it would only smudge them.
+                        .shadow(color: .black.opacity(reviewIsLight ? 0 : Legibility.ink),
+                                radius: Legibility.radius, x: 0, y: Legibility.y)
                         .padding(.horizontal, GridConstants.gapItem)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())

@@ -123,6 +123,7 @@ struct PlanScopeRow: View {
                     }
                     .padding(.horizontal, margin)
                 }
+                .edgeFade()
                 .moreToTheRight()
                 // **Opened on the chosen day.** A line set for Saturday
                 // opened its sheet with the row at Today and nothing on it
@@ -319,6 +320,7 @@ struct WhenRow: View {
                     }
                     .padding(.trailing, GridConstants.gapWide)
                 }
+                .edgeFade()
                 .moreToTheRight()
                 .transition(.opacity)
             } else {

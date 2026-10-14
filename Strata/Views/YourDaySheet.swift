@@ -168,6 +168,7 @@ struct YourDaySheet: View {
                 }
             }
         }
+        .edgeFade()
     }
 
     /// "Today", or "Mon".

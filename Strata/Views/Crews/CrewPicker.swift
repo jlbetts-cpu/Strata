@@ -42,6 +42,7 @@ struct CrewPicker: View {
                     }
                     .padding(.horizontal, onDark ? GridConstants.gapWide : 0)
                 }
+                .edgeFade()
                 .scrollClipDisabled(!endsAtEdge)
                 .mask {
                     if endsAtEdge {

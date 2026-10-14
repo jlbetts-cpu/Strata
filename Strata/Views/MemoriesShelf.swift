@@ -175,6 +175,7 @@ struct MemoriesShelf: View {
             .scrollTargetLayout()
             .padding(.horizontal, GridConstants.horizontalPadding)
         }
+        .edgeFade()
         .scrollTargetBehavior(.viewAligned)
     }
 

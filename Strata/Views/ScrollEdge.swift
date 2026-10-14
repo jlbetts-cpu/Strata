@@ -79,6 +79,50 @@ extension View {
             self
         }
     }
+
+    /// **A sideways row fades where it runs on past the margin** (the owner,
+    /// 2026-10-14: "there should be a little fade when it gets to the margin
+    /// apple does this ... adding that throughout the app would add a more
+    /// premium polish"). Only on a side with more to scroll to: at the start
+    /// of a row its leading edge is crisp, mid-row both sides soften, at the
+    /// end the trailing edge is crisp again. Apply it to the SCROLL VIEW.
+    func edgeFade(_ length: CGFloat = GridConstants.gapWide) -> some View {
+        modifier(EdgeFade(length: length))
+    }
+}
+
+private struct EdgeFade: ViewModifier {
+    let length: CGFloat
+    @State private var leading = false
+    @State private var trailing = false
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: [Bool].self) { geo in
+                let x = geo.contentOffset.x + geo.contentInsets.leading
+                return [x > 1, x + geo.containerSize.width < geo.contentSize.width + geo.contentInsets.leading + geo.contentInsets.trailing - 1]
+            } action: { _, now in
+                leading = now[0]
+                trailing = now[1]
+            }
+            .mask {
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [.black.opacity(leading ? 0 : 1), .black],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: length)
+                    Rectangle()
+                    LinearGradient(colors: [.black, .black.opacity(trailing ? 0 : 1)],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: length)
+                }
+                // Past the row above and below: several rows draw outside
+                // their bounds on purpose (`scrollClipDisabled`), a press
+                // growing or a rim, and only the sides are this mask's job.
+                .padding(.vertical, -60)
+            }
+            .animation(GridConstants.crossFade, value: leading)
+            .animation(GridConstants.crossFade, value: trailing)
+    }
 }
 
 private struct PinnedBar<Bar: View, Below: View>: ViewModifier {

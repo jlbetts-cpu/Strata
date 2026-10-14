@@ -216,6 +216,7 @@ struct ReactorRow: View {
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)
             }
+            .edgeFade()
             .scrollClipDisabled()
         }
     }

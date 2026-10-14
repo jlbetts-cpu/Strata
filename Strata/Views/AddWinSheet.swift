@@ -751,6 +751,7 @@ struct AddWinSheet: View {
                     }
                 }
             }
+            .edgeFade()
             .scrollClipDisabled()
         }
     }
@@ -817,6 +818,7 @@ struct AddWinSheet: View {
             }
             .padding(.horizontal, GridConstants.gapTight)
         }
+        .edgeFade()
         // Clipped to the bar: a chip running past the glass looked loose.
         .clipShape(Capsule())
         .animation(GridConstants.crossFade, value: ideas.map(\.id))
@@ -996,6 +998,7 @@ struct AddWinSheet: View {
             }
             .scrollTargetLayout()
         }
+        .edgeFade()
         .scrollPosition(id: $stripPosition, anchor: .leading)
         // The block's height exactly, not whatever a short page leaves.
         .frame(height: well.size.height)
