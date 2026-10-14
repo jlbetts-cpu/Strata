@@ -437,6 +437,10 @@ enum GridConstants {
     static var drawerMove: Animation { calm(.smooth(duration: 0.36)) }
     /// The Crews drawing leaving on its one launch, for the lattice under it.
     static var drawingLeaves: Animation { calm(.easeOut(duration: 0.6)) }
+    /// The photo viewer going immersive and back: the ground darkening and
+    /// the controls leaving, one fade. Opacity only, so it is the same under
+    /// Reduce Motion.
+    static let immersiveFade = Animation.smooth(duration: 0.25)
     /// The drawer under the finger: tight, so it follows 1:1, and a spring,
     /// so the release spring takes over its speed (WWDC24, "Enhance your UI
     /// animations").

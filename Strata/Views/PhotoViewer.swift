@@ -98,6 +98,20 @@ struct PhotoViewer: View {
     /// True while the picture on screen is zoomed in. The deck stops paging
     /// then, or a pan across a magnified photo would flick to the next one.
     @State private var isZoomed = false
+    /// **The Photos state: the controls gone and the ground black** (the
+    /// owner, 2026-10-14: "look at what the photos app does it looks super
+    /// clean and proves that light and dark mode can exist when you zoom in
+    /// then everything disappears and it gets dark"). A tap toggles it,
+    /// zooming in enters it. Never while VoiceOver runs: the controls stay
+    /// reachable. `docs/photo-viewer-photos-app-2026-10-14.md`.
+    @State private var chromeHidden = false
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    private var immersive: Bool { chromeHidden && !voiceOver }
+
+    private func setChrome(hidden: Bool) {
+        guard hidden != chromeHidden else { return }
+        withAnimation(GridConstants.immersiveFade) { chromeHidden = hidden }
+    }
 
     private var current: GalleryPhoto? {
         if photos.indices.contains(currentIndex), photos[currentIndex].id == currentID {
@@ -131,7 +145,8 @@ struct PhotoViewer: View {
         #endif
         GeometryReader { geo in
             ZStack {
-                Color.black.ignoresSafeArea()
+                ViewerGround(immersive: immersive)
+                    .onTapGesture { setChrome(hidden: !chromeHidden) }
 
                 // **The deck reaches up behind the header.**
                 //
@@ -162,6 +177,7 @@ struct PhotoViewer: View {
                             if let reactions, let current {
                                 reactions(current)
                                     .padding(.bottom, 10)
+                                    .viewerChrome(hidden: immersive)
                             }
                         }
 
@@ -172,45 +188,29 @@ struct PhotoViewer: View {
                             // no place than on one with, and the place is a
                             // fact about the win rather than about the layout.
                             .frame(height: Self.dateHeight, alignment: .top)
+                            .viewerChrome(hidden: immersive)
 
                         Filmstrip(photos: photos, position: position,
                                   currentID: currentID, select: select)
                             .frame(height: Self.stripHeight)
+                            .viewerChrome(hidden: immersive)
                     }
 
                     header
                         .frame(height: Self.headerHeight)
+                        .viewerChrome(hidden: immersive)
                 }
                 .padding(.top, Self.topInset)
                 .padding(.bottom, Self.bottomInset)
             }
-            // **This screen is dark, and it has to say so.**
-            //
-            // The viewer paints its own black ground, but every token that
-            // resolves off `colorScheme` was still answering with its LIGHT
-            // value when the phone is in light mode, which is most of the
-            // time. Two of them are drawn here: `GlassIconButton`'s
-            // `.regular.interactive()` material under the close and the `⋯`,
-            // and `quietFill`, the slot a filmstrip card shows while its
-            // thumbnail decodes. Light glass under a hard `.white` glyph on a
-            // black field is the wrong way round, and a light `quietFill`
-            // (black at 0.06) over black is nothing at all, so a strip of
-            // cold cards read as holes rather than as pictures arriving.
-            //
-            // **This is already the app's answer**, not a new idea: the map's
-            // back button carries the same line, with the same reasoning in
-            // `MemoriesView`: "light in both appearances... it is floating
-            // over imagery". Two call sites of one component over the same
-            // kind of ground disagreed, and the one without it was on the
-            // darkest screen in the app.
-            //
-            // Scoped to the ZStack, not the view: the delete confirmation and
-            // the share sheet are presented OVER this screen rather than on
-            // it, and they belong to the system's appearance, not to ours.
-            .environment(\.colorScheme, .dark)
+            // **The page at rest, black when immersive** (2026-10-14). The
+            // scheme was forced dark here because the field was always black;
+            // at rest it is the page now, in the phone's own appearance, and
+            // when it is black every control has gone.
         }
         .ignoresSafeArea()
-        .statusBarHidden()
+        .statusBarHidden(immersive)
+        .persistentSystemOverlays(immersive ? .hidden : .automatic)
         // VoiceOver's two-finger scrub closes a full-screen cover everywhere
         // else in iOS (2026-10-02, design review). Without this the only way
         // out for a VoiceOver user was to find the close button.
@@ -358,7 +358,9 @@ struct PhotoViewer: View {
                               image: images[photo.fileName],
                               isCurrent: photo.id == currentID,
                               inset: Self.printInset,
-                              onZoomChanged: { isZoomed = $0 })
+                              onZoomChanged: { isZoomed = $0 },
+                              onTap: { setChrome(hidden: !chromeHidden) },
+                              onZoomIn: { setChrome(hidden: true) })
                         // The page is the full height so the whole of it
                         // swipes; the picture inside it starts below the
                         // header, which is what keeps the title in the black.
@@ -411,7 +413,7 @@ struct PhotoViewer: View {
         ZStack {
             Text(shown?.title ?? " ")
                 .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.onDarkStrong.opacity(shown?.title == nil ? 0 : 1))
+                .foregroundStyle(AppColors.inkPrimary.opacity(shown?.title == nil ? 0 : 1))
                 .animation(GridConstants.photoTitleFade, value: shown?.id)
                 .lineLimit(1)
                 // Shrinks before it truncates at a large text size, never
@@ -435,7 +437,7 @@ struct PhotoViewer: View {
                 // screen, is the one doing the work.
 
             HStack {
-                GlassIconButton(systemName: "xmark", tint: .white,
+                GlassIconButton(systemName: "xmark", onPage: true,
                                 accessibilityLabel: "Close photo", action: onClose)
                 Spacer(minLength: 0)
                 actionMenu
@@ -514,7 +516,7 @@ struct PhotoViewer: View {
                 }
             }
         } label: {
-            GlassIconLabel(systemName: "ellipsis", tint: .white)
+            GlassIconLabel(systemName: "ellipsis", tint: .primary, onPage: true)
         }
         .accessibilityLabel("Photo actions")
     }
@@ -543,10 +545,9 @@ struct PhotoViewer: View {
         VStack(spacing: 2) {
             Text(caption)
                 .font(Typography.screenSubtitle)
-                // The viewer is always dark, so the dark-ground ink, not a
-                // private white. Both lines share it, as in Photos: the
-                // smaller size and the pin already say which is secondary.
-                .foregroundStyle(AppColors.onDarkQuiet)
+                // The page's own second ink, light or dark (2026-10-14: the
+                // viewer follows the phone at rest). Both lines share it.
+                .foregroundStyle(AppColors.inkSecondary)
             if let place = placeLine {
                 // **Both lines of this caption are now `screenSubtitle`, 15
                 // Medium** (2026-10-01, the type pass). It was 13 Regular here
@@ -561,7 +562,7 @@ struct PhotoViewer: View {
                 // no longer describes this screen.
                 Label(place, systemImage: "mappin.and.ellipse")
                     .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.onDarkQuiet)
+                    .foregroundStyle(AppColors.inkSecondary)
                     .labelStyle(.titleAndIcon)
             }
         }
@@ -964,6 +965,11 @@ struct PhotoPage: View {
     /// How far the print sits in from the edge of its page.
     let inset: CGFloat
     var onZoomChanged: (Bool) -> Void = { _ in }
+    /// A single tap: the viewer's controls in or out, as Photos does.
+    var onTap: () -> Void = {}
+    /// As a pinch or a double tap starts going in, so the ground darkens with
+    /// the fingers rather than after them.
+    var onZoomIn: () -> Void = {}
 
     @State private var scale: CGFloat = 1
     @State private var committedScale: CGFloat = 1
@@ -979,7 +985,8 @@ struct PhotoPage: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            // Clear: the viewer's ground shows through (`ViewerGround`).
+            Color.clear
             if let colour = photo.block {
                 // A crew win with no photograph: its block, as the tower
                 // draws it, at the size of a print.
@@ -1051,7 +1058,8 @@ struct PhotoPage: View {
         // `.gesture(cond ? g : nil)` still installs one — the MODIFIER has to
         // be conditional, not the gesture. That is what `panWhenZoomed` does.
         .panWhenZoomed(zoomed ? pan : nil)
-        .gesture(doubleTap)
+        // The single tap waits for a second, as Photos' does.
+        .gesture(doubleTap.exclusively(before: TapGesture(count: 1).onEnded { onTap() }))
         .onChange(of: zoomed) { _, now in onZoomChanged(now) }
         .onChange(of: isCurrent) { _, now in
             // A page that scrolled away keeps its state in a `LazyHStack`.
@@ -1067,6 +1075,7 @@ struct PhotoPage: View {
         MagnifyGesture()
             .onChanged { value in
                 scale = min(committedScale * value.magnification, Self.maxScale)
+                if value.magnification > 1.02 { onZoomIn() }
             }
             .onEnded { _ in
                 if scale <= 1.01 {
@@ -1109,6 +1118,7 @@ struct PhotoPage: View {
                     scale = 1; offset = .zero
                 } else {
                     scale = Self.doubleTapScale; offset = .zero
+                    onZoomIn()
                 }
             }
             committedScale = scale
@@ -1220,5 +1230,32 @@ private extension View {
         } else {
             self
         }
+    }
+}
+
+/// **The photo viewer's ground: the page at rest, black when immersive**
+/// (the owner, 2026-10-14, after Photos). The page is held underneath and a
+/// black layer fades over it, so the two never composite to less than
+/// opaque mid-fade.
+struct ViewerGround: View {
+    let immersive: Bool
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            Color.black.opacity(immersive ? 1 : 0)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// The viewer's controls: gone, untouchable and unread while immersive.
+    /// Nothing slides or resizes, so the picture never moves.
+    func viewerChrome(hidden: Bool) -> some View {
+        opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
     }
 }

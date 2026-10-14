@@ -556,8 +556,12 @@ from one nobody has seen.** Neither is a leftover and neither is a bug.
   of those and each was defensible; together they made a photo grid that
   looked designed rather than like photographs. The titles moved onto the
   photograph in the viewer, which is where anybody actually reads one.
-- **A photo viewer FITS, and its caption is in the BLACK, not on the
-  picture** (2026-09-09, owner's call — it was on the picture for one build).
+- **A photo viewer FITS, and its caption is OFF the picture** (2026-09-09,
+  owner's call — it was on the picture for one build). The ground is the
+  page in the phone's own appearance at rest and goes black when a tap or a
+  zoom hides the controls, as Photos does (2026-10-14, the owner: "proves
+  that light and dark mode can exist when you zoom in then everything
+  disappears and it gets dark"; `ViewerGround`). It was black always.
   Use `aspectRatio(_:contentMode:)`, not `scaledToFit()`, wherever anything
   has to be measured against the picture: they look identical and are not —
   `scaledToFit` leaves the view filling its frame with the image drawn inside

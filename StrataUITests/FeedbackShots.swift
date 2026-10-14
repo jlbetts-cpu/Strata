@@ -567,6 +567,24 @@ final class FeedbackShots: XCTestCase {
         wait(0.6); snap("mem-5-tap-b")
     }
 
+    /// **The photo viewer as Photos does it** (the owner, 2026-10-14): the
+    /// page at rest, a tap and everything goes and the ground goes black, a
+    /// tap brings it back.
+    func testViewerImmersive() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedHistoryPerDay", "2",
+                          "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        app.swipeUp(velocity: .slow); wait(1)
+        // The first photograph under the Deep heading, where the slow swipe
+        // leaves it.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.16, dy: 0.34)).tap()
+        wait(2.5); snap("viewer-0-rest")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        wait(1.5); snap("viewer-1-immersive")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        wait(1.5); snap("viewer-2-back")
+    }
+
     /// **Memories split by size** (the owner, 2026-10-14: "keep the apple
     /// photos look while splitting it into sizes").
     func testMemoriesBySize() {

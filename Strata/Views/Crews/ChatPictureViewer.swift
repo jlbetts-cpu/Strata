@@ -30,6 +30,14 @@ struct ChatPictureViewer: View {
     @State private var saving = false
     @State private var saved = false
     @State private var saveFailed = false
+    /// The Photos state, as the photo viewer has it (`PhotoViewer.chromeHidden`).
+    @State private var chromeHidden = false
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    private var immersive: Bool { chromeHidden && !voiceOver }
+    private func setChrome(hidden: Bool) {
+        guard hidden != chromeHidden else { return }
+        withAnimation(GridConstants.immersiveFade) { chromeHidden = hidden }
+    }
 
     /// How far a drag down goes before it closes.
     private static let closeAfter: CGFloat = 120
@@ -43,25 +51,30 @@ struct ChatPictureViewer: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // The page at rest, black when immersive (2026-10-14).
+            ViewerGround(immersive: immersive)
+                .onTapGesture { setChrome(hidden: !chromeHidden) }
             VStack(spacing: 0) {
                 PhotoPage(photo: photo, image: image, isCurrent: true,
                           inset: GridConstants.horizontalPadding,
-                          onZoomChanged: { zoomed = $0 })
+                          onZoomChanged: { zoomed = $0 },
+                          onTap: { setChrome(hidden: !chromeHidden) },
+                          onZoomIn: { setChrome(hidden: true) })
                     .padding(.top, Self.topInset + GlassIconButton.defaultSide)
                     .offset(y: drop)
                     .opacity(1 - min(Double(drop / (Self.closeAfter * 3)), 0.5))
                 Text("\(sender), \(ChatTimes.words(message.createdAt))")
                     .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.onDarkQuiet)
+                    .foregroundStyle(AppColors.inkSecondary)
                     .lineLimit(1)
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .frame(height: Self.footHeight, alignment: .top)
                     .padding(.bottom, GridConstants.gapSection)
+                    .viewerChrome(hidden: immersive)
             }
             VStack {
                 HStack {
-                    GlassIconButton(systemName: "xmark", tint: .white,
+                    GlassIconButton(systemName: "xmark", onPage: true,
                                     accessibilityLabel: "Close photo", action: onClose)
                     Spacer(minLength: 0)
                     menu
@@ -70,12 +83,11 @@ struct ChatPictureViewer: View {
                 .padding(.top, Self.topInset)
                 Spacer(minLength: 0)
             }
-            // The viewer is dark in both appearances, as the photo viewer
-            // is, so its glass and inks answer to the black under them.
-            .environment(\.colorScheme, .dark)
+            .viewerChrome(hidden: immersive)
         }
         .ignoresSafeArea()
-        .statusBarHidden()
+        .statusBarHidden(immersive)
+        .persistentSystemOverlays(immersive ? .hidden : .automatic)
         .gesture(DragGesture(minimumDistance: 20)
             .onChanged { value in drop = max(0, value.translation.height) }
             .onEnded { value in
@@ -116,7 +128,7 @@ struct ChatPictureViewer: View {
                 }
             }
         } label: {
-            GlassIconLabel(systemName: "ellipsis", tint: .white)
+            GlassIconLabel(systemName: "ellipsis", tint: .primary, onPage: true)
         }
         .accessibilityLabel("Photo actions")
     }
