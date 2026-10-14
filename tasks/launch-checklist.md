@@ -58,8 +58,9 @@ Black line on a clear background, exported as PNG, about 3000 px on the
 long side, your pen's usual weight. Send them to me and I cut, clean and
 fit them. In order of need:
 
-- [ ] **November, for the top of Memories.** October has the skeleton and
-      "Small wins still count". From 1 November that space is empty.
+- [ ] **November, for the end of Memories** (it moved to the end of the
+      page on 2026-10-13). October has the skeleton and "Small wins still
+      count". From 1 November that space is empty.
       One drawing and one short line of words. (Then one a month: December
       by 1 December.)
 - [ ] **Head maker, no face found:** a figure holding a frame up to its own
@@ -71,8 +72,25 @@ fit them. In order of need:
       without them; they are the one empty band left in the first run.
       Lowest priority.
 - Already yours and in: the six category doodles, the sticker mark, the
-  tip marks, the crews drawing ("Winning is better together") and its
-  cheer, October.
+  tip marks, the crews drawing (its line is now "For the people you'd
+  tell anyway.") and its cheer, October, and the Crews tab's glyph (your
+  DoodleSocial, sized to the other tabs; draw a new one only if you want).
+
+## 3½. From the night of 2026-10-13 (new)
+
+- [ ] **Push**: about 60 commits, including the website's privacy page,
+      which now says heads replace profile photos.
+- [ ] **App privacy answers in App Store Connect**: profile photos are no
+      longer collected or sent to crews (heads replaced them, your call). If
+      the label lists a profile photo anywhere, take it off. Nothing new is
+      collected.
+- [ ] **Try build 138 on your phone** with a friend: the chat drawer, the
+      hold menu, the head maker's Use a Photo (it cannot run in the
+      simulator), and a camera refusal in the head maker.
+- [ ] **Your calls, each with a recommendation in its doc**:
+  - Chat: can the sender delete a plan's line? (`docs/chat-plus-research-2026-10-13.md` part 4, item 5)
+  - Invites: B to E in `docs/invites-research-2026-10-13.md` part 4 (a second invite moment for solo people, starting a crew with people from your crews, an App Clip, contact discovery: recommended no).
+  - Heads, pass D: one identity head plus companion heads (`docs/heads-as-identity-2026-10-14.md` 4.6).
 
 ## 4. App Store Connect
 

@@ -1,3 +1,37 @@
+# Morning status (2026-10-14)
+
+**Not done:**
+- Friend chats as their own thing. Invite a Friend makes a crew of two
+  in one press, which is the same thing from the other side; messaging one
+  person from their face in a crew needs them to accept an invitation,
+  and doing that without a link is your call C in the invites research.
+- Merged crew blocks were checked by a test, not by eye: the seeded crews
+  never put one person's same-colour wins side by side.
+- Use a Photo in the head maker and the camera review's tools can only be
+  tried on a phone.
+
+**Done, each looked at in the simulator:**
+- Crews tab, ink dots, the count inside the back button, chat news opens
+  the chat. Head over the blocks after the chat. Tall crew towers scroll.
+  A head over a tower taller than the screen floats.
+- The chat is a drawer under the crew's tower. Hold menu (reactions on
+  top, Reply, Heart, Copy, Report or Delete with Undo), double-tap heart,
+  full-screen strips, not-sent state, times after a gap, the midnight line,
+  no jump while reading. The + row is Win, Plan, Sticker, Strip.
+- Crew + is Wins' +: Plan makes a crew plan, Earlier Today sends a win you
+  already logged. Hidden wins come back (Undo, and Hidden for You).
+- One person's same-colour wins merge on a crew tower.
+- Wins: your face lets your head out, the ring drawn by hand, friends'
+  reactions on your blocks (and in Memories), a friend's line over the
+  tower. Journal top right.
+- The head is everyone's identity: one component, no switches, no profile
+  photo, made at the start with Later only after trouble.
+- Invites: Invite a Friend, "Just you so far.", the join page.
+- Memories: the drawing at the end, fitted on a short month.
+- An independent review: no blockers; its eight should-fixes are fixed.
+
+---
+
 # Tonight's plan (2026-10-13, overnight)
 
 From your phone notes, cleaned up. In the order I will build them: the
