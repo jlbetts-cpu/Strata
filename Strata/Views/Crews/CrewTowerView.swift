@@ -640,8 +640,20 @@ struct CrewTowerView: View {
                 // useless because there is already a + block"). The tower's
                 // own next slot adds a win, and holding it opens Add Win.
                 // **The chat is the drawer at the foot now** (`ChatRestBar`,
-                // the owner's pick, 2026-10-13), so the corner is empty: its
-                // dot moved to the line it was about.
+                // the owner's pick, 2026-10-13), and its dot moved with it.
+                // **The corner is Invite** (`docs/crew-corner-research-
+                // 2026-10-14.md`; the owner asked for it researched): the
+                // most wanted thing here that was not one press away, past
+                // the name, a long card and a scroll. A glyph on glass, never
+                // the bare word (his 2026-10-13 call), and gone once the crew
+                // is full, with no count.
+                if let crew, crew.members.count < CrewCaps.members {
+                    GlassIconButton(systemName: "person.badge.plus", onPage: true, accessibilityLabel: "Invite") {
+                        Task { await CrewSharing.invite(crewID) }
+                    }
+                    .accessibilityHint("Sends a link to join this crew.")
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["invite"] = $0 }
+                }
             }
             if let crew {
                 let crowded = !parking.parked.isEmpty
