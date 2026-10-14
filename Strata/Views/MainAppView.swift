@@ -652,6 +652,9 @@ struct MainAppView: View {
                                        crewsShown: selectedTab == .crews,
                                        openCrews: { crewPath = []; selectedTab = .crews },
                                        towerCard: { shareCard() }))
+        // The head maker and the one-time "Make your head" page (`HeadAsk`,
+        // the owner, 2026-10-14: "make the head making a must").
+        .modifier(HeadCatchUpPrompt())
         // The first day, for the review ask (`ReviewAsk`), which itself is
         // asked as a developed strip's booth closes.
         .task { ReviewAsk.noteLaunch(today: DateUtils.dateString(from: Date())) }

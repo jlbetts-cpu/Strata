@@ -1635,6 +1635,8 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   photographed with `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|savefailed|unavailable|denied`.
 - `-strataSeedHead` puts the creator's faces in as a made head;
   `-strataHeadOn tower` turns the tower companion on for one launch (the other words are read and ignored since 2026-10-14);
+  `-strataHeadCatchUp 1` shows the one-time "Make your head" page over Wins
+  (`HeadAsk`); `-strataOpenHeadMaker photofailed` is Use a Photo's failure;
   `-strataOpenSheet profile|settings`; `-strataProfileChart day|week|month`.
 - **Tap expressions** (`HeadTake`, 2026-09-15; owner: "there should be a
   bunch of expressions and they should hold for longer"). Twelve takes:

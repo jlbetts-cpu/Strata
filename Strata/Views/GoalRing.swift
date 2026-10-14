@@ -431,6 +431,14 @@ struct GoalCrest: View {
     }
 
     private func pressFace() {
+        // **Your blank head opens the maker** (the owner, 2026-10-14: "make
+        // the head making a must"; plan §4.4): with no head, the face in the
+        // ring is where yours goes. Your day is still the fraction's.
+        if HeadStore.shared.head == nil {
+            HapticsEngine.lightTap()
+            HeadAsk.shared.askForMaker()
+            return
+        }
         guard canLetOut else {
             HapticsEngine.lightTap()
             openDay()

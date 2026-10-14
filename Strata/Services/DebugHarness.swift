@@ -364,7 +364,10 @@ enum DebugHarness {
     static var reviewZoom: CGFloat? { argument("-strataReviewZoom").flatMap(Double.init).map { CGFloat($0) } }
 
     /// Opens the head maker in one state, from
-    /// `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|savefailed|unavailable|denied`,
+    /// `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|photofailed|savefailed|unavailable|denied`,
+    /// (`photofailed`: a chosen photo that made no head, with the camera refused.)
+    /// `-strataHeadCatchUp 1` shows the one-time "Make your head" page over
+    /// Wins under the harness, whatever was shown before (`HeadCatchUpPrompt`).
     /// on top of
     /// `-strataOpenSheet profile`. The simulator has no camera, so the maker's
     /// chrome can only be photographed by putting it into a state directly.

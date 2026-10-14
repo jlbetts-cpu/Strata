@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -39,6 +40,10 @@ struct HeadMakerView: View {
     /// naming stays something you can change rather than something you must do,
     /// and so the line reads as the hint it is. See `nameField`.
     @State private var suggestion = ""
+    /// **Use a Photo** (2026-10-14): the library, out of process, no
+    /// permission asked. See `HeadFromPhoto`.
+    @State private var choosingPhoto = false
+    @State private var photoItem: PhotosPickerItem?
 
     /// `CameraView`'s viewfinder ground.
     private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
@@ -135,6 +140,15 @@ struct HeadMakerView: View {
             setFlashBrightness(false)
         }
         .onChange(of: model.step, initial: true) { _, step in respond(to: step) }
+        .photosPicker(isPresented: $choosingPhoto, selection: $photoItem, matching: .images)
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                defer { photoItem = nil }
+                guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                await model.make(fromPhoto: data)
+            }
+        }
         .onChange(of: model.hint) { _, hint in
             guard model.step == .lining, let hint else { return }
             AccessibilityNotification.Announcement(hint.caption).post()
@@ -455,10 +469,11 @@ struct HeadMakerView: View {
         // for Strata in Settings and this becomes the viewfinder." The second
         // half is the camera tab explaining what it would be; here the person
         // already knows what they came for.
+        //
+        // **And the way past it is a photo** (2026-10-14): the head is a
+        // must now, so this screen offers one you choose beside the switch.
         case .unavailable:
-            return model.isDenied
-                ? "Turn the camera on for Some Wins in Settings."
-                : "The camera isn't available here."
+            return model.isDenied ? HeadAsk.Copy.cameraOff : HeadAsk.Copy.noCamera
         case .lining:
             // Once the shutter will take, say so. Holding the correction up
             // while the shutter is already lit is the screen contradicting
@@ -573,44 +588,33 @@ struct HeadMakerView: View {
         // The close control top right is unchanged and is still the way out of
         // all three, so nothing here is the only exit.
         case .failed, .unavailable:
-            Button {
-                HapticsEngine.lightTap()
-                switch model.step {
-                case .failed:
-                    model.retake()
-                default:
-                    // It does not try to re-ask, for `CameraView`'s reason:
-                    // once the answer is no, iOS will not present the prompt
-                    // again, and a button that looked like it might is worse
-                    // than one that says where the switch really is.
-                    if model.isDenied, let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    } else {
-                        dismiss()
-                    }
+            // **Two words, the second a photo** (2026-10-14): the head is a
+            // must, so neither a refused camera nor a capture that came to
+            // nothing may be the end of it. `HeadFromPhoto`.
+            HStack(spacing: GridConstants.gapWide) {
+                stilledButton
+                Button {
+                    HapticsEngine.lightTap()
+                    choosingPhoto = true
+                } label: {
+                    Text(HeadAsk.Copy.usePhoto)
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.onDarkStrong)
+                        .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Text(model.step == .failed ? "Try Again" : (model.isDenied ? "Open Settings" : "Close"))
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.onDarkStrong)
-                    .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
-                    .contentShape(Rectangle())
+                .buttonStyle(.pressWord)
             }
-            // `.pressWord` for a word, not `.plain`, which draws the label and
-            // nothing else (`docs/consistency-audit.md` §1.8: twenty controls in
-            // the app with no answer to a finger, and the camera's own refused
-            // screen two files away already uses this). "A word at 6% reads as a
-            // wobble, so it moves less and dims more."
-            .buttonStyle(.pressWord)
             .frame(height: CameraView.shutterBounds(.small).height)
         default:
-            // `CameraView`'s own row, slot for slot — grid, flash, shutter,
-            // flip, timer — with only the flash filled, so the flash is exactly
-            // where a thumb that has used the camera expects it. The other
-            // three are empty rather than moved together, which would put the
-            // flash somewhere it has never been.
+            // `CameraView`'s own row, slot for slot: grid, flash, shutter,
+            // flip, timer. The flash is filled, exactly where a thumb that
+            // has used the camera expects it, and while lining up the grid's
+            // slot holds the photo library (2026-10-14, Use a Photo); the
+            // other two are empty rather than moved together, which would
+            // put the flash somewhere it has never been.
             HStack(spacing: 0) {
-                Color.clear.frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                photoButton
                 Spacer(minLength: 0)
                 flashButton
                 Spacer(minLength: 0)
@@ -621,6 +625,64 @@ struct HeadMakerView: View {
                 Color.clear.frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
             }
             .padding(.horizontal, GlassIconButton.defaultSide)
+        }
+    }
+
+    /// The failed and unavailable states' first word: Try Again, Open
+    /// Settings, or Close.
+    private var stilledButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            switch model.step {
+            case .failed:
+                model.retake()
+            default:
+                // It does not try to re-ask, for `CameraView`'s reason:
+                // once the answer is no, iOS will not present the prompt
+                // again, and a button that looked like it might is worse
+                // than one that says where the switch really is.
+                if model.isDenied, let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                } else {
+                    dismiss()
+                }
+            }
+        } label: {
+            Text(model.step == .failed ? "Try Again" : (model.isDenied ? "Open Settings" : "Close"))
+                .font(Typography.headerSmall)
+                .foregroundStyle(AppColors.onDarkStrong)
+                .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
+                .contentShape(Rectangle())
+        }
+        // `.pressWord` for a word, not `.plain`, which draws the label and
+        // nothing else (`docs/consistency-audit.md` §1.8: twenty controls in
+        // the app with no answer to a finger, and the camera's own refused
+        // screen two files away already uses this). "A word at 6% reads as a
+        // wobble, so it moves less and dims more."
+        .buttonStyle(.pressWord)
+    }
+
+    /// The photo library, in the row's first slot, only while lining up:
+    /// once the shutter is pressed the row is the camera's alone.
+    @ViewBuilder
+    private var photoButton: some View {
+        if model.step == .lining {
+            Button {
+                HapticsEngine.lightTap()
+                choosingPhoto = true
+            } label: {
+                Image(systemName: "photo.on.rectangle")
+                    // The flash's glyph size beside it, for the same reason.
+                    .iconSize(21, relativeTo: .body, weight: .regular)
+                    .foregroundStyle(AppColors.onDarkStrong)
+                    .legibleOnImagery()
+                    .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel(HeadAsk.Copy.usePhoto)
+        } else {
+            Color.clear.frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
         }
     }
 
@@ -1043,6 +1105,8 @@ struct HeadMakerView: View {
         // out-curve is the short one.
         case .failed, .unavailable:
             withAnimation(reduceMotion ? nil : GridConstants.crossFade) { outlineDrawn = 0 }
+            // The head page behind this offers Later from now on (`HeadAsk`).
+            HeadAsk.shared.noteTrouble()
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.
             setFlashBrightness(false)

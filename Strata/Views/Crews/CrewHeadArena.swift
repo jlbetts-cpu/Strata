@@ -342,7 +342,7 @@ private final class CrewHeadLife {
 private struct CrewHeadRunner: View {
     let member: CrewMember
     let isMe: Bool
-    /// Nil for someone with no head: they float as their circle.
+    /// Nil for someone with no head: they walk as the blank head.
     let rig: HeadRig?
     let crewID: CrewID
     let me: UUID
@@ -357,6 +357,8 @@ private struct CrewHeadRunner: View {
     @State private var life: CrewHeadLife
     @State private var take: HeadTake.Played?
     @State private var deck = HeadTakeDeck()
+    /// Your own blank head was pressed: the maker is up.
+    @State private var making = false
 
     init(member: CrewMember, isMe: Bool, rig: HeadRig?, crewID: CrewID, me: UUID, arena: CGRect,
          model: CrewTowerModel, parking: CrewParking, box: CrewArenaBox) {
@@ -411,7 +413,7 @@ private struct CrewHeadRunner: View {
                     .simultaneousGesture(TapGesture().onEnded { changeFace() })
                     .accessibilityElement()
                     .accessibilityLabel(name)
-                    .accessibilityHint("Double-tap for a new face.")
+                    .accessibilityHint(isMe && rig == nil ? "Opens the head maker." : "Double-tap for a new face.")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { changeFace() }
                     .accessibilityAction(named: "Put in the bubble") {
@@ -435,6 +437,7 @@ private struct CrewHeadRunner: View {
             life.flightFrom = life.position
             life.flightStart = nil
         }
+        .fullScreenCover(isPresented: $making) { HeadMakerView() }
     }
 
     // MARK: Gestures
@@ -473,7 +476,18 @@ private struct CrewHeadRunner: View {
     }
 
     private func changeFace() {
-        guard let rig else { HapticsEngine.tick(); return }
+        // **Your own blank head opens the maker** (the owner, 2026-10-14:
+        // "make the head making a must"; plan §4.4). A friend's has no faces
+        // to change, so it only ticks.
+        guard let rig else {
+            if isMe {
+                HapticsEngine.lightTap()
+                making = true
+            } else {
+                HapticsEngine.tick()
+            }
+            return
+        }
         let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
         guard let next = deck.next(from: available) else { return }
         HapticsEngine.tick()

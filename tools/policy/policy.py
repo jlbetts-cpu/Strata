@@ -84,8 +84,10 @@ SECTIONS = [
         "reset all data.",
     ]),
     ("Your head", [
-        "If you make a head, Some Wins takes a few photos with the front camera "
-        "and Apple's on-device tools find your face and cut it out. It keeps only "
+        "To make your head, Some Wins takes a few photos with the front camera, "
+        "or uses one photo you choose from your library, and Apple's on-device "
+        "tools find your face and cut it out. Choosing a photo does not give "
+        "Some Wins your library: iOS hands over only the one you pick. It keeps only "
         "those small cut-out pictures and where to place them, never video and "
         "never measurements of your face, and none of it leaves your device to "
         "be analysed. Your head is your picture in Some Wins: it appears in "

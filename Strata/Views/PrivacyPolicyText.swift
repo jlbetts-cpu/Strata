@@ -32,7 +32,7 @@ nonisolated enum PrivacyPolicyText {
             "The name you add in Profile stays with your wins. If you join a crew, the people in it see your first name. Some Wins does not use a profile photo: your head is your picture. A profile photo saved by an earlier version is never sent, and is deleted once you have a head or when you reset all data.",
         ]),
         ("Your head", [
-            "If you make a head, Some Wins takes a few photos with the front camera and Apple's on-device tools find your face and cut it out. It keeps only those small cut-out pictures and where to place them, never video and never measurements of your face, and none of it leaves your device to be analysed. Your head is your picture in Some Wins: it appears in Profile, on your Wins tab and your map, and in your crews, and it is offered as a sticker on your photos. Delete Head removes it.",
+            "To make your head, Some Wins takes a few photos with the front camera, or uses one photo you choose from your library, and Apple's on-device tools find your face and cut it out. Choosing a photo does not give Some Wins your library: iOS hands over only the one you pick. It keeps only those small cut-out pictures and where to place them, never video and never measurements of your face, and none of it leaves your device to be analysed. Your head is your picture in Some Wins: it appears in Profile, on your Wins tab and your map, and in your crews, and it is offered as a sticker on your photos. Delete Head removes it.",
             "If you are in a crew and 16 or older, a smaller copy of your head goes to the crew, after the same check photos get.",
         ]),
         ("Sharing", [

@@ -695,7 +695,7 @@ struct ProfileView: View {
     /// (2026-10-14): the head appears wherever you do.
     private var headFooter: String? {
         if heads.entries.isEmpty {
-            return "About fifteen seconds with the front camera. It's how your crews see you."
+            return HeadAsk.Copy.profileFooter
         }
         if heads.entries.count > 1 {
             return "The head you pick above is the one your crews see."

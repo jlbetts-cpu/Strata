@@ -319,7 +319,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         lock.unlock()
     }
 
-    private static func eyeOutlines(_ face: VNFaceObservation, size: CGSize) -> [[CGPoint]] {
+    static func eyeOutlines(_ face: VNFaceObservation, size: CGSize) -> [[CGPoint]] {
         [face.landmarks?.leftEye, face.landmarks?.rightEye].compactMap { region in
             region?.pointsInImage(imageSize: size).map { CGPoint(x: $0.x, y: size.height - $0.y) }
         }

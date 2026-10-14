@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Testing
 @testable import Strata
 
@@ -110,5 +111,73 @@ struct HeadSwitchesGoneTests {
         #expect(!crew.contains("setShowsHeads"), "the per-crew Heads switch is back")
         let social = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))
         #expect(!social.contains("myPhoto"), "a profile photo is being sent to crews again")
+    }
+}
+
+/// **Making a head is a must, with a way through** (the owner, 2026-10-14:
+/// "make the head making a must"). `HeadAsk`, plan §4.4.
+@MainActor
+@Suite("Heads as identity: the head is asked for")
+struct HeadAskTests {
+
+    @Test("the page over Wins shows once, and only with no head")
+    func catchUpOnce() {
+        #expect(HeadAsk.showsCatchUp(alreadyShown: false, hasHead: false))
+        #expect(!HeadAsk.showsCatchUp(alreadyShown: true, hasHead: false), "once only")
+        #expect(!HeadAsk.showsCatchUp(alreadyShown: false, hasHead: true))
+        let defaults = UserDefaults(suiteName: "head-catch-up")!
+        defer { defaults.removePersistentDomain(forName: "head-catch-up") }
+        #expect(!defaults.bool(forKey: HeadAsk.catchUpShownKey))
+        HeadAsk.markCatchUpShown(defaults)
+        #expect(defaults.bool(forKey: HeadAsk.catchUpShownKey))
+    }
+
+    @Test("Later appears after trouble, never on first sight with a working camera")
+    func laterOnlyAfterTrouble() throws {
+        let page = SourceSweep.code(try SourceSweep.read("Strata/Views/OnboardingView.swift"))
+        #expect(!page.contains("decline(\"Not Now\")"), "the head is skippable on first sight again")
+        #expect(page.contains("if offersHead && HeadAsk.shared.offersLater { decline(HeadAsk.Copy.later) }"))
+        let ask = SourceSweep.code(try SourceSweep.read("Strata/Views/HeadAsk.swift"))
+        #expect(ask.contains("var offersLater: Bool { hadTrouble || Self.cameraBlocked }"))
+        let maker = SourceSweep.code(try SourceSweep.read("Strata/Views/HeadMakerView.swift"))
+        #expect(maker.contains("HeadAsk.shared.noteTrouble()"), "a refused camera never offers Later")
+    }
+
+    @Test("Try Again after a photo with no camera goes back to the choice, not the outline")
+    func retakeWithoutCamera() {
+        let model = HeadMakerModel()
+        model.retake()
+        #expect(model.step == .unavailable)
+    }
+
+    @Test("a photo with no face in it makes no head")
+    func photoWithNoFace() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300))
+        let data = renderer.jpegData(withCompressionQuality: 0.9) { context in
+            UIColor.gray.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        }
+        let upright = try #require(HeadCaptureEngine.upright(data, longEdge: 200))
+        #expect(max(upright.width, upright.height) <= 200, "read no larger than asked")
+        #expect(upright.bitsPerComponent == 8)
+        #expect(HeadCaptureEngine.take(fromPhoto: data) == nil)
+        #expect(HeadCaptureEngine.upright(Data([1, 2, 3]), longEdge: 200) == nil)
+    }
+
+    @Test("the words hold to the voice")
+    func voice() {
+        let lines = [HeadAsk.Copy.pageLine, HeadAsk.Copy.pageMade, HeadAsk.Copy.usePhoto, HeadAsk.Copy.later,
+                     HeadAsk.Copy.cameraOff, HeadAsk.Copy.noCamera, HeadAsk.Copy.photoFailed,
+                     HeadAsk.Copy.catchUpTitle, HeadAsk.Copy.catchUpLine, HeadAsk.Copy.makeMyHead,
+                     HeadAsk.Copy.profileFooter]
+        let banned = ["scan", "detect", "recognis", "recogniz", "track", "analys", "analyz", "watch",
+                      "face data", "find your face", "see you", "look at you"]
+        for line in lines {
+            #expect(!line.contains("!"), "\(line)")
+            #expect(!line.contains("\u{2014}") && !line.contains("\u{2013}"), "\(line)")
+            for word in banned { #expect(!line.lowercased().contains(word), "\(line) says \(word)") }
+        }
+        // The injection, so this can fail.
+        #expect("We detect your face".lowercased().contains("detect"))
     }
 }

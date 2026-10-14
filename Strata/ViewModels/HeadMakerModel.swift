@@ -61,6 +61,10 @@ final class HeadMakerModel {
     @ObservationIgnored lazy var camera = CameraService()
     @ObservationIgnored lazy var engine = HeadCaptureEngine()
 
+    /// The camera is running. False when it was refused or absent, which is
+    /// when a Try Again after a photo goes back to `.unavailable` rather than
+    /// to an outline no frame will ever reach.
+    private var cameraLive = false
     private var linedUpSince: Date?
     /// When a face first appeared, whether or not it was in the outline.
     private var faceSeenSince: Date?
@@ -116,6 +120,7 @@ final class HeadMakerModel {
         }
         camera.attachFrames(engine.output)
         await camera.run()
+        cameraLive = true
         step = .lining
         engine.begin(.lining)
     }
@@ -423,8 +428,38 @@ final class HeadMakerModel {
         caught = false
         landed = []
         saveFailure = ""
+        // A head made from a photo, with no camera behind it: back to where
+        // the choice was, not to an outline nothing will fill.
+        guard cameraLive else {
+            step = .unavailable
+            return
+        }
         step = .lining
         engine.begin(.lining)
+    }
+
+    /// **A head from one photo you chose** (`HeadFromPhoto`, 2026-10-14).
+    /// The same `.making`, `.preview` and `.failed` as a capture, so the
+    /// page, Save and Retake are the ones the camera's head uses.
+    func make(fromPhoto data: Data) async {
+        flow?.cancel()
+        engine.begin(.idle)
+        result = nil
+        saveFailure = ""
+        step = .making
+        let payload = await Task.detached(priority: .userInitiated) { () -> HeadStore.Payload? in
+            guard let take = HeadCaptureEngine.take(fromPhoto: data) else { return nil }
+            return autoreleasepool { HeadCaptureEngine.payload(fromPhoto: take) }
+        }.value
+        guard !Task.isCancelled else { return }
+        guard let payload, let rig = HeadStore.rig(from: payload) else {
+            fail(HeadAsk.Copy.photoFailed)
+            HapticsEngine.error()
+            return
+        }
+        result = Result(rig: rig, payload: payload)
+        HapticsEngine.success()
+        step = .preview
     }
 
     /// **What a save failure can say that its button cannot: the head is still
@@ -491,8 +526,8 @@ final class HeadMakerModel {
     /// sentence keeps the part only it can carry, which is where to stand or
     /// what to change, and the verb belongs to the button.
     ///
-    /// **Both callers are in `make()` now, and both run before `result` is
-    /// set**, so `.failed` means one thing: no head was made and there is
+    /// **Every caller is in `make()` or `make(fromPhoto:)`, and each runs
+    /// before `result` is set**, so `.failed` means one thing: no head was made and there is
     /// nothing in hand to lose. That is what lets its one button say Try Again
     /// and mean `retake()`. The third caller was `save()`, where the same
     /// button meant throwing a finished head away, and it has gone (see
@@ -533,6 +568,11 @@ final class HeadMakerModel {
             caught = true
         case "failed":
             fail("Couldn't get a clear picture. Somewhere a little brighter should do it.")
+        // A chosen photo that made no head, with no camera behind it, the
+        // state a reviewer with the camera denied would reach.
+        case "photofailed":
+            isDenied = true
+            fail(HeadAsk.Copy.photoFailed)
         // Both halves of the dead end. `denied` is the one a person can
         // actually reach on a phone, and it is the one with a way out, so it
         // is the one worth looking at; `unavailable` is the simulator's.

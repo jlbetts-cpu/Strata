@@ -54,8 +54,9 @@ import SwiftUI
 /// of the opening blocks carry photographs; the tutorial is the real first-fit
 /// packer and stops at three rows; the sizes are called Quick, Regular and Deep;
 /// the primary action is a plain capsule and not block styling, and disabled is
-/// an outline pill rather than a faded one; the head is offered and never
-/// required; the thank-you page makes one offer and asks for nothing; the
+/// an outline pill rather than a faded one; the head is made here, with a
+/// way through only when the camera cannot make it (REVERSED 2026-10-14 from
+/// "offered and never required", `HeadAsk`); the thank-you page makes one offer and asks for nothing; the
 /// wordmark is 32 on the camera's own line; and the only permission asked for is
 /// location, on the page that has just explained it.
 struct OnboardingView: View {
@@ -238,7 +239,12 @@ struct OnboardingView: View {
             if let start = Self.debugStep { step = start }
             #endif
         }
-        .onChange(of: step) { _, now in if endsOnGoal { resumeStep = now } }
+        .onChange(of: step) { old, now in
+            if endsOnGoal { resumeStep = now }
+            // Past the head page either way: the one-time page over Wins is
+            // for people who never saw this one (`HeadAsk`).
+            if old == Self.headStep { HeadAsk.markCatchUpShown() }
+        }
         // **No `shown` per page** (2026-10-08). Every page is left by `done`
         // or `skipped`, so those two already draw the funnel: the last page
         // with one is where a person stopped. A third event per page was a
@@ -255,7 +261,8 @@ struct OnboardingView: View {
         // presented as a cover from Settings. Same shape as `ProfileView`.
         .environment(\.headsAwake, coveringHeadsAwake && !showsHeadMaker)
         // A made head moves you on. Closing the maker without one leaves you
-        // here, where "Not Now" is one press away.
+        // here; Later is offered once the camera was refused or making failed
+        // (`HeadAsk.offersLater`).
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
             guard heads.head != nil, step == Self.headStep else { return }
             // The head page is left from here, not from `advance`, so its
@@ -934,8 +941,9 @@ struct OnboardingView: View {
 
     // MARK: - Your head
 
-    /// **Offered, never required** (owner: make it "visible to the user instead
-    /// of just hidden in the settings", and the head is 100% optional). One
+    /// **Made here, not offered** (the owner, 2026-10-14: "make the head
+    /// making a must"; before that, 2026-09: "visible to the user instead of
+    /// just hidden in the settings"). One
     /// page, one head, shown the way it would be your picture: in a circle
     /// on a colour, blinking and glancing. Yours once you have made one; until
     /// then the creator's, the same head the next page leans over his photo.
@@ -1269,11 +1277,9 @@ struct OnboardingView: View {
             : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
         case 2: return nil
         case 3: return "Your wins land on the map where you took them."
-        case Self.headStep: return heads.head == nil
-            ? "Fifteen seconds with the front camera. Use it as your profile photo or add it to your photos, if you like."
-            // Not "it stays on this phone" (the owner, 2026-10-08): your crews
-            // see it whenever it shows anywhere (`HeadStore.headForCrews`).
-            : "Find it in Profile and on your photos. Your crews see it too."
+        // The head is who you are in a crew (the owner, 2026-10-14), so the
+        // line says that, not where it may be switched on.
+        case Self.headStep: return heads.head == nil ? HeadAsk.Copy.pageLine : HeadAsk.Copy.pageMade
         // What counts, said once; the chips say the rest by example.
         // The strip is of the day's photos; a day of plain blocks prints
         // none, and the page promised one (the hints audit, 2026-10-11).
@@ -1306,16 +1312,14 @@ struct OnboardingView: View {
         VStack(spacing: GridConstants.gapItem) {
             if step == Self.thanksStep { connectButton }
 
-            // **Only where something is genuinely optional, which is the head**
-            // (the owner, 2026-09-23: "there shouldn't be a skip button other
-            // than when doing the face, not every page of the onboarding, and
-            // the spacing looks off for that as well").
-            //
-            // On the other five pages it was an escape hatch out of a
-            // six-page walkthrough offered six times, under a button that
-            // already says what happens next. It declines the head here, not
-            // the tour: the thank you is still to come.
-            if offersHead { decline("Not Now") }
+            // **The head's way through, and only when it is needed** (the
+            // owner, 2026-10-14: "make the head making a must"). There was a
+            // Not Now here from first sight (2026-09-23: "there shouldn't be
+            // a skip button other than when doing the face"); now nothing
+            // skips the head until the camera is refused or unavailable or
+            // making one failed, and then a quiet Later, so nobody is stuck
+            // on this page (`HeadAsk.offersLater`).
+            if offersHead && HeadAsk.shared.offersLater { decline(HeadAsk.Copy.later) }
             // Your three are asked for, never required (the owner's pick:
             // "skippable"), so this page has the head's way out too.
             if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }
@@ -1328,7 +1332,7 @@ struct OnboardingView: View {
         .animation(GridConstants.motionSnappy, value: canAdvance)
     }
 
-    /// **"Not Now", with a target you can actually hit.**
+    /// **The head's Later and Your Three's skip, with a target you can actually hit.**
     ///
     /// The label is `bodySmall` and carried no frame, so the Button's hit area
     /// was the text's own line box: **18pt tall**, against the 44 the HIG asks
