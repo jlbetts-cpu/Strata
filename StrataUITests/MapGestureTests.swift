@@ -45,7 +45,11 @@ final class MapGestureTests: XCTestCase {
 
         // Pinch in the middle of the map, well clear of the title row at the
         // top and the tab bar and recentre button at the bottom.
-        let map = app.windows.firstMatch
+        // **On the map, not the window** (2026-10-14). Closing from 4x
+        // apart starts the two fingers near the window's edges, and with
+        // Crews as a tab the lower one landed on Camera's: the test pinched
+        // a tab bar and left the map.
+        let map = app.maps.firstMatch.exists ? app.maps.firstMatch : app.windows.firstMatch
         map.pinch(withScale: 0.25, velocity: -3)
         Thread.sleep(forTimeInterval: 3)
         let after = zoom(app)

@@ -309,12 +309,18 @@ final class TowerGestureTests: XCTestCase {
         // Back out. The line must still be there, not thrown away.
         app.swipeDown(velocity: .fast)
         Thread.sleep(forTimeInterval: 3)
-        let plan = app.buttons["Plan"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 15),
-                      "did not get back to the tower after the add sheet")
-        plan.tap()
+        // **Back on the plan by itself, or one press away** (2026-10-14).
+        // Cancelling a sheet opened from the plan goes back to the plan
+        // (`returnsToPlan`), whose own Plan tab then stands beside the
+        // header's: two "Plan" buttons, and a lookup for one failed.
         let back = app.buttons.matching(
             NSPredicate(format: "label CONTAINS 'Run the loop'")).firstMatch
+        if !back.waitForExistence(timeout: 4) {
+            let plan = app.buttons["Plan"].firstMatch
+            XCTAssertTrue(plan.waitForExistence(timeout: 15),
+                          "did not get back to the tower after the add sheet")
+            plan.tap()
+        }
         if !back.waitForExistence(timeout: 15) {
             add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
             XCTFail("cancelling the add sheet threw the plan line away")
