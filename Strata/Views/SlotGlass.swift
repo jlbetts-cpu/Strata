@@ -149,20 +149,19 @@ private struct SlotGlassPane: ViewModifier {
     let thickness: Double
     @Environment(\.colorScheme) private var scheme
 
+    /// **No shadow** (the owner, 2026-10-13, from his phone: "shadow on +
+    /// block", to come off). Liquid Glass draws a soft shadow of its own
+    /// under every pane and offers no way to leave it out, and a slot stands
+    /// on nothing (no block has one either, `docs/ten.md`). So the pane is
+    /// the translucent material the pre-26 path always used, with the same
+    /// ink drawn in as it is pulled thicker (`GlassRecipe.slot`'s own 6%), and
+    /// the slot's own edge on top. What it gives up is the glass's lensing,
+    /// which over a flat lattice was a few pixels; the press answer was
+    /// always the slot's own recoil, recess and tint.
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(GlassRecipe.slot(thickness: thickness, dark: scheme == .dark),
-                                in: .rect(cornerRadius: cornerRadius, style: .continuous))
-                // **Made again when the appearance changes** (the owner,
-                // 2026-10-11: "when switching from dark to light mode the
-                // check boxes don't switch for some reason to light"). A
-                // glass effect keeps the tint it was made with when only its
-                // recipe changes under it, so the panes stayed dark on a
-                // light page until the app was opened again.
-                .id(scheme)
-        } else {
-            content.background(.ultraThinMaterial,
-                               in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .background { shape.fill(Color.black.opacity(0.06 * max(0, min(1, thickness)))) }
     }
 }

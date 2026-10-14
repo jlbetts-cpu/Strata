@@ -189,11 +189,8 @@ struct MemoriesView: View {
                     let shown = monthPhotos
                     let count = shown.reduce(0) { $0 + $1.photos.count }
                     VStack(alignment: .leading, spacing: 0) {
-                        Spacer(minLength: 0)
-                        monthArt
-                        // The drawing stands in the middle of its room, not
-                        // pressed onto the calendar: the space above and below
-                        // it is equal, which is what makes the page balance.
+                        // The room above the month is air now: the drawing
+                        // that stood in it is at the end of the page (below).
                         Spacer(minLength: 0)
                         // Nothing for the moment the page takes to learn
                         // whether it is empty; an empty month is the calendar
@@ -249,6 +246,18 @@ struct MemoriesView: View {
                                 .padding(.top, vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
                         }
                     }
+
+                    // **The month's drawing, at the end of the page** (the
+                    // owner, 2026-10-13, from his phone: "put drawing on
+                    // bottom of memories"; his pick, "End of the page"). It
+                    // stood in the room above the calendar; now it is the
+                    // last thing you scroll to, after the albums and every
+                    // photo, a sign-off for the month. It plays when it comes
+                    // into view, as it played when the page opened. Some
+                    // Wins' own card keeps its place in the drawing's slot.
+                    monthArt
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, GridConstants.gapPage)
                 }
                 // Room under the photos for the tab bar.
                 .padding(.bottom, GridConstants.tabBarClearance)
@@ -819,7 +828,7 @@ struct MemoriesView: View {
         }
     }
 
-    /// **The month's drawing**, in the room above its calendar: an asset
+    /// **The month's drawing**, at the end of the page: an asset
     /// named for the month, "MonthOctober", when one is in the catalogue, and
     /// nothing at all until then (the owner is drawing one for each month).
     ///
