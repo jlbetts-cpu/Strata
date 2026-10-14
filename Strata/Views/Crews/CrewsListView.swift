@@ -406,7 +406,10 @@ struct CrewsListView: View {
                 FeatureList(rows: [
                     // Not "So is eight": the Launch Pack has nothing advertise
                     // the cap (found by the 2026-10-13 research).
-                    ("MarkPeople", "You and a friend, or a few", "Two is a crew."),
+                    // Not "Two is a crew." either (the owner, 2026-10-14:
+                    // "dont make sense if its 2-8 people"): it read as a
+                    // size. What it meant is that one friend is enough.
+                    ("MarkPeople", "You and a friend, or a few", "One friend is enough to start."),
                     ("MarkLayers", "One tower for the day", "Send a win and it lands there."),
                     ("MarkLock", "Private", "Only people you invite can see it."),
                 ])

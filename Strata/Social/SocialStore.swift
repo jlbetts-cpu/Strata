@@ -393,6 +393,21 @@ final class SocialStore {
         note(.hidden, winID.uuidString, 1)
     }
 
+    /// **Back in sight** (the owner, 2026-10-13: "when you hide a win in
+    /// the crew you can unhide it which i found weird", and of how: "There
+    /// was no way to unhide it"). The same choice, set back, on every phone.
+    func unhide(winID: UUID) {
+        hiddenWins.remove(winID)
+        note(.hidden, winID.uuidString, 0)
+    }
+
+    /// The wins in a crew you hid for yourself, newest first: what the
+    /// crew's card offers to show again.
+    func hiddenWins(in crewID: CrewID) -> [SharedWin] {
+        (winsByCrew[crewID] ?? []).filter { hiddenWins.contains($0.winID) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     /// Whether you may take a win out of the crew for everyone: your own,
     /// or anyone's in a crew you started (the moderation App Review asks
     /// for, and what a Shared Album's owner can do).

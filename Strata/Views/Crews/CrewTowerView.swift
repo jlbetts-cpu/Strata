@@ -457,7 +457,7 @@ struct CrewTowerView: View {
                         UUID(uuidString: shown.id).map { store.canRemove($0, from: crewID) } ?? false
                     },
                     onHide: { shown in
-                        if let id = UUID(uuidString: shown.id) { store.hide(winID: id) }
+                        if let id = UUID(uuidString: shown.id) { CrewHiding.hide(id) }
                     },
                     reactions: { shown in
                         guard let id = UUID(uuidString: shown.id) else { return AnyView(EmptyView()) }

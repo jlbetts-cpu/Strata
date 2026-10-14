@@ -71,7 +71,7 @@ struct CrewDayView: View {
                             UUID(uuidString: photo.id).map { store.canRemove($0, from: crew.id) } ?? false
                         },
                         onHide: { photo in
-                            if let id = UUID(uuidString: photo.id) { store.hide(winID: id) }
+                            if let id = UUID(uuidString: photo.id) { CrewHiding.hide(id) }
                         },
                         reactions: { photo in
                             guard let id = UUID(uuidString: photo.id) else { return AnyView(EmptyView()) }

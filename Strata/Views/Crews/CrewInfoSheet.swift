@@ -85,6 +85,7 @@ struct CrewInfoSheet: View {
                     }
                     .listRowSeparator(.hidden)
                     notifications
+                    hiddenSection
                     blockedSection
                     Section {
                         Button("Report Crew", role: .destructive) { reportingCrew = true }
@@ -435,6 +436,48 @@ struct CrewInfoSheet: View {
                     catch { problem = "They could not be removed. Try again in a moment." }
                 }
             }
+        }
+    }
+
+    /// **Wins you hid, with the way back** (the owner, 2026-10-13: "There
+    /// was no way to unhide it"). Laid out as Blocked is, under it.
+    @ViewBuilder
+    private var hiddenSection: some View {
+        let hidden = store.hiddenWins(in: crewID)
+        if !hidden.isEmpty {
+            Section {
+                ForEach(hidden, id: \.winID) { win in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(win.title.isEmpty ? "A win" : win.title)
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                                .lineLimit(1)
+                            Text(win.senderProfileID == store.me ? "You"
+                                 : crew?.members.first { $0.profileID == win.senderProfileID }?.shortName ?? "")
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                        Spacer()
+                        Button {
+                            HapticsEngine.lightTap()
+                            withAnimation(GridConstants.motionSnappy) { store.unhide(winID: win.winID) }
+                        } label: {
+                            Text("Show")
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .font(Typography.headerSmall)
+                        .buttonStyle(.pressWord)
+                    }
+                }
+            } header: {
+                FormSectionLabel("Hidden for You")
+            } footer: {
+                Text("Only you stopped seeing these. Nobody in the crew was told.")
+                    .formFooter()
+            }
+            .listRowSeparator(.hidden)
         }
     }
 

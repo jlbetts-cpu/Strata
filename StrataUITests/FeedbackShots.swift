@@ -1068,6 +1068,30 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-alone: tip \(app.staticTexts["Just you so far."].exists)")
     }
 
+    /// **Hide for Me can be taken back**: the Undo line, then the crew's
+    /// card lists it under Hidden for You with Show (2026-10-13).
+    func testHideAndShow() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"])
+        wait(9)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.72)).tap(); wait(2.5)
+        let more = app.buttons["Photo actions"].firstMatch
+        if more.waitForExistence(timeout: 4) { more.tap(); wait(1.2) }
+        let hide = app.buttons["Hide for Me"].firstMatch
+        let offered = hide.exists
+        if offered { hide.tap() }
+        wait(1); snap("hide-undo")
+        print("PLANNING-hide: offered \(offered) undo line \(app.staticTexts["Hidden for you"].exists)")
+        wait(6)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.19)).tap(); wait(2.5)
+        snap("hide-card-top")
+        for _ in 0..<5 where !app.staticTexts["Hidden for You"].exists { app.swipeUp(); wait(0.8) }
+        app.swipeUp(); wait(0.8)
+        snap("hide-card")
+        let show = app.buttons["Show"].firstMatch
+        print("PLANNING-hidden: section \(app.staticTexts["Hidden for You"].exists) show \(show.exists)")
+        if show.exists { show.tap(); wait(1.5); snap("hide-shown") }
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

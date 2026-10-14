@@ -118,3 +118,17 @@ private struct UndoLineView: View {
         .accessibilityAction(named: "Undo", undo)
     }
 }
+
+/// **Hide for Me, with the chance to take it back** (the owner, 2026-10-13:
+/// a hidden crew win had no way back). The win goes at once; the line under
+/// it brings it back, and the crew's card keeps every hidden one after that.
+@MainActor
+enum CrewHiding {
+    static let line = "Hidden for you"
+
+    static func hide(_ winID: UUID) {
+        let store = SocialStore.shared
+        store.hide(winID: winID)
+        UndoLine.shared.show(line, undo: { store.unhide(winID: winID) })
+    }
+}
