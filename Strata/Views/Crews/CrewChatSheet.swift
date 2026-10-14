@@ -1501,13 +1501,18 @@ private struct ChatSheetToolbar: ToolbarContent {
 private struct ChatDrawerTitle: View {
     let name: String
     let done: () -> Void
+    @Environment(\.chatDrawerFull) private var full
 
     var body: some View {
         ZStack {
             // **"Today", not the crew's name** (the owner, 2026-10-14: "in
             // the chat no need to put the name ... its already in the middle
-            // header"): the crew's own screen names it right above.
-            Text("Today")
+            // header"): the crew's own screen names it right above. **At the
+            // whole height the header is covered, and the name comes back**
+            // (the same day: "go full screen and then the name appear").
+            Text(full && !name.isEmpty ? name : "Today")
+                .contentTransition(.opacity)
+                .animation(GridConstants.crossFade, value: full)
                 .font(Typography.headerSmall)
                 .foregroundStyle(AppColors.inkSecondary)
                 .fitsLargeType(.body)

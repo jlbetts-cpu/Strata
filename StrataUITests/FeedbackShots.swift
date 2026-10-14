@@ -512,7 +512,13 @@ final class FeedbackShots: XCTestCase {
         app.buttons["Done"].firstMatch.tap()
         wait(2.5)
         app.buttons["Write a message"].firstMatch.press(forDuration: 0.05)
-        wait(3)
+        wait(3); snap("feel-writing")
+        app.typeText("on my way")
+        wait(1)
+        // The keys down by a drag on the thread, as a thumb puts them away.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
+        wait(2); snap("feel-keys-down")
         app.buttons["Done"].firstMatch.tap()
         wait(2.5)
     }

@@ -230,6 +230,9 @@ struct ChatDrawer<Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var full = false
+    /// Whether it was whole before the keyboard took it there, so the keys
+    /// going put it back where it was.
+    @State private var fullBeforeKeys: Bool?
     /// How far the finger has the edge from where it rests: down is
     /// positive and 1:1, up is held back by `rubber`.
     @State private var pull: CGFloat = 0
@@ -266,7 +269,8 @@ struct ChatDrawer<Content: View>: View {
             let rest = max(0, min(open, geo.frame(in: .global).maxY - restTop))
             let edge = isOpen ? open : rest
             let shown = max(rest * 0.5, edge - (pull > 0 ? pull : -Self.rubber(-pull)))
-            DrawerPanel(shown: shown, open: open, groundBelow: Self.groundBelow, content: content) {
+            DrawerPanel(shown: shown, open: open, groundBelow: Self.groundBelow,
+                        content: { content().environment(\.chatDrawerFull, full) }) {
                 // The grabber rides the top edge.
                 Capsule()
                     .fill(AppColors.inkTertiary.opacity(0.5))
@@ -286,12 +290,27 @@ struct ChatDrawer<Content: View>: View {
         .accessibilityHidden(!isOpen)
         .animation(GridConstants.drawerMove, value: isOpen)
         .animation(GridConstants.drawerMove, value: full)
+        // **Writing takes the whole screen** (the owner, 2026-10-14: "its
+        // okay for the main chat to go full screen and then the name appear
+        // ... if its becoming too cramped"). Part way up with the keys under
+        // it, the thread was a sliver; the keys going put it back.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            guard isOpen, fullBeforeKeys == nil else { return }
+            fullBeforeKeys = full
+            withAnimation(GridConstants.keyboard) { full = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            guard let was = fullBeforeKeys else { return }
+            fullBeforeKeys = nil
+            if isOpen { withAnimation(GridConstants.keyboard) { full = was } }
+        }
         .onChange(of: isOpen) { _, open in
             if open {
                 // Over the bar before the first frame of the rise.
                 covering = true
             } else {
                 full = false
+                fullBeforeKeys = nil
                 pull = 0
                 // Back to the bar once the edge has come down into it.
                 Task { @MainActor in
@@ -379,5 +398,18 @@ private struct DrawerPanel<Content: View, Grabber: View>: View, Animatable {
             grabber()
                 .offset(y: -(shown - 22))
         }
+    }
+}
+
+/// Whether the chat drawer is at the whole height: its title names the crew
+/// there, where the crew's own header is covered.
+private struct ChatDrawerFullKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var chatDrawerFull: Bool {
+        get { self[ChatDrawerFullKey.self] }
+        set { self[ChatDrawerFullKey.self] = newValue }
     }
 }
