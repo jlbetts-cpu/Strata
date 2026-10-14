@@ -115,8 +115,10 @@ struct GroupPlanSheet: View {
     let crewName: String
     /// The host's, so words a send refused are still here to change.
     @Binding var title: String
-    /// Which crew, for a plan made from the Crews list (`CrewPicker` with
-    /// `single`); nil in a crew's own chat, where the crew is given.
+    /// Which crews, for a plan made from the Crews list (`CrewPicker`, Every
+    /// crew among them: the owner, 2026-10-14, "there is no way to plan for
+    /// multiple groups at the same time or all"); nil in a crew's own chat,
+    /// where the crew is given.
     var crews: Binding<Set<CrewID>>? = nil
     let send: (String, Choice) -> Void
 
@@ -130,7 +132,11 @@ struct GroupPlanSheet: View {
     /// The crew chosen in the row, as it changes; the given name otherwise.
     private var shownName: String {
         let store = SocialStore.shared
-        return crews?.wrappedValue.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? crewName
+        guard let chosen = crews?.wrappedValue else { return crewName }
+        if chosen.count > 1 {
+            return chosen.count == store.crews.count ? "Every Crew" : "\(chosen.count) Crews"
+        }
+        return chosen.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? crewName
     }
 
     private var when: Choice? {
@@ -144,7 +150,7 @@ struct GroupPlanSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                 if let crews {
-                    CrewPicker(selection: crews, single: true)
+                    CrewPicker(selection: crews)
                         .padding(.horizontal, GridConstants.horizontalPadding)
                 }
                 TextField(scope.prompt(), text: $title)
@@ -186,10 +192,18 @@ struct GroupPlanSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        // **Its own height, not half the screen** (the owner, 2026-10-14:
+        // "it does like a jitter when opening and opens too high"): the
+        // field, the days and the crews, and room for the keys under them.
+        .presentationDetents([.height(crews == nil ? 236 : 292)])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
-        .onAppear { writing = true }
+        // The keyboard after the sheet has landed, not during: both rising
+        // at once was the jitter.
+        .task {
+            try? await Task.sleep(for: .milliseconds(380))
+            writing = true
+        }
     }
 }
 

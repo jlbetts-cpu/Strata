@@ -314,11 +314,15 @@ final class HeadStore {
     private init() {
         let defaults = UserDefaults.standard
         RetiredHeadSwitches.clear(defaults)
-        // **Off by default.** It was on for one build, to make sure he could
-        // see it at all, and he called that back straight away: "head on
-        // tower should not be on by default." He is right. It is a companion
-        // somebody opts into, not a thing the app does to you on first run.
-        showsOnTower = defaults.bool(forKey: Key.tower)
+        // **Always, with no switch** (the owner, 2026-10-14: "no need to have
+        // the option of letting head on tower just remove that it should be
+        // on by default because it sits in the header middle area
+        // regardless"). His 2026-10-03 "not on by default" was about a head
+        // let loose on the tower on first run; it waits in the crest now
+        // (`CompanionParking`, parked by default) and comes out when you
+        // press your face.
+        showsOnTower = true
+        defaults.removeObject(forKey: Key.tower)
         look = defaults.string(forKey: Key.look).flatMap(FilmLook.Kind.init(rawValue:)) ?? .none
         #if DEBUG
         if DebugHarness.seedsMadeHead { Self.writeMadeHeadFixture() }
@@ -456,10 +460,8 @@ final class HeadStore {
     // property is where the macro's accessors and the observer meet, and
     // `CameraService` records it as a combination not to rely on.
 
-    /// **Let My Head Onto the Tower, the one switch left** (the owner's call
-    /// on 2026-10-14, keeping 2026-10-03's "head on tower should not be on
-    /// by default"): it decides how busy Wins is, not who you are, so it
-    /// does not change what your crews see.
+    /// For the debug harness only since 2026-10-14: the switch is gone and
+    /// the head is always the tower's (`init`).
     func setShowsOnTower(_ on: Bool) {
         if on, !showsOnTower { CompanionParking.shared.containOnArrival() }
         showsOnTower = on
@@ -557,7 +559,6 @@ final class HeadStore {
         for past in roster.retire(id) { Self.removeFolder(past) }
         persistRoster()
         if wasActive { loadActive() }
-        if roster.heads.isEmpty { setShowsOnTower(false) }
         SocialStore.noteMyselfChanged()
     }
 
@@ -573,7 +574,6 @@ final class HeadStore {
         dressing?.cancel()
         undressed = nil
         head = nil
-        setShowsOnTower(false)
         SocialStore.noteMyselfChanged()
     }
 

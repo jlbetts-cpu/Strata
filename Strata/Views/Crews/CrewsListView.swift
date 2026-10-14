@@ -96,15 +96,31 @@ struct CrewsListView: View {
                     // The owner's line for a crew since 2026-10-13 (his
                     // pick from the night's research): who a crew is for.
                     // Held, it is yours to redraw or hide (`CrewsArt`).
-                    CrewsArt(line: CrewLine.forWho, height: 160)
-                        .padding(.top, GridConstants.gapSection)
-                        .padding(.bottom, GridConstants.gapWide)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .selectionDisabled()
+                    // **On the first launch only** (the owner, 2026-10-14: "I
+                    // think the drawing is cute but I feel it gets old fast
+                    // lets keep it for first launch and then fade away
+                    // cleanly"): the launch that first shows your crews keeps
+                    // it; after that the list ends on the lattice.
+                    if CrewsArtFirstLaunch.shows {
+                        CrewsArt(line: CrewLine.forWho, height: 160)
+                            .padding(.top, GridConstants.gapSection)
+                            .padding(.bottom, GridConstants.gapWide)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .selectionDisabled()
+                            .transition(.opacity)
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                // **The tower's lattice in the room under the crews** (the
+                // owner, 2026-10-14: "I would love to incorporate the lattice
+                // block design on the crews under in the empty space"): the
+                // same panes the towers stand on, grounded at the foot and
+                // fading up, behind the list.
+                // Not behind the drawing, on the one launch it shows: one
+                // thing in that room at a time.
+                .background(alignment: .bottom) { if !CrewsArtFirstLaunch.shows { CrewsLattice() } }
                 .refreshable { await store.refresh() }
             }
         }
@@ -156,7 +172,9 @@ struct CrewsListView: View {
         .sheet(isPresented: $planning) {
             GroupPlanSheet(crewName: planCrews.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? "a Crew",
                            title: $planDraft, crews: $planCrews) { title, choice in
-                if let crewID = planCrews.first { proposePlan(title, choice, in: crewID) }
+                // One line in each crew chosen; joining finds the one line
+                // of your own plan with these words, so it is in your plan once.
+                for crewID in planCrews { proposePlan(title, choice, in: crewID) }
             }
         }
         .task { await store.refresh() }
@@ -845,5 +863,43 @@ final class CrewsFilm {
     static func markSeen() {
         shared.seen = true
         UserDefaults.standard.set(true, forKey: seenKey)
+    }
+}
+
+/// **The drawing under the crews, on the first launch only** (the owner,
+/// 2026-10-14). The first launch that shows the Crews list keeps it for as
+/// long as the app is open; every launch after ends the list on the lattice.
+@MainActor
+enum CrewsArtFirstLaunch {
+    private static let key = "crews.drawingLaunch"
+    /// This launch, for as long as the app is open.
+    private static let launch = UUID().uuidString
+
+    static var shows: Bool {
+        let defaults = UserDefaults.standard
+        guard let first = defaults.string(forKey: key) else {
+            defaults.set(launch, forKey: key)
+            return true
+        }
+        return first == launch
+    }
+}
+
+/// The towers' lattice, at the Crews list's foot: two rows of panes on the
+/// ground and their fading overhang, at the towers' own cell, so the list
+/// stands on the same floor every tower does.
+private struct CrewsLattice: View {
+    var body: some View {
+        GeometryReader { geo in
+            let pad = GridConstants.horizontalPadding
+            let columns = CGFloat(GridConstants.columnCount)
+            let cell = floor((geo.size.width - pad * 2 - GridConstants.spacing * (columns - 1)) / columns)
+            let rows: CGFloat = 2
+            TowerLattice(cellSize: cell, contentHeight: rows * cell + (rows - 1) * GridConstants.spacing, rowsOver: 2)
+                .frame(width: geo.size.width - pad * 2)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

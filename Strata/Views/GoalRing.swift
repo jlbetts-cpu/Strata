@@ -193,12 +193,12 @@ struct GoalRingStroke: View {
 /// goal ring round my head" drawn in his doodle style; "finish the
 /// recommended making sure the aesthetic is perfect and clean").
 ///
-/// The same hand as `DoodleDot`, the one dot for "something new": round, a
-/// touch fuller on one side, its edge never quite a circle. Two slow
-/// ripples round the rim and a hair less tall than wide, **fixed**, so every
-/// ring in the app is the same mark and nothing shimmers. Gentler than the
-/// dot's, because a ring is a line, not a fill: the dot's 6% would read as a
-/// wobble on a 52pt ring, where 2% reads as a hand. At the crest that is
+/// His pen's hand: round, a touch fuller on one side, its edge never quite
+/// a circle. Two slow ripples round the rim and a hair less tall than wide,
+/// **fixed**, so every ring in the app is the same mark and nothing
+/// shimmers. Gentle, because a ring is a line, not a fill: 6% would read as
+/// a wobble on a 52pt ring, where 2% reads as a hand. (The notification
+/// dot was drawn this way too until 2026-10-14; it is round now.) At the crest that is
 /// about half a point either side of true. A slight variation, not a
 /// scribble.
 ///

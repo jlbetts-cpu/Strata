@@ -87,7 +87,9 @@ final class CompanionParking {
         // on the tower keeps it floating; the crest holds him only once he
         // has been carried into it, or for the beat before a press lets him
         // out (`GoalCrest.letOut`).
-        parked = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? false
+        // **In the crest until you let him out** (2026-10-14): with no switch
+        // for the tower any more, a new head waits in the header's middle.
+        parked = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true
     }
 
     /// The head was just switched onto the tower from Profile: out, since

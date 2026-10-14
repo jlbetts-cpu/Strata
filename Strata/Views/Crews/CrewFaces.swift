@@ -145,23 +145,21 @@ enum CrewPictures {
 /// places it stands: a crew's row, the Crews button, a crew's chat button.
 /// They were 9, 10 and 8 points (rule 1 of `docs/ten.md`, 2026-10-11).
 extension AppColors {
-    /// **The colour of "something new"** (the owner, 2026-10-13). He liked
-    /// coral and asked for it researched, "the most friendly and clean",
-    /// then "softer and more premium since our app is so minimal". His pick
-    /// from five, side by side in light and dark: terracotta, his coral
-    /// muted toward earth. It is still seen and read as well as the brighter
-    /// coral the research proposed (#DE5F57): 3.32:1 on the light page and
-    /// 4.83:1 on dark, against the 3:1 a mark needs, and a white number on
-    /// it 3.52:1, iOS's own red badge's legibility, without its alarm. One
-    /// colour in both appearances, and none of the block colours.
+    /// **The colour of "something new": dusk** (the owner, 2026-10-14: "I
+    /// feel like blue should be the notification color just because its
+    /// cleaner"; his pick from `docs/notify-blue-research-2026-10-14.md`).
+    /// Blue is how Mail and Messages mark unread, without red's alarm. Not
+    /// iOS's own blue: that sits a few steps from the Work block's #40A9FF
+    /// and on a tab bar reads as the selected tab. Dusk is one value in both
+    /// appearances: 4.59:1 on the light page and 3.64:1 on the dark one,
+    /// 3.69:1 on the light tab bar, and a white digit on it reads 4.67:1. It
+    /// also left terracotta behind, which was nearly the Social block's coral.
     ///
-    /// **The tab bar's only** (the owner, 2026-10-13: "I like it on the
-    /// bottom but ... a lot of the notification areas around the crew could
-    /// be in white or black depending on light or dark mode"). Inside the
-    /// app a dot is ink (`NewsDot`); the one colour is kept for the one
-    /// place that has to be seen from another tab.
-    static let notify = Color(hex: 0xC9705F)
-    static let notifyUI = UIColor(red: 0xC9 / 255, green: 0x70 / 255, blue: 0x5F / 255, alpha: 1)
+    /// **The tab bar's only** (the owner, 2026-10-13: "a lot of the
+    /// notification areas around the crew could be in white or black"):
+    /// inside the app a dot is ink (`NewsDot`).
+    static let notify = Color(hex: 0x4A72C4)
+    static let notifyUI = UIColor(red: 0x4A / 255, green: 0x72 / 255, blue: 0xC4 / 255, alpha: 1)
 }
 
 struct NewsDot: View {
@@ -184,9 +182,9 @@ struct NewsDot: View {
     /// A ring of the page's colour round it, where it sits on a glass button's rim.
     var ringed = false
 
-    /// **A dot drawn by hand** (the owner, 2026-10-13: "make the notification
-    /// indicator consistent everywhere and a doodle but like a slight doodle
-    /// variation dot"). The one dot for "something new" in the app, on a
+    /// **One dot for "something new"** (the owner, 2026-10-13: "make the
+    /// notification indicator consistent everywhere"; drawn by hand until
+    /// 2026-10-14, round since: `NewsDotShape`). The one dot in the app, on a
     /// crew's row, a crew's chat and the Crews tab (`StrataTab.picture`),
     /// never the system's red badge, which he called terrifying.
     ///
@@ -199,12 +197,12 @@ struct NewsDot: View {
     var body: some View { plain }
 
     private var plain: some View {
-        DoodleDot()
+        NewsDotShape()
             .fill(.primary)
             .frame(width: Self.side, height: Self.side)
             .overlay {
                 if ringed {
-                    DoodleDot().stroke(WarmBackground.top, lineWidth: GridConstants.strokeDefault)
+                    NewsDotShape().stroke(WarmBackground.top, lineWidth: GridConstants.strokeDefault)
                         .padding(-GridConstants.strokeDefault / 2)
                 }
             }
@@ -212,28 +210,20 @@ struct NewsDot: View {
     }
 }
 
-/// **A dot as a pen makes one**: round, a touch fuller on one side, its edge
-/// never quite a circle. Two slow ripples round the rim, a few percent of
-/// the radius, fixed, so every dot in the app is the same mark.
-struct DoodleDot: Shape {
+/// **A clean round dot** (the owner, 2026-10-14: "can you make the
+/// notification actually not doodle lets make it clean"). It was drawn by
+/// hand, a rim that wobbled a few percent; a notice is read at a glance,
+/// and a true circle is the calmest shape for it. One shape for every dot
+/// in the app, in SwiftUI and on the tab's glyph.
+struct NewsDotShape: Shape {
     func path(in rect: CGRect) -> Path {
-        Path(DoodleDot.cgPath(in: rect))
+        Path(NewsDotShape.cgPath(in: rect))
     }
 
     /// The same outline for UIKit drawing (the tab's glyph).
     nonisolated static func cgPath(in rect: CGRect) -> CGPath {
-        let path = CGMutablePath()
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        let r = min(rect.width, rect.height) / 2
-        let steps = 48
-        for i in 0...steps {
-            let t = CGFloat(i) / CGFloat(steps) * 2 * .pi
-            // Within the frame at the widest: the ripples only take away.
-            let k = 0.94 + 0.04 * sin(2 * t + 0.7) + 0.02 * sin(3 * t + 2.1)
-            let p = CGPoint(x: c.x + cos(t) * r * k, y: c.y + sin(t) * r * k * 0.97)
-            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
-        }
-        path.closeSubpath()
-        return path
+        let side = min(rect.width, rect.height)
+        return CGPath(ellipseIn: CGRect(x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side),
+                      transform: nil)
     }
 }

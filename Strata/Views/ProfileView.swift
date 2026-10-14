@@ -566,32 +566,9 @@ struct ProfileView: View {
                 // thumb AND both grounds. The arithmetic, the window it sits in,
                 // and the one thing about it that needs his eye are all on the
                 // token.
-                // **The head that lives on the tower.**
-                //
-                // The owner, 2026-09-23: "for the head I want it to be added
-                // to the Wins screen as an option, where it kinda just floats
-                // on the top, around, bouncing off the walls... occasionally
-                // he can drop down and jump along the tops of the blocks."
-                //
-                // "As an option" is the load bearing part, and it is why this
-                // row exists rather than the companion simply being there:
-                // off by default, and while it is off `TowerCompanionLayer`
-                // builds no view, starts no clock and asks for no frames.
-                // **The one switch the head has left** (the owner's call,
-                // 2026-10-14): Use as Profile Picture, Show My Head on the
-                // Map and Add My Head to Photos went when the head became who
-                // you are. This one stays because it is about how busy Wins
-                // is, not about who you are.
-                Toggle(isOn: Binding(get: { heads.showsOnTower },
-                                     set: { heads.setShowsOnTower($0) })) {
-                    Label {
-                        Text("Let My Head Onto the Tower")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "square.stack")
-                    }
-                }
-                .tint(AppColors.switchTrack)
+                // **No switch for the tower** (the owner, 2026-10-14: "no
+                // need to have the option of letting head on tower"). The
+                // head waits in Wins' crest and comes out when you press it.
 
                 // **Its look, wherever it appears.** The owner: "a way to add
                 // the filter to the profile picture head so the user can get

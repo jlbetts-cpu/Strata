@@ -1322,6 +1322,24 @@ final class FeedbackShots: XCTestCase {
         snap("alertcheck")
     }
 
+    /// The day's third batch (2026-10-14): the Crews list on its first and a
+    /// later launch, the round dot, a plan for several crews, Profile's head.
+    func testThirdBatch() {
+        let crews = ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"]
+        var app = launch(crews + ["-crews.drawingLaunch", ""])
+        wait(8); snap("third-1-first-launch")
+        app.terminate()
+        app = launch(crews)
+        wait(8); snap("third-2-later-launch")
+        app.buttons["Plan"].firstMatch.tap(); wait(2.5)
+        let every = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Every crew'")).firstMatch
+        if every.exists { every.tap(); wait(1) }
+        snap("third-3-plan-every")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataSeedHead", "1", "-strataScrollProfile", "head"])
+        wait(9); snap("third-4-profile")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

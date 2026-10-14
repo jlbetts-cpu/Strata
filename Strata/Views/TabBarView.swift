@@ -137,11 +137,11 @@ enum StrataTab: String, CaseIterable {
             glyph.withTintColor(ink, renderingMode: .alwaysOriginal).draw(in: CGRect(origin: .zero, size: size))
             // The ring of clear round the dot, so the two read apart.
             cg.setBlendMode(.clear)
-            cg.addPath(DoodleDot.cgPath(in: dot.insetBy(dx: -1.5 * u, dy: -1.5 * u)))
+            cg.addPath(NewsDotShape.cgPath(in: dot.insetBy(dx: -1.5 * u, dy: -1.5 * u)))
             cg.fillPath()
             cg.setBlendMode(.normal)
             cg.setFillColor(AppColors.notifyUI.cgColor)
-            cg.addPath(DoodleDot.cgPath(in: dot))
+            cg.addPath(NewsDotShape.cgPath(in: dot))
             cg.fillPath()
             guard !written.isEmpty else { return }
             let font = UIFont.systemFont(ofSize: side * 0.62, weight: .semibold)
