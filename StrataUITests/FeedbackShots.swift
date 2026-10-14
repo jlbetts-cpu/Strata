@@ -815,7 +815,7 @@ final class FeedbackShots: XCTestCase {
         // With the rules agreed: the link, then the crew.
         app = launch(["-strataCrews", "1", "-strataSeedInvite", "1", "-strataStartTab", "tower",
                       "-strataSeedWins", "2", "-crews.rulesAccepted.v1", "YES"])
-        let landed = app.buttons["Chat"].firstMatch.waitForExistence(timeout: 40)
+        let landed = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch.waitForExistence(timeout: 40)
         wait(3); snap("invite-3-in-the-crew")
         print("PLANNING-invite: in crew \(landed) alerts \(app.alerts.count) \(app.alerts.firstMatch.exists ? app.alerts.firstMatch.label : "")")
         XCTAssertTrue(asked, "someone new was not shown the rules")
@@ -1209,7 +1209,7 @@ final class FeedbackShots: XCTestCase {
         let close = app.buttons["Close"].firstMatch
         if close.exists { close.tap(); wait(1) }
         let closedHere = !app.buttons["I'm In"].firstMatch.exists
-        app.buttons["Chat"].firstMatch.tap(); wait(3)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch.tap(); wait(3)
         let inChat = app.buttons["I'm In"].firstMatch
         let stillInChat = inChat.waitForExistence(timeout: 4)
         snap("planblock-chat-after-close")
