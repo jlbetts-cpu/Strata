@@ -59,6 +59,16 @@ struct CrewChatSheet: View {
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
+    /// **The chat's clock**, moved on every few seconds while it is open:
+    /// what a line that did not go is measured against (M1).
+    @State private var clock = Date()
+    /// Lines already said not to have gone, so the warning sounds once.
+    @State private var toldUnsent: Set<UUID> = []
+    /// **A new line arrived below while you were reading higher up** (M7):
+    /// the thread stayed put and Newest offers the way down.
+    @State private var newBelow = false
+    /// Asked of the scroll view: to the newest line, now.
+    @State private var toNewest = 0
     /// A strip, picture or sticker open full screen (`ChatPictureViewer`).
     @State private var viewingPicture: CrewMessage?
     /// A heart just given by two taps, popping at its bubble's corner.
@@ -176,6 +186,21 @@ struct CrewChatSheet: View {
         .onChange(of: writing) { _, now in
             if now, showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
         }
+        // The clock a stuck line is read against, and the one warning when
+        // a line of yours is first said not to have gone (M1).
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                // Moved only when what is stuck changes, so a quiet chat is
+                // not redrawn every two seconds for nothing.
+                let now = Date()
+                let stuck = Set(store.messages(in: crewID).filter { store.isUnsent($0, now: now) }.map(\.messageID))
+                guard stuck != toldUnsent else { continue }
+                if !stuck.subtracting(toldUnsent).isEmpty { HapticsEngine.warning() }
+                clock = now
+                toldUnsent = stuck
+            }
+        }
         .task {
             GroupPlanBook.reconcile(context: modelContext)
             planTick += 1
@@ -262,12 +287,21 @@ struct CrewChatSheet: View {
                             // The page's one sentence in the type and ink
                             // every other empty page uses (`PhotoCollection
                             // View.emptyLine`); it was the quietest thing on it.
-                            Text("Quiet here. Yet.")
-                                .font(Typography.headerMedium)
-                                .foregroundStyle(AppColors.inkPrimary)
-                                .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                            //
+                            // **And that the chat is today's** (M6): without
+                            // it a morning's empty chat reads as lost lines.
+                            VStack(spacing: GridConstants.gapTight) {
+                                Text("Quiet here. Yet.")
+                                    .font(Typography.headerMedium)
+                                    .foregroundStyle(AppColors.inkPrimary)
+                                clearsLine(crew)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: geo.size.height)
                         } else {
                             LazyVStack(spacing: GridConstants.spacing) {
+                                // The same line where a full thread stops.
+                                clearsLine(crew)
+                                    .padding(.bottom, GridConstants.gapItem)
                                 ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                                     row(message, after: index > 0 ? messages[index - 1] : nil,
                                         reactions: reactions[message.messageID] ?? [], crew: crew)
@@ -289,10 +323,46 @@ struct CrewChatSheet: View {
                 // Where the thread stands on screen, for which way a held
                 // line's menu opens (`opensAbove`).
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { lineFrames.thread = $0 }
+                // How far the newest line is below the screen's foot. Kept
+                // without a redraw; only Newest going away is a state change.
+                .onScrollGeometryChange(for: CGFloat.self) { geo in
+                    geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height + geo.contentInsets.bottom
+                } action: { _, fromFoot in
+                    lineFrames.fromFoot = fromFoot
+                    if newBelow, fromFoot < GridConstants.gapSection {
+                        withAnimation(GridConstants.motionSnappy) { newBelow = false }
+                    }
+                }
+                // **No jump while reading** (M7): a new line takes the
+                // thread down only when it is yours or you are within a
+                // screen of the newest. It went down on every line, from
+                // wherever you were reading, every three seconds of a busy
+                // chat.
                 .onChange(of: messages.last?.id) { _, last in
                     guard let last else { return }
+                    let mine = messages.last?.senderProfileID == store.me
+                    guard ChatFollow.follows(newLineIsMine: mine, distanceFromFoot: lineFrames.fromFoot,
+                                             screen: geo.size.height) else {
+                        withAnimation(GridConstants.motionSnappy) { newBelow = true }
+                        return
+                    }
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
                         proxy.scrollTo(last, anchor: .bottom)
+                    }
+                }
+                .onChange(of: toNewest) { _, _ in
+                    guard let last = messages.last?.id else { return }
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                        proxy.scrollTo(last, anchor: .bottom)
+                        newBelow = false
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if newBelow {
+                        newestButton
+                            .padding(.trailing, hPad)
+                            .padding(.bottom, GridConstants.gapTight)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
                 // A quoted line, tapped: to it, and it lights a moment.
@@ -313,9 +383,22 @@ struct CrewChatSheet: View {
     private func row(_ message: CrewMessage, after previous: CrewMessage?, reactions: [Reaction],
                      crew: Crew?) -> some View {
         let mine = message.senderProfileID == store.me
-        let opensRun = previous?.senderProfileID != message.senderProfileID
+        // **A time above the day's first line, and above one that comes an
+        // hour after the one before** (M5). After that gap the same
+        // person's run starts again, face and name shown.
+        let timed = ChatTimes.showsTime(message, after: previous)
+        let opensRun = previous?.senderProfileID != message.senderProfileID || timed
         let member = crew?.member(message.senderProfileID)
+        let unsent = mine && store.isUnsent(message, now: clock)
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            if timed {
+                Text(ChatTimes.words(message.createdAt))
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, GridConstants.gapTight)
+                    .accessibilityHidden(true)
+            }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 if mine {
                     Spacer(minLength: Self.otherSide)
@@ -340,8 +423,19 @@ struct CrewChatSheet: View {
                             .accessibilityHidden(true)
                     }
                     bubble(message, mine: mine)
+                        .opacity(unsent ? 0.6 : 1)
                 }
                 if !mine { Spacer(minLength: Self.otherSide) }
+            }
+            // **A line that has not gone says so** (M1), in the voice's own
+            // error line, under it. A tap on the line tries again.
+            if unsent {
+                Text(Self.unsentWords)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkTertiary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
             }
             // What everyone chose, under the line, on the line's side. Out
             // of the line's own row, so a friend's face stays beside their
@@ -356,6 +450,7 @@ struct CrewChatSheet: View {
         // Runs are told apart by air, never by a line.
         .padding(.top, opensRun && previous != nil ? GridConstants.gapItem : 0)
         .animation(motion, value: reactions)
+        .animation(GridConstants.crossFade, value: unsent)
     }
 
     /// **A friend's face opens what you can do about them** (M2b; the
@@ -402,7 +497,10 @@ struct CrewChatSheet: View {
             .onTapGesture {
                 // The lift that ended a hold is not a tap.
                 if held == id { held = nil; return }
-                if let quote {
+                if mine, store.isUnsent(message, now: clock) {
+                    HapticsEngine.lightTap()
+                    Task { await store.retry(message) }
+                } else if let quote {
                     HapticsEngine.lightTap()
                     onOpenWin(quote.winID)
                 } else if let answered {
@@ -435,6 +533,9 @@ struct CrewChatSheet: View {
         .accessibilityHint(quote != nil ? "Opens the win." : answered != nil ? "Goes to the line it answers."
                            : message.isStrip || message.isPicture ? "Opens it full screen." : "")
         .accessibilityActions {
+            if mine, store.isUnsent(message, now: clock) {
+                Button("Try Again") { Task { await store.retry(message) } }
+            }
             Button("React") { openMenu(on: message, fromQuote: false) }
             Button("Reply") { reply(to: message) }
             Button(isHearted(id) ? "Remove Heart" : "Heart") { heart(message) }
@@ -447,6 +548,31 @@ struct CrewChatSheet: View {
             }
         }
     }
+
+    /// "Today's chat clears at midnight.", or at this phone's time for the
+    /// crew's midnight when the two differ (M6). Quiet, in the app only.
+    private func clearsLine(_ crew: Crew?) -> some View {
+        Text(ChatClears.line(crewZone: crew?.timeZone ?? .current, here: .current, now: store.now()))
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(AppColors.inkTertiary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+    }
+
+    /// **Newest** (M7): one round glass button over the field's right end,
+    /// with the app's dot on its shoulder for what came in below.
+    private var newestButton: some View {
+        GlassIconButton(systemName: "arrow.down", onPage: true, accessibilityLabel: "Newest Messages") {
+            toNewest += 1
+        }
+        .overlay(alignment: .topTrailing) {
+            NewsDot(ringed: true).offset(x: 1, y: -1)
+        }
+        .accessibilityValue("New messages")
+    }
+
+    /// The voice's own error line (`docs/voice.md`, Error).
+    static let unsentWords = "That didn't send. Try once more."
 
     // MARK: - The hold menu
 
@@ -700,7 +826,15 @@ struct CrewChatSheet: View {
         return short.isEmpty ? "A friend" : short
     }
 
+    /// What VoiceOver says for a line: who, what, and when (M5), and that
+    /// it has not gone (M1).
     private func spoken(_ message: CrewMessage, quote: String?) -> String {
+        var said = said(message, quote: quote) + ", " + ChatTimes.words(message.createdAt)
+        if message.senderProfileID == store.me, store.isUnsent(message, now: clock) { said += ", not sent" }
+        return said
+    }
+
+    private func said(_ message: CrewMessage, quote: String?) -> String {
         var parts = [name(of: message.senderProfileID)]
         if let quote, store.isWinLine(message) {
             parts.append("a win, \(quote)")
@@ -1249,4 +1383,6 @@ enum CrewDrafts {
 final class ChatLineFrames {
     var mid: [UUID: CGFloat] = [:]
     var thread: CGRect = .zero
+    /// How far the newest line is below the screen's foot (M7).
+    var fromFoot: CGFloat = 0
 }
