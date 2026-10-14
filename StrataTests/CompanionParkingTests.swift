@@ -157,7 +157,10 @@ struct CrestDockTests {
         let side: CGFloat = 60
         // Within a hair: the sides are sums of fractions of a point.
         #expect(abs(GoalCrest.faceSide(crest: side) - 40) < 0.001)
-        #expect(abs(CompanionParking.crestHeadSide(crest: side) - 40 * ProfileAvatar.headShare) < 0.001)
+        // The share moved from `ProfileAvatar` to `PersonHead` when the head
+        // became one identity component (the owner, 2026-10-14); the number
+        // is the same 0.76, so he still lands at the size the crest draws.
+        #expect(abs(CompanionParking.crestHeadSide(crest: side) - 40 * PersonHead.ringShare) < 0.001)
         #expect(CompanionParking.crestHeadSide(crest: side) < TowerCompanion.side, "he shrinks going in")
     }
 
@@ -169,7 +172,10 @@ struct CrestDockTests {
         #expect(press.contains("guard canLetOut else {"))
         #expect(press.contains("openDay()"))
         #expect(ring.contains("HeadStore.shared.headForCrews != nil && !Self.headIsOut"))
-        // Out on the tower, the ring holds your picture, never a second head.
-        #expect(ring.contains("ProfileAvatar(side: side, showsHead: !headIsOut)"))
+        // Out on the tower, the ring holds the blank head, never a second
+        // head. It held your picture until the owner's 2026-10-14 call
+        // ("remove the option for a pfp"): there is no picture now, and
+        // `PersonHead` draws the placeholder when told not to show the head.
+        #expect(ring.contains("setting: .free, showsHead: !headIsOut)"))
     }
 }

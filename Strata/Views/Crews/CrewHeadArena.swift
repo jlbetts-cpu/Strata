@@ -196,15 +196,10 @@ struct CrewBubble: View {
     private func crammed(_ member: CrewMember, index: Int, of count: Int, circle: CGFloat) -> some View {
         let spot = Self.spot(index, of: count)
         let size = circle * spot.size
-        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
-        Group {
-            if let rig {
-                LivingHeadView(rig: rig, side: size, liveliness: .calm)
-                    .frame(width: size, height: size)
-            } else {
-                CrewFace(member: member, crew: crew.id, me: me, side: size * 0.8)
-            }
-        }
+        // A head, or the blank head at a head's size: one shape in the
+        // bubble, whoever has made one (2026-10-14, `PersonHead`).
+        PersonHead(person: .member(member, crew: crew.id, me: me), side: size,
+                   life: .calm, setting: .free)
         // Squashed toward the middle: pressed by the others.
         .scaleEffect(x: count > 1 ? 0.9 : 1, y: count > 1 ? 1.04 : 1)
         .rotationEffect(.degrees(count > 1 ? spot.tilt : 0))
@@ -308,8 +303,8 @@ struct CrewHeadArena: View {
                 // **Everyone, head or not** (the owner, 2026-10-03: "even if a
                 // friend doesnt have a head there pfp should still show... they
                 // shouldnt be excluded"). A member with no head floats as the
-                // circle they are everywhere else in Crews: their photo, or
-                // their initial.
+                // blank head in their colour, with their initial, as they
+                // are everywhere else in Crews (2026-10-14, `PersonHead`).
                 ForEach(crew.members) { member in
                     CrewHeadRunner(member: member, isMe: member.profileID == me,
                                    rig: CrewHeads.shared.rig(for: member, in: crew.id, me: me),
@@ -397,13 +392,12 @@ private struct CrewHeadRunner: View {
         // at arm's length and still smaller than one block. See
         // `TowerCompanion.side(forCell:)`.
         let side = TowerCompanion.side(forCell: model.probe.cellSize)
-        let head = Group {
-            if let rig {
-                LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
-            } else {
-                CrewFace(member: member, crew: crewID, me: me, side: side * 0.78)
-            }
-        }
+        // **Everyone walks as a head** (2026-10-14): a member with none is
+        // the blank head in their colour, at the size a head would be, where
+        // a floating disc used to stand in. `PersonHead` resolves the same
+        // rig this runner was handed.
+        let head = PersonHead(person: .member(member, crew: crewID, me: me), side: side,
+                              life: .calm, setting: .free, take: take)
         .frame(width: side, height: side)
         .contentShape(Circle())
 
@@ -691,21 +685,13 @@ struct CrewFan: View {
     }
 
     private func head(_ member: CrewMember) -> some View {
-        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
         return Button {
             parking.pop(member.profileID, from: centres[member.profileID])
         } label: {
-            // Everyone in the same circle: a head on the disc a photo fills.
-            Group {
-                if let rig {
-                    LivingHeadView(rig: rig, side: Self.side * 0.92, liveliness: .calm)
-                        .frame(width: Self.side, height: Self.side)
-                        .background(Circle().fill(AppColors.quietFill))
-                        .clipShape(Circle())
-                } else {
-                    CrewFace(member: member, crew: crew.id, me: me, side: Self.side)
-                }
-            }
+            // Everyone in the same circle, at the one share a head takes of
+            // a disc (`PersonHead.discShare`; this was 0.92, its own size).
+            PersonHead(person: .member(member, crew: crew.id, me: me), side: Self.side,
+                       life: .calm)
             .frame(width: Self.side, height: Self.side)
             .contentShape(Circle())
         }

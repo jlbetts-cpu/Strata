@@ -461,22 +461,19 @@ struct GoalCrest: View {
     }
 }
 
-/// **You, in the middle**: the head your crews see (`HeadStore.headForCrews`),
-/// so Wins and a crew show the same you; without one, your profile picture.
+/// **You, in the middle**: `PersonHead` for you, the head your crews see, so
+/// Wins and a crew show the same you; without one, the blank head in your
+/// colour (the owner, 2026-10-14: the head is "an identity").
 struct CrestFace: View {
     let side: CGFloat
-    /// **Your head is out on the tower** (2026-10-14): your picture or
-    /// initial holds the ring, as a crew's bubble shows its faces once its
-    /// heads are out. Never the head twice.
+    /// **Your head is out on the tower** (2026-10-14): the blank head holds
+    /// the ring, as a crew's bubble shows its faces once its heads are out.
+    /// Never the head twice.
     var headIsOut = false
 
     var body: some View {
-        if !headIsOut, let rig = HeadStore.shared.headForCrews {
-            LivingHeadView(rig: rig, side: side * ProfileAvatar.headShare, liveliness: .calm)
-                .frame(width: side, height: side)
-                .accessibilityHidden(true)
-        } else {
-            ProfileAvatar(side: side, showsHead: !headIsOut)
-        }
+        PersonHead(person: .me, side: side * PersonHead.ringShare, life: .calm,
+                   setting: .free, showsHead: !headIsOut)
+            .frame(width: side, height: side)
     }
 }

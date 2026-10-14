@@ -951,7 +951,7 @@ struct OnboardingView: View {
             Circle()
                 .fill(EtherealFill.fill(HabitCategory.creativity.style.baseColor))
             if let rig = heads.head ?? HeadRig.creatorRig {
-                TappableHead(rig: rig, side: Self.headCircle * ProfileAvatar.headShare, greets: true)
+                TappableHead(rig: rig, side: Self.headCircle * PersonHead.ringShare, greets: true)
             }
         }
         .frame(width: Self.headCircle, height: Self.headCircle)

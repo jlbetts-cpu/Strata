@@ -17,7 +17,9 @@ final class CrewHeads {
 
     private func key(_ crew: CrewID, _ member: UUID) -> String { "\(crew.rawValue)/\(member.uuidString)" }
 
-    /// The head to draw for a member, or nil (an initial is drawn instead).
+    /// The head to draw for a member, or nil (the blank head is drawn
+    /// instead, `HeadPlaceholder`). Ask `HeadIdentity`, not this, from a
+    /// screen.
     /// Starts the load the first time it is asked for.
     func rig(for member: CrewMember, in crew: CrewID, me: UUID) -> HeadRig? {
         if member.profileID == me { return HeadStore.shared.headForCrews }
@@ -52,7 +54,18 @@ final class CrewHeads {
     }
 }
 
-/// One member, in a circle: their head's still face, or their initial.
+/// One member, in a circle: `PersonHead` for them, still, on the quiet well.
+///
+/// **A name kept for its callers, nothing more** (2026-10-14). The decision
+/// it used to make (head, else their photo, else their initial on a colour)
+/// is `HeadIdentity`'s now, and a photograph is never drawn for a person
+/// (the owner, 2026-10-14: "remove the option for a pfp"). A friend on an
+/// older build who still sends one is the blank head in their colour, like
+/// anyone else without a head yet.
+///
+/// **With its eyes.** A still head is `HeadStill`, irises and resting gaze
+/// and all: the face picture alone has empty eye whites, and a circle drawn
+/// from it stared out with no pupils (the owner, 2026-10-02: "creepy").
 struct CrewFace: View {
     let member: CrewMember
     let crew: CrewID
@@ -60,47 +73,7 @@ struct CrewFace: View {
     let side: CGFloat
 
     var body: some View {
-        let rig = CrewHeads.shared.rig(for: member, in: crew, me: me)
-        ZStack {
-            Circle().fill(fill)
-            if let rig {
-                // **With its eyes.** The face picture alone has empty eye
-                // whites: the irises are their own layer, and a circle drawn
-                // from the picture stared out with no pupils (the owner,
-                // 2026-10-02: "creepy"). `HeadStill` is the head as a still,
-                // resting gaze and all, the one every still head uses.
-                // Crown to chin fills about nine tenths of the circle, the
-                // way a contact photo does.
-                HeadStill(rig: rig, side: side * 0.9)
-                    .frame(width: side, height: side)
-                    .offset(y: side * 0.04)
-            } else if let photo = member.photo, SocialStore.shared.photoIsShown(photo),
-                      let image = CrewPictures.image(at: photo) {
-                // A photograph fills the circle a head sits in, so the two
-                // read as one set (Messages' own answer for Memoji beside
-                // photos; the owner chose it 2026-10-02).
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Text(member.initial.isEmpty ? " " : member.initial)
-                    // The app's face and weight, as your own avatar's initial is
-                    // (`ProfileAvatar`): this one was SF Rounded Semibold, a
-                    // second face and a third weight (rule 7, `docs/ten.md`).
-                    .font(.system(size: side * 0.42, weight: Typography.bodyWeight))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: side, height: side)
-        .clipShape(Circle())
-        .accessibilityHidden(true)
-    }
-
-    /// A colour of the app's own palette, picked by the person's id so it is
-    /// the same on every phone.
-    private var fill: Color {
-        if CrewHeads.shared.rig(for: member, in: crew, me: me) != nil || member.photo != nil { return AppColors.quietFill }
-        let palette = HabitCategory.selectable
-        let index = Int(member.profileID.uuid.0) % max(palette.count, 1)
-        return palette[index].style.baseColor
+        PersonHead(person: .member(member, crew: crew, me: me), side: side)
     }
 }
 
