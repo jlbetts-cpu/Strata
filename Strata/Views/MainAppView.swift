@@ -3810,7 +3810,6 @@ struct MainAppView: View {
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
                 .companionObstacle("slot")
-                plannedLayer(colW: colW, gridH: gridH, slotPos: slotPos)
                 // No animation modifier here.
                 //
                 // `onSizeChanged` is already called inside a `slotSnap`
@@ -3821,6 +3820,18 @@ struct MainAppView: View {
                 // slot AND grows the container by a row, and the two have to
                 // be the same animation or the ghost is briefly somewhere the
                 // block will not land. One transaction now covers all three.
+            }
+            // **The plan's boxes stay while a block lands, and slide** (the
+            // owner, 2026-10-14: "when placing a block the plan blocks dont
+            // really have a clean animation"). They were inside the slot's
+            // "not while anything falls": every drop took them off the tower
+            // and put them back a beat later in new cells, a blink and a jump.
+            // Now they move to where the new block leaves room, on the slot's
+            // own spring, while it falls.
+            if !isRearranging {
+                plannedLayer(colW: colW, gridH: gridH, slotPos: slotPos)
+                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.slotSnap,
+                               value: towerVM.currentGrid)
             }
         }
         // A container, not one combined element: each win is reachable and

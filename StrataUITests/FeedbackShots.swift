@@ -1191,7 +1191,11 @@ final class FeedbackShots: XCTestCase {
         if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2.5) }
         snap("tips-2-wins-plan")
         let slot = app.descendants(matching: .any)["Log a win"].firstMatch
-        if slot.exists, slot.isHittable { slot.press(forDuration: 0.6); wait(0.3); snap("tips-3-placing"); wait(2.5); snap("tips-4-placed") }
+        if slot.exists, slot.isHittable {
+            slot.press(forDuration: 0.6)
+            snap("tips-3a-placing"); wait(0.25); snap("tips-3b-placing"); wait(0.25); snap("tips-3c-placing")
+            wait(2.5); snap("tips-4-placed")
+        }
         app.terminate()
         app = launch(["-strataStartTab", "tower", "-strataSeedWins", "1", "-strataTipsReset", "1", "-strataTipsShow", "1"])
         wait(8); snap("tips-5-one-win")
