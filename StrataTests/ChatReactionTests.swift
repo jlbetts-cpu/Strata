@@ -281,8 +281,11 @@ struct ChatReactionTests {
                 "the hold is not the app's one menu")
         // The menu, in order: reactions, then the rows.
         let menu = try #require(chat.range(of: "private func lineMenu").map { String(chat[$0.lowerBound...]) })
-        let order = ["ChatReactionBar(", "BlockMenuRow(\"Reply\"", "\"Remove Heart\" : \"Heart\"",
+        // No Heart row since 2026-10-14 (the owner: "the heart is clutter"):
+        // ❤️ is on the row and two taps give it.
+        let order = ["ChatReactionBar(", "BlockMenuRow(\"Reply\"",
                      "BlockMenuRow(\"Copy\"", "BlockMenuRow(\"Delete\"", "BlockMenuRow(\"Report\""]
+        #expect(!menu.contains("\"Remove Heart\" : \"Heart\""), "the Heart row is back")
         var last = menu.startIndex
         for word in order {
             let found = try #require(menu.range(of: word), "\(word) left the menu")
@@ -301,9 +304,13 @@ struct ChatReactionTests {
         #expect(!chat.contains(".contextMenu"), "the hold is two things again")
 
         let bar = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/ChatReactions.swift"))
-        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true,"),
+        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true, onMore: more)"),
                 "the chat's bar is a private copy of the win's")
-        #expect(bar.contains("onMore: stickersAllowed ? stickers : nil"), "the + no longer opens stickers")
+        // **"+" is more emoji, as on a win** (the owner, 2026-10-14: "on the
+        // tower when you press the + its for additional emojis"); it opened
+        // your stickers here, which moved to a Sticker row of the menu.
+        #expect(chat.contains("EmojiField(isActive: Binding(get: { emojiFor != nil }"), "the chat's + does something the win's does not")
+        #expect(bar.contains("onSticker: sticker"), "no way to put a sticker on a line")
         #expect(!bar.contains(".glassCapsule("), "glass inside the menu's own ground")
         #expect(!bar.contains(".shadow("), "chrome casts no shadow")
     }

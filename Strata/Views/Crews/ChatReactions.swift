@@ -130,15 +130,27 @@ enum ChatStickerImages {
 /// stickers** in the app's sticker sheet, where a tap puts one on the line.
 /// Someone who may not send photographs (13 to 15) gets the emoji keyboard
 /// behind "+" instead: a sticker is lifted out of a photograph.
+///
+/// **"+" is more emoji, as it is on a win** (the owner, 2026-10-14:
+/// "reactions to chat dont seem to work the same ... on the tower when you
+/// press the + its for additional emojis"). Stickers moved to their own row
+/// of the menu, under Reply.
 struct ChatReactionBar: View {
     /// Yours on this line, if any.
     let mine: Reaction?
-    let stickersAllowed: Bool
     let pick: (String) -> Void
-    let stickers: () -> Void
+    /// "+": the menu closes and the emoji keyboard comes up over the chat.
+    /// Raised inside the menu, the keyboard pushed the drawer up with the
+    /// menu still half open behind it (seen 2026-10-14).
+    let more: () -> Void
+    /// **One of your stickers, at the row's end** (the owner, 2026-10-14:
+    /// "the sticker you can put that on the end of the reaction row"). Nil
+    /// for someone who may not send photographs: a sticker is lifted out
+    /// of one.
+    var sticker: (() -> Void)? = nil
 
     var body: some View {
-        ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true,
-                    onMore: stickersAllowed ? stickers : nil) { pick($0) }
+        ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true, onMore: more,
+                    onSticker: sticker) { pick($0) }
     }
 }

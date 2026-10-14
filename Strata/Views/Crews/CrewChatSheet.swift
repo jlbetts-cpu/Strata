@@ -61,6 +61,8 @@ struct CrewChatSheet: View {
     /// option and the chat should pop up"). Over the field as a line's quote
     /// is, and sent with the win quoted.
     @State private var replyingToWin: UUID?
+    /// The line "+" is choosing an emoji for, with the keyboard up.
+    @State private var emojiFor: UUID?
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
@@ -160,6 +162,9 @@ struct CrewChatSheet: View {
             .undoLine()
             .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+            // The emoji keyboard for "+" on a held line, as a win's "+" opens
+            // it. Here, not on `body`, which is at the type-checker's ceiling.
+            .background { emojiPicker }
             // Escape closes an open menu first, then the chat.
             .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { leave() } }
     }
@@ -728,26 +733,26 @@ struct CrewChatSheet: View {
         let id = message.messageID
         let close = menuBinding(id)
         ChatReactionBar(mine: store.myReaction(toMessage: id, in: crewID),
-                        stickersAllowed: store.photosAllowed(),
                         pick: { emoji in
                             BlockMenuAfter.run(closing: close) { react(.emoji(emoji), to: id) }
                         },
-                        stickers: {
+                        more: {
+                            BlockMenuAfter.run(closing: close) { emojiFor = id }
+                        },
+                        sticker: store.photosAllowed() ? {
                             BlockMenuAfter.run(closing: close) {
                                 stickerFor = id
                                 choosingSticker = true
                             }
-                        })
+                        } : nil)
             .padding(.horizontal, GridConstants.horizontalPadding - ReactionBar.inset - GridConstants.gapTight)
             .padding(.bottom, GridConstants.gapTight)
         Divider()
         BlockMenuRow("Reply", "arrowshape.turn.up.left") {
             BlockMenuAfter.run(closing: close) { reply(to: message) }
         }
-        let hearted = isHearted(id)
-        BlockMenuRow(hearted ? "Remove Heart" : "Heart", hearted ? "heart.slash" : "heart") {
-            BlockMenuAfter.run(closing: close) { heart(message) }
-        }
+        // **No Heart row** (the owner, 2026-10-14: "the heart is clutter"):
+        // ❤️ is on the row above and two taps give it, as in Messages.
         if message.hasWordsToCopy {
             BlockMenuRow("Copy", "doc.on.doc") {
                 BlockMenuAfter.run(closing: close) { copy(message) }
@@ -764,6 +769,17 @@ struct CrewChatSheet: View {
                 BlockMenuAfter.run(closing: close) { reporting = message }
             }
         }
+    }
+
+    /// The emoji keyboard "+" raises for a held line, from a field nobody sees.
+    private var emojiPicker: some View {
+        EmojiField(isActive: Binding(get: { emojiFor != nil }, set: { if !$0 { emojiFor = nil } })) { emoji in
+            if let id = emojiFor { react(.emoji(emoji), to: id) }
+            emojiFor = nil
+        }
+        .frame(width: 1, height: 1)
+        .opacity(0.01)
+        .accessibilityHidden(true)
     }
 
     /// Two taps: the heart, or the heart taken back if it was yours. A

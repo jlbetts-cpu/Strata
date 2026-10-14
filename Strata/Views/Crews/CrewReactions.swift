@@ -29,6 +29,10 @@ struct ReactionBar: View {
     /// 2026-10-14: its "+" opens your stickers). Nil keeps the emoji
     /// keyboard, as on a win.
     var onMore: (() -> Void)? = nil
+    /// A sticker mark at the row's end, when the caller offers one (the
+    /// chat's held line). Past the marks a sliding finger reads, so the
+    /// tower's slide-to-pick is unchanged.
+    var onSticker: (() -> Void)? = nil
     let react: (String) -> Void
 
     @State private var ownPicking = false
@@ -60,7 +64,7 @@ struct ReactionBar: View {
         HStack(spacing: Self.gap) {
             ForEach(Array(glyphs.enumerated()), id: \.element) { index, glyph in
                 if index == 0 {
-                    mark("+", index: 0, label: onMore == nil ? "More reactions" : "Stickers") {
+                    mark("+", index: 0, label: "More reactions") {
                         if let onMore { onMore() } else { isPicking.wrappedValue = true }
                     }
                     .overlay {
@@ -71,6 +75,20 @@ struct ReactionBar: View {
                 } else {
                     mark(glyph, index: index, label: glyph, chosen: mine == glyph) { react(glyph) }
                 }
+            }
+            if let onSticker {
+                Button {
+                    HapticsEngine.tick()
+                    onSticker()
+                } label: {
+                    Image(systemName: "face.smiling")
+                        .font(.title3)
+                        .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                        .frame(width: Self.markSide, height: Self.markSide)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.pressSurface)
+                .accessibilityLabel("Sticker")
             }
         }
         .padding(.horizontal, Self.inset)
