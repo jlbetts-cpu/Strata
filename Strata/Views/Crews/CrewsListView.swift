@@ -29,6 +29,8 @@ struct CrewsListView: View {
     @State private var signedOut = false
     /// A plan made from the list: which crew, and the words kept if a
     /// send is refused.
+    /// The drawing under the crews: on the first launch, for a while.
+    @State private var showsArt = CrewsArtFirstLaunch.shows
     @State private var planning = false
     @State private var planCrews: Set<CrewID> = []
     @State private var planDraft = ""
@@ -101,14 +103,14 @@ struct CrewsListView: View {
                     // lets keep it for first launch and then fade away
                     // cleanly"): the launch that first shows your crews keeps
                     // it; after that the list ends on the lattice.
-                    if CrewsArtFirstLaunch.shows {
+                    if showsArt {
                         CrewsArt(line: CrewLine.forWho, height: 160)
                             .padding(.top, GridConstants.gapSection)
                             .padding(.bottom, GridConstants.gapWide)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .selectionDisabled()
-                            .transition(.opacity)
+                            .transition(.opacity.animation(.easeOut(duration: 0.6)))
                     }
                 }
                 .listStyle(.plain)
@@ -118,9 +120,24 @@ struct CrewsListView: View {
                 // block design on the crews under in the empty space"): the
                 // same panes the towers stand on, grounded at the foot and
                 // fading up, behind the list.
-                // Not behind the drawing, on the one launch it shows: one
-                // thing in that room at a time.
-                .background(alignment: .bottom) { if !CrewsArtFirstLaunch.shows { CrewsLattice() } }
+                // **The drawing hands the room to the lattice** (the owner,
+                // 2026-10-14: "have the lattice fade in when the doodle goes
+                // away make sure its clean and premium"). One thing there at
+                // a time: the drawing leaves on its own curve, then the
+                // lattice comes up slower, a beat behind it, so the two never
+                // cross. Every later launch the lattice simply fades in.
+                .background(alignment: .bottom) {
+                    if !showsArt {
+                        CrewsLattice(crewCount: store.crews.count)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.9).delay(0.35)))
+                    }
+                }
+                .task {
+                    if !showsArt { return }
+                    // Long enough to be seen and read, on the one launch.
+                    try? await Task.sleep(for: .seconds(6))
+                    withAnimation(.easeOut(duration: 0.6)) { showsArt = false }
+                }
                 .refreshable { await store.refresh() }
             }
         }
@@ -889,15 +906,28 @@ enum CrewsArtFirstLaunch {
 /// ground and their fading overhang, at the towers' own cell, so the list
 /// stands on the same floor every tower does.
 private struct CrewsLattice: View {
+    var crewCount: Int
+
+    /// **Less of it the more crews there are** (the owner, 2026-10-14: "make
+    /// the lattice less and less depending on how many chats kinda like the
+    /// opposite of the wins"): a tower's lattice grows with what is on it;
+    /// this one gives way to the rows above it, four with one crew, none
+    /// with five.
+    static func rows(for crews: Int) -> Int { max(0, CrewCaps.crews - crews) }
+
     var body: some View {
         GeometryReader { geo in
             let pad = GridConstants.horizontalPadding
             let columns = CGFloat(GridConstants.columnCount)
             let cell = floor((geo.size.width - pad * 2 - GridConstants.spacing * (columns - 1)) / columns)
-            let rows: CGFloat = 2
-            TowerLattice(cellSize: cell, contentHeight: rows * cell + (rows - 1) * GridConstants.spacing, rowsOver: 2)
+            let rows = CGFloat(Self.rows(for: crewCount))
+            if rows > 0 {
+                TowerLattice(cellSize: cell, contentHeight: rows * cell + (rows - 1) * GridConstants.spacing,
+                             rowsOver: 1)
                 .frame(width: geo.size.width - pad * 2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .animation(.easeInOut(duration: 0.5), value: rows)
+            }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

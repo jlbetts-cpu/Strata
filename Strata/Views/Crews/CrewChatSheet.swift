@@ -181,13 +181,21 @@ struct CrewChatSheet: View {
         if let close { close() } else { dismiss() }
     }
 
-    init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false,
+    /// **Whether the drawer is up** (`ChatDrawer`, 2026-10-14). The drawer
+    /// keeps the chat built under the screen so it slides rather than being
+    /// made at the moment it is asked for (the owner: "opening chats and
+    /// stuff im noticing a lot of not smooth elements that jolt out"). Down,
+    /// it reads nothing as seen and takes no keyboard.
+    var visible = true
+
+    init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false, visible: Bool = true,
          close: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.close = close
         self.startsWriting = startsWriting
         self.startsWithPlus = startsWithPlus
+        self.visible = visible
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
@@ -214,11 +222,29 @@ struct CrewChatSheet: View {
         // again as lines arrive while it is open, from the crew screen's
         // live sync underneath (`refreshLive`, every 3 seconds).
         .onAppear {
+            guard visible else { return }
             store.markChatSeen(crewID)
             if startsWriting { writing = true }
             if startsWithPlus { showsPlus = true }
         }
-        .onChange(of: messages.map(\.messageID)) { _, _ in store.markChatSeen(crewID) }
+        .onChange(of: messages.map(\.messageID)) { _, _ in if visible { store.markChatSeen(crewID) } }
+        // Up: seen, and the plus row or the keyboard as it was asked for,
+        // the keyboard only once the drawer has landed (both rising at once
+        // was a jolt). Down: the keyboard and the row put away.
+        .onChange(of: visible) { _, up in
+            if up {
+                store.markChatSeen(crewID)
+                showsPlus = startsWithPlus
+                guard startsWriting else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(360))
+                    if visible { writing = true }
+                }
+            } else {
+                writing = false
+                showsPlus = false
+            }
+        }
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
         }
@@ -1410,7 +1436,12 @@ private struct ChatDrawerTitle: View {
 
     var body: some View {
         ZStack {
-            TwoToneTitle(title: "\(name)\(TwoToneTitle.separator)Today")
+            // **"Today", not the crew's name** (the owner, 2026-10-14: "in
+            // the chat no need to put the name ... its already in the middle
+            // header"): the crew's own screen names it right above.
+            Text("Today")
+                .font(Typography.headerSmall)
+                .foregroundStyle(AppColors.inkSecondary)
                 .fitsLargeType(.body)
                 .padding(.horizontal, 72)
             HStack {

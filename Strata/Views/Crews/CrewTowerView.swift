@@ -309,17 +309,13 @@ struct CrewTowerView: View {
         // 2026-10-14), not as a sheet: flush with the foot of the screen,
         // the tower above it.
         .overlay(alignment: .bottom) {
-            if showsChat {
-                ChatDrawer(isOpen: $showsChat) {
-                    CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
-                                  startsWithPlus: chatOpening == .plus,
-                                  close: { withAnimation(GridConstants.motionSnappy) { showsChat = false } },
-                                  onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
-                }
-                .transition(reduceMotion ? .opacity : .move(edge: .bottom))
+            ChatDrawer(isOpen: $showsChat) {
+                CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
+                              startsWithPlus: chatOpening == .plus, visible: showsChat,
+                              close: { showsChat = false },
+                              onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
             }
         }
-        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: showsChat)
         .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
         // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
         // told. Hung on a point at the foot of the screen, never on the whole

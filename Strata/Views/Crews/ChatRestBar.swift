@@ -190,7 +190,7 @@ struct ChatDrawer<Content: View>: View {
                             .onChanged { pull = $0.translation.height }
                             .onEnded { value in
                                 let dy = value.translation.height
-                                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                                withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.3)) {
                                     pull = 0
                                     if dy < -60 { full = true }
                                     else if dy > 80 { if full { full = false } else { isOpen = false } }
@@ -202,8 +202,12 @@ struct ChatDrawer<Content: View>: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { withAnimation(GridConstants.motionSnappy) { full.toggle() } }
                 content()
+                    .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(height: max(open - pull, 200))
+            // **Pinned to the top** (seen frame by frame, 2026-10-14): centred,
+            // the chat measured short for a moment mid-slide and sat 100pt
+            // below the panel's edge, a dark band between them.
+            .frame(height: max(open - pull, 200), alignment: .top)
             .background {
                 UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
                                        topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
@@ -220,7 +224,16 @@ struct ChatDrawer<Content: View>: View {
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
                                               topTrailingRadius: GridConstants.cornerRadius, style: .continuous))
             .frame(maxHeight: .infinity, alignment: .bottom)
+            // **Kept built, below the screen, when it is down** (2026-10-14):
+            // the whole panel slides both ways on one curve instead of being
+            // made at the moment it is asked for. On the panel, its ground
+            // and all: on the contents alone the ground stayed behind.
+            .offset(y: isOpen ? 0 : open + 60)
         }
-        .onDisappear { full = false }
+        .allowsHitTesting(isOpen)
+        .accessibilityHidden(!isOpen)
+        .animation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.36), value: isOpen)
+        .animation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.3), value: full)
+        .onChange(of: isOpen) { _, open in if !open { full = false } }
     }
 }
