@@ -265,30 +265,47 @@ struct ChatReactionTests {
 
     // MARK: - The chat's wiring
 
-    @Test("the chat shows chips under a line and a hold opens the bar")
+    /// **The hold is a menu now, with the reactions on top** (the owner,
+    /// 2026-10-13: a friend's line "Reply, Heart, Copy, Report", your own
+    /// "Reply, Heart, Copy, Delete", "with an iMessage-style reactions row
+    /// ABOVE the menu"; Block from a person's face). This pinned the bar
+    /// opening under a friend's line with Report and Block in its ⋯; each of
+    /// those moved, and is pinned where it went.
+    @Test("the chat shows chips under a line and a hold opens its menu, reactions on top")
     func theChatIsWired() throws {
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
         #expect(chat.contains("let reactions = store.messageReactions(in: crewID)"))
         #expect(chat.contains("ChatReactionChips(reactions: reactions, me: store.me"), "the chips are gone")
-        #expect(chat.contains("LongPressGesture(minimumDuration: Self.holdToReact)"), "a hold no longer reacts")
-        #expect(chat.contains("if reacting == message.messageID, !mine {\n                reactionBar(message)"),
-                "the bar no longer opens under a held friend's line")
-        #expect(chat.contains("store.react(.emoji(emoji), toMessage: id, in: crewID)"))
-        #expect(chat.contains("store.react(.sticker(name: file, png: png)"))
-        #expect(chat.contains(".accessibilityAction(named: \"React\")"), "VoiceOver cannot hold a line")
-        // Report and Block stay reachable from the hold, in the bar's ⋯.
-        #expect(chat.contains("report: { closeBar(); reporting = message }"))
-        #expect(chat.contains("block: { closeBar(); blocking = message }"))
+        #expect(chat.contains("LongPressGesture(minimumDuration: Self.holdToReact)"), "a hold no longer opens anything")
+        #expect(chat.contains(".blockMenu(isPresented: menuBinding(id), above: opensAbove(id)) { lineMenu(message, mine: mine) }"),
+                "the hold is not the app's one menu")
+        // The menu, in order: reactions, then the rows.
+        let menu = try #require(chat.range(of: "private func lineMenu").map { String(chat[$0.lowerBound...]) })
+        let order = ["ChatReactionBar(", "BlockMenuRow(\"Reply\"", "\"Remove Heart\" : \"Heart\"",
+                     "BlockMenuRow(\"Copy\"", "BlockMenuRow(\"Delete\"", "BlockMenuRow(\"Report\""]
+        var last = menu.startIndex
+        for word in order {
+            let found = try #require(menu.range(of: word), "\(word) left the menu")
+            #expect(found.lowerBound >= last, "\(word) is out of order")
+            last = found.lowerBound
+        }
+        #expect(chat.contains("if message.hasWordsToCopy"), "Copy on a line with no words")
+        #expect(chat.contains("if store.canDelete(message)"), "Delete on a line that may not be deleted")
+        #expect(chat.contains("UndoLine.shared.show(\"Line deleted\""), "a delete with no Undo")
+        // Block is on the face, and VoiceOver has everything the hold has.
+        #expect(chat.contains("Button(\"Block\", systemImage: \"nosign\", role: .destructive) { blockingPerson = member.profileID }"))
+        for action in ["Button(\"React\")", "Button(\"Reply\")", "Button(\"Copy\")", "Button(\"Delete\")", "Button(\"Report\")"] {
+            #expect(chat.contains(action), "VoiceOver lost \(action)")
+        }
+        #expect(chat.contains("store.react(pick, toMessage: id, in: crewID)"))
         #expect(!chat.contains(".contextMenu"), "the hold is two things again")
 
         let bar = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/ChatReactions.swift"))
-        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true)"),
+        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true,"),
                 "the chat's bar is a private copy of the win's")
-        #expect(bar.contains(".glassCapsule(onPage: true, interactive: false)"), "one still glass capsule")
-        #expect(bar.components(separatedBy: ".glassCapsule(").count == 2, "a second glass element on the chat")
-        #expect(bar.contains("Button(\"Report\"") && bar.contains("Button(\"Block \\(sender)\""))
+        #expect(bar.contains("onMore: stickersAllowed ? stickers : nil"), "the + no longer opens stickers")
+        #expect(!bar.contains(".glassCapsule("), "glass inside the menu's own ground")
         #expect(!bar.contains(".shadow("), "chrome casts no shadow")
-        #expect(!bar.contains(".buttonStyle(.plain)"), "a sticker tile is not glass")
     }
 
     /// The owner, 2026-10-06: "understand the connection of all the

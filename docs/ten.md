@@ -83,8 +83,10 @@ what iPhone's own apps do.
 - **The slot is the one place a hold does the main thing.** A press opens
   Add; a hold, or drawing it out, logs the win. It is the app's signature
   gesture and it offers Undo.
-- **A hold on a crew's block or a chat line opens the reaction bar**, not
-  the system's menu (the owner, 2026-10-02 to 06).
+- **A hold on a crew's block opens the reaction bar**, not the system's
+  menu (the owner, 2026-10-02 to 06). **A hold on a chat line opens the
+  app's menu** (`BlockMenuRow`) with the reactions on top: Reply, Heart,
+  Copy, Report on a friend's, Delete on your own (the owner, 2026-10-13).
 - **A crew's row swipes to Mute as well as Leave**, as Messages does; the
   hold menu offers the same two.
 - **A drawing editor says Done, not Save.** It hands the drawing back to

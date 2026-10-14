@@ -25,6 +25,10 @@ struct ReactionBar: View {
     var hovered: Int? = nil
     /// The emoji keyboard, when the caller opens it (a finger let go on "+").
     var picking: Binding<Bool>? = nil
+    /// **What "+" opens, when the caller says** (the chat's hold menu,
+    /// 2026-10-14: its "+" opens your stickers). Nil keeps the emoji
+    /// keyboard, as on a win.
+    var onMore: (() -> Void)? = nil
     let react: (String) -> Void
 
     @State private var ownPicking = false
@@ -56,10 +60,14 @@ struct ReactionBar: View {
         HStack(spacing: Self.gap) {
             ForEach(Array(glyphs.enumerated()), id: \.element) { index, glyph in
                 if index == 0 {
-                    mark("+", index: 0, label: "More reactions") { isPicking.wrappedValue = true }
-                        .overlay {
+                    mark("+", index: 0, label: onMore == nil ? "More reactions" : "Stickers") {
+                        if let onMore { onMore() } else { isPicking.wrappedValue = true }
+                    }
+                    .overlay {
+                        if onMore == nil {
                             EmojiField(isActive: isPicking) { react($0) }.frame(width: 1, height: 1).opacity(0.01)
                         }
+                    }
                 } else {
                     mark(glyph, index: index, label: glyph, chosen: mine == glyph) { react(glyph) }
                 }

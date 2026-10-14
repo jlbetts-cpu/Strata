@@ -119,112 +119,26 @@ enum ChatStickerImages {
 
 // MARK: - The bar
 
-/// **The bar a held line opens**: the win's own reaction bar ("+", 🔥, 👑,
-/// ❤️, `ReactionBar`), then your stickers, newest first, in ONE glass
-/// capsule. One, because the chat already carries the field and Send, and a
-/// screen's glass budget is three (`GlassIconButton.swift`). The stickers
-/// scroll inside it, as the Tapback bar's own do.
+/// **The reactions row at the top of a held line's menu** (the owner,
+/// 2026-10-13: a hold opens "Reply, Heart, Copy, Report", "with an
+/// iMessage-style reactions row ABOVE the menu"). The win's own bar ("+",
+/// 🔥, 👑, ❤️, `ReactionBar`), bare: the menu is its ground.
 ///
-/// With no stickers yet, one quiet line under it says where they are made.
-/// Someone who may not send photographs (13 to 15) sees no stickers here and
-/// no line: a sticker is lifted out of a photograph.
-///
-/// **Report and Block are its ⋯**: they were the line's hold until the hold
-/// became the bar, and the owner's rule for a held block is "that should just
-/// be to react" (2026-10-02), so they stand at the far end, folded, one tap
-/// away.
+/// It was its own glass capsule under the line, with your stickers
+/// scrolling inside it and Report and Block folded into a ⋯. Report is a
+/// row of the menu now, Block is on the person's face, and **"+" opens your
+/// stickers** in the app's sticker sheet, where a tap puts one on the line.
+/// Someone who may not send photographs (13 to 15) gets the emoji keyboard
+/// behind "+" instead: a sticker is lifted out of a photograph.
 struct ChatReactionBar: View {
     /// Yours on this line, if any.
     let mine: Reaction?
-    /// Your stickers' file names, newest first (`StickerStore`).
-    let stickers: [String]
     let stickersAllowed: Bool
-    /// Who wrote the line, for "Block Sam".
-    let sender: String
-    let pick: (ChatReactionBar.Choice) -> Void
-    let report: () -> Void
-    let block: () -> Void
-
-    enum Choice: Equatable {
-        case emoji(String)
-        case sticker(String)
-    }
-
-    /// As many stickers as show before the rest scroll.
-    static let stickersShown = 4
+    let pick: (String) -> Void
+    let stickers: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: GridConstants.spacing) {
-            HStack(spacing: ReactionBar.gap) {
-                // The win's bar, without a capsule of its own: this one is.
-                ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true) {
-                    pick(.emoji($0))
-                }
-                if stickersAllowed, !stickers.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: ReactionBar.gap) {
-                            ForEach(stickers, id: \.self) { tile($0) }
-                        }
-                    }
-                    .frame(maxWidth: CGFloat(min(stickers.count, Self.stickersShown))
-                           * (ReactionBar.markSide + ReactionBar.gap))
-                }
-                Menu {
-                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { report() }
-                    Button("Block \(sender)", systemImage: "nosign", role: .destructive) { block() }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .frame(width: ReactionBar.markSide, height: ReactionBar.markSide)
-                        .contentShape(Circle())
-                }
-                .accessibilityLabel("More")
-            }
-            .padding(.trailing, ReactionBar.inset)
-            .glassCapsule(onPage: true, interactive: false)
-            if stickersAllowed, stickers.isEmpty {
-                Text("Make a sticker from the journal's corner button.")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, GridConstants.gapLabel)
-            }
-        }
-    }
-
-    private func tile(_ name: String) -> some View {
-        let chosen = mine?.stickerName == name
-        return Button {
-            HapticsEngine.tick()
-            pick(.sticker(name))
-        } label: {
-            Group {
-                if let image = StickerStore.shared.image(name) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 30, height: 30)
-                } else {
-                    Color.clear.frame(width: 30, height: 30)
-                }
-            }
-            .frame(width: ReactionBar.markSide, height: ReactionBar.markSide)
-            .background {
-                // Circled as the bar's own chosen mark is.
-                if chosen {
-                    Circle()
-                        .fill(AppColors.inkPrimary.opacity(0.08))
-                        .padding(4)
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .contentShape(Circle())
-        }
-        // A sticker on the bar is a picture, not glass: the app's press.
-        .buttonStyle(.pressSurface)
-        .animation(GridConstants.elasticPop, value: chosen)
-        .accessibilityLabel("Sticker")
-        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+        ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true,
+                    onMore: stickersAllowed ? stickers : nil) { pick($0) }
     }
 }

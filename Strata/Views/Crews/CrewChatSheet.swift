@@ -18,12 +18,11 @@ import SwiftUI
 /// Liquid Glass only on the controls (the field and Send). No read receipts
 /// and no seen marks: nothing says who has opened it.
 ///
-/// **Hold a friend's line to react** (the owner, 2026-10-06: "make it so you
-/// can react to chat messages with stickers and emojis"): the win's bar and
-/// your stickers open under it (`ChatReactionBar`), and what everyone chose
-/// sits under the line as small chips (`ChatReactionChips`). One a person a
-/// line, as on a win. The hold used to be Report and Block, which are the
-/// bar's ⋯ now.
+/// **Hold a line for its menu** (the owner, 2026-10-13): the reactions on
+/// top (`ChatReactionBar`, "+" opening your stickers), then Reply, Heart,
+/// Copy, and Report on a friend's line or Delete on your own. What everyone
+/// chose sits under the line as small chips (`ChatReactionChips`), one a
+/// person a line, as on a win. Block is on a friend's face (`faceMenu`).
 struct CrewChatSheet: View {
     let crewID: CrewID
     /// A quoted win was tapped: the crew screen closes this sheet and opens
@@ -45,10 +44,24 @@ struct CrewChatSheet: View {
     @State private var refused = false
     @State private var atDailyLimit = false
     @State private var reporting: CrewMessage?
-    @State private var reported: CrewMessage?
-    @State private var blocking: CrewMessage?
-    /// The line whose reaction bar is open, if one is.
-    @State private var reacting: UUID?
+    /// Someone just reported, a line or the person: the thanks, and the
+    /// offer to block them.
+    @State private var reported: UUID?
+    @State private var reportingPerson: CrewMember?
+    @State private var blockingPerson: UUID?
+    /// The line whose hold menu is open, if one is.
+    @State private var menuOn: UUID?
+    /// Where each line stands, for which way its menu opens. A reference,
+    /// so a scroll moving every line redraws nothing.
+    @State private var lineFrames = ChatLineFrames()
+    /// The line Reply quoted, over the field until the reply goes.
+    @State private var replyingTo: CrewMessage?
+    /// A quoted line tapped: the thread goes to it, and it lights a moment.
+    @State private var goingTo: UUID?
+    @State private var lit: UUID?
+    /// The line a sticker from the sheet goes on, when "+" in a line's
+    /// menu opened it. Nil: the sheet sends a sticker into the chat.
+    @State private var stickerFor: UUID?
     /// A quoted line just held: the lift of the finger that opened its bar
     /// is not also a tap that opens the win.
     @State private var held: UUID?
@@ -122,9 +135,8 @@ struct CrewChatSheet: View {
                 .undoLine()
                 .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-                // The reaction bar closes on a tap outside it or a scroll,
-                // neither of which VoiceOver can make: escape closes it first.
-                .accessibilityAction(.escape) { if reacting != nil { closeBar() } else { dismiss() } }
+                // Escape closes an open menu first, then the chat.
+                .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { dismiss() } }
                 .navigationTitle(crew?.displayName(excluding: store.me) ?? "Chat")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -153,13 +165,10 @@ struct CrewChatSheet: View {
             Button("OK", role: .cancel) {}
         }
         .overlay(alignment: .bottom) { dialogs }
-        // Writing closes an open bar: the field is where the eye went. And
-        // the plus row, which stands where the keyboard is about to.
+        // Writing folds the plus row, which stands where the keyboard is
+        // about to.
         .onChange(of: writing) { _, now in
-            if now {
-                closeBar()
-                if showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
-            }
+            if now, showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
         }
         .task {
             GroupPlanBook.reconcile(context: modelContext)
@@ -175,7 +184,9 @@ struct CrewChatSheet: View {
         .alert("That photo stays with you", isPresented: $pictureRefused) {
             Button("OK", role: .cancel) {}
         }
-        .sheet(isPresented: $choosingSticker, onDismiss: { if !makingSticker { newSticker = nil } }) { stickerSheet }
+        .sheet(isPresented: $choosingSticker, onDismiss: {
+            if !makingSticker { newSticker = nil; stickerFor = nil }
+        }) { stickerSheet }
         .stickerMaking(isPresented: $makingSticker) { symbol in
             // Back to the grid with it chosen, once the lift has gone.
             newSticker = symbol
@@ -213,13 +224,13 @@ struct CrewChatSheet: View {
             }
         }
         #if DEBUG
-        // `-strataChatReact open`: a friend's line held, its bar open, so
-        // the bar can be photographed (the seed is `CrewDebugSeed`).
+        // `-strataChatReact open`: a friend's line held, its menu open, so
+        // it can be photographed (the seed is `CrewDebugSeed`).
         .task {
             guard DebugHarness.argument("-strataChatReact") == "open" else { return }
             try? await Task.sleep(for: .milliseconds(900))
             let lines = store.messages(in: crewID).filter { $0.senderProfileID != store.me }
-            reacting = (lines.dropFirst().first ?? lines.first)?.messageID
+            menuOn = (lines.dropFirst().first ?? lines.first)?.messageID
         }
         #endif
     }
@@ -249,13 +260,6 @@ struct CrewChatSheet: View {
                             }
                             .padding(.horizontal, hPad)
                             .padding(.vertical, GridConstants.gapItem)
-                            // A tap anywhere that is not a line or the bar
-                            // folds the bar away.
-                            .background {
-                                if reacting != nil {
-                                    Color.clear.contentShape(Rectangle()).onTapGesture { closeBar() }
-                                }
-                            }
                             // **Bottom-anchored**: a short chat sits on the
                             // field, newest at the foot, as Messages sits.
                             .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .bottom)
@@ -264,17 +268,24 @@ struct CrewChatSheet: View {
                 }
                 .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.interactively)
-                // A scroll folds the bar, as it folds the keyboard.
-                .onScrollPhaseChange { _, phase in
-                    if phase == .interacting { closeBar() }
-                }
                 // Lines leave under the title softly, as the tower's do.
                 .softScrollEdge(.top)
+                // Where the thread stands on screen, for which way a held
+                // line's menu opens (`opensAbove`).
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { lineFrames.thread = $0 }
                 .onChange(of: messages.last?.id) { _, last in
                     guard let last else { return }
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
                         proxy.scrollTo(last, anchor: .bottom)
                     }
+                }
+                // A quoted line, tapped: to it, and it lights a moment.
+                .onChange(of: goingTo) { _, id in
+                    guard let id else { return }
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                    goingTo = nil
                 }
             }
         }
@@ -295,13 +306,12 @@ struct CrewChatSheet: View {
                 } else {
                     Group {
                         if opensRun, let member, let crew {
-                            CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
+                            faceMenu(member, crew: crew)
                         } else {
                             Color.clear
                         }
                     }
                     .frame(width: Self.faceSide, height: Self.faceSide)
-                    .accessibilityHidden(true)
                 }
                 VStack(alignment: mine ? .trailing : .leading, spacing: GridConstants.spacing) {
                     if !mine, opensRun {
@@ -326,100 +336,239 @@ struct CrewChatSheet: View {
                     .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
                     .padding(.top, -GridConstants.spacing)
             }
-            if reacting == message.messageID, !mine {
-                reactionBar(message)
-                    .transition(.scale(scale: 0.85, anchor: .topLeading).combined(with: .opacity))
-            }
         }
         // Runs are told apart by air, never by a line.
         .padding(.top, opensRun && previous != nil ? GridConstants.gapItem : 0)
-        .animation(motion, value: reacting == message.messageID)
         .animation(motion, value: reactions)
     }
 
-    /// The bubble. **A tap opens the quoted win**, when there is one, so the
-    /// whole bubble is the target and never a 15pt line; **a hold on a
-    /// friend's opens its reaction bar** (2026-10-06), and Report and Block
-    /// are in the bar's ⋯. VoiceOver has all three as actions, since a hold
-    /// is a gesture it cannot make.
+    /// **A friend's face opens what you can do about them** (M2b; the
+    /// owner's 2026-10-13 call: Block is reached from a person's face, which
+    /// App Review 1.2 asks for). The system's menu, as a member's row in Crew
+    /// Info opens it: their name, "Started the crew" where true, Report and
+    /// Block. The face is drawn small; the finger gets 44 points.
+    private func faceMenu(_ member: CrewMember, crew: Crew) -> some View {
+        let who = member.shortName.isEmpty ? "A friend" : member.shortName
+        return Menu {
+            Section(crew.isOwner(member.profileID) ? "\(who), started the crew" : who) {
+                Button("Report", systemImage: "exclamationmark.bubble") { reportingPerson = member }
+                if !store.blocked.contains(member.profileID) {
+                    Button("Block", systemImage: "nosign", role: .destructive) { blockingPerson = member.profileID }
+                }
+            }
+        } label: {
+            CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
+                .contentShape(Rectangle().inset(by: -(GlassIconButton.defaultSide - Self.faceSide) / 2))
+        }
+        .accessibilityLabel("\(who)'s Card")
+    }
+
+    /// The bubble. **A tap opens what it quotes**: the win, or the line it
+    /// answers. **A hold opens its menu** (M2, the owner's 2026-10-13 call):
+    /// the reactions on top, then Reply, Heart, Copy, and Report on a
+    /// friend's line or Delete on yours. VoiceOver has every one as an action,
+    /// since a hold is a gesture it cannot make.
     @ViewBuilder
     private func bubble(_ message: CrewMessage, mine: Bool) -> some View {
+        let id = message.messageID
         let quote = quoted(message)
-        let face = bubbleFace(message, mine: mine, quote: quote?.title)
-        let content = Group {
+        let answered = quotedLine(message)
+        let face = bubbleFace(message, mine: mine, quote: quote?.title ?? answered?.words)
+        Group {
             if let quote {
                 Button {
                     // The lift that ended a hold is not a tap.
-                    if held == message.messageID { held = nil; return }
+                    if held == id { held = nil; return }
                     HapticsEngine.lightTap()
                     onOpenWin(quote.winID)
                 } label: { face }
                     .buttonStyle(.pressSurface)
                     .accessibilityHint("Opens the win.")
+            } else if let answered {
+                Button {
+                    if held == id { held = nil; return }
+                    HapticsEngine.lightTap()
+                    goTo(answered.id)
+                } label: { face }
+                    .buttonStyle(.pressSurface)
+                    .accessibilityHint("Goes to the line it answers.")
             } else {
                 face
             }
         }
-        if mine {
-            content
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(spoken(message, quote: quote?.title))
-        } else {
-            content
-                .simultaneousGesture(LongPressGesture(minimumDuration: Self.holdToReact).onEnded { _ in
-                    openBar(on: message, fromQuote: quote != nil)
-                })
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(spoken(message, quote: quote?.title))
-                .accessibilityAction(named: "React") { openBar(on: message, fromQuote: false) }
-                .accessibilityAction(named: "Report") { reporting = message }
-                .accessibilityAction(named: "Block \(name(of: message.senderProfileID))") { blocking = message }
+        .scaleEffect(lit == id ? 1.04 : 1, anchor: mine ? .trailing : .leading)
+        .animation(motion, value: lit == id)
+        .simultaneousGesture(LongPressGesture(minimumDuration: Self.holdToReact).onEnded { _ in
+            openMenu(on: message, fromQuote: quote != nil || answered != nil)
+        })
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { lineFrames.mid[id] = $0 }
+        .blockMenu(isPresented: menuBinding(id), above: opensAbove(id)) { lineMenu(message, mine: mine) }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(spoken(message, quote: quote?.title ?? answered?.words))
+        .accessibilityActions {
+            Button("React") { openMenu(on: message, fromQuote: false) }
+            Button("Reply") { reply(to: message) }
+            Button(isHearted(id) ? "Remove Heart" : "Heart") { heart(message) }
+            if message.hasWordsToCopy { Button("Copy") { copy(message) } }
+            if mine {
+                if store.canDelete(message) { Button("Delete") { delete(message) } }
+            } else {
+                Button("Report") { reporting = message }
+                Button("Block \(name(of: message.senderProfileID))") { blockingPerson = message.senderProfileID }
+            }
         }
     }
 
-    // MARK: - Reactions
+    // MARK: - The hold menu
 
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
 
-    private func openBar(on message: CrewMessage, fromQuote: Bool) {
+    private func menuBinding(_ id: UUID) -> Binding<Bool> {
+        Binding(get: { menuOn == id }, set: { if !$0, menuOn == id { menuOn = nil } })
+    }
+
+    private func openMenu(on message: CrewMessage, fromQuote: Bool) {
         if fromQuote { held = message.messageID }
         HapticsEngine.lightTap()
         writing = false
-        withAnimation(motion) { reacting = message.messageID }
+        menuOn = message.messageID
     }
 
-    private func closeBar() {
-        held = nil
-        guard reacting != nil else { return }
-        withAnimation(motion) { reacting = nil }
+    /// A line in the lower half of the thread opens its menu above it, one
+    /// in the upper half below it, so the menu always has the room.
+    private func opensAbove(_ id: UUID) -> Bool {
+        guard let mid = lineFrames.mid[id], lineFrames.thread != .zero else { return true }
+        return mid > lineFrames.thread.midY
     }
 
-    /// The held line's bar. A pick folds it, and lands as a chip under the
-    /// line; a sticker the photo check holds back says so, as a doodle does.
-    private func reactionBar(_ message: CrewMessage) -> some View {
+    /// **The menu**, in the app's one menu drawing (`BlockMenuRow`), hung
+    /// off the bubble. Reactions on top, as Messages draws its Tapbacks.
+    /// Copy only where there are words; a plan's line has no Delete, since
+    /// his rule is that it never leaves the chat. Each row runs once the
+    /// menu has gone (`BlockMenuAfter`).
+    @ViewBuilder
+    private func lineMenu(_ message: CrewMessage, mine: Bool) -> some View {
         let id = message.messageID
-        let stickers = StickerStore.shared
-        return ChatReactionBar(mine: store.myReaction(toMessage: id, in: crewID),
-                               stickers: stickers.names,
-                               stickersAllowed: store.photosAllowed(),
-                               sender: name(of: message.senderProfileID),
-                               pick: { choice in
-                                   closeBar()
-                                   Task {
-                                       let outcome: SocialStore.ReplyOutcome
-                                       switch choice {
-                                       case .emoji(let emoji):
-                                           outcome = await store.react(.emoji(emoji), toMessage: id, in: crewID)
-                                       case .sticker(let file):
-                                           guard let png = stickers.image(file)?.pngData() else { return }
-                                           outcome = await store.react(.sticker(name: file, png: png),
-                                                                       toMessage: id, in: crewID)
-                                       }
-                                       if outcome == .refusedSketch { stickerRefused = true }
-                                   }
-                               },
-                               report: { closeBar(); reporting = message },
-                               block: { closeBar(); blocking = message })
+        let close = menuBinding(id)
+        ChatReactionBar(mine: store.myReaction(toMessage: id, in: crewID),
+                        stickersAllowed: store.photosAllowed(),
+                        pick: { emoji in
+                            BlockMenuAfter.run(closing: close) { react(.emoji(emoji), to: id) }
+                        },
+                        stickers: {
+                            BlockMenuAfter.run(closing: close) {
+                                stickerFor = id
+                                choosingSticker = true
+                            }
+                        })
+            .padding(.horizontal, GridConstants.horizontalPadding - ReactionBar.inset - GridConstants.gapTight)
+            .padding(.bottom, GridConstants.gapTight)
+        Divider()
+        BlockMenuRow("Reply", "arrowshape.turn.up.left") {
+            BlockMenuAfter.run(closing: close) { reply(to: message) }
+        }
+        let hearted = isHearted(id)
+        BlockMenuRow(hearted ? "Remove Heart" : "Heart", hearted ? "heart.slash" : "heart") {
+            BlockMenuAfter.run(closing: close) { heart(message) }
+        }
+        if message.hasWordsToCopy {
+            BlockMenuRow("Copy", "doc.on.doc") {
+                BlockMenuAfter.run(closing: close) { copy(message) }
+            }
+        }
+        if mine {
+            if store.canDelete(message) {
+                BlockMenuRow("Delete", "trash", destructive: true) {
+                    BlockMenuAfter.run(closing: close) { delete(message) }
+                }
+            }
+        } else {
+            BlockMenuRow("Report", "exclamationmark.bubble", destructive: true) {
+                BlockMenuAfter.run(closing: close) { reporting = message }
+            }
+        }
+    }
+
+    private func isHearted(_ id: UUID) -> Bool {
+        store.myReaction(toMessage: id, in: crewID)?.emoji == Reaction.doubleTap
+    }
+
+    /// **Heart** gives ❤️, or takes yours back if it is already the heart;
+    /// another mark of yours becomes the heart. Taking it back tells nobody.
+    private func heart(_ message: CrewMessage) {
+        react(.emoji(Reaction.doubleTap), to: message.messageID)
+    }
+
+    private func react(_ pick: Reaction.Pick, to id: UUID) {
+        Task {
+            if await store.react(pick, toMessage: id, in: crewID) == .refusedSketch { stickerRefused = true }
+        }
+    }
+
+    /// One of your stickers on a line, from the sheet "+" opens.
+    private func reactSticker(_ symbol: String, to id: UUID) {
+        guard let name = StickerStore.name(in: symbol),
+              let png = StickerStore.shared.image(name)?.pngData() else { return }
+        react(.sticker(name: name, png: png), to: id)
+    }
+
+    /// The line's words on the pasteboard; the tick says so, and nothing else.
+    private func copy(_ message: CrewMessage) {
+        UIPasteboard.general.string = message.text
+        HapticsEngine.tick()
+    }
+
+    /// **Reply**: the line quoted above the field, and the field ready.
+    private func reply(to message: CrewMessage) {
+        HapticsEngine.lightTap()
+        withAnimation(GridConstants.motionSnappy) {
+            replyingTo = message
+            showsPlus = false
+        }
+        writing = true
+    }
+
+    /// **Delete, with Undo** (M2; `docs/ten.md` rule 3: confirmed or
+    /// undoable). The line leaves this screen at once and "Line deleted ·
+    /// Undo" stands for five seconds; only then is it taken out of
+    /// everyone's chat.
+    private func delete(_ message: CrewMessage) {
+        let id = message.messageID
+        if replyingTo?.messageID == id { replyingTo = nil }
+        withAnimation(motion) { store.holdBack(line: id) }
+        UndoLine.shared.show("Line deleted", undo: {
+            withAnimation(motion) { store.keepLine(id) }
+        }, expire: {
+            Task { await store.deleteLine(id, in: crewID) }
+        })
+    }
+
+    /// To a quoted line, which lights for a moment.
+    private func goTo(_ id: UUID) {
+        goingTo = id
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            lit = id
+            try? await Task.sleep(for: .milliseconds(700))
+            if lit == id { lit = nil }
+        }
+    }
+
+    /// The line a reply answers, while it is still in today's chat, as
+    /// "Sam: see you at 6". Gone, and the reply stands with no quote.
+    private func quotedLine(_ message: CrewMessage) -> (words: String, id: UUID)? {
+        guard let id = message.quoteWinID, quoted(message) == nil,
+              let line = store.messages(in: crewID).first(where: { $0.messageID == id }) else { return nil }
+        return ("\(name(of: line.senderProfileID)): \(gist(line))", id)
+    }
+
+    /// A line in a few words, for a quote of it.
+    private func gist(_ line: CrewMessage) -> String {
+        if line.isStrip { return "a photo strip" }
+        if let plan = line.groupPlan { return plan.title }
+        if line.isPicture { return line.caption == SocialStore.stickerWord || line.caption.isEmpty ? "a sticker" : line.caption }
+        if line.text.isEmpty { return "a doodle" }
+        return line.text
     }
 
     @ViewBuilder
@@ -543,11 +692,14 @@ struct CrewChatSheet: View {
                 }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if let replyingTo {
+                replyQuote(replyingTo)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,
                                 accessibilityLabel: showsPlus ? "Close" : "More to send") {
                     writing = false
-                    closeBar()
                     withAnimation(GridConstants.motionSnappy) { showsPlus.toggle() }
                 }
                 TextField("Message", text: draftField, axis: .vertical)
@@ -586,6 +738,33 @@ struct CrewChatSheet: View {
         }
     }
 
+    /// **What Reply is answering** (M2c), over the field: "↪ Sam: see you
+    /// at 6", one line, and an x to drop it.
+    private func replyQuote(_ line: CrewMessage) -> some View {
+        HStack(spacing: GridConstants.gapTight) {
+            Text("\u{21AA}\u{FE0E} \(name(of: line.senderProfileID)): \(gist(line))")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+                .lineLimit(1)
+                .fitsLargeType(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                HapticsEngine.lightTap()
+                withAnimation(GridConstants.motionSnappy) { replyingTo = nil }
+            } label: {
+                Image(systemName: "xmark")
+                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressWord)
+            .accessibilityLabel("Stop Replying")
+        }
+        .padding(.leading, hPad + GlassIconButton.defaultSide + GridConstants.gapTight + GridConstants.gapLabel)
+        .padding(.trailing, hPad)
+    }
+
     private var isEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     /// The field's binding: a keystroke is the person's own edit, so it is
@@ -607,8 +786,18 @@ struct CrewChatSheet: View {
         let text = draft
         guard !isEmpty else { return }
         draft = ""
+        let answering = replyingTo
+        withAnimation(GridConstants.motionSnappy) { replyingTo = nil }
         Task {
-            switch await store.send(text, in: crewID) {
+            let outcome: SocialStore.ReplyOutcome
+            if let answering {
+                outcome = await store.send(text, in: crewID, answering: answering.messageID)
+            } else {
+                outcome = await store.send(text, in: crewID)
+            }
+            // Words that come back bring their quote back with them.
+            if outcome != .sent, replyingTo == nil { replyingTo = answering }
+            switch outcome {
             case .sent:
                 CrewDrafts.clearChat(crewID, ifStill: text)
             case .throttled:
@@ -826,18 +1015,26 @@ struct CrewChatSheet: View {
     private var stickerSheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                BlockMenuRow("Doodle", "scribble") {
-                    choosingSticker = false
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(350))
-                        doodling = true
+                // A doodle is a line, not a reaction: only when sending.
+                if stickerFor == nil {
+                    BlockMenuRow("Doodle", "scribble") {
+                        choosingSticker = false
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            doodling = true
+                        }
                     }
                 }
                 // A sticker just lifted stands chosen: one look, then a tap.
                 StickerPicker(current: newSticker, purpose: .drawing, onPick: { symbol in
                     choosingSticker = false
                     newSticker = nil
-                    sendSticker(symbol)
+                    if let line = stickerFor {
+                        stickerFor = nil
+                        reactSticker(symbol, to: line)
+                    } else {
+                        sendSticker(symbol)
+                    }
                 }, onNewSticker: {
                     // The photos once this sheet has gone (`StickerMaking`).
                     choosingSticker = false
@@ -879,30 +1076,45 @@ struct CrewChatSheet: View {
                     Button(reason.words) {
                         Task {
                             await CrewSafety.report(.message(message), in: crewID, reason: reason)
-                            reported = message
+                            reported = message.senderProfileID
                         }
                     }
                 }
             } message: { _ in
                 Text("Your report goes to Some Wins. Nobody in the crew is told.")
             }
+            // A person, from their face: the words Crew Info's own Report says.
+            .confirmationDialog(reportingPerson.map { "Report \(name(of: $0.profileID))?" } ?? "",
+                                isPresented: Binding(get: { reportingPerson != nil }, set: { if !$0 { reportingPerson = nil } }),
+                                titleVisibility: .visible, presenting: reportingPerson) { member in
+                ForEach(CrewSafety.Reason.allCases) { reason in
+                    Button(reason.words) {
+                        Task {
+                            await CrewSafety.report(.person(member), in: crewID, reason: reason)
+                            reported = member.profileID
+                        }
+                    }
+                }
+            } message: { _ in
+                Text("Their name, photo or head. Your report goes to Some Wins and nobody in the crew is told.")
+            }
             .alert("Thanks for telling us",
                    isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
-                   presenting: reported) { message in
-                if !store.blocked.contains(message.senderProfileID) {
-                    Button("Block \(name(of: message.senderProfileID))", role: .destructive) {
-                        Task { await CrewSafety.block(message.senderProfileID, from: crewID) }
+                   presenting: reported) { person in
+                if !store.blocked.contains(person) {
+                    Button("Block \(name(of: person))", role: .destructive) {
+                        Task { await CrewSafety.block(person, from: crewID) }
                     }
                 }
                 Button("Done", role: .cancel) {}
             } message: { _ in
                 Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
             }
-            .confirmationDialog(blocking.map { "Block \(name(of: $0.senderProfileID))?" } ?? "",
-                                isPresented: Binding(get: { blocking != nil }, set: { if !$0 { blocking = nil } }),
-                                titleVisibility: .visible, presenting: blocking) { message in
+            .confirmationDialog(blockingPerson.map { "Block \(name(of: $0))?" } ?? "",
+                                isPresented: Binding(get: { blockingPerson != nil }, set: { if !$0 { blockingPerson = nil } }),
+                                titleVisibility: .visible, presenting: blockingPerson) { person in
                 Button("Block", role: .destructive) {
-                    Task { await CrewSafety.block(message.senderProfileID, from: crewID) }
+                    Task { await CrewSafety.block(person, from: crewID) }
                 }
             } message: { _ in
                 Text(store.crew(crewID)?.isOwner(store.me) == true
@@ -982,4 +1194,13 @@ enum CrewDrafts {
         let key = ReplyKey(crew: crew, win: win)
         if replies[key] == sent { replies[key] = nil }
     }
+}
+
+/// **Where the chat's lines stand on screen**, for which way a held line's
+/// menu opens. A plain reference, not observed: lines move on every scroll,
+/// and nothing should redraw for that.
+@MainActor
+final class ChatLineFrames {
+    var mid: [UUID: CGFloat] = [:]
+    var thread: CGRect = .zero
 }
