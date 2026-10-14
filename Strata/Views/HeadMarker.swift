@@ -2,9 +2,11 @@ import SwiftUI
 
 /// Your head, standing where you are on the Memories map.
 ///
-/// Only when switched on in Profile — otherwise the map keeps Apple's own
-/// blue dot, whose whole value is that it needs no explaining. With the head
-/// on, the dot's job is done by something that is unmistakably you.
+/// **Whenever you have a head** (the owner, 2026-10-14: "the head should just
+/// be the default unless you dont have a head for the map"). Without one the
+/// map keeps Apple's own blue dot, whose whole value is that it needs no
+/// explaining; with one, the dot's job is done by something that is
+/// unmistakably you.
 ///
 /// **It gets a contact shadow**, because it is standing on the ground: a head
 /// casts one exactly when it stands on something. `PersonHead`'s `.standing`

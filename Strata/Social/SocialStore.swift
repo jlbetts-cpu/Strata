@@ -54,7 +54,6 @@ final class SocialStore {
         }
         // Every face in the head through the photo check (2026-10-08).
         store.headCheck = { await CrewHeadPack.passes($0, check: CrewSafety.photoIsFine) }
-        store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
         // Keep, on "Sam added you to a win": a copy into your own record,
         // through the app's own logging path. SwiftData lives in the app
         // layer (`TaggedWinKeeper`), never in this file.
@@ -130,8 +129,6 @@ final class SocialStore {
     /// passes `CrewSafety.photoIsFine` or the head is not sent. A head is cut
     /// out of a photograph, and it went to crews unchecked.
     @ObservationIgnored var headCheck: (Data) async -> Bool = { _ in true }
-    /// Your profile photograph as JPEG, or nil.
-    @ObservationIgnored var myPhoto: () -> Data? = { nil }
     /// A crew must start with a photo (the owner, 2026-10-02). Off in tests
     /// that are about something else.
     @ObservationIgnored var requiresCrewPhoto = false
@@ -804,18 +801,15 @@ final class SocialStore {
         try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crewID)
     }
 
-    /// You, as your crews see you: your head, and your profile photo for
-    /// when there is no head (never under 16). Called on starting or joining
-    /// a crew and whenever either changes.
+    /// You, as your crews see you: your head (never under 16). Called on
+    /// starting or joining a crew and whenever it changes.
+    ///
+    /// **No profile photograph is ever sent** (the owner, 2026-10-14: "remove
+    /// the option for a pfp"). Every share writes `photo: nil`, which takes
+    /// back one an older build sent; somebody without a head is the blank
+    /// head on every phone.
     func shareMyself() async {
         guard isEnabled() else { return }
-        var photo: Data?
-        let source = photosAllowed() ? myPhoto() : nil
-        if let source, let small = await derived(source) {
-            // Your own picture goes through the same check as a win's
-            // photograph (the 2026-10-03 audit: it went unchecked).
-            photo = await photoCheck(small) ? small : nil
-        }
         let pack = await headToSend()
         var sent = pack
         // **The head is a photograph too** (the 2026-10-08 audit): checked
@@ -830,8 +824,8 @@ final class SocialStore {
                 defaults.set(digest, forKey: Self.heldHeadKey)
             }
         }
-        await setMyHead(sent, photo: photo)
-        defaults.set(selfDigest(pack: pack, photo: source), forKey: Self.sentSelfKey)
+        await setMyHead(sent, photo: nil)
+        defaults.set(selfDigest(pack: pack), forKey: Self.sentSelfKey)
     }
 
     /// **Your head leaves the phone on the photo rule** (the 2026-10-08
@@ -859,9 +853,8 @@ final class SocialStore {
     func shareMyselfIfChanged() async {
         guard isEnabled(), !checkedSelf, !crews.isEmpty else { return }
         checkedSelf = true
-        let source = photosAllowed() ? myPhoto() : nil
         let pack = await headToSend()
-        let digest = selfDigest(pack: pack, photo: source)
+        let digest = selfDigest(pack: pack)
         // A head the check held back is missing on purpose.
         let heldBack = pack.map { Self.digest($0) == defaults.string(forKey: Self.heldHeadKey) } ?? false
         let mineMissingHead = pack != nil && !heldBack && crews.contains { $0.member(me).map { $0.head == nil } ?? false }
@@ -872,11 +865,14 @@ final class SocialStore {
     @ObservationIgnored var checkedSelf = false
     static let sentSelfKey = "crews.sentSelf"
 
-    private func selfDigest(pack: Data?, photo: Data?) -> String {
+    /// The photo's slot stays in the digest, empty: somebody whose last
+    /// share carried a photo digests differently now, so the next launch
+    /// shares again and the photo is taken back from their crews.
+    private func selfDigest(pack: Data?) -> String {
         var hasher = SHA256()
         hasher.update(data: pack ?? Data())
         hasher.update(data: Data([0]))
-        hasher.update(data: photo ?? Data())
+        hasher.update(data: Data())
         hasher.update(data: Data(myFirstName().utf8))
         hasher.update(data: Data(crews.map(\.id.rawValue).sorted().joined(separator: ",").utf8))
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
@@ -2309,22 +2305,11 @@ final class SocialStore {
 
     func isMuted(_ crewID: CrewID) -> Bool { mutedUntil(crewID) != nil }
 
-    // MARK: Heads, per crew
-
-    /// Crews whose heads you have switched off: the tower shows only its
-    /// wins and the bubble only the crew's picture (the owner, 2026-10-03:
-    /// "a way to shut off the heads for individual crew chats"). Yours
-    /// alone, never sent.
-    private(set) var headsHidden: Set<CrewID> = Set(
-        (UserDefaults.standard.stringArray(forKey: SocialStore.headsHiddenKey) ?? []).map(CrewID.init(rawValue:)))
-    static let headsHiddenKey = "crews.headsHidden"
-
-    func showsHeads(_ crewID: CrewID) -> Bool { !headsHidden.contains(crewID) }
-
-    func setShowsHeads(_ on: Bool, for crewID: CrewID) {
-        if on { headsHidden.remove(crewID) } else { headsHidden.insert(crewID) }
-        UserDefaults.standard.set(headsHidden.map(\.rawValue).sorted(), forKey: Self.headsHiddenKey)
-    }
+    // **Heads per crew: removed 2026-10-14.** The switch that hid a crew's
+    // heads on this phone (2026-10-03) went when the head became who you
+    // are (the owner: "the heads dont need to be an option in the settings
+    // for crew"). Its key, `crews.headsHidden`, is cleared once by
+    // `RetiredHeadSwitches`.
 
     func mute(_ crewID: CrewID, _ length: Mute?) {
         var stamps = Self.groupDefaults?.dictionary(forKey: Self.mutedKey) as? [String: Double] ?? [:]

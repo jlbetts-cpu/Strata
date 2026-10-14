@@ -1550,8 +1550,14 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
 
 - **Profile** (`ProfileView`) opens from the head/photo button on the Memories
   header only. Settings lives only inside it.
-- **The head is 100% optional.** `HeadStore` holds it and every switch; all
-  start off. Ask `headForPicture` / `headForMap`, never the raw switch.
+- **The head is your identity, not an option** (REVERSED 2026-10-14, the
+  owner: "treat the head not really as an optional thing but an identity ...
+  remove the option for a pfp and make the head making a must"). Every screen
+  draws a person through `PersonHead` (`HeadIdentity` decides whose head);
+  no head yet is `HeadPlaceholder`, the blank head in their colour with their
+  initial. No profile photo, no picture/map/photos/crew switches; Let My Head
+  Onto the Tower is the one switch (`headForTower`). Plan:
+  `docs/heads-as-identity-2026-10-14.md`.
 - **One head, one engine** (2026-09-16, owner: a made head must be "as
   expressive as the head we added of me with the black and white"). `HeadRig`
   is the faces, each face's shut eyes and where the eyes are; `LivingHeadView`
@@ -1628,7 +1634,7 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   subject lifting **do not run in the simulator**; every state can be
   photographed with `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|savefailed|unavailable|denied`.
 - `-strataSeedHead` puts the creator's faces in as a made head;
-  `-strataHeadOn picture,map` turns placements on for one launch;
+  `-strataHeadOn tower` turns the tower companion on for one launch (the other words are read and ignored since 2026-10-14);
   `-strataOpenSheet profile|settings`; `-strataProfileChart day|week|month`.
 - **Tap expressions** (`HeadTake`, 2026-09-15; owner: "there should be a
   bunch of expressions and they should hold for longer"). Twelve takes:

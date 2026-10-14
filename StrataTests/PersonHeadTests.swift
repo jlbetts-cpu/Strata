@@ -66,3 +66,49 @@ struct PersonHeadTests {
         #expect("if let photo = member.photo".contains("member.photo"))
     }
 }
+
+/// **The switches the head no longer has** (the owner, 2026-10-14: "the heads
+/// dont need to be an option in the settings for crew or settings").
+@MainActor
+@Suite("Heads as identity: the switches are gone")
+struct HeadSwitchesGoneTests {
+
+    @Test("the retired switches are forgotten, and nothing else is")
+    func retiredKeysCleared() throws {
+        let defaults = try #require(UserDefaults(suiteName: "retired-head-switches"))
+        defer { defaults.removePersistentDomain(forName: "retired-head-switches") }
+        for key in RetiredHeadSwitches.keys { defaults.set(true, forKey: key) }
+        defaults.set(["c1"], forKey: "crews.headsHidden")
+        defaults.set(true, forKey: "headOnTower")
+        RetiredHeadSwitches.clear(defaults)
+        for key in RetiredHeadSwitches.keys { #expect(defaults.object(forKey: key) == nil, "\(key) is still on disk") }
+        #expect(defaults.bool(forKey: "headOnTower"), "the tower switch is the one that stays")
+        // Twice is the same as once.
+        RetiredHeadSwitches.clear(defaults)
+        #expect(defaults.bool(forKey: "headOnTower"))
+    }
+
+    @Test("your crews see your head whenever you have one")
+    func crewsSeeTheHead() throws {
+        let store = SourceSweep.code(try SourceSweep.read("Strata/Models/HeadStore.swift"))
+        #expect(store.contains("var headForCrews: HeadRig? { head }"))
+        #expect(store.contains("var crewHeadDirectory: URL? { activeDirectory }"))
+        #expect(!store.contains("isSomewhere"))
+        #expect(!store.contains("headForPicture") && !store.contains("headForMap") && !store.contains("headForSticker"))
+        #expect(HeadStore.shared.headForCrews == nil || HeadStore.shared.head != nil)
+    }
+
+    @Test("Profile offers no photograph and no placement switches")
+    func profileHasNoPhoto() throws {
+        let profile = SourceSweep.code(try SourceSweep.read("Strata/Views/ProfileView.swift"))
+        for gone in ["Choose Photo", "Remove Photo", "Use Photo or Initials", "Use as Profile Picture",
+                     "Show My Head on the Map", "Add My Head to Photos", ".photosPicker("] {
+            #expect(!profile.contains(gone), "\(gone) is back in Profile")
+        }
+        #expect(profile.contains("Let My Head Onto the Tower"), "the one switch the owner kept")
+        let crew = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewInfoSheet.swift"))
+        #expect(!crew.contains("setShowsHeads"), "the per-crew Heads switch is back")
+        let social = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))
+        #expect(!social.contains("myPhoto"), "a profile photo is being sent to crews again")
+    }
+}

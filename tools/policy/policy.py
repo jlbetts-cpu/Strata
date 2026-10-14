@@ -17,7 +17,7 @@ itself must be true). No long dashes.
 import html, pathlib, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-UPDATED = "8 October 2026"
+UPDATED = "14 October 2026"
 EMAIL = "jbett5@hotmail.com"
 
 LEDE = ("Some Wins has no account and no server of its own. What you log stays on "
@@ -33,8 +33,7 @@ SECTIONS = [
     ("What Some Wins stores", [
         "Your wins: their names, sizes, colours, dates, any photo you attach, and "
         "where a photo was taken if you turn that on. Your journal, drawings, "
-        "stickers and photo strips. And, if you add them, your name, a profile "
-        "photo and a head.",
+        "stickers and photo strips. Your name, and your head once you make it.",
     ]),
     ("Where it is stored", [
         "On your device, and in your own iCloud when iCloud is on for Some Wins, "
@@ -78,19 +77,22 @@ SECTIONS = [
         "given one.",
     ]),
     ("Your profile", [
-        "The name and profile photo you add in Profile stay with your wins. If you "
-        "join a crew, the people in it see your first name, and your profile "
-        "photo if you are 16 or older. Removing the photo deletes it.",
+        "The name you add in Profile stays with your wins. If you join a crew, "
+        "the people in it see your first name. Some Wins does not use a profile "
+        "photo: your head is your picture. A profile photo saved by an earlier "
+        "version is never sent, and is deleted once you have a head or when you "
+        "reset all data.",
     ]),
     ("Your head", [
         "If you make a head, Some Wins takes a few photos with the front camera "
         "and Apple's on-device tools find your face and cut it out. It keeps only "
         "those small cut-out pictures and where to place them, never video and "
         "never measurements of your face, and none of it leaves your device to "
-        "be analysed. Your head appears only where you turn it on, and Delete "
-        "Head removes it.",
+        "be analysed. Your head is your picture in Some Wins: it appears in "
+        "Profile, on your Wins tab and your map, and in your crews, and it is "
+        "offered as a sticker on your photos. Delete Head removes it.",
         "If you are in a crew and 16 or older, a smaller copy of your head goes "
-        "to the crew while it shows anywhere, after the same check photos get.",
+        "to the crew, after the same check photos get.",
     ]),
     ("Sharing", [
         "Sharing a photo or a strip hands it to the iOS share sheet. Where it goes "
@@ -117,8 +119,8 @@ SECTIONS = [
     ("What a crew sees", [
         "Of a win you send: its title, colour, size and icon, its photo, and when "
         "you logged it. The photo is a smaller copy with no place and no camera "
-        "details in it. With it, your first name, and from 16, your profile photo "
-        "and your head. Never your journal, notes, places or mood. Tag someone "
+        "details in it. With it, your first name, and from 16, your head. Never "
+        "your journal, notes, places or mood. Tag someone "
         "and they are asked whether to keep a copy; only your crew sees who a win "
         "was with.",
         "Everything you send to a crew's day chat, the replies under a win, and "
@@ -165,12 +167,12 @@ SECTIONS = [
         "Crews are for 13 and up. The first time you open Crews, Some Wins asks "
         "for your age range through Apple, never your birthday, and keeps the "
         "answer on your phone. Under 13, Crews do not open. From 13 to 15, crews "
-        "work, but your photos, profile photo and head are never sent. If you "
+        "work, but your photos and your head are never sent. If you "
         "would rather not say, Some Wins treats you as 13 to 15.",
     ]),
     ("Deleting everything", [
         "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, "
-        "drawing, sticker and strip, your name, profile photo and head, from "
+        "drawing, sticker and strip, your name and head, from "
         "this device and from your iCloud. Leave your crews first, and end any "
         "you started, so your wins leave them too.",
         "Deleting the app removes it from this device only: what is in your "

@@ -310,11 +310,15 @@ extension CrewStoreTests {
         #expect(teen.photo == nil, "13 to 15 start crews with everyone's faces")
     }
 
-    @Test func aMemberWithNoHeadSharesTheirPhotoButNotUnderSixteen() async throws {
+    /// **No photo is ever sent for a member** (rewritten 2026-10-14). This
+    /// pinned that a member with no head shared their profile photo, 16 and
+    /// over; the owner's call that day ("remove the option for a pfp and
+    /// make the head making a must") removed the photo, so the first half
+    /// now asserts the opposite. The under-16 half stays as it was.
+    @Test func aMemberNeverSharesAPhotoAndUnderSixteenNeither() async throws {
         let (a, _, _) = store(jayden)
-        a.myPhoto = { Data([9, 9, 9]) }
         let (crew, _) = try await a.createCrew(name: "One")
-        #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] != nil)
+        #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] == nil)
         a.photosAllowed = { false }
         await a.shareMyself()
         #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] == nil)

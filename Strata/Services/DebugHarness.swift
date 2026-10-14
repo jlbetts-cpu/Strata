@@ -370,8 +370,10 @@ enum DebugHarness {
     /// chrome can only be photographed by putting it into a state directly.
     static var headMakerState: String? { argument("-strataOpenHeadMaker")?.lowercased() }
 
-    /// Turns head placements on for one launch, from
-    /// `-strataHeadOn picture,map,camera,tower` (any subset).
+    /// Turns the tower companion on for one launch, from `-strataHeadOn tower`.
+    /// `picture`, `map` and `camera` are still read so old scripts run, and
+    /// mean nothing: those switches went on 2026-10-14 (the head is always
+    /// your picture, on your map and offered on your photos).
     static var headSwitches: Set<String>? {
         argument("-strataHeadOn").map { raw in
             Set(raw.lowercased().split(separator: ",").map(String.init))

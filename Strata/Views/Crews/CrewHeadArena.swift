@@ -154,14 +154,11 @@ struct CrewBubble: View {
     let me: UUID
     let parking: CrewParking
     var side: CGFloat = 60
-    /// Off: heads are switched off for this crew, and the bubble is only the
-    /// crew's picture.
-    var showsHeads = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let parked = showsHeads ? parking.parked.compactMap { id in crew.member(id) } : []
+        let parked = parking.parked.compactMap { id in crew.member(id) }
         let k = parked.count
         let circle = Self.circle(for: k, side: side)
         ZStack {

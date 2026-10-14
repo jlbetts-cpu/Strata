@@ -330,7 +330,7 @@ struct MemoriesMapView: View {
             // picture of where you were. A player marker is the one thing on
             // a map that is always on top.
             if showsUser {
-                if HeadStore.shared.headForMap != nil {
+                if HeadStore.shared.head != nil {
                     UserAnnotation(anchor: .bottom) { HeadMarker() }
                 } else {
                     UserAnnotation()
