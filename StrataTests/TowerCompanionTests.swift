@@ -175,6 +175,27 @@ struct TowerCompanionTests {
         }
     }
 
+    /// **A tower that grows under a head sends it up, never sideways
+    /// through the blocks** (the owner's phone note, 2026-10-13: the head
+    /// "going over blocks" after the chat). The shortest way out of a
+    /// staircase is often sideways, which is right for a cheek grazing a
+    /// wall and wrong for a head the tower rose around: that way runs
+    /// through the next column, one shove a tick.
+    @Test func aTowerThatGrowsUnderAHeadSendsItUp() {
+        let low = world([1, 1, 1, 1])
+        var s = sim()
+        let roof = low.skyline.top(ofColumn: 1)
+        let x = originX + (cell + gutter) * 1.4
+        s.place(in: low, at: CGPoint(x: x, y: roof - s.halfHeight - TowerCompanionSim.towerClearance - 1))
+        #expect(s.towerEscape(low) == nil, "it started inside the low tower")
+
+        let grown = world([4, 4, 4, 4])
+        let out = s.towerEscape(grown)
+        #expect(out != nil, "a head the tower grew around was not seen as inside it")
+        #expect(out?.dx == 0, "it was pushed sideways through the blocks: \(String(describing: out))")
+        #expect((out?.dy ?? 0) < 0, "it was not sent up")
+    }
+
     /// A throw is capped, so a flick cannot hand the simulation a number it
     /// then has to survive.
     @Test func aThrowIsCapped() {

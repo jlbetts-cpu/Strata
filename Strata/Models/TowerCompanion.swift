@@ -1103,6 +1103,15 @@ nonisolated struct TowerCompanionSim {
         // side walls had before `contactSpeed`, and it is invisible in code.
         guard up > Self.contactEpsilon else { return nil }
 
+        // **Deep inside is a tower that grew round the head, not a wall it
+        // ran into** (2026-10-13, the head "going over blocks" after the
+        // chat). A cheek on a wall is in by a sliver on ONE side. When more
+        // than half the head is in whichever way it goes sideways, the tower
+        // changed under it, and sideways runs THROUGH the next blocks, one
+        // shove a tick. Up is clear air. (Not "up is deep": a head at the
+        // foot of a tall column is deep by that measure and only grazing.)
+        if min(pushLeft, pushRight) > halfWidth { return CGVector(dx: 0, dy: -up) }
+
         // Sideways only when it is genuinely the shorter way out. A head sitting
         // squarely on a roof has a huge sideways escape and a small upward one.
         if pushLeft <= up && pushLeft <= pushRight {

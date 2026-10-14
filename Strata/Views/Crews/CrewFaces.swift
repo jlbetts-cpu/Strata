@@ -181,18 +181,18 @@ extension AppColors {
     /// 4.83:1 on dark, against the 3:1 a mark needs, and a white number on
     /// it 3.52:1, iOS's own red badge's legibility, without its alarm. One
     /// colour in both appearances, and none of the block colours.
+    ///
+    /// **The tab bar's only** (the owner, 2026-10-13: "I like it on the
+    /// bottom but ... a lot of the notification areas around the crew could
+    /// be in white or black depending on light or dark mode"). Inside the
+    /// app a dot is ink (`NewsDot`); the one colour is kept for the one
+    /// place that has to be seen from another tab.
     static let notify = Color(hex: 0xC9705F)
     static let notifyUI = UIColor(red: 0xC9 / 255, green: 0x70 / 255, blue: 0x5F / 255, alpha: 1)
 }
 
 struct NewsDot: View {
     static let side: CGFloat = 9
-    /// A number in it (how many crews have something new), on a button's
-    /// corner; nil for the plain dot.
-    var count: Int? = nil
-    /// Big enough for a digit at the caption tier.
-    static let numberedSide: CGFloat = 17
-
     /// **How a dot comes and goes, everywhere** (the owner, 2026-10-13: "make
     /// sure the animation of the notification coming in and out is clean
     /// and minimal"). It grows a little into place, from 60%, on one smooth
@@ -216,28 +216,18 @@ struct NewsDot: View {
     /// variation dot"). The one dot for "something new" in the app, on a
     /// crew's row, a crew's chat and the Crews tab (`StrataTab.picture`),
     /// never the system's red badge, which he called terrifying.
-    var body: some View {
-        if let count {
-            DoodleDot()
-                .fill(AppColors.notify)
-                .frame(width: Self.numberedSide, height: Self.numberedSide)
-                .overlay {
-                    Text(count > 9 ? "9+" : "\(count)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.7)
-                }
-                .overlay { DoodleDot().stroke(WarmBackground.top, lineWidth: 1.5).padding(-0.75) }
-                .accessibilityHidden(true)
-        } else {
-            plain
-        }
-    }
+    ///
+    /// **In ink**: black on the light page, white on the dark one (the owner,
+    /// 2026-10-13, see `AppColors.notify`). Design systems keep a hue for
+    /// what is urgent and draw a routine unread mark neutral (PatternFly's
+    /// notification badge, Siemens iX's badge); a friend's win is never
+    /// urgent. The tab bar's dot keeps its colour, since it is seen from
+    /// another tab, and a count lives in the back button as text.
+    var body: some View { plain }
 
     private var plain: some View {
         DoodleDot()
-            .fill(AppColors.notify)
+            .fill(.primary)
             .frame(width: Self.side, height: Self.side)
             .overlay {
                 if ringed {

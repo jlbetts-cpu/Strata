@@ -267,8 +267,11 @@ enum ConsistencySweep {
         "Strata/Views/Crews/CrewReactions.swift": 1,
         // The crew page's name capsule, `glassCapsule(onPage:)`, and the day
         // sheet's emoji disc on `glassCircle(onPage:)`: the same fault as the
-        // reaction face, found in the 2026-10-06 cohesion audit.
-        "Strata/Views/Crews/CrewTowerView.swift": 1,
+        // reaction face, found in the 2026-10-06 cohesion audit. And the back
+        // button with its count inside (2026-10-13, `BackToCrews`), a
+        // `glassCapsule(onPage:)` that grows round the number: interactive
+        // glass answers the finger itself.
+        "Strata/Views/Crews/CrewTowerView.swift": 2,
         "Strata/Views/DaySheet.swift": 1,
         // The header's profile picture, built on `GlassIconButton`'s skeleton and
         // drawn on `glassCircle()`.

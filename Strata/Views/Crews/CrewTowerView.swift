@@ -91,6 +91,14 @@ struct CrewTowerView: View {
             let colW: CGFloat = floor(usable / CGFloat(columns))
             tower(colW: colW, viewport: geo.size.height)
         }
+        // **The keyboard never moves the tower** (the owner's phone note,
+        // 2026-10-13: the head "glitched when clicking back in chat going over
+        // blocks"). Typing in the chat raised the keyboard, the tower's room
+        // shrank under it and its blocks moved, while the heads' layer
+        // ignores every safe area and kept simulating: they were suddenly
+        // inside blocks and were shoved out sideways, through them. The heads
+        // and the tower now answer to the same room.
+        .ignoresSafeArea(.keyboard)
         // A bar, so the tower blurs away under it (`pinnedBar`): under a plain
         // inset the soft edge drew nothing.
         .pinnedBar({ header }, below: {
@@ -378,6 +386,11 @@ struct CrewTowerView: View {
         if let crew, store.showsHeads(crewID) {
             CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
                 .ignoresSafeArea()
+                // Still while something covers them (the chat, the crew's
+                // card, a win full screen), as Memories does: nobody is
+                // watching, and nothing moves under a sheet to be found
+                // somewhere odd when it shuts.
+                .environment(\.headsAwake, !(showsChat || showsInfo || viewing != nil))
         }
     }
 
@@ -549,23 +562,7 @@ struct CrewTowerView: View {
     private var header: some View {
         ZStack(alignment: .top) {
             HStack(alignment: .top) {
-                GlassIconButton(systemName: "chevron.left", onPage: true,
-                                accessibilityLabel: elsewhere > 0 ? "Crews, \(elsewhere) with something new" : "Crews") { onBack() }
-                    // **How many other crews have news, on the way back**
-                    // (the owner, 2026-10-13: "I like how Apple Messages
-                    // works where the back button also shows the number").
-                    // The app's own dot with its number, over the button's
-                    // corner as on the Crews tab; this crew's own news is
-                    // not counted, since you are in it.
-                    .overlay(alignment: .topTrailing) {
-                        if elsewhere > 0 {
-                            NewsDot(count: elsewhere)
-                                .offset(x: 4, y: -4)
-                                .transition(NewsDot.transition(reduceMotion: reduceMotion))
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .animation(NewsDot.motion(reduceMotion: reduceMotion), value: elsewhere)
+                BackToCrews(count: elsewhere) { onBack() }
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
                 // **No "+" here any more** (the owner, 2026-10-05: "kinda
@@ -850,4 +847,45 @@ private struct CrewPhotoReactions: View {
 
 private extension String {
     var nonEmpty: String? { isEmpty ? nil : self }
+}
+
+/// **The way back to the list, carrying how many other crews have news**
+/// (the owner, 2026-10-13: "I like how Apple Messages works where the back
+/// button also shows the number", then "more like the apple one where its
+/// like in the button"). Messages writes the count beside its chevron,
+/// inside the button; so does this. With nothing new it is the plain 44pt
+/// glass circle every back button in the app is, and with news the same
+/// glass grows into a capsule round the number, in ink like the chevron.
+/// This crew's own news is not counted, since you are in it.
+private struct BackToCrews: View {
+    let count: Int
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                if count > 0 {
+                    Text(count > 9 ? "9+" : "\(count)")
+                        .font(.body.weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(count)))
+                        .transition(.opacity)
+                }
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, count > 0 ? 14 : 0)
+            .frame(minWidth: GlassIconButton.defaultSide, minHeight: GlassIconButton.defaultSide)
+            .glassCapsule(onPage: true)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .animation(NewsDot.motion(reduceMotion: reduceMotion), value: count)
+        .accessibilityLabel(count > 0 ? "Crews, \(count) with something new" : "Crews")
+    }
 }
