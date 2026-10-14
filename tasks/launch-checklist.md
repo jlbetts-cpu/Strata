@@ -10,34 +10,13 @@ was dropped.
 
 ## 1. This week
 
-- [ ] **Push** whenever I say there are commits: `cd ~/Desktop/Strata && git push origin main`
+- [ ] **Push** whenever I say there are commits: `cd ~/Developer/Strata && git push origin main`
       The site is whatever is pushed; nothing I change on it is live until you do.
-- [ ] **Free some disk space, or move the repo off iCloud Desktop.** The Mac
-      is 98% full (about 10 GB free). On 2026-10-13 iCloud evicted about
-      4,000 of this repo's files to make room, which stalled a commit and
-      slows every build while they download again. Either is enough:
-  - free 30 GB or more (Xcode's DerivedData and old simulators are the
-    usual big ones: Xcode, Settings, Platforms; and
-    `~/Library/Developer/Xcode/DerivedData`), or
-  - move `~/Desktop/Strata` to a folder iCloud does not manage (for example
-    `~/Developer/Strata`) and tell me the new path.
-- [ ] **Try the newest build on your phone**, then tell me to send it to
-      Friends. What to look at:
-  - A crew chat: plus, Plan. The plan stays in the chat, and on the crew's
-    tower it is a checkbox block. Press it.
-  - A crew chat: plus, Strip. Today's strip, then Send.
-  - Add a Win with the keyboard up: press the block. The menu opens whole.
-  - A repeating plan line: Edit, change the name, Done. Just Today or
-    Every Time.
-  - Memories: one "Shared with" album where there were two.
-- [ ] **Two phones, one friend, ten minutes.** Nothing in crews has run on
-      real iCloud between two people. Do these and tell me what happened:
-  - Send an invite in Messages. Does it arrive as a card with the logo?
-  - They tap it and join. Do they land in the crew?
-  - You make a plan; they tap I'm In; they get a box on the crew's tower.
-  - They finish it. Do you get "Name just did Workout"?
-  - A win sent to two crews: is each crew told once?
-  - A sticker on a win, and a strip sent to the chat.
+- [x] **The project is out of iCloud** (2026-10-13): it lives at
+      `~/Developer/Strata` now. The old `~/Desktop/Strata` is left as it was;
+      do not work or push from it any more, and delete it whenever you like
+      once you have seen the new one is fine. The Mac is still 98% full,
+      which slows everything else; freeing 30 GB is still worth it.
 
 ## 2. somewins.xyz (about 20 minutes, in this order)
 
@@ -53,7 +32,7 @@ email, and the decision at the end.
   - Add one **CNAME**, host `www`, value `jlbetts-cpu.github.io`.
 - [x] **GitHub**, the Strata repo, Settings, Pages, Custom domain: type
       `somewins.xyz`, Save. When the check goes green, tick **Enforce
-      HTTPS**. Then `cd ~/Desktop/Strata && git pull`.
+      HTTPS**. Then `cd ~/Developer/Strata && git pull`.
       Old github links keep working: GitHub forwards them.
 - [x] **Apple Developer**, Certificates, IDs and Profiles, Identifiers,
       `JaydenBetts.Strata`: tick **Associated Domains**, Save.
