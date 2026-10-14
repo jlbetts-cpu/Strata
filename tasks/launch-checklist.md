@@ -92,6 +92,22 @@ fit them. In order of need:
   - Invites: B to E in `docs/invites-research-2026-10-13.md` part 4 (a second invite moment for solo people, starting a crew with people from your crews, an App Clip, contact discovery: recommended no).
   - Heads, pass D: one identity head plus companion heads (`docs/heads-as-identity-2026-10-14.md` 4.6).
 
+## 3¾. From 2026-10-14 (new)
+
+- [ ] **A Meta App ID, for Instagram Stories** (your yes on 2026-10-14). At
+      developers.facebook.com: log in, My Apps, Create App, type "Other",
+      then "Consumer"; name it Some Wins. Copy the App ID from the app's
+      dashboard and send it to me (an App ID is not a secret; the App
+      Secret is, never send that). I add the Stories row to the strip's
+      share sheet once I have it. Details: `docs/instagram-sharing-research-2026-10-14.md`.
+- [ ] **Friends, your calls** (`docs/friends-research-2026-10-14.md`
+      section 6): a list crews draw from or crews of two; whether one-to-one
+      crews count against the 5; codes for 13 to 15 or 16 and up; timing
+      against the crews launch; confirm no usernames.
+- [ ] **Try build 141 on your phone**: the camera's new frame, the photo
+      review in light mode, the drawer thrown by a thumb, Reply on the hold,
+      the photo viewer going dark on a tap, Memories by size.
+
 ## 4. App Store Connect
 
 Entered on 2026-10-13 and read back: name, subtitle, description and
