@@ -35,6 +35,8 @@ struct CrewTowerView: View {
     @State private var showsInfo = false
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
+    /// The chat was opened by pressing the resting bar's field.
+    @State private var chatStartsWriting = false
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
     @State private var plansRefresh = 0
@@ -130,6 +132,18 @@ struct CrewTowerView: View {
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         // Everyone's heads, over the header too, so one can be carried up
         // into the bubble. See `CrewHeadArena`.
+        // **Today's chat, resting under the tower** (`ChatRestBar`). An
+        // inset, so the tower's base stands above it rather than behind it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ChatRestBar(crewID: crewID) { writing in
+                chatStartsWriting = writing
+                showsChat = true
+            }
+        }
+        // **No tab bar inside a crew**, as Messages and WhatsApp have none
+        // inside a conversation: the drawer is the foot of the screen, and
+        // the way out is the back button, which carries the other crews' news.
+        .toolbar(.hidden, for: .tabBar)
         .overlay { headsOverlay }
         // The fan, over everything, under the bubble; a tap anywhere else
         // folds it back.
@@ -289,7 +303,7 @@ struct CrewTowerView: View {
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
         .sheet(isPresented: $showsChat) {
-            CrewChatSheet(crewID: crewID, onOpenWin: openQuotedWin, onAddWin: {
+            CrewChatSheet(crewID: crewID, startsWriting: chatStartsWriting, onOpenWin: openQuotedWin, onAddWin: {
                 // The plus row's Win: once the chat has gone, the crew's own
                 // way to add one.
                 // 450, as `openQuotedWin` waits: a presentation asked for
@@ -618,10 +632,9 @@ struct CrewTowerView: View {
                 // **No "+" here any more** (the owner, 2026-10-05: "kinda
                 // useless because there is already a + block"). The tower's
                 // own next slot adds a win, and holding it opens Add Win.
-                // **The corner is today's chat** (the owner, 2026-10-05): a
-                // hollow `bubble.left` on glass, with a small dot while a
-                // friend has said something you have not opened.
-                chatButton
+                // **The chat is the drawer at the foot now** (`ChatRestBar`,
+                // the owner's pick, 2026-10-13), so the corner is empty: its
+                // dot moved to the line it was about.
             }
             if let crew {
                 let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)
@@ -713,27 +726,6 @@ struct CrewTowerView: View {
     private var elsewhere: Int {
         store.unread.union(store.unreadChats).subtracting([crewID]).count
     }
-
-    private var chatButton: some View {
-        let unread = store.unreadChats.contains(crewID)
-        return GlassIconButton(systemName: "bubble.left", onPage: true, accessibilityLabel: "Chat") {
-            showsChat = true
-        }
-        .overlay(alignment: .topTrailing) {
-            if unread {
-                NewsDot()
-                    .offset(x: -Self.dotInset, y: Self.dotInset)
-                    .transition(NewsDot.transition(reduceMotion: reduceMotion))
-                    .allowsHitTesting(false)
-            }
-        }
-        .animation(NewsDot.motion(reduceMotion: reduceMotion), value: unread)
-        .accessibilityValue(unread ? "New" : "")
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
-    }
-
-    /// The unread dot: small, in ink, inside the glass circle's corner.
-    private static let dotInset: CGFloat = 8
 
     /// Empty, the bubble is the crew: its details. With heads in it, a tap
     /// fans them out to choose from.

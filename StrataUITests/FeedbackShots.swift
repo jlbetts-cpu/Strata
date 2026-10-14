@@ -1108,6 +1108,57 @@ final class FeedbackShots: XCTestCase {
         snap("earlier-sent")
     }
 
+    /// **Everything the night's helpers built, photographed** (2026-10-14):
+    /// the Wins crest, its head let out, reactions on your blocks, a
+    /// friend's line over Wins; the chat, its plus row, a held line, a
+    /// strip full screen.
+    func testNightWalk() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedHead", "1",
+                          "-strataHeadOn", "picture", "-strataSeedMyReactions", "1"])
+        wait(8); snap("night-1-wins")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.11)).tap(); wait(3)
+        snap("night-2-head-out")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataCrews", "1", "-strataSeedCrew", "4",
+                      "-strataFriendSaysEvery", "6", "-strataSeedWins", "2"])
+        for i in 0..<4 { wait(3); snap("night-3-banner-\(i)") }
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat",
+                      "-strataSeedCrewChat", "1", "-strataSeedCrewStrip", "1"])
+        wait(9); snap("night-4-chat")
+        let plus = app.buttons["More to send"]
+        if plus.waitForExistence(timeout: 4) { plus.tap(); wait(1.5) }
+        snap("night-5-plus-row")
+        print("PLANNING-night: row \(["Win", "Plan", "Sticker", "Strip", "Memory"].map { "\($0) \(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", $0)).count)" })")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat",
+                      "-strataSeedCrewChat", "1", "-strataChatReact", "open"])
+        wait(9); snap("night-6-hold")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "chat",
+                      "-strataSeedCrewChat", "0"])
+        wait(9); snap("night-7-empty-chat")
+    }
+
+    /// **The chat as a drawer under the crew's tower** (the owner's pick,
+    /// 2026-10-13): at rest, opened by its line, closed again; opened by
+    /// its field with the keyboard.
+    func testChatDrawer() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9); snap("drawer-rest")
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch
+        print("PLANNING-drawer: line \(line.exists) \(line.label) value \(String(describing: line.value))")
+        if line.exists { line.tap(); wait(2.5) }
+        snap("drawer-open")
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap(); wait(2) }
+        snap("drawer-closed")
+        let field = app.buttons["Write a message"].firstMatch
+        if field.exists { field.tap(); wait(2.5) }
+        snap("drawer-writing")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

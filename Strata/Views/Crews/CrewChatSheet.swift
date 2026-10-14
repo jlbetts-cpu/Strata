@@ -127,8 +127,14 @@ struct CrewChatSheet: View {
     /// system's half second, which the context menu it replaced waited.
     private static let holdToReact: Double = 0.35
 
-    init(crewID: CrewID, onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
+    /// Opened by pressing the resting bar's field (`ChatRestBar`): the
+    /// keyboard comes up with the thread.
+    var startsWriting = false
+
+    init(crewID: CrewID, startsWriting: Bool = false, onOpenWin: @escaping (UUID) -> Void = { _ in },
+         onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
+        self.startsWriting = startsWriting
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
@@ -165,7 +171,10 @@ struct CrewChatSheet: View {
         // Open is seen: the dot goes, and the hour's held alert with it. And
         // again as lines arrive while it is open, from the crew screen's
         // live sync underneath (`refreshLive`, every 3 seconds).
-        .onAppear { store.markChatSeen(crewID) }
+        .onAppear {
+            store.markChatSeen(crewID)
+            if startsWriting { writing = true }
+        }
         .onChange(of: messages.map(\.messageID)) { _, _ in store.markChatSeen(crewID) }
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
