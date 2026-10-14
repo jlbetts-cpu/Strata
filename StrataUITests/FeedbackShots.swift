@@ -466,6 +466,48 @@ final class FeedbackShots: XCTestCase {
         wait(5); snap("review-6-tower")
     }
 
+    /// **Memories, top and end** (the owner, 2026-10-13: "you left the huge
+    /// gap above the memories calendar ... the skeleton is small now and is
+    /// it still animated?"). The calendar under the header; the drawing at
+    /// the end at its full height, photographed twice a second apart so a
+    /// dance shows as two different poses.
+    func testMemoriesEnd() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedHistoryPerDay", "2",
+                          "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo"])
+        wait(8); snap("mem-0-top")
+        for _ in 0..<6 { app.swipeUp(velocity: .fast) }
+        wait(0.6); snap("mem-1-end-a")
+        wait(0.8); snap("mem-2-end-b")
+        wait(4); snap("mem-3-end-rest")
+        // A press on him plays it again.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).tap()
+        wait(0.4); snap("mem-4-tap-a")
+        wait(0.6); snap("mem-5-tap-b")
+    }
+
+    /// **Every crew, in one press** (the owner, 2026-10-13): off, on (every
+    /// crew ticked and the tag button at the row's end with no name under
+    /// it), and off again.
+    func testEveryCrew() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3",
+                          "-strataCrewFaces", "none", "-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-strataOpenSheet", "addphoto", "-strataSeedRealPhotos", "demo"])
+        let every = app.buttons["Every crew"]
+        XCTAssertTrue(every.waitForExistence(timeout: 20), "no Every crew on the add sheet")
+        wait(1); snap("every-0-off")
+        every.tap()
+        wait(1); snap("every-1-on")
+        let chosen = app.buttons.matching(NSPredicate(format: "label == 'Every crew, chosen'")).firstMatch
+        XCTAssertTrue(chosen.exists, "Every crew did not choose every crew")
+        let crews = ["Roommates", "Run Club"].map { app.buttons[$0] }
+        for crew in crews where crew.exists {
+            XCTAssertTrue(crew.isSelected, "\(crew.label) was not chosen with every crew")
+        }
+        chosen.tap()
+        wait(1); snap("every-2-off-again")
+        XCTAssertTrue(app.buttons["Every crew"].exists, "Every crew did not let them all go")
+    }
+
     /// "Gym @ 2" typed on the add sheet, then a day chosen on Now: the plan
     /// sheet opens on that day with the line in it and its time read back
     /// (the owner, 2026-10-11).

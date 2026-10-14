@@ -44,10 +44,13 @@ means. Nothing goes to Friends; the build in the morning is for you only.
       which cannot be switched off; the slot and the planned boxes (one
       pane) are drawn with the translucent material and their ink edge now.
       Looked at in light and dark.
-- [ ] **The month's drawing goes to the end of Memories**, after the albums
-      and photos.
-- [ ] **Select all crews when adding a win.** One "All crews" choice on the
-      Add sheet's crew row, so a win goes everywhere in one press.
+- [x] **The month's drawing goes to the end of Memories**, after the albums
+      and photos, at its full height, and it dances when it scrolls into
+      view (filmed). The calendar moved up under the header: without the
+      drawing, the room above it was an empty half screen (your catch).
+- [x] **Select all crews when adding a win.** "Every crew", first in the
+      row when there is more than one crew. The names no longer run under
+      the tag button at the row's end (your catch); they fade before it.
 - [ ] **A strip export never cuts off its top.** Find why it happens
       "sometimes" (likely the safe area or a render before layout), fix,
       and test every strip length.
@@ -76,6 +79,19 @@ means. Nothing goes to Friends; the build in the morning is for you only.
       everyone's profile photo. Press one and that person's head comes out
       under it, as heads do today. Nobody without a head floats; they are
       their photo and nothing else.
+
+## 3½. One experience, Wins and Crews (added 2026-10-13, late)
+
+- [ ] **The + on a crew's tower is the + on yours**: the same slot, the
+      same press and draw-out, the same Add sheet, with the crew chosen.
+      Today it is a different screen.
+- [ ] **Send a win from earlier today to a crew** you did not send it to,
+      from the crew's own tower, without making it again.
+- [ ] **Hiding a win in a crew**: check what hide and unhide do today and
+      make it make sense (you found it "weird"); hide should be undoable
+      and say where it went.
+- [ ] Hunt for more of the same: anything that works one way on Wins and
+      another way in a crew, or a step that cannot be taken back.
 
 ## 4. The chat, finished
 

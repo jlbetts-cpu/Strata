@@ -87,6 +87,15 @@ struct InkReplay: View {
             #endif
         }
         .onDisappear { playedAt = nil }
+        // **Plays when it comes into view, not only when it is built**
+        // (2026-10-13). At the end of Memories it sits in a lazy list,
+        // which builds it a screen ahead: it danced to nobody and stood
+        // still when it was reached (filmed: three frames, one pose).
+        .onScrollVisibilityChange(threshold: 0.6) { visible in
+            guard visible else { return }
+            playedAt = nil
+            play()
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Your drawing for the month")
         .accessibilityAddTraits(.isImage)

@@ -393,8 +393,12 @@ struct PlanningAheadTests {
         let recipe = SourceSweep.code(try SourceSweep.read("Strata/Views/SlotGlass.swift"))
         #expect(recipe.contains("if dark { return .regular.tint(.black.opacity(pageInk + 0.06 * t)).interactive() }"))
         #expect(!recipe.contains(".white.opacity("))
+        // One pane for both, drawn by `glassSlot` (since 2026-10-13 the
+        // material, not glass: glass casts a shadow the owner took off).
         let glass = SourceSweep.code(try SourceSweep.read("Strata/Views/SlotGlass.swift"))
-        #expect(glass.contains("GlassRecipe.slot(thickness: thickness, dark: scheme == .dark)"))
+        #expect(glass.contains(".background(.ultraThinMaterial, in: shape)"))
+        #expect(SourceSweep.code(try SourceSweep.read("Strata/Views/PlannedBlocks.swift")).contains(".glassSlot("),
+                "a planned win's box is not the slot's pane")
         let slot = SourceSweep.code(try SourceSweep.read("Strata/Views/NextSlotButton.swift"))
         #expect(slot.contains("let base = SlotPane.edge(scheme)"))
         #expect(slot.contains("AppColors.slotInk.opacity(isDown ? base * 2 : 0)"), "no recess at rest; it answers a press")

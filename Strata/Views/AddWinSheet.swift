@@ -442,7 +442,9 @@ struct AddWinSheet: View {
                                 // here when there is a photo to say it of.
                                 CrewPicker(selection: Binding(get: { crewChoice },
                                                               set: { crewChoice = $0; crewChoiceTouched = true }),
-                                           mentionsPhotos: photo != nil)
+                                           mentionsPhotos: photo != nil,
+                                           endsAtEdge: !isEditing && !crewChoice.isEmpty
+                                               && !SocialStore.shared.taggable(in: crewChoice).isEmpty)
                                 // **Who it was with, behind one tag button**
                                 // at the end of the crews (the owner,
                                 // 2026-10-06), not a second row of names

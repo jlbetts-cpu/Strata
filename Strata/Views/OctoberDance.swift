@@ -97,6 +97,18 @@ struct OctoberDance: View {
                 #endif
             }
             .onDisappear { playedAt = nil }
+            // **Plays when it comes into view, not only when it is built**
+            // (2026-10-13). At the end of Memories it sits in a lazy list,
+            // which builds it a screen ahead: it danced to nobody and stood
+            // still when it was reached (filmed: three frames, one pose).
+            .onScrollVisibilityChange(threshold: 0.6) { visible in
+                guard visible else { return }
+                // From the start, even if an early play is still running
+                // off screen: what is seen is the whole of it.
+                playedAt = nil
+                plays = 0
+                play()
+            }
         }
     }
 

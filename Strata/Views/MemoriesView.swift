@@ -179,40 +179,21 @@ struct MemoriesView: View {
                     // a bulky section lets just add a play button next to the
                     // profile icon"). See `recapButton`.
 
-                    // **The month stands at the foot of the page, as the
-                    // tower does on Wins** (the owner, 2026-10-03: "put the
-                    // calendar and stuff near the bottom so it balances with
-                    // the wins page"). The room above it is the month's own,
-                    // for the drawing he is making for each month
-                    // (`monthArt`), and empty until there is one. The photos
-                    // open below and scroll.
+                    // **The month stands at the top of the page now** (the
+                    // owner, 2026-10-13: "you left the huge gap above the
+                    // memories calendar"). It stood at the foot of the first
+                    // screen to balance Wins, with the month's drawing in the
+                    // room above it; with the drawing at the end of the page
+                    // (his pick) that room was an empty half screen. Under
+                    // the header, then the photos, then the drawing.
                     let shown = monthPhotos
                     let count = shown.reduce(0) { $0 + $1.photos.count }
-                    VStack(alignment: .leading, spacing: 0) {
-                        // The room above the month is air now: the drawing
-                        // that stood in it is at the end of the page (below).
-                        Spacer(minLength: 0)
-                        // Nothing for the moment the page takes to learn
-                        // whether it is empty; an empty month is the calendar
-                        // alone, the emptiness you then fill being the point.
-                        if !pageIsUndecided || pageIsEmpty {
-                            // The past-win line that stood under the calendar
-                            // is gone (the owner, 2026-10-06: "why does it say
-                            // september 7 inbox zero i dont like that section
-                            // ... i liked the look of the memories screen
-                            // before that was added"). It also arrived after
-                            // the page had drawn and pushed the month down.
-                            // The evening Past Wins notification stays.
-                            monthTower
-                        }
-                    }
-                    // The scroll view already stops above the tab bar; the
-                    // calendar's last row sits where the tower's last row
-                    // does on Wins (the owner, 2026-10-03: "the calendar
-                    // bottom should sit where the tower bottom is and then the
-                    // photos under that").
-                    .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
-                        max(length - GridConstants.gapTight, 0)
+                    // Nothing for the moment the page takes to learn whether
+                    // it is empty; an empty month is the calendar alone, the
+                    // emptiness you then fill being the point.
+                    if !pageIsUndecided || pageIsEmpty {
+                        monthTower
+                            .padding(.top, GridConstants.gapItem)
                     }
 
                     // Under the fold: the photos are a scroll away, their
@@ -256,6 +237,13 @@ struct MemoriesView: View {
                     // into view, as it played when the page opened. Some
                     // Wins' own card keeps its place in the drawing's slot.
                     monthArt
+                        // **Its whole height.** The drawing scales to the
+                        // room it is given and gives up to half of it on a
+                        // short page; at the end of a scrolling page it was
+                        // proposed no height and drew at that half (the
+                        // owner: "the skeleton is small now"). The room is the
+                        // 290 it was drawn for, its line and the gap between.
+                        .frame(minHeight: Self.artRoom)
                         .frame(maxWidth: .infinity)
                         .padding(.top, GridConstants.gapPage)
                 }
@@ -837,6 +825,9 @@ struct MemoriesView: View {
     /// halloween in the clean sf pro... make it a part of the image"). It was
     /// in a card for one build; "I dont like the illustration in the block
     /// try it just blank". See `Illustration`.
+    /// The drawing's height (290), its gap and its one line under it.
+    static let artRoom: CGFloat = 290 + GridConstants.gapItem + 44
+
     @ViewBuilder
     private var monthArt: some View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""

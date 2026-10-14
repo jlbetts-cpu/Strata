@@ -148,10 +148,18 @@ struct AlbumsAndCropTests {
         #expect(main.contains("case .library: if stillThere(item), !alreadyWon(item) { pickingPlan = item }"))
     }
 
-    @Test("the slot's glass is made again when the appearance changes")
+    /// It pinned `.id(scheme)`, which remade a glass effect that kept the
+    /// tint it was made with. Since 2026-10-13 the pane is not glass (the
+    /// owner: no shadow on the + block, and glass draws one that cannot be
+    /// switched off): it is the system material, which follows the
+    /// appearance by itself. What is pinned is the behaviour: no glass.
+    @Test("the slot's pane follows the appearance, and casts no shadow")
     func paneFollowsAppearance() throws {
-        #expect(try code("Strata/Views/SlotGlass.swift").contains(".id(scheme)"),
+        let pane = try code("Strata/Views/SlotGlass.swift")
+        #expect(pane.contains(".background(.ultraThinMaterial, in: shape)"),
                 "the panes stayed dark on a light page until the app was reopened")
+        let body = try #require(pane.range(of: "private struct SlotGlassPane"))
+        #expect(!pane[body.lowerBound...].contains(".glassEffect("), "the + block is glass again, and glass draws a shadow")
     }
 
     /// The owner, 2026-10-12: "the tips kinda push the page down for a
