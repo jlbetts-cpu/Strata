@@ -7,33 +7,59 @@ import SwiftUI
 /// with the highest-value actions first ... clean single-focus glyphs, never
 /// a busy grid"). The design he approved is `docs/crew-plus-design.md`.
 ///
-/// One row, five things, in his order. No drawer behind it: five fit the
-/// smallest phone at 44 points each, and a drawer with nothing in it is
-/// clutter. The doodle pad is inside Sticker.
+/// One row, four things, each ending with one line in this chat
+/// (`docs/chat-plus-research-2026-10-13.md`, section 3; the owner, 2026-10-13:
+/// "the + button in the chat needs like real care done to it ... easy to use
+/// and sleek and understandable", and "finish the recommended"). No drawer
+/// behind it: four fit the smallest phone at 44 points each, and a drawer with
+/// nothing in it is clutter. The doodle pad is inside Sticker.
 struct ChatPlusRow: View {
     enum Choice: String, CaseIterable, Identifiable {
-        case win, plan, strip, memory, sticker
+        case win, plan, sticker, strip
+        /// **Sticker's place for someone who may not send photos**: a
+        /// sticker is lifted out of a photograph, so their row says what it
+        /// opens, the doodle pad, rather than "Sticker" opening it.
+        case doodle
+        /// **Off the row** (the research's cut, the owner's "finish the
+        /// recommended", 2026-10-13). The look back over the chat already
+        /// brings the right photo back on the right day with Send It Again;
+        /// the word was the Memories tab's and its own sheet said "Bring
+        /// Back". The case and `CrewMemorySheet` stay, offered nowhere, for
+        /// a later "From Earlier" inside Win.
+        case memory
         var id: String { rawValue }
+
+        /// **The row, in this order**: what you did, making plans, the quick
+        /// reply, then the once-a-day thing (Sticker moved ahead of Strip:
+        /// a sticker can go every day and a strip once).
+        static let offered: [Choice] = [.win, .plan, .sticker, .strip]
+        /// Strip is photographs, and so is a sticker: not offered to
+        /// someone who may not send one.
+        static let withoutPhotos: [Choice] = [.win, .plan, .doodle]
 
         var word: String {
             switch self {
             case .win: "Win"
             case .plan: "Plan"
-            case .strip: "Strip"
-            case .memory: "Memory"
             case .sticker: "Sticker"
+            case .strip: "Strip"
+            case .doodle: "Doodle"
+            case .memory: "Memory"
             }
         }
 
         /// System glyphs, as every tool in the app is; the sticker is the
-        /// owner's own drawn one, as it is wherever stickers are.
+        /// owner's own drawn one, as it is wherever stickers are. **Win is
+        /// blocks stacked**, a tower: it was `plus.app`, a plus inside the
+        /// plus menu, which reads as "more".
         var symbol: String {
             switch self {
-            case .win: "plus.app"
+            case .win: "square.stack.3d.up"
             case .plan: "checklist"
-            case .strip: "film"
-            case .memory: "clock.arrow.circlepath"
             case .sticker: ""
+            case .strip: "film"
+            case .doodle: "scribble"
+            case .memory: "clock.arrow.circlepath"
             }
         }
 
@@ -41,14 +67,15 @@ struct ChatPlusRow: View {
             switch self {
             case .win: "Add a win to this crew"
             case .plan: "Plan something with this crew"
-            case .strip: "Send today's photo strip"
-            case .memory: "Bring back a day this crew saw"
             case .sticker: "Send a sticker or a doodle"
+            case .strip: "Send today's photo strip"
+            case .doodle: "Send a doodle"
+            case .memory: "Bring back a day this crew saw"
             }
         }
     }
 
-    var choices: [Choice] = Choice.allCases
+    var choices: [Choice] = Choice.offered
     let pick: (Choice) -> Void
 
     var body: some View {
@@ -495,6 +522,11 @@ extension PhotoStrip {
 /// cannot be taken back (`CrewMemorySheet` does the same).
 struct CrewStripSendSheet: View {
     let send: (Data) -> Void
+    /// **The empty page's one way forward** (the research, section 3, item
+    /// 5): on a day with no photo it said "No photos today. Yet." over a
+    /// greyed Send and only Cancel, a dead end two taps in. Add a Win goes
+    /// where the row's Win goes. Nil leaves the page as it was.
+    var addWin: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -504,6 +536,7 @@ struct CrewStripSendSheet: View {
     @State private var looked = false
 
     static let empty = "No photos today. Yet."
+    static let addWord = "Add a Win"
 
     /// Today's strip as the chat shows it, or nil on a day with no picture.
     @MainActor
@@ -531,11 +564,20 @@ struct CrewStripSendSheet: View {
                             .padding(.vertical, GridConstants.gapWide)
                             .accessibilityLabel("Today's photo strip")
                     } else if looked {
-                        // The page's one sentence, as every empty page says its own.
-                        Text(Self.empty)
-                            .font(Typography.headerMedium)
-                            .foregroundStyle(AppColors.inkPrimary)
-                            .multilineTextAlignment(.center)
+                        // The page's one sentence, as every empty page says
+                        // its own, and the one thing that fills it.
+                        VStack(spacing: GridConstants.gapWide) {
+                            Text(Self.empty)
+                                .font(Typography.headerMedium)
+                                .foregroundStyle(AppColors.inkPrimary)
+                                .multilineTextAlignment(.center)
+                            if let addWin {
+                                PrimaryCapsule(title: Self.addWord) {
+                                    dismiss()
+                                    addWin()
+                                }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)

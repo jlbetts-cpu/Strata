@@ -249,7 +249,10 @@ enum CrewNotifications {
             for message in store.messages(in: crew.id)
             where message.senderProfileID != store.me && !store.blocked.contains(message.senderProfileID)
                 && !seen.contains(message.messageID.uuidString)
-                && now.timeIntervalSince(message.createdAt) < window {
+                && now.timeIntervalSince(message.createdAt) < window
+                // A win said in the chat is the win's news, told already
+                // (`announce`); counting its line here rang a second time.
+                && !store.isWinLine(message) {
                 if let quote = message.quoteWinID, mine.contains(quote), store.reactionAlerts(crew.id) {
                     quoted.append(message)
                 } else {

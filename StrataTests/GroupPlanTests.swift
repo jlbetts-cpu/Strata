@@ -123,7 +123,11 @@ struct GroupPlanTests {
         #expect(CrewLookBack.all(for: crew.id, context: ModelContext(container), store: a).isEmpty)
         #expect(CrewLookBack.find(for: crew.id, context: ModelContext(container), store: a) == nil)
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
-        #expect(chat.contains("store.photosAllowed() ? ChatPlusRow.Choice.allCases : [.win, .plan, .sticker]"))
+        // The row's own lists now (2026-10-14, the research's proposal):
+        // without photos the third is Doodle, which says what it opens.
+        #expect(chat.contains("store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos"))
+        #expect(ChatPlusRow.Choice.withoutPhotos == [.win, .plan, .doodle])
+        #expect(!ChatPlusRow.Choice.withoutPhotos.contains(.strip) && !ChatPlusRow.Choice.withoutPhotos.contains(.sticker))
         // A plan and a doodle are words and ink, and still theirs to send.
         #expect(await a.sendPlan(title: "Walk", when: .day(CrewDay.string(for: a.now(), in: crew.timeZone)), in: crew.id).outcome == .sent)
     }
@@ -302,13 +306,27 @@ struct GroupPlanTests {
         #expect(!CrewLookBack.isAnswered(crew, today: "2026-10-13", defaults: book))
     }
 
-    @Test("the row is five, in his order, and nothing in the chat posts by itself")
+    /// **Four, not five** (the owner, 2026-10-13: "finish the recommended",
+    /// the research's row Win, Plan, Sticker, Strip). Memory came off the row
+    /// and was his 2026-10-12 pick, so this pin moved with his word; its sheet
+    /// stays, so the two checks on it stay.
+    @Test("the row is four, in the research's order, and nothing in the chat posts by itself")
     func theRow() throws {
-        #expect(ChatPlusRow.Choice.allCases.map(\.word) == ["Win", "Plan", "Strip", "Memory", "Sticker"])
+        #expect(ChatPlusRow.Choice.offered.map(\.word) == ["Win", "Plan", "Sticker", "Strip"])
+        #expect(!ChatPlusRow.Choice.offered.contains(.memory), "Memory is back on the row")
+        #expect(ChatPlusRow.Choice.win.symbol != "plus.app", "a plus inside the plus menu")
+        #expect(ChatPlusRow.Choice.doodle.symbol == "scribble" && ChatPlusRow.Choice.doodle.word == "Doodle")
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
         // A look back is sent by a press: `bringBack` is only ever an action.
         #expect(chat.contains("action: { bringBack(found) }"))
         #expect(chat.contains("CrewMemorySheet(crewID: crewID) { found in bringBack(found) }"))
+        // Win opens over the chat, which stays open: it no longer closes it.
+        #expect(chat.contains("case .win: addingWin = true"))
+        #expect(!chat.contains("dismiss()\n            onAddWin()"))
+        // The sticker sheet has the app's layout, and New Sticker is looked at first.
+        #expect(chat.contains(".sheetTitle(\"Stickers\", drawn: false)"))
+        #expect(chat.contains("StickerPicker(current: newSticker"))
+        #expect(!chat.contains(".stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }"))
         #expect(!chat.contains(".task { bringBack"))
         // A group plan's crew is ticked for that win and is not made your usual.
         let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
