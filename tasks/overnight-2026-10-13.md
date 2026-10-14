@@ -37,6 +37,11 @@ means. Nothing goes to Friends; the build in the morning is for you only.
   heart is just the heart (your pick). Crew flame counts stay as they are.
 - The month's drawing goes at the end of Memories, after the albums and
   photos (your pick).
+- Holding a message: the reactions (🔥 👑 + stickers) as a row above the
+  menu, as iMessage does (your pick).
+- The Crews empty state's line: "For the people you'd tell anyway."
+- The Crews list: newest activity first, as Messages.
+- Hiding a win in a crew: there was no way to bring it back. It gets one.
 
 ## 1. Small fixes (first hour)
 
@@ -87,9 +92,9 @@ means. Nothing goes to Friends; the build in the morning is for you only.
       Today it is a different screen.
 - [ ] **Send a win from earlier today to a crew** you did not send it to,
       from the crew's own tower, without making it again.
-- [ ] **Hiding a win in a crew**: check what hide and unhide do today and
-      make it make sense (you found it "weird"); hide should be undoable
-      and say where it went.
+- [ ] **A win hidden in a crew can be brought back** (there was no way):
+      an Undo at the moment of hiding, and a place to find hidden wins
+      later.
 - [ ] Hunt for more of the same: anything that works one way on Wins and
       another way in a crew, or a step that cannot be taken back.
 
