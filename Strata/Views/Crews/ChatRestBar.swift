@@ -43,11 +43,7 @@ struct ChatRestBar: View {
                     if unread {
                         NewsDot().transition(NewsDot.transition(reduceMotion: reduceMotion))
                     }
-                    Text(latestLine)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(unread ? AppColors.inkPrimary : AppColors.inkSecondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    latest
                 }
                 .frame(minHeight: 28)
                 .contentShape(Rectangle())
@@ -140,6 +136,53 @@ struct ChatRestBar: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: "Open the chat") { open(.reading) }
+    }
+
+    /// **The newest line as the chat draws it** (the owner, 2026-10-14:
+    /// "when collapsed the notification of last sent message lacks all
+    /// flavor and look of the app"). It was a line of grey type. Now it is
+    /// the line itself: a friend's head beside their bubble on the quiet
+    /// fill, or your own in ink on the right, one line long, so the bar is
+    /// the foot of the conversation it opens.
+    @ViewBuilder
+    private var latest: some View {
+        if let last = store.messages(in: crewID).last {
+            let mine = last.senderProfileID == store.me
+            let crew = store.crew(crewID)
+            HStack(alignment: .center, spacing: GridConstants.gapTight) {
+                if mine { Spacer(minLength: GridConstants.gapWide) }
+                if !mine, let crew, let member = crew.member(last.senderProfileID) {
+                    CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
+                }
+                Text(Self.says(last) ?? latestLine)
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(mine ? WarmBackground.top : AppColors.inkPrimary)
+                    .lineLimit(1)
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .padding(.vertical, GridConstants.spacing + 2)
+                    .background {
+                        RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+                            .fill(mine ? AppColors.inkPrimary : AppColors.quietFill)
+                    }
+                if !mine { Spacer(minLength: GridConstants.gapWide) }
+            }
+        } else {
+            Text(CrewChatWords.quiet)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The thread's own face size.
+    private static let faceSide: CGFloat = 28
+
+    /// A plain line's own words; nil for a strip, a picture or a plan, which
+    /// say what they are in the Crews list's sentence.
+    private static func says(_ line: CrewMessage) -> String? {
+        guard !line.isStrip, !line.isPicture, line.groupPlan == nil else { return nil }
+        let words = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? nil : words
     }
 
     /// The newest line as the Crews list says it ("Sam: see you at 6",
