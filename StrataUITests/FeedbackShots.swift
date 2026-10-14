@@ -959,6 +959,35 @@ final class FeedbackShots: XCTestCase {
         XCTAssertTrue(shown, "the note is not in that day's journal")
     }
 
+    /// **A head out on a crew's tower, the chat opened and typed in, and
+    /// closed again** (his phone note, 2026-10-13: the head "glitched when
+    /// clicking back in chat going over blocks"). Snapped before and after;
+    /// the head must be in the air above the tower, not over its blocks.
+    func testHeadAfterChat() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataSeedHead", "1"])
+        wait(9)
+        // Light queries only: the heads draw every frame, so the app is never
+        // idle and every element tree read waits out its timeout.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap(); wait(1.5)
+        snap("headchat-fan")
+        let mine = app.buttons["Your head"].firstMatch
+        if mine.exists { mine.tap() }
+        wait(6); snap("headchat-before")
+        let chat = app.buttons["Chat"].firstMatch
+        XCTAssertTrue(chat.waitForExistence(timeout: 4), "no chat button")
+        chat.tap(); wait(2)
+        let field = app.textViews.firstMatch
+        // The first tap folds the fan, if it is open.
+        if !field.waitForExistence(timeout: 2) { chat.tap(); wait(2) }
+        if field.waitForExistence(timeout: 4) { field.tap(); wait(1.5); field.typeText("on my way"); wait(1.5) }
+        snap("headchat-typing")
+        app.swipeDown(velocity: .fast); wait(1)
+        app.swipeDown(velocity: .fast); wait(4)
+        snap("headchat-after")
+        wait(4); snap("headchat-after2")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
