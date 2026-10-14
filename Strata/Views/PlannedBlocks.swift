@@ -363,12 +363,12 @@ struct PlannedCapture: ViewModifier {
     @Binding var editing: PlanItem?
     /// The planned win a photo is being chosen for, from the library.
     var picking: Binding<PlanItem?> = .constant(nil)
-    var onCaptured: (PlanItem, UIImage, BlockSize, WinPlace?, CGPoint) -> Void
+    var onCaptured: (PlanItem, UIImage, BlockSize, WinPlace?, CGPoint, CGFloat) -> Void
 
     @State private var picked: PhotosPickerItem?
 
     /// What the shutter took, held until the camera has gone.
-    @State private var taken: (item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint)?
+    @State private var taken: (item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint, zoom: CGFloat)?
 
     func body(content: Content) -> some View {
         content
@@ -380,11 +380,11 @@ struct PlannedCapture: ViewModifier {
             .fullScreenCover(item: $capturing, onDismiss: {
                 guard let shot = taken else { return }
                 taken = nil
-                onCaptured(shot.item, shot.photo, shot.size, shot.place, shot.crop)
+                onCaptured(shot.item, shot.photo, shot.size, shot.place, shot.crop, shot.zoom)
             }) { item in
                 CameraView(
-                    onCaptured: { image, drawn, place, crop in
-                        taken = (item, image, drawn, place, crop)
+                    onCaptured: { image, drawn, place, crop, zoom in
+                        taken = (item, image, drawn, place, crop, zoom)
                         capturing = nil
                     },
                     onClose: { capturing = nil },
@@ -405,7 +405,7 @@ struct PlannedCapture: ViewModifier {
                     picking.wrappedValue = nil
                     guard let data, let image = UIImage(data: data) else { return }
                     try? await Task.sleep(for: .milliseconds(500))
-                    onCaptured(item, image, item.size, nil, .zero)
+                    onCaptured(item, image, item.size, nil, .zero, 1)
                 }
             }
             .sheet(item: $editing) { item in

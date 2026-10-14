@@ -410,6 +410,62 @@ final class FeedbackShots: XCTestCase {
         }
     }
 
+    /// **The camera's review as an editor** (2026-10-13): the still box, the
+    /// tools in a row, the looks in their place, the doodle sheet over the
+    /// photograph, and a zoomed, drawn-on photograph reaching the add sheet.
+    func testReviewEditor() {
+        let app = launch(["-strataStartTab", "camera", "-strataOpenReview", "medium",
+                          "-strataReviewPhoto", "DemoPhoto1", "-strataSeedHead", "1", "-strataHeadOn", "camera",
+                          "-strataReviewSticker", "-strataReviewMarks", "-strataReviewZoom", "1.6"])
+        let use = app.buttons["Use Photo"]
+        XCTAssertTrue(use.waitForExistence(timeout: 30), "no review screen")
+        wait(2); snap("review-0-rest")
+        let looks = app.buttons["Choose a look"]
+        XCTAssertTrue(looks.exists, "no Looks tool on the review")
+        let back = app.buttons["Back to the tools"]
+        XCTAssertTrue(app.buttons["Doodle on the photo"].exists, "no Doodle tool on the review")
+        XCTAssertTrue(app.buttons["Add a sticker to the photo"].exists, "no Sticker tool on the review")
+        // Pressed until the looks are up (see `press` below for why).
+        for _ in 1...3 where !back.isHittable { looks.press(forDuration: 0.12); wait(1) }
+        snap("review-1-looks")
+        let silver = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Silver'")).firstMatch
+        if silver.exists { silver.tap(); wait(2) }
+        snap("review-2-silver")
+        XCTAssertTrue(back.isHittable, "no way back from the looks to the tools")
+        back.press(forDuration: 0.12)
+        wait(1)
+        let doodle = app.buttons["Doodle on the photo"]
+        print("PLANNING-review: doodle exists \(doodle.exists) hittable \(doodle.isHittable) frame \(doodle.frame)")
+        // **A press with a finger's length to it, and once more if it did not
+        // land.** The runner's own tap is over in an instant, and on this
+        // glass it was missed for a few seconds after the review appeared or
+        // the looks closed (2026-10-13), in the simulator by hand too, where
+        // a 0.12s press landed. The app's other glass buttons share it.
+        // Logged, so a change shows; a real finger is for the owner's phone.
+        func press(_ button: XCUIElement, until shown: XCUIElement) -> Int {
+            for attempt in 1...3 {
+                button.press(forDuration: 0.12)
+                if shown.waitForExistence(timeout: 3) { return attempt }
+            }
+            return 0
+        }
+        let done = app.buttons["Done"].firstMatch
+        let attempts = press(doodle, until: done)
+        let opened = attempts > 0
+        print("PLANNING-review: doodle sheet opened on press \(attempts)")
+        wait(1); snap("review-3-doodle")
+        XCTAssertTrue(opened, "the doodle sheet did not open")
+        done.tap()
+        wait(2); snap("review-4-back")
+        use.tap()
+        let regular = app.buttons["Regular"].firstMatch
+        XCTAssertTrue(regular.waitForExistence(timeout: 15), "the shot never reached the add sheet")
+        wait(2); snap("review-5-sheet")
+        let add = app.buttons["Add"].firstMatch
+        if add.exists { add.tap() }
+        wait(5); snap("review-6-tower")
+    }
+
     /// "Gym @ 2" typed on the add sheet, then a day chosen on Now: the plan
     /// sheet opens on that day with the line in it and its time read back
     /// (the owner, 2026-10-11).

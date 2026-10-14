@@ -13,6 +13,11 @@ struct CropBox: View {
     /// The box, centred in whatever this is laid over.
     let box: CGSize
     let radius: CGFloat
+    /// What the photo outside the box fades toward, and the pen's colour:
+    /// the page and its ink on a sheet, black and the block's white ink on
+    /// the camera's review, which is a dark room whatever the phone is set to.
+    var ground: Color = WarmBackground.top
+    var ink: Color = AppColors.drawingInk
 
     /// How much of the photo outside the box is taken away (his pick,
     /// "Dimmed outside": about 45%).
@@ -35,13 +40,13 @@ struct CropBox: View {
     var body: some View {
         ZStack {
             CropOutside(box: box, radius: radius)
-                .fill(WarmBackground.top.opacity(Self.dim), style: FillStyle(eoFill: true))
+                .fill(ground.opacity(Self.dim), style: FillStyle(eoFill: true))
             CropThirds()
                 .stroke(Color.white.opacity(Self.grid), lineWidth: 1)
                 .frame(width: box.width, height: box.height)
                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             SketchCorners(radius: radius + Self.gap)
-                .stroke(AppColors.drawingInk,
+                .stroke(ink,
                         style: StrokeStyle(lineWidth: InkPen.width, lineCap: .round, lineJoin: .round))
                 .frame(width: box.width + Self.gap * 2, height: box.height + Self.gap * 2)
         }

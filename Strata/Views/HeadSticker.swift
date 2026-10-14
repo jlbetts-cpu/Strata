@@ -93,8 +93,12 @@ struct HeadStickerOverlay: View {
     /// Which part of the photograph the block will show, as a fraction of the
     /// picture away from its middle. See `BlockCropOutline`.
     @Binding var crop: CGPoint
-    /// How far the crop may travel before it leaves the picture.
-    var cropRange: CGSize = .zero
+    /// How far the block's window is zoomed into the photograph (`PhotoWindow`).
+    @Binding var zoom: CGFloat
+    /// The photograph's own size, and the block's still box it is drawn
+    /// under: together, how far the window may go (`CachedImageView.held`).
+    var photo: CGSize = .zero
+    var box: CGSize = .zero
     /// The look the photograph is wearing, so the head is in the same world
     /// as the picture under it rather than sitting on top of it in its own
     /// colours. A likeness, because this head is alive — what gets saved goes
@@ -109,7 +113,17 @@ struct HeadStickerOverlay: View {
     @State private var movingHead = false
     @State private var widthBase: CGFloat?
     @State private var angleBase: Angle?
-    @State private var cropBase: CGPoint?
+    /// **Each gesture as far as it had got at its last event, and which
+    /// gesture that was** (by where it began), so each is applied as a step
+    /// (`CropEditor`). The photograph moves under the finger now, so a drag
+    /// measured in the photograph's own space would chase itself: these are
+    /// measured on the screen.
+    @State private var lastCropDrag: (from: CGPoint, moved: CGSize)?
+    @State private var lastPinch: (from: CGPoint, by: CGFloat)?
+    /// What the pinch under way is for: the head, when it began on it, or
+    /// the photograph (the owner's pick, 2026-10-13: "a pinch that starts on
+    /// your head resizes the head; a pinch anywhere else zooms the photo").
+    @State private var pinching: (from: CGPoint, head: Bool)?
     @State private var isHeld = false
     @State private var deck = HeadTakeDeck()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -153,8 +167,8 @@ struct HeadStickerOverlay: View {
                         .accessibilityAction(named: "Make it smaller") { resize(by: 1 / 1.2) }
                 }
             }
-            .simultaneousGesture(sizeAndTurn)
-            // A finger on the picture itself moves what the block will show.
+            .simultaneousGesture(sizeAndTurn(in: size))
+            // A finger on the picture itself moves it under the block's box.
             .simultaneousGesture(moveCrop(in: size))
         }
         .coordinateSpace(.named(Self.space))
@@ -191,30 +205,49 @@ struct HeadStickerOverlay: View {
             }
     }
 
-    /// **Dragging the picture moves the block's window over it** (the owner:
-    /// "you should be able to move the crop on the photo using a basic
-    /// moving"), and **the window follows the finger**: the hairline is the
-    /// only thing that moves on the review, and the head on the same photo
-    /// follows the finger too. It used to run against it ("the slider to crop
-    /// feels the wrong way"). Clamped so the window can never leave the
-    /// photograph, which is the one thing that would produce an empty edge on
-    /// a block. See `BlockCropOutline.dragged`.
+    /// **Dragging the picture moves it under the block's box** (the owner,
+    /// 2026-10-13, his pick for every crop: "photo moves under a still
+    /// box"). The box holds still in the middle and the photograph follows
+    /// the finger, as it does in Move Photo. It was the other way round here,
+    /// a hairline window dragged over a still photograph. Held so the box
+    /// can never show past the photograph's edge.
     private func moveCrop(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
+        DragGesture(minimumDistance: 6, coordinateSpace: .global)
             .onChanged { value in
-                guard cropRange != .zero, widthBase == nil, angleBase == nil, !movingHead else { return }
-                let base = cropBase ?? crop
-                if cropBase == nil { cropBase = base }
-                crop = BlockCropOutline.dragged(from: base, translation: value.translation,
-                                                in: size, range: cropRange)
+                guard widthBase == nil, angleBase == nil, !movingHead else { return }
+                let before = lastCropDrag?.from == value.startLocation ? (lastCropDrag?.moved ?? .zero) : .zero
+                lastCropDrag = (value.startLocation, value.translation)
+                let moved = CGPoint(x: crop.x - (value.translation.width - before.width) / max(size.width, 1),
+                                    y: crop.y - (value.translation.height - before.height) / max(size.height, 1))
+                crop = CachedImageView.held(moved, photo: photo, frame: box, zoom: zoom)
             }
-            .onEnded { _ in cropBase = nil }
+            .onEnded { _ in lastCropDrag = nil }
     }
 
-    private var sizeAndTurn: some Gesture {
+    /// Whether a pinch that began at `point` (in the photograph's space)
+    /// began on the head.
+    private func isOnHead(_ point: CGPoint, in size: CGSize) -> Bool {
+        guard let current = placement, let rig else { return false }
+        let side = current.width * size.width
+        let reach = max(side / rig.contentHeight, Self.minimumTarget) / 2
+        return hypot(point.x - current.centre.x * size.width, point.y - current.centre.y * size.height) <= reach
+    }
+
+    private func sizeAndTurn(in size: CGSize) -> some Gesture {
         MagnifyGesture()
             .simultaneously(with: RotateGesture())
             .onChanged { value in
+                // What it is for is settled once, where the fingers landed.
+                let from = value.first?.startLocation ?? value.second?.startLocation ?? .zero
+                if pinching?.from != from { pinching = (from, isOnHead(from, in: size)) }
+                guard pinching?.head == true else {
+                    guard let pinch = value.first else { return }
+                    let before = lastPinch?.from == pinch.startLocation ? (lastPinch?.by ?? 1) : 1
+                    lastPinch = (pinch.startLocation, pinch.magnification)
+                    zoom = PhotoWindow.zoom(zoom * pinch.magnification / max(before, 0.01))
+                    crop = CachedImageView.held(crop, photo: photo, frame: box, zoom: zoom)
+                    return
+                }
                 guard let current = placement else { return }
                 if let pinch = value.first {
                     let base = widthBase ?? current.width
@@ -231,6 +264,8 @@ struct HeadStickerOverlay: View {
                 }
             }
             .onEnded { _ in
+                pinching = nil
+                lastPinch = nil
                 widthBase = nil
                 angleBase = nil
                 // The head's own drag has one exit, and a pinch takes the

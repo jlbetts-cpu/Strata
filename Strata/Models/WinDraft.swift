@@ -26,6 +26,8 @@ struct WinDraft: Identifiable {
     /// Which part of the photograph the block shows, as a fraction away from
     /// the middle, chosen by dragging it on the review.
     var crop: CGPoint = .zero
+    /// How far that window is zoomed in, pinched on the review (`PhotoWindow`).
+    var zoom: CGFloat = 1
     /// The colour to open on. A plan line's, when the win comes from the
     /// plan: `PlanItem` promises its colour is the one the win takes.
     var colour: HabitCategory? = nil

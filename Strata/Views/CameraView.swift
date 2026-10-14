@@ -21,7 +21,9 @@ struct CameraView: View {
     /// sheet can sit open while you walk away, so save time is the wrong
     /// clock; a two-minute staleness cap is what makes "shutter time" honest
     /// rather than "the last fix, whenever that was".
-    var onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint) -> Void = { _, _, _, _ in }
+    /// The photograph, the size drawn, where it was taken, and the block's
+    /// window on it: where it sits (`crop`) and how far in it is (`zoom`).
+    var onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint, CGFloat) -> Void = { _, _, _, _, _ in }
     var onClose: (() -> Void)? = nil
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
@@ -93,6 +95,15 @@ struct CameraView: View {
     /// Which part of the photograph the block will show, as a fraction away
     /// from the middle. Moved by dragging the picture on the review.
     @State private var crop: CGPoint = .zero
+    /// How far that window is zoomed in, pinched on the review (`PhotoWindow`).
+    @State private var zoom: CGFloat = 1
+    /// What was drawn and stuck on the photograph on the review, until Use
+    /// Photo draws it in (`PhotoMarks`), and the same as a picture to show.
+    @State private var marks: InkDoodle?
+    @State private var markLayer: UIImage?
+    @State private var marking: PhotoMarksSheet.Opening?
+    /// The looks, in the tools' place while they are being chosen.
+    @State private var choosingLook = false
     @State private var shutterDown = false
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
@@ -427,6 +438,13 @@ struct CameraView: View {
                     sticker = StickerPlacement(crop: BlockCropOutline.crop(photo: photo.size, block: size),
                                                photoAspect: photo.size.width / max(photo.size.height, 1))
                 }
+                // `-strataReviewMarks`: a line and nothing else drawn on it,
+                // so the marks can be photographed where a pencil cannot go.
+                if DebugHarness.placesReviewMarks, let photo = review {
+                    marks = DebugHarness.reviewMarks(for: photo)
+                    markLayer = marks.flatMap { PhotoMarks.layer($0) }
+                }
+                if let asked = DebugHarness.reviewZoom { zoom = PhotoWindow.zoom(asked) }
             }
         }
         #endif
@@ -578,179 +596,240 @@ struct CameraView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
+            // **The photograph is on a stage, and the stage is a window.**
+            // Zoomed, the photograph is bigger than its room and is cut at
+            // the room's edge, as its own edge is cut against the black at
+            // rest. It was let run on under the tools with the system's soft
+            // edge, as Move Photo does under its header: here the bar below
+            // is the tools and two words, far taller than that edge, and
+            // they stood on half a photograph (seen 2026-10-13).
             VStack(spacing: 0) {
-                // **THE SPACERS HAD NO MINIMUM AND A PORTRAIT SHOT USES EVERY
-                // POINT, SO THE PICTURE LANDED ON THE CHROME.**
-                //
-                // Measured on the built review at 402x874 with the 3:4 frame a
-                // phone actually produces in portrait: the photograph ran
-                // 80.7 to 603.3 and the first film-look swatch began at 604.
-                // **A 0.7pt gap**, on a screen where every other gap is 24 or
-                // 40. It was not a tuning miss, it was the spacers: at
-                // `minLength: 0` the picture is free to take the entire region
-                // and a 3:4 one does, so the bottom spacer resolves to nothing
-                // and the strip is simply the next thing after the photograph.
-                // The side margins told the same story from the other end:
-                // 5.0pt left and 5.3pt right, which is not "edge to edge", it
-                // is edge to edge missing by a sliver, and a sliver reads as a
-                // misalignment rather than as a margin.
-                //
-                // `gapLabel` as the floor on both, which is the gap between a
-                // heading and what it heads and the smallest one on this
-                // screen. It costs the picture 32pt of height, so a 3:4 frame
-                // goes from 391.7 x 522.7 to 367.7 x 490.3: 16 above, 16
-                // below, 17.2 either side. A print with even air on four sides
-                // rather than one touching two things and nearly touching two
-                // more.
-                //
-                // **A fuller 24 was tried and is wrong here.** It takes the
-                // picture to 355.7 wide, 9% narrower, and the photograph is
-                // the subject of this screen; buying an eight-point gap with
-                // that is the wrong trade.
-                Spacer(minLength: GridConstants.gapLabel)
-
-                // **As large as the air allows, not literally to the edges.**
-                //
-                // It was an inset print with the app's surface radius, which
-                // is right in the VIEWER — a photograph you are revisiting is
-                // an object on a page — and wrong here. This is the frame you
-                // just took, still warm. So it stays as big as it can be and
-                // takes no radius, and the only thing that changed is that its
-                // room is now guaranteed rather than left over.
-                Image(uiImage: looked ?? image)
-                    .resizable()
-                    .aspectRatio(image.size.width / max(image.size.height, 1),
-                                 contentMode: .fit)
-                    // What the block will show of it: a hairline, nothing
-                    // dimmed. It changes with the size you drew, and with
-                    // where you drag it.
-                    .overlay {
-                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize),
-                                         offset: crop)
-                    }
-                    // Over the photograph's own frame, so the head's place and
-                    // the block's window are both places in the picture.
-                    .overlay {
-                        HeadStickerOverlay(
-                            rig: sticker == nil ? nil : HeadStore.shared.headForSticker,
-                            placement: $sticker,
-                            crop: $crop,
-                            cropRange: BlockCropOutline.range(
-                                for: BlockCropOutline.crop(photo: image.size, block: drawnSize)),
-                            look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
-                    }
-                    // **The size control hangs off the PICTURE, not off the
-                    // top of the screen.**
-                    //
-                    // It was a second `VStack` in this `ZStack` padded to
-                    // `topInset + Header.topPadding`, which put it at a fixed
-                    // 81pt down the screen whatever the photograph did. With
-                    // the 3:4 frame that lands at exactly the photograph's own
-                    // top edge (measured: capsule top 81.0 against picture
-                    // top 80.7), so the control looked glued to the edge of
-                    // the print rather than floating in it. With a LANDSCAPE
-                    // 4:3 frame it is worse and it is a plain bug: the picture
-                    // is 301.5pt tall and centres at y 191.4, leaving the
-                    // control stranded 110pt above it in the black, pointing
-                    // at nothing.
-                    //
-                    // An overlay on the image fixes both at once, because the
-                    // image's layout frame under `.aspectRatio(_:.fit)` IS the
-                    // drawn picture's rectangle, the same fact the crop
-                    // outline above already relies on. Declared last so it
-                    // takes its own taps: the head sticker's drag covers the
-                    // whole picture and later siblings are hit first.
-                    //
-                    // `gapLabel` inside the top edge, the same floor the
-                    // spacers above and below the picture now use, so the
-                    // control sits in the print rather than on its rim.
-                    .overlay(alignment: .top) {
-                        sizePicker.padding(.top, GridConstants.gapLabel)
-                    }
-
-                Spacer(minLength: GridConstants.gapLabel)
-
-                FilmLookStrip(photo: image, selection: Binding(
-                    get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
-                    set: { lookRaw = $0.rawValue }))
-                    .padding(.bottom, GridConstants.gapWide)
-
-                HStack(spacing: 0) {
-                    Button {
-                        HapticsEngine.tick()
-                        withAnimation(GridConstants.motionSnappy) {
-                            review = nil
-                            // **Retake means retake.** The size you drew was
-                            // for the shot you just rejected, and keeping it
-                            // meant coming back to a shutter already stretched
-                            // into a shape you did not ask for this time. The
-                            // owner: "when retaking a photo it shouldnt stay
-                            // on the size, it should go back to the normal
-                            // camera with all the options."
-                            drawnSize = .small
-                            sticker = nil
-                            looked = nil
-                            crop = .zero
-                            lookRaw = FilmLook.Kind.none.rawValue
-                        }
-                    } label: {
-                        Text("Retake")
-                            .font(Typography.headerSmall)
-                            .foregroundStyle(AppColors.onDarkSecondary)
-                            .frame(minWidth: 88, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-
-                    Spacer(minLength: 0)
-
-                    // Your head, between the two words, only if you made one
-                    // and switched the sticker on.
-                    if let rig = HeadStore.shared.headForSticker {
-                        HeadStickerButton(rig: rig, isOn: sticker != nil) {
-                            withAnimation(GridConstants.motionSnappy) {
-                                sticker = sticker == nil
-                                    ? StickerPlacement(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize),
-                                                       photoAspect: image.size.width / max(image.size.height, 1))
-                                    : nil
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    Button {
-                        // **A tap, not the success.** The win is not made
-                        // here: Add on the sheet that follows is where it
-                        // lands, and that press plays the success. Both
-                        // played, two successes for one win (the QoL review,
-                        // 2026-10-06).
-                        HapticsEngine.lightTap()
-                        keep(image)
-                    } label: {
-                        Text("Use Photo")
-                            .font(Typography.headerSmall)
-                            .foregroundStyle(.white)
-                            .frame(minWidth: 88, minHeight: 44, alignment: .trailing)
-                            .contentShape(Rectangle())
-                    }
+                GeometryReader { geo in
+                    reviewStage(image: image, in: geo.size)
                 }
-                // **The two most-pressed words in the capture flow, which had
-                // no press answer at all** (2026-10-01,
-                // `docs/consistency-audit.md` §1.8). The refused screen two
-                // screens earlier already used `.pressWord`; this row was
-                // `.plain`, which draws the label and nothing else. The sticker
-                // button between them carries its own style and is unaffected.
-                .buttonStyle(.pressWord)
-                // On the scale, and the same margin as the head maker's
-                // matching Retake / Save row. It was 28.
-                .padding(.horizontal, GridConstants.gapWide)
-                .padding(.bottom, bottomInset + shutterBottomGap)
+                reviewControls(image: image, bottomInset: bottomInset)
             }
             .padding(.top, topInset + Header.topPadding)
-            // The look on the shown photograph, rendered again whenever
-            // either of them changes.
-            .task(id: LookRequest(photo: image, look: lookRaw)) { await showLook(on: image) }
-
         }
+        // The look on the shown photograph, rendered again whenever
+        // either of them changes.
+        .task(id: LookRequest(photo: image, look: lookRaw)) { await showLook(on: image) }
+        .sheet(item: $marking) { opening in
+            PhotoMarksSheet(photo: looked ?? image, marks: marks, opening: opening) { made in
+                marks = made
+                markLayer = made.flatMap { PhotoMarks.layer($0) }
+            }
+        }
+    }
+
+    /// **The block's box holds still and the photograph moves under it** (the
+    /// owner's pick, 2026-10-13, for every crop). It was a hairline window
+    /// dragged over a still photograph, with nothing dimmed; the box is
+    /// Move Photo's now (`CropBox`): the photograph outside it faded, the
+    /// thirds faint, the corners in his pen.
+    ///
+    /// **At rest nothing has moved.** The photograph is as large as the air
+    /// allows, as it always was here (it is the frame you just took, still
+    /// warm), and the box is the part of it the block shows, in the middle.
+    /// Filled into that box, the photograph is exactly the size it was.
+    ///
+    /// The marks and the head are laid over the photograph's own frame and
+    /// move with it: both are places in the picture.
+    private func reviewStage(image: UIImage, in room: CGSize) -> some View {
+        // `gapLabel` of air above and below, the floor the spacers kept, and
+        // the page's margin either side: the box's corner marks stand just
+        // outside it, and at the full width of the screen they were off it.
+        let air = CGSize(width: max(1, room.width - GridConstants.horizontalPadding * 2),
+                         height: max(1, room.height - GridConstants.gapLabel * 2))
+        let aspect = image.size.width / max(image.size.height, 1)
+        let fitWidth = min(air.width, air.height * aspect)
+        let fitted = CGSize(width: fitWidth, height: fitWidth / max(aspect, 0.01))
+        let window = BlockCropOutline.crop(photo: image.size, block: drawnSize)
+        let box = CGSize(width: fitted.width * window.width, height: fitted.height * window.height)
+        let drawn = CachedImageView.filled(image.size, in: box, zoom: zoom)
+        let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
+        return ZStack {
+            Image(uiImage: looked ?? image)
+                .resizable()
+                .frame(width: drawn.width, height: drawn.height)
+                .overlay {
+                    if let markLayer {
+                        Image(uiImage: markLayer)
+                            .resizable()
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .overlay {
+                    HeadStickerOverlay(
+                        rig: sticker == nil ? nil : HeadStore.shared.headForSticker,
+                        placement: $sticker,
+                        crop: $crop,
+                        zoom: $zoom,
+                        photo: image.size,
+                        box: box,
+                        look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
+                }
+                .offset(shift)
+            CropBox(box: box, radius: CropBox.radius(for: box), ground: .black, ink: AppColors.drawingInkOnBlock)
+        }
+        .frame(width: room.width, height: room.height)
+        .clipped()
+        // **The size control hangs off the picture as it rests, not off the
+        // top of the screen**: `gapLabel` inside the top edge the photograph
+        // has before it is moved, so it sits in the print for a tall frame
+        // and for a wide one alike. Declared last so it takes its own taps.
+        .overlay(alignment: .top) {
+            sizePicker.padding(.top, max(0, (room.height - fitted.height) / 2) + GridConstants.gapLabel)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    /// Under the stage: the tools, or the looks in their place, then the
+    /// two words.
+    private func reviewControls(image: UIImage, bottomInset: CGFloat) -> some View {
+        VStack(spacing: GridConstants.gapItem) {
+            // **One slot for both, so nothing moves** when the looks open:
+            // the photograph above keeps its size.
+            ZStack {
+                reviewTools(image: image)
+                    .opacity(choosingLook ? 0 : 1)
+                    .allowsHitTesting(!choosingLook)
+                    .accessibilityHidden(choosingLook)
+                HStack(spacing: GridConstants.gapItem) {
+                    GlassIconButton(systemName: "xmark", tint: .white, accessibilityLabel: "Back to the tools") {
+                        withAnimation(GridConstants.motionSnappy) { choosingLook = false }
+                    }
+                    FilmLookStrip(photo: image, selection: Binding(
+                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                        set: { lookRaw = $0.rawValue }))
+                }
+                .opacity(choosingLook ? 1 : 0)
+                .allowsHitTesting(choosingLook)
+                .accessibilityHidden(!choosingLook)
+            }
+
+            HStack(spacing: 0) {
+                Button {
+                    HapticsEngine.tick()
+                    withAnimation(GridConstants.motionSnappy) {
+                        review = nil
+                        // **Retake means retake.** The size you drew was
+                        // for the shot you just rejected, and keeping it
+                        // meant coming back to a shutter already stretched
+                        // into a shape you did not ask for this time. The
+                        // owner: "when retaking a photo it shouldnt stay
+                        // on the size, it should go back to the normal
+                        // camera with all the options."
+                        drawnSize = .small
+                        clearReview()
+                    }
+                } label: {
+                    Text("Retake")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.onDarkSecondary)
+                        .frame(minWidth: 88, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    // **A tap, not the success.** The win is not made
+                    // here: Add on the sheet that follows is where it
+                    // lands, and that press plays the success. Both
+                    // played, two successes for one win (the QoL review,
+                    // 2026-10-06).
+                    HapticsEngine.lightTap()
+                    keep(image)
+                } label: {
+                    Text("Use Photo")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 88, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+            }
+            // **The two most-pressed words in the capture flow, which had
+            // no press answer at all** (2026-10-01,
+            // `docs/consistency-audit.md` §1.8). `.pressWord`, as the
+            // refused screen two screens earlier already used.
+            .buttonStyle(.pressWord)
+        }
+        // On the scale, and the same margin as the head maker's matching
+        // Retake / Save row.
+        .padding(.horizontal, GridConstants.gapWide)
+        .padding(.top, GridConstants.gapLabel)
+        .padding(.bottom, bottomInset + shutterBottomGap)
+    }
+
+    /// **One row of tools, each a glass disc and a word** (the owner,
+    /// 2026-10-13: "the filters should be a button in a row add stickers add
+    /// the head like the interface needs to feel similar"). The chat's plus
+    /// row, in the camera's colours. The looks were a strip always open
+    /// under the photograph; they are one of four now, and a plain Use
+    /// Photo still costs nothing more than it did.
+    private func reviewTools(image: UIImage) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            reviewTool("Looks") {
+                GlassIconButton(systemName: "camera.filters", tint: .white, accessibilityLabel: "Choose a look") {
+                    withAnimation(GridConstants.motionSnappy) { choosingLook = true }
+                }
+            }
+            reviewTool("Doodle") {
+                GlassIconButton(systemName: "scribble", tint: .white, accessibilityLabel: "Doodle on the photo") {
+                    marking = .pen
+                }
+            }
+            reviewTool("Sticker") {
+                GlassIconButton(systemName: "", tint: .white, drawn: .sticker,
+                                accessibilityLabel: "Add a sticker to the photo") {
+                    marking = .stickers
+                }
+            }
+            // Your head, only if you made one and switched the sticker on.
+            if let rig = HeadStore.shared.headForSticker {
+                reviewTool("Head") {
+                    HeadStickerButton(rig: rig, isOn: sticker != nil) {
+                        withAnimation(GridConstants.motionSnappy) {
+                            // Inside what the block shows now, wherever the
+                            // photograph has been moved or zoomed to.
+                            let shown = CachedImageView.visibleRect(
+                                crop: crop, photo: image.size,
+                                frame: CGSize(width: drawnSize.cropAspectRatio, height: 1), zoom: zoom)
+                            sticker = sticker == nil
+                                ? StickerPlacement(crop: shown,
+                                                   photoAspect: image.size.width / max(image.size.height, 1))
+                                : nil
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func reviewTool(_ word: String, @ViewBuilder _ button: () -> some View) -> some View {
+        VStack(spacing: GridConstants.spacing) {
+            button()
+            Text(word)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.onDarkSecondary)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Everything the review holds about one photograph, let go.
+    private func clearReview() {
+        sticker = nil
+        looked = nil
+        crop = .zero
+        zoom = 1
+        marks = nil
+        markLayer = nil
+        choosingLook = false
+        lookRaw = FilmLook.Kind.none.rawValue
     }
 
     /// **The size in a word, at the top, not a square in the middle.**
@@ -880,7 +959,12 @@ struct CameraView: View {
         let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
         let size = drawnSize
         let place = LocationService.shared.place()
-        let window = crop
+        // Held inside the photograph for the shape it is going on: the size
+        // can be changed after the photograph was moved.
+        let held = PhotoWindow.zoom(zoom)
+        let window = CachedImageView.held(crop, photo: image.size,
+                                          frame: CGSize(width: size.cropAspectRatio, height: 1), zoom: held)
+        let drawnOn = marks
         let final = composed
         // **The look goes on last, over the head as well.** A cut-out face in
         // its own colours sitting on a graded photograph reads as stuck on;
@@ -899,12 +983,14 @@ struct CameraView: View {
             let graded = look.kind == .none ? final : await Task.detached(priority: .userInitiated) {
                 FilmLookRenderer.shared.render(final, look: look)
             }.value
-            Task { await PhotoLibrarySaver.save(graded) }
-            onCaptured(graded, size, place, window)
+            // **The marks go on over the look**, as the review showed them:
+            // his ink stays his ink's white and a sticker keeps its own
+            // colours, whatever the photograph under them was graded to.
+            let finished = drawnOn.map { PhotoMarks.composite(graded, marks: $0) } ?? graded
+            Task { await PhotoLibrarySaver.save(finished) }
+            onCaptured(finished, size, place, window, held)
         }
-        looked = nil
-        crop = .zero
-        lookRaw = FilmLook.Kind.none.rawValue
+        clearReview()
         review = nil
         // Back to one cell for the next shot. A size drawn once is not a
         // preference, and a shutter that stayed wide would make every later

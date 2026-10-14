@@ -1,5 +1,6 @@
 #if DEBUG
 import CoreLocation
+import PencilKit
 import Foundation
 import SwiftData
 import SwiftUI
@@ -341,6 +342,26 @@ enum DebugHarness {
     /// A bare flag: `argument` reads the word after a key, and a flag given
     /// last has none.
     static var placesReviewSticker: Bool { ProcessInfo.processInfo.arguments.contains("-strataReviewSticker") }
+
+    /// `-strataReviewMarks`: a doodle on the review's photograph, since a
+    /// script has no pencil. One pen line across the lower third.
+    static var placesReviewMarks: Bool { ProcessInfo.processInfo.arguments.contains("-strataReviewMarks") }
+
+    static func reviewMarks(for photo: UIImage) -> InkDoodle {
+        let canvas = CGSize(width: 360, height: 360 * photo.size.height / max(photo.size.width, 1))
+        let points = stride(from: 0.0, through: 1.0, by: 0.04).map { t -> PKStrokePoint in
+            let x = canvas.width * (0.18 + 0.64 * t)
+            let y = canvas.height * 0.72 + sin(t * .pi * 3) * 14
+            return PKStrokePoint(location: CGPoint(x: x, y: y), timeOffset: t, size: CGSize(width: 6, height: 6),
+                                 opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+        }
+        let stroke = PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: points, creationDate: .now))
+        return InkDoodle(drawing: PKDrawing(strokes: [stroke]), stickers: [], canvas: canvas)
+    }
+
+    /// `-strataReviewZoom <n>`: the review opened already zoomed, since a
+    /// script's pinch is not a hand's.
+    static var reviewZoom: CGFloat? { argument("-strataReviewZoom").flatMap(Double.init).map { CGFloat($0) } }
 
     /// Opens the head maker in one state, from
     /// `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|savefailed|unavailable|denied`,

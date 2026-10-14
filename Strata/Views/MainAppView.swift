@@ -727,6 +727,7 @@ struct MainAppView: View {
                 initialSize: draft.size,
                 initialPlace: draft.place,
                 initialCrop: draft.crop,
+                initialZoom: draft.zoom,
                 initialColour: draft.colour,
                 initialCrews: draft.crews,
                 plannedLine: draft.planItemID,
@@ -777,10 +778,11 @@ struct MainAppView: View {
     /// named and coloured as the line was, at the size drawn at the shutter.
     /// Add is one press, and the size can still change there: a planned
     /// win's weight is decided once it is done.
-    private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint) {
+    private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint,
+                               zoom: CGFloat = 1) {
         guard stillThere(item) else { return }
         winDraft = WinDraft(title: PlanTime.title(item.text), photo: photo, size: size, place: place, crop: crop,
-                            colour: item.category, planItemID: item.id, crews: planCrew.map { [$0] })
+                            zoom: zoom, colour: item.category, planItemID: item.id, crews: planCrew.map { [$0] })
     }
 
     /// The same, with no photo: the sheet a plan line's tick always opened.
@@ -1028,8 +1030,8 @@ struct MainAppView: View {
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
         // The camera a planned win opens, and the sheet that changes one.
-        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop in
-            finishPlanned(item, photo: photo, size: size, place: place, crop: crop)
+        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
+            finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
         })
         .overlay {
             if let handoffLogs {
@@ -1822,9 +1824,9 @@ struct MainAppView: View {
         // No `.ignoresSafeArea()` here. The preview ignores it from the
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
-        StableCameraTab(onCaptured: { image, size, place, crop in
+        StableCameraTab(onCaptured: { image, size, place, crop, zoom in
             selectedTab = .tower
-            winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
+            winDraft = WinDraft(photo: image, size: size, place: place, crop: crop, zoom: zoom)
         })
         .equatable()
         // **THE VIEWFINDER IS COVERED THE MOMENT IT IS NOT THE TAB YOU ARE ON.**
@@ -4181,7 +4183,7 @@ private struct StableMemoriesTab: View, Equatable {
 
 /// The camera, shielded the same way and for the same reason.
 private struct StableCameraTab: View, Equatable {
-    let onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint) -> Void
+    let onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint, CGFloat) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 

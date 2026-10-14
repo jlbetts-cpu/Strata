@@ -42,6 +42,7 @@ struct AddWinSheet: View {
     /// Which part of the photograph the block shows, if it was moved on the
     /// review.
     var initialCrop: CGPoint = .zero
+    var initialZoom: CGFloat = 1
     /// The colour to open on instead of the tower's least-used one. Worn as a
     /// colour, not claimed as a category: a plan line's colour may have been
     /// assigned rather than picked, and nothing records which.
@@ -1101,11 +1102,11 @@ struct AddWinSheet: View {
             // No count passed: the tally belongs to the tower's camera, and
             // with nothing to put in it the grid line runs unbroken.
             CameraView(
-                onCaptured: { image, drawn, where_, window in
+                onCaptured: { image, drawn, where_, window, pinched in
                     photo = image
                     photoChanged = true
                     crop = window
-                    zoom = 1
+                    zoom = pinched
                     // A size drawn out of the shutter wins over the sheet's
                     // own picker: it is the more recent thing you said, and
                     // you said it with your hand.
@@ -1828,6 +1829,7 @@ struct AddWinSheet: View {
         size = initialSize
         place = initialPlace
         crop = initialCrop
+        zoom = PhotoWindow.zoom(initialZoom)
         if let initialTitle, !initialTitle.isEmpty {
             title = initialTitle
         }
