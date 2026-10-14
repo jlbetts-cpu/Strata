@@ -1293,6 +1293,27 @@ final class FeedbackShots: XCTestCase {
         snap("plan-corner-switched")
     }
 
+    /// **A plan made from the Crews list, in its crew's chat** (the owner,
+    /// 2026-10-14: "when you plan does it enter the chat nicely?").
+    func testPlanLandsInChat() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedCrewChat", "1"])
+        wait(8)
+        app.buttons["Plan"].firstMatch.tap(); wait(2)
+        let crew = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if crew.exists { crew.tap(); wait(0.8) }
+        app.typeText("Gym at 6"); wait(0.8)
+        snap("planchat-1-sheet")
+        app.buttons["Plan"].firstMatch.tap(); wait(3)
+        snap("planchat-2-list")
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if row.exists { row.tap(); wait(3) }
+        snap("planchat-3-crew")
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch
+        if line.exists { line.tap(); wait(3) }
+        snap("planchat-4-chat")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

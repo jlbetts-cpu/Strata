@@ -246,7 +246,15 @@ enum GroupPlanActions {
         // By the name its win carries: a plan with a time is logged
         // without it ("Gym @ 6" is the win "Gym").
         let key = plan.proofKey
-        let wins = store.today(in: plan.crewID).filter { GroupPlan.key($0.title) == key }
+        // **Only what was done after it was planned** (found 2026-10-14: a
+        // plan for "Gym at 6" read "Sam did it" the moment it was sent,
+        // because Sam had logged "Gym" that morning). From the line's own
+        // time while it is in today's chat; a plan proposed on an earlier
+        // day counts all of today's.
+        let sent = store.messages(in: plan.crewID).first { $0.messageID == plan.id }?.createdAt
+        let wins = store.today(in: plan.crewID).filter { win in
+            GroupPlan.key(win.title) == key && (sent.map { win.createdAt >= $0 } ?? true)
+        }
         var senders: [UUID] = []
         for win in wins.sorted(by: { $0.createdAt < $1.createdAt }) where !senders.contains(win.senderProfileID) {
             senders.append(win.senderProfileID)
