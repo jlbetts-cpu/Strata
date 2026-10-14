@@ -28,6 +28,17 @@ struct CameraView: View {
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
     var fillsScreen: Bool = false
+    /// **The phone's own appearance, for the review** (the owner, 2026-10-14:
+    /// "the app in light mode like the photo edit screen is still so dark
+    /// shouldnt that be light"). The viewfinder is a dark room whatever the
+    /// phone is set to; the photograph you just took is a page, and in light
+    /// mode it is a light one. The Camera tab is drawn dark from outside, so
+    /// it hands the phone's setting in; a camera opened over a sheet reads it
+    /// from its own environment.
+    var phoneScheme: ColorScheme? = nil
+    @Environment(\.colorScheme) private var drawnScheme
+    private var reviewScheme: ColorScheme { phoneScheme ?? drawnScheme }
+    private var reviewIsLight: Bool { reviewScheme == .light }
     // **No crews here** (the QoL review, 2026-10-06). The review had its own
     // `CrewPicker` and Add a win, which every shot lands on next, had the
     // same row again: the camera asked who sees it twice. The sheet is the
@@ -594,7 +605,10 @@ struct CameraView: View {
     private func reviewLayer(image: UIImage, topInset: CGFloat,
                              bottomInset: CGFloat) -> some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Group {
+                if reviewIsLight { WarmBackground() } else { Color.black }
+            }
+            .ignoresSafeArea()
 
             // **The photograph is on a stage, and the stage is a window.**
             // Zoomed, the photograph is bigger than its room and is cut at
@@ -620,6 +634,7 @@ struct CameraView: View {
                 markLayer = made.flatMap { PhotoMarks.layer($0) }
             }
         }
+        .environment(\.colorScheme, reviewScheme)
     }
 
     /// **The block's box holds still and the photograph moves under it** (the
@@ -635,6 +650,11 @@ struct CameraView: View {
     ///
     /// The marks and the head are laid over the photograph's own frame and
     /// move with it: both are places in the picture.
+    /// The print's margin from the screen's sides, and its corners: a
+    /// block's, never rounder than the box's own cap (`CropBox.radius`).
+    private static let printInset: CGFloat = GridConstants.gapTight
+    private static let printRadius: CGFloat = 24
+
     private func reviewStage(image: UIImage, in room: CGSize) -> some View {
         // `gapLabel` of air above and below, the floor the spacers kept, and
         // the page's margin either side: the box's corner marks stand just
@@ -657,6 +677,7 @@ struct CameraView: View {
         let scale = PhotoWindow.zoom(zoom)
         let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
         return ZStack {
+            ZStack {
             Image(uiImage: looked ?? image)
                 .resizable()
                 .frame(width: rests.width, height: rests.height)
@@ -680,7 +701,17 @@ struct CameraView: View {
                 }
                 .scaleEffect(scale)
                 .offset(shift)
-            CropBox(box: box, radius: CropBox.radius(for: box), ground: .black, ink: AppColors.drawingInkOnBlock)
+            }
+            // **What runs past the box is a print with a block's corners,
+            // not a sheet cut square** (the owner, 2026-10-14: "the part
+            // thats not selected ... has sharp edges and doesnt look that
+            // good"). It was cut by the stage's own rectangle, edge to edge,
+            // the one square thing on the screen.
+            .frame(width: max(1, room.width - Self.printInset * 2), height: room.height)
+            .clipShape(RoundedRectangle(cornerRadius: Self.printRadius, style: .continuous))
+            CropBox(box: box, radius: CropBox.radius(for: box),
+                    ground: reviewIsLight ? WarmBackground.top : .black,
+                    ink: reviewIsLight ? AppColors.drawingInk : AppColors.drawingInkOnBlock)
         }
         .frame(width: room.width, height: room.height)
         .clipped()
@@ -706,7 +737,7 @@ struct CameraView: View {
                     .allowsHitTesting(!choosingLook)
                     .accessibilityHidden(choosingLook)
                 HStack(spacing: GridConstants.gapItem) {
-                    GlassIconButton(systemName: "xmark", tint: .white, accessibilityLabel: "Back to the tools") {
+                    GlassIconButton(systemName: "xmark", tint: reviewInk, accessibilityLabel: "Back to the tools") {
                         withAnimation(GridConstants.motionSnappy) { choosingLook = false }
                     }
                     FilmLookStrip(photo: image, selection: Binding(
@@ -736,7 +767,7 @@ struct CameraView: View {
                 } label: {
                     Text("Retake")
                         .font(Typography.headerSmall)
-                        .foregroundStyle(AppColors.onDarkSecondary)
+                        .foregroundStyle(AppColors.cameraSecondary(reviewScheme))
                         .frame(minWidth: 88, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -754,7 +785,7 @@ struct CameraView: View {
                 } label: {
                     Text("Use Photo")
                         .font(Typography.headerSmall)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(reviewInk)
                         .frame(minWidth: 88, minHeight: 44, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
@@ -781,17 +812,17 @@ struct CameraView: View {
     private func reviewTools(image: UIImage) -> some View {
         HStack(alignment: .top, spacing: 0) {
             reviewTool("Looks") {
-                GlassIconButton(systemName: "camera.filters", tint: .white, accessibilityLabel: "Choose a look") {
+                GlassIconButton(systemName: "camera.filters", tint: reviewInk, accessibilityLabel: "Choose a look") {
                     withAnimation(GridConstants.motionSnappy) { choosingLook = true }
                 }
             }
             reviewTool("Doodle") {
-                GlassIconButton(systemName: "scribble", tint: .white, accessibilityLabel: "Doodle on the photo") {
+                GlassIconButton(systemName: "scribble", tint: reviewInk, accessibilityLabel: "Doodle on the photo") {
                     marking = .pen
                 }
             }
             reviewTool("Sticker") {
-                GlassIconButton(systemName: "", tint: .white, drawn: .sticker,
+                GlassIconButton(systemName: "", tint: reviewInk, drawn: .sticker,
                                 accessibilityLabel: "Add a sticker to the photo") {
                     marking = .stickers
                 }
@@ -818,12 +849,15 @@ struct CameraView: View {
         }
     }
 
+    /// The review's ink: white in the dark room, the page's ink on the page.
+    private var reviewInk: Color { AppColors.cameraStrong(reviewScheme) }
+
     private func reviewTool(_ word: String, @ViewBuilder _ button: () -> some View) -> some View {
         VStack(spacing: GridConstants.spacing) {
             button()
             Text(word)
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.onDarkSecondary)
+                .foregroundStyle(AppColors.cameraSecondary(reviewScheme))
                 .lineLimit(1)
                 .accessibilityHidden(true)
         }

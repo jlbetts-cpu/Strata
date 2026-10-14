@@ -4254,12 +4254,14 @@ private struct StableCameraTab: View, Equatable {
     let onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint, CGFloat) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool { true }
+    @Environment(\.colorScheme) private var phone
 
     var body: some View {
         // Dark in its own view, not the window's (2026-10-08): a viewfinder
         // is a dark room whatever the phone is set to, and the rest of the
         // app, its tab bar included, stays in the phone's own appearance.
-        CameraView(onCaptured: onCaptured, fillsScreen: true)
+        // The review after the shutter follows the phone (2026-10-14).
+        CameraView(onCaptured: onCaptured, fillsScreen: true, phoneScheme: phone)
             .environment(\.colorScheme, .dark)
     }
 }

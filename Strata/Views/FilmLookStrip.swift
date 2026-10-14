@@ -16,6 +16,8 @@ struct FilmLookStrip: View {
 
     @State private var previews: [FilmLook.Kind: UIImage] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The camera's dark room, or the review's page in light mode.
+    @Environment(\.colorScheme) private var scheme
 
     /// Big enough to judge a look on, small enough that four of them fit a
     /// phone with room either side.
@@ -97,7 +99,7 @@ struct FilmLookStrip: View {
                     //   the edge" the swatches draw against nothing.
                     RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
                                      style: .continuous)
-                        .strokeBorder(isChosen ? AppColors.onDarkStrong : AppColors.onDarkFaint,
+                        .strokeBorder(isChosen ? AppColors.cameraStrong(scheme) : AppColors.cameraFaint(scheme),
                                       lineWidth: isChosen ? 2 : 1)
                 }
                 // **The 0.94 on the unchosen swatches is gone, and it was
@@ -120,7 +122,7 @@ struct FilmLookStrip: View {
 
                 Text(look.kind.name)
                     .font(Typography.headerSmall)
-                    .foregroundStyle(isChosen ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
+                    .foregroundStyle(isChosen ? AppColors.cameraStrong(scheme) : AppColors.cameraQuiet(scheme))
             }
             .contentShape(Rectangle())
         }

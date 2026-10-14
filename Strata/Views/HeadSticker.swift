@@ -353,6 +353,7 @@ struct HeadStickerButton: View {
     let rig: HeadRig
     let isOn: Bool
     let action: () -> Void
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button {
@@ -364,7 +365,7 @@ struct HeadStickerButton: View {
                 .clipShape(Circle())
                 .glassCircle()
                 .overlay {
-                    Circle().strokeBorder(isOn ? AppColors.onDarkStrong : .clear, lineWidth: 2)
+                    Circle().strokeBorder(isOn ? AppColors.cameraStrong(scheme) : .clear, lineWidth: 2)
                 }
                 .contentShape(Circle())
         }

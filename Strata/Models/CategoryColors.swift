@@ -423,6 +423,15 @@ enum AppColors {
     static let onDarkQuiet = Color.white.opacity(0.55)
     static let onDarkFaint = Color.white.opacity(0.14)
 
+    /// **The camera's words and rims, on whichever ground it is on**: the
+    /// `onDark` scale in the viewfinder's dark room, the page's ink on the
+    /// review in light mode (the owner, 2026-10-14: "the photo edit screen is
+    /// still so dark shouldnt that be light").
+    static func cameraStrong(_ scheme: ColorScheme) -> Color { scheme == .light ? inkPrimary : onDarkStrong }
+    static func cameraSecondary(_ scheme: ColorScheme) -> Color { scheme == .light ? inkSecondary : onDarkSecondary }
+    static func cameraQuiet(_ scheme: ColorScheme) -> Color { scheme == .light ? inkTertiary : onDarkQuiet }
+    static func cameraFaint(_ scheme: ColorScheme) -> Color { scheme == .light ? inkPrimary.opacity(0.14) : onDarkFaint }
+
     /// The ON track of a switch, which is NOT the app's accent.
     ///
     /// **A switch has a white thumb, so its track cannot be white.**
