@@ -1478,11 +1478,12 @@ final class FeedbackShots: XCTestCase {
                           "-strataSeedCrewChat", "1"])
         wait(8)
         app.buttons["Plan"].firstMatch.tap(); wait(2)
-        let crew = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
-        if crew.exists { crew.tap(); wait(0.8) }
+        // Roommates, the crew with the newest news, comes chosen; a tap
+        // here would take it off.
         app.typeText("Gym at 6"); wait(0.8)
         snap("planchat-1-sheet")
-        app.buttons["Plan"].firstMatch.tap(); wait(3)
+        // Sent with the arrow since 2026-10-14, as your own plan is.
+        app.buttons["Send"].firstMatch.tap(); wait(3)
         snap("planchat-2-list")
         let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
         if row.exists { row.tap(); wait(3) }

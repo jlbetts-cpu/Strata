@@ -146,6 +146,19 @@ struct GroupPlanSheet: View {
         }
     }
 
+    /// **Sent with the arrow, from a bar at the foot: your own plan's shape**
+    /// (the owner, 2026-10-14: "the plan with crew and the plan needs to feel
+    /// the same"; his pick "Same as my plan"). The field was a capsule at the
+    /// top and a Plan word confirmed it. Now the days run along the top as
+    /// they do on your plan, the chat's bar (`DayComposer`) is at the foot,
+    /// Return sends, and Done closes.
+    private func sendNow() {
+        guard let when, !words.isEmpty, crews?.wrappedValue.isEmpty != true else { return }
+        HapticsEngine.lightTap()
+        send(words, when)
+        dismiss()
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
@@ -153,51 +166,41 @@ struct GroupPlanSheet: View {
                     CrewPicker(selection: crews)
                         .padding(.horizontal, GridConstants.horizontalPadding)
                 }
-                TextField(scope.prompt(), text: $title)
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .focused($writing)
-                    .submitLabel(.done)
-                    .padding(.horizontal, GridConstants.gapLabel)
-                    .frame(minHeight: GlassIconButton.defaultSide)
-                    .glassCapsule(onPage: true, interactive: false)
-                    .padding(.horizontal, GridConstants.horizontalPadding)
-                    .onChange(of: title) { _, text in
-                        if text.count > GroupPlan.titleLimit { title = String(text.prefix(GroupPlan.titleLimit)) }
-                    }
                 PlanScopeRow(scope: $scope)
+                Spacer(minLength: 0)
                 if scope == .repeating {
                     WeekdayChips(days: $days)
                         .padding(.horizontal, GridConstants.horizontalPadding)
+                        .transition(.opacity)
                 }
-                Spacer(minLength: 0)
+                DayComposer(canSend: !words.isEmpty && when != nil && crews?.wrappedValue.isEmpty != true,
+                            onSend: sendNow) {
+                    TextField(scope.prompt(), text: $title)
+                        .focused($writing)
+                        .submitLabel(.send)
+                        .onSubmit(sendNow)
+                        .onChange(of: title) { _, text in
+                            if text.count > GroupPlan.titleLimit { title = String(text.prefix(GroupPlan.titleLimit)) }
+                        }
+                }
             }
             .padding(.top, GridConstants.gapItem)
             .background { WarmBackground().ignoresSafeArea() }
             .sheetTitle("Plan with \(shownName)", drawn: false)
             .toolbar {
-                BareToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
-                        .buttonStyle(.pressWord)
-                }
                 BareToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        guard let when else { return }
-                        HapticsEngine.lightTap()
-                        send(words, when)
-                        dismiss()
-                    } label: { Text("Plan").sheetAction(.confirm) }
+                    Button { dismiss() } label: { Text("Done").sheetAction() }
                         .buttonStyle(.pressWord)
-                        .disabled(words.isEmpty || when == nil || crews?.wrappedValue.isEmpty == true)
                 }
             }
         }
         // **Its own height, not half the screen** (the owner, 2026-10-14:
         // "it does like a jitter when opening and opens too high"): the
-        // field, the days and the crews, and room for the keys under them.
-        .presentationDetents([.height(crews == nil ? 236 : 292)])
+        // days, the crews and the bar, with the keys under them.
+        .presentationDetents([.height((crews == nil ? 236 : 292) + (scope == .repeating ? 52 : 0))])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .animation(GridConstants.motionSnappy, value: scope == .repeating)
         // The keyboard after the sheet has landed, not during: both rising
         // at once was the jitter.
         .task {
