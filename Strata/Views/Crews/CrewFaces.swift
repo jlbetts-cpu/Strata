@@ -187,6 +187,11 @@ extension AppColors {
 
 struct NewsDot: View {
     static let side: CGFloat = 9
+    /// A number in it (how many crews have something new), on a button's
+    /// corner; nil for the plain dot.
+    var count: Int? = nil
+    /// Big enough for a digit at the caption tier.
+    static let numberedSide: CGFloat = 17
 
     /// **How a dot comes and goes, everywhere** (the owner, 2026-10-13: "make
     /// sure the animation of the notification coming in and out is clean
@@ -212,6 +217,25 @@ struct NewsDot: View {
     /// crew's row, a crew's chat and the Crews tab (`StrataTab.picture`),
     /// never the system's red badge, which he called terrifying.
     var body: some View {
+        if let count {
+            DoodleDot()
+                .fill(AppColors.notify)
+                .frame(width: Self.numberedSide, height: Self.numberedSide)
+                .overlay {
+                    Text(count > 9 ? "9+" : "\(count)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.7)
+                }
+                .overlay { DoodleDot().stroke(WarmBackground.top, lineWidth: 1.5).padding(-0.75) }
+                .accessibilityHidden(true)
+        } else {
+            plain
+        }
+    }
+
+    private var plain: some View {
         DoodleDot()
             .fill(AppColors.notify)
             .frame(width: Self.side, height: Self.side)

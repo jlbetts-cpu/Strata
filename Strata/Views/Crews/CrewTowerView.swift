@@ -549,7 +549,23 @@ struct CrewTowerView: View {
     private var header: some View {
         ZStack(alignment: .top) {
             HStack(alignment: .top) {
-                GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Crews") { onBack() }
+                GlassIconButton(systemName: "chevron.left", onPage: true,
+                                accessibilityLabel: elsewhere > 0 ? "Crews, \(elsewhere) with something new" : "Crews") { onBack() }
+                    // **How many other crews have news, on the way back**
+                    // (the owner, 2026-10-13: "I like how Apple Messages
+                    // works where the back button also shows the number").
+                    // The app's own dot with its number, over the button's
+                    // corner as on the Crews tab; this crew's own news is
+                    // not counted, since you are in it.
+                    .overlay(alignment: .topTrailing) {
+                        if elsewhere > 0 {
+                            NewsDot(count: elsewhere)
+                                .offset(x: 4, y: -4)
+                                .transition(NewsDot.transition(reduceMotion: reduceMotion))
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .animation(NewsDot.motion(reduceMotion: reduceMotion), value: elsewhere)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
                 // **No "+" here any more** (the owner, 2026-10-05: "kinda
@@ -644,6 +660,11 @@ struct CrewTowerView: View {
         .padding(.horizontal, hPad)
         .padding(.top, GridConstants.gapTight)
         .padding(.bottom, GridConstants.gapTight)
+    }
+
+    /// Other crews with a new win, reaction or line: the back button's number.
+    private var elsewhere: Int {
+        store.unread.union(store.unreadChats).subtracting([crewID]).count
     }
 
     private var chatButton: some View {
