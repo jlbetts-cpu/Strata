@@ -58,10 +58,12 @@ struct ChatRestBar: View {
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, GridConstants.gapItem)
-                    .frame(minHeight: 40)
-                    .background(Capsule().fill(AppColors.quietFill))
-                    .contentShape(Capsule())
+                    // The chat's own field, as it is drawn there
+                    // (`glassField`), so opening is one field rising.
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    .frame(minHeight: GlassIconButton.defaultSide)
+                    .glassField()
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.press)
             .accessibilityLabel("Write a message")
@@ -96,7 +98,9 @@ struct ChatRestBar: View {
         guard let last = store.messages(in: crewID).last else { return CrewChatWords.quiet }
         let crew = store.crew(crewID)
         return CrewActivity.message(last).preview(name: { id in
-            crew?.members.first { $0.profileID == id }?.shortName ?? "A friend"
+            // "A friend" for an unnamed one, as the Crews list says it.
+            let name = crew?.members.first { $0.profileID == id }?.shortName ?? ""
+            return name.isEmpty ? "A friend" : name
         }, me: store.me)
     }
 }

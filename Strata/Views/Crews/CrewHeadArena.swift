@@ -640,7 +640,10 @@ private struct CrewHeadRunner: View {
         // again and a head inside rises out of it (`towerEscape`).
         let roofline = built.hasTower ? built.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
         let skyline = roofline - side > lower ? built : TowerSkyline()
-        let roof = probe.hasMeasured ? skyline.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
+        // With no tower to stand on (not measured yet, or a tower with no
+        // air), the band reaches down the page, not one head under the
+        // header (review, 2026-10-14: an empty skyline's roof reads 0).
+        let roof = probe.hasMeasured && skyline.hasTower ? skyline.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
         let upper = max(lower + side, min(roof - side * 0.6, lower + 320))
         return TowerCompanionWorld(bounds: bounds, opening: lower...upper, skyline: skyline, obstacles: local)
     }

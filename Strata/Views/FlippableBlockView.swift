@@ -425,12 +425,31 @@ struct BlockHold: UIGestureRecognizerRepresentable {
         return hold
     }
 
+    /// Where the hold began, and whether the finger has slid since.
+    final class Coordinator {
+        var start: CGPoint = .zero
+        var slid = false
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
     func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
         let at = context.converter.location(in: .named(HoldPhase.space))
+        let box = context.coordinator
         switch recognizer.state {
-        case .began: onHold?(.began)
-        case .changed: onHold?(.moved(at))
-        case .ended: onHold?(.ended(at))
+        case .began:
+            box.start = at
+            box.slid = false
+            onHold?(.began)
+        case .changed:
+            if hypot(at.x - box.start.x, at.y - box.start.y) > Self.slack { box.slid = true }
+            onHold?(.moved(at))
+        // **A hold let go where it began picks nothing** (review,
+        // 2026-10-14): the pick band reaches the top of the held block, so a
+        // still release there sent whichever reaction stood above it. Only
+        // a finger that slid onto the bar chooses; a still one leaves the
+        // bar open for a tap.
+        case .ended: onHold?(.ended(box.slid ? at : nil))
         case .cancelled, .failed: onHold?(.ended(nil))
         default: break
         }

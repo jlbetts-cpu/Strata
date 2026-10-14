@@ -24,7 +24,10 @@ nonisolated struct ChatBannerWatch: Equatable {
 
     static let window: TimeInterval = 120
 
-    mutating func arrived(_ lines: [CrewMessage], me: UUID, listening: Bool, now: Date) -> CrewMessage? {
+    /// `isWinLine`: a win sent from the chat, which notifies as a win and
+    /// is not a chat line to slide in over the tower (review, 2026-10-14).
+    mutating func arrived(_ lines: [CrewMessage], me: UUID, listening: Bool, now: Date,
+                          isWinLine: (CrewMessage) -> Bool = { _ in false }) -> CrewMessage? {
         let fresh = lines.filter { !seen.contains($0.messageID) }
         seen.formUnion(fresh.map(\.messageID))
         guard started else {
@@ -33,7 +36,7 @@ nonisolated struct ChatBannerWatch: Equatable {
         }
         guard listening else { return nil }
         return fresh
-            .filter { $0.senderProfileID != me && now.timeIntervalSince($0.createdAt) < Self.window }
+            .filter { $0.senderProfileID != me && !isWinLine($0) && now.timeIntervalSince($0.createdAt) < Self.window }
             .max { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) }
     }
 }
@@ -99,7 +102,8 @@ struct WinsChatBanner: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
         .onChange(of: lines.map(\.messageID), initial: true) {
             let listening = isClear && CrewsFlag.isOn
-            if let line = watch.arrived(lines, me: store.me, listening: listening, now: Date()) {
+            if let line = watch.arrived(lines, me: store.me, listening: listening, now: Date(),
+                                        isWinLine: { store.isWinLine($0) }) {
                 show(line)
             }
         }

@@ -139,6 +139,9 @@ struct CrewTowerView: View {
                 chatStartsWriting = writing
                 showsChat = true
             }
+            // A real object the heads meet, as the chat button was: never a
+            // head resting on the Message field.
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
         }
         // **No tab bar inside a crew**, as Messages and WhatsApp have none
         // inside a conversation: the drawer is the foot of the screen, and

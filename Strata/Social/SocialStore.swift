@@ -1403,10 +1403,14 @@ final class SocialStore {
     /// **A line of yours that has not gone** (M1): still in the outbox, a
     /// while after it was written. A line goes in well under a second on any
     /// signal, so ten seconds is a line that is stuck, not one on its way.
+    /// Lines of yours the outbox gave up on: still unsent, not forgotten.
+    private var givenUpLines: Set<String> = []
+
     func isUnsent(_ message: CrewMessage, now: Date) -> Bool {
         _ = outboxRevision
         guard message.senderProfileID == me,
               now.timeIntervalSince(message.createdAt) >= CrewMessage.unsentAfter else { return false }
+        if givenUpLines.contains(CrewRecords.name(of: message)) { return true }
         return outbox.entries.contains {
             $0.crew == message.crewID && $0.type == .message && $0.name == CrewRecords.name(of: message) && $0.fields != nil
         }
@@ -1418,6 +1422,7 @@ final class SocialStore {
     func retry(_ message: CrewMessage) async {
         guard message.senderProfileID == me,
               messagesByCrew[message.crewID]?.contains(where: { $0.messageID == message.messageID }) == true else { return }
+        givenUpLines.remove(CrewRecords.name(of: message))
         enqueue(.init(crew: message.crewID, type: .message, name: CrewRecords.name(of: message),
                       fields: CrewRecords.fields(message)))
         retryAfter = .distantPast
@@ -1443,7 +1448,9 @@ final class SocialStore {
     private func chatNews(in crewID: CrewID) -> [String] {
         let lines = messages(in: crewID)
         let mine = Set(lines.filter { $0.senderProfileID == me }.map(\.messageID))
-        let theirLines = lines.filter { $0.senderProfileID != me }.map(\.messageID.uuidString)
+        // Not a win's own line: the win notified as a win, and the tower
+        // shows it (review, 2026-10-14; what 3662613 meant).
+        let theirLines = lines.filter { $0.senderProfileID != me && !isWinLine($0) }.map(\.messageID.uuidString)
         let reactions = messageReactions(in: crewID)
             .filter { mine.contains($0.key) }
             .flatMap(\.value)
@@ -2064,6 +2071,9 @@ final class SocialStore {
             }
             for gone in outbox.dropHopeless() {
                 Self.log.error("gave up on \(gone.type.rawValue, privacy: .public) to \(gone.crew.rawValue, privacy: .public)")
+                // A line of yours that will not go keeps saying so, and
+                // Try Again puts it back (review, 2026-10-14).
+                if gone.type == .message, gone.fields != nil { givenUpLines.insert(gone.name) }
             }
             persistOutbox()
         } while flushAgain

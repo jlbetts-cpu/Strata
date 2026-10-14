@@ -212,7 +212,11 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         let isChat = notification.request.content.userInfo[CrewNotifications.chatKey] != nil
         if isChat, await MainActor.run(body: { ChatBanner.isListening }) {
             Task { @MainActor in await SocialStore.shared.pushed() }
-            return []
+            // Into Notification Center, still: the line over the tower can
+            // fail to come (the fetch is slow, a new member's record is not
+            // here yet, a picture is being checked), and then the alert would
+            // have gone nowhere (review, 2026-10-14). No banner, no sound.
+            return [.list]
         }
         return [.banner, .list, .sound]
     }

@@ -69,10 +69,17 @@ struct TowerEntryTests {
                       title: "", colour: .health, icon: .unlabeled, blockSize: .small, photo: nil, cropX: nil, cropY: nil,
                       createdAt: Date(timeIntervalSince1970: Double(i)), updatedAt: .now)
         }
+        // Two people, both unnamed: their lines read the same, so the
+        // merge must go by who sent it, not by the words (review, 2026-10-14).
+        let sam = UUID(), ana = UUID()
         let senders = ["Sam", "Sam", "Sam", "Ana", "Ana", "Ana"]
+        let owners = [sam, sam, sam, ana, ana, ana]
         let vm = TowerViewModel()
-        vm.buildTower(entries: zip(wins, senders).map { .init(id: $0.winID, look: PlacedBlock.Look(win: $0, sender: $1)) },
-                      perPerson: true)
+        vm.buildTower(entries: zip(wins, owners).map { win, owner in
+            var look = PlacedBlock.Look(win: win, sender: "A friend")
+            look.senderID = owner
+            return .init(id: win.winID, look: look)
+        }, perPerson: true)
         #expect(!vm.mergeGroups.isEmpty, "one person's touching greens did not run together")
         let sender = Dictionary(uniqueKeysWithValues: zip(wins.map(\.winID), senders))
         for group in vm.mergeGroups {

@@ -124,7 +124,7 @@ enum BlockMerge {
             ] {
                 guard let other = cellOwner[neighbour],
                       other.look.displayCategory == key else { continue }
-                if perPerson, other.look.isMine != block.look.isMine || other.look.sender != block.look.sender { continue }
+                if perPerson, other.look.isMine != block.look.isMine || other.look.senderID != block.look.senderID { continue }
                 union(cell, neighbour)
             }
         }

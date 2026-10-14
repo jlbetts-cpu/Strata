@@ -50,6 +50,9 @@ struct PlacedBlock: Identifiable, Equatable {
         /// Whose win it is, for the back of a crew block: "Sam". Nil on your
         /// own tower, where every block is yours.
         var sender: String? = nil
+        /// Who sent a crew's win, by id: what a crew tower merges on, since
+        /// two friends can share a name or have none (review, 2026-10-14).
+        var senderID: UUID? = nil
         /// True for your own win in a crew tower.
         var isMine = true
         /// A shared win: `sender` already says who it was with ("Sam with
@@ -123,6 +126,7 @@ struct PlacedBlock: Identifiable, Equatable {
         }
 
         init(win: SharedWin, sender: String?) {
+            senderID = win.senderProfileID
             title = win.title
             displayCategory = win.colour
             category = win.icon

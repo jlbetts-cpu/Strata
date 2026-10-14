@@ -102,6 +102,9 @@ struct AddWinSheet: View {
         guard let crews = initialCrews, crews.count == 1 else { return nil }
         return crews.first
     }
+    /// Plan is offered from a crew only to someone who can write to it: a
+    /// plan is a line in its chat (review, 2026-10-14).
+    private var crewPlanAllowed: Bool { planCrew != nil && SocialStore.shared.canReply() }
     /// Offered on a fresh win only: not while editing one, and not for a
     /// win already under way (a photo just taken, a plan line being done).
     /// **And never from a crew's tower** (the owner: planning "is Wins-screen
@@ -113,7 +116,7 @@ struct AddWinSheet: View {
     /// "Crew plan"). This replaces his 2026-10-05 call to keep planning off
     /// crew towers, which came before a crew's plan was a box on its tower.
     private var offersPlanning: Bool {
-        !isEditing && initialPhoto == nil && initialTitle == nil && (initialCrews == nil || planCrew != nil)
+        !isEditing && initialPhoto == nil && initialTitle == nil && (initialCrews == nil || crewPlanAllowed)
             // **Not once a photograph or a drawing is on it** (found by
             // review, 2026-10-11): a picture is of something done. Pressing
             // a day then hid the picture, and Plan closed the sheet with it
@@ -181,6 +184,8 @@ struct AddWinSheet: View {
     @State private var crewChoiceTouched = false
     /// Wins logged today that the crew this sheet came from has not got.
     @State private var earlierToday: [HabitLog] = []
+    /// Why a crew plan did not go, in the chat's own words.
+    @State private var planProblem: String?
     /// Who the win was with (`CrewWithRow`): people in the ticked crews,
     /// three at most. Only on a new win; it is sent with it and never kept
     /// on the `HabitLog`.
@@ -772,7 +777,13 @@ struct AddWinSheet: View {
         HapticsEngine.success()
         CrewSync.setCrews(for: log, to: holding.union([crewID]))
         let name = SocialStore.shared.crew(crewID)?.displayName(excluding: SocialStore.shared.me) ?? "the crew"
-        UndoLine.shared.show("Sent to \(name)", undo: { CrewSync.setCrews(for: log, to: holding) })
+        // Undo takes it out of this crew only, by the win's id: not back to
+        // a list read five seconds ago, and not through a log that may have
+        // been deleted since (review, 2026-10-14).
+        let winID = log.id
+        UndoLine.shared.show("Sent to \(name)", undo: {
+            Task { await SocialStore.shared.withdraw(winID: winID, from: crewID) }
+        })
         dismiss()
     }
 
@@ -840,11 +851,11 @@ struct AddWinSheet: View {
             .frame(height: 0)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .topLeading) {
-                if let failure {
+                if let message = failure?.message ?? planProblem {
                     // Red, as every error the app sets on the page is
                     // (the owner, 2026-10-08: "make them like red so they
                     // read as an error").
-                    Text(failure.message)
+                    Text(message)
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.destructiveInk)
                         .fixedSize(horizontal: false, vertical: true)
@@ -853,6 +864,7 @@ struct AddWinSheet: View {
                 }
             }
             .animation(GridConstants.crossFade, value: failure)
+            .animation(GridConstants.crossFade, value: planProblem)
     }
 
     /// **What the block IS: its colour and its size, one group.**
@@ -1405,9 +1417,19 @@ struct AddWinSheet: View {
             let result = await store.sendPlan(title: words, when: when, in: crewID)
             if let plan = result.plan {
                 plan.join(context: modelContext)
-            } else if let i = plannedHere.lastIndex(where: { $0.scope == scope && $0.text == words }) {
-                withAnimation(GridConstants.motionSnappy) { _ = plannedHere.remove(at: i) }
+                planProblem = nil
+            } else {
+                if let i = plannedHere.lastIndex(where: { $0.scope == scope && $0.text == words }) {
+                    withAnimation(GridConstants.motionSnappy) { _ = plannedHere.remove(at: i) }
+                }
                 if title.isEmpty { title = words }
+                // The chat's own answers (`CrewChatSheet.answer`), said here.
+                HapticsEngine.warning()
+                planProblem = switch result.outcome {
+                case .dailyLimit: "That's plenty for today."
+                case .refusedWords: "Try other words."
+                default: "That didn't send. Try once more."
+                }
             }
         }
         return true
