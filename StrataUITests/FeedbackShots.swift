@@ -880,6 +880,13 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-chatstrip: offered \(offered) send \(send.exists) enabled \(send.exists && send.isEnabled) empty-line \(app.staticTexts["No photos today. Yet."].exists)")
         if send.exists, send.isEnabled { send.tap(); wait(3) }
         snap("chatstrip-sent")
+        // The thread from its first line, for a still: nothing is under the
+        // header there, where at the end a message is always softened by it.
+        let middle = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+        for _ in 0..<3 {
+            middle.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+        }
+        wait(2); snap("chatstrip-top")
         let after = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'A photo strip'")).count
         print("PLANNING-chatstrip: strips before \(before) after \(after)")
     }
