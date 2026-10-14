@@ -1220,6 +1220,46 @@ final class FeedbackShots: XCTestCase {
         snap("arrow-3-plan-box")
     }
 
+    /// The day's second batch, photographed (2026-10-14): one New Crew, the
+    /// crews drawing's hold, a crew photo's menu, earlier heads.
+    func testDayBatchWalk() {
+        let base = ["-crews.rulesAccepted.v1", "YES", "-strataCrewsSignedIn", "1", "-strataCrews", "1"]
+        var app = launch(base + ["-strataStartTab", "crews"])
+        wait(8); snap("batch-1-crews-empty")
+        app.staticTexts["For the people you'd tell anyway."].firstMatch.press(forDuration: 0.8); wait(1.5)
+        snap("batch-2-drawing-hold")
+        app.terminate()
+        app = launch(base + ["-strataStartTab", "crews", "-strataCrewSheet", "new"])
+        wait(8); snap("batch-3-new-crew")
+        app.terminate()
+        app = launch(base + ["-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "info"])
+        wait(9)
+        let edit = app.buttons["Edit"].firstMatch
+        if edit.exists { edit.tap(); wait(1.5) }
+        snap("batch-4-crew-photo-menu")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataSeedHead", "1",
+                      "-strataSeedEarlierHeads", "3", "-strataScrollProfile", "head"])
+        wait(9); snap("batch-5-profile-earlier")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataHeadCatchUp", "1", "-strataSeedEarlierHeads", "2"])
+        wait(9); snap("batch-6-catchup-earlier")
+    }
+
+    func testEarlierAndCrewPhoto() {
+        var app = launch(["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataSeedHead", "1",
+                          "-strataSeedEarlierHeads", "3", "-strataScrollProfile", "head"])
+        wait(9); app.swipeUp(); wait(1.5); snap("ep-1-profile")
+        app.terminate()
+        app = launch(["-crews.rulesAccepted.v1", "YES", "-strataCrews", "1", "-strataSeedCrew", "4",
+                      "-strataOpenCrew", "0", "-strataCrewSheet", "info"])
+        wait(9)
+        print("PLANNING-edit: \(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Edit' OR label CONTAINS 'Photo'")).allElementsBoundByIndex.prefix(6).map(\.label))")
+        let edit = app.buttons["Edit the crew's photo"].firstMatch
+        if edit.exists { edit.press(forDuration: 0.12); wait(2) }
+        snap("ep-2-photo-menu")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

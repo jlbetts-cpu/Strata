@@ -404,7 +404,7 @@ final class HeadStore {
             // Built whole rather than settled: a mutating call on a stored
             // property needs a self that is not finished being built yet.
             let seeded = Entry(id: UUID(), name: Self.firstHeadName, created: Date(), folder: "")
-            roster = Roster(heads: [seeded], activeID: seeded.id)
+            roster = Roster(heads: [seeded], activeID: seeded.id, earlier: onDisk.earlier)
         }
         // `-strataHeadOn tower`. Only the tower is a switch now; `picture`,
         // `map` and `camera` in old scripts are read and mean nothing.
