@@ -191,6 +191,8 @@ struct MemoriesView: View {
                     // the header, then the photos, then the drawing.
                     let shown = monthPhotos
                     let count = shown.reduce(0) { $0 + $1.photos.count }
+                    // By size, when the month has more than one (`Album.sizeSections`).
+                    let roll = rollBySize
                     // Nothing for the moment the page takes to learn whether
                     // it is empty; an empty month is the calendar alone, the
                     // emptiness you then fill being the point.
@@ -221,13 +223,16 @@ struct MemoriesView: View {
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
                         if count > 0 {
-                            PhotoGalleryGrid(sections: shown,
+                            PhotoGalleryGrid(sections: roll ?? shown,
                                              transitionNamespace: photoTransition,
                                              onSelect: { photo in
                                                  viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                                              },
-                                             screenTitle: shown.first?.title)
-                                .padding(.top, vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
+                                             screenTitle: shown.first?.title,
+                                             headingAir: GridConstants.gapSection)
+                                // Split, the first heading brings its own air.
+                                .padding(.top, roll != nil ? 0
+                                         : vm.monthAlbums.isEmpty ? GridConstants.gapTight : GridConstants.gapSection)
                         }
                     }
 
@@ -392,8 +397,10 @@ struct MemoriesView: View {
             // covers, so nothing inside them is put to sleep.
             .environment(\.headsAwake, coveringHeadsAwake && viewing == nil && playing == nil)
             .fullScreenCover(item: $viewing) { photo in
-                // The whole roll, so the next photograph is a swipe away.
-                PhotoViewer(photos: vm.gallery.flatMap(\.photos),
+                // The whole roll, so the next photograph is a swipe away; a
+                // month split by size in the grid's own order, as Photos
+                // swipes in the order you see.
+                PhotoViewer(photos: rollBySize?.flatMap(\.photos) ?? vm.gallery.flatMap(\.photos),
                             startAt: photo.id,
                             onClose: { viewing = nil },
                             onDelete: { _ in
@@ -941,6 +948,14 @@ struct MemoriesView: View {
     ]
 
     /// The chosen month's photographs, as one untitled section.
+    /// The month's photographs by size, or nil when it has one size (or
+    /// none) and the roll is shown as it always was.
+    private var rollBySize: [GallerySection]? {
+        guard let month = monthPhotos.first else { return nil }
+        let split = Album.sizeSections(month)
+        return split.count > 1 ? split : nil
+    }
+
     private var monthPhotos: [GallerySection] {
         // Gregorian, the calendar the gallery's keys are written in.
         let parts = DateUtils.keyCalendar(in: MemoriesViewModel.mondayCalendar.timeZone)

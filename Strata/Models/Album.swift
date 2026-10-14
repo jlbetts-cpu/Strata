@@ -509,6 +509,26 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
 }
 
 /// A run of photographs under one heading — a month of the gallery.
+nonisolated extension Album {
+    /// **The month's photographs, by how big the win was** (the owner,
+    /// 2026-10-14: "during the app you take a lot of big, medium, and large
+    /// wins and in the memories there is no real separator ... keep the apple
+    /// photos look while splitting it into sizes"). Deep, then Regular, then
+    /// Quick, each in the month's own order, under the words the size picker
+    /// uses. A size with no photographs has no section, so a month of one
+    /// size is one section and the caller shows it as it always was.
+    /// `docs/memories-by-size-2026-10-14.md` has the research.
+    static let sizeOrder: [BlockSize] = [.hard, .medium, .small]
+
+    static func sizeSections(_ month: GallerySection) -> [GallerySection] {
+        sizeOrder.compactMap { size in
+            let photos = month.photos.filter { $0.size == size }
+            guard !photos.isEmpty else { return nil }
+            return GallerySection(id: "\(month.id)-\(size.rawValue)", title: size.effortLabel, photos: photos)
+        }
+    }
+}
+
 nonisolated struct GallerySection: Identifiable, Equatable, Sendable {
     /// `yyyy-MM`.
     let id: String

@@ -567,6 +567,17 @@ final class FeedbackShots: XCTestCase {
         wait(0.6); snap("mem-5-tap-b")
     }
 
+    /// **Memories split by size** (the owner, 2026-10-14: "keep the apple
+    /// photos look while splitting it into sizes").
+    func testMemoriesBySize() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedHistoryPerDay", "2",
+                          "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        app.swipeUp(velocity: .slow); wait(1); snap("size-0")
+        app.swipeUp(velocity: .slow); wait(1); snap("size-1")
+        app.swipeUp(velocity: .slow); wait(1); snap("size-2")
+    }
+
     /// **Every crew, in one press** (the owner, 2026-10-13): off, on (every
     /// crew ticked and the tag button at the row's end with no name under
     /// it), and off again.

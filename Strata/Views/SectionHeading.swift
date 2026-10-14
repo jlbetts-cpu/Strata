@@ -22,6 +22,10 @@ import SwiftUI
 /// able to find it without ever looking at it.
 struct SectionHeading: View {
     let text: String
+    /// The air above. The page's biggest break by default; a heading that
+    /// divides one month by size takes `gapSection`, since it does not
+    /// change the page's subject (2026-10-14).
+    var air: CGFloat = GridConstants.gapSection * 2
 
     /// **A TITLE OVER A SHELF, NOT A LABEL OVER A FORM GROUP.** (2026-10-01)
     ///
@@ -69,7 +73,7 @@ struct SectionHeading: View {
             // which is the biggest gap on any screen by a clear margin and
             // therefore unmistakably a break rather than a wide gap. It stays
             // on the ladder because it is a rung doubled, not a fifth value.
-            .padding(.top, GridConstants.gapSection * 2)
+            .padding(.top, air)
             .padding(.bottom, GridConstants.gapItem)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)

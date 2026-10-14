@@ -38,6 +38,8 @@ struct PhotoGalleryGrid: View {
     /// says the same thing ("August" over "AUGUST"), the heading is dropped:
     /// the same fact twice is the mistake the tower header already made once.
     var screenTitle: String?
+    /// The air above each heading (`SectionHeading.air`).
+    var headingAir: CGFloat = GridConstants.gapSection * 2
 
     /// Whether the only section's heading repeats the screen's title.
     static func headingRepeatsTitle(_ sections: [GallerySection], title: String?) -> Bool {
@@ -154,7 +156,7 @@ struct PhotoGalleryGrid: View {
     /// The grid under it is countable by looking, and the owner's instruction
     /// is the general case: "no unnecessary greyscale elements, fairly minimal."
     private func heading(_ section: GallerySection) -> some View {
-        SectionHeading(text: section.title)
+        SectionHeading(text: section.title, air: headingAir)
     }
 
     private func cell(_ photo: GalleryPhoto) -> some View {
