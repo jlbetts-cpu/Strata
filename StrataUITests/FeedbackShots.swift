@@ -1152,11 +1152,17 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-field: exists \(field.exists) hittable \(field.isHittable) frame \(field.frame)")
         if field.exists { field.press(forDuration: 0.12); wait(2.5) }
         snap("drawer-writing")
-        app.swipeDown(velocity: .fast); wait(2)
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap(); wait(2) }
         let plus = app.buttons["More to send"].firstMatch
         if plus.exists { plus.tap(); wait(2.5) }
         snap("drawer-plus")
-        app.swipeUp(velocity: .slow); wait(2)
+        let grab = app.descendants(matching: .any)["Show All of the Chat"].firstMatch
+        if grab.exists {
+            grab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)))
+            wait(2)
+        }
         snap("drawer-full")
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])

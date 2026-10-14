@@ -139,9 +139,53 @@ struct CrewChatSheet: View {
     static let drawerHeight = PresentationDetent.fraction(0.62)
     @State private var detent: PresentationDetent = CrewChatSheet.drawerHeight
 
+    /// **The drawer closes it, not `dismiss`** (`ChatDrawer`): in the
+    /// crew's own page, `dismiss` would take you out of the crew.
+    var close: (() -> Void)? = nil
+
+    /// The thread with its cards above and its composer below.
+    private func chatPage(_ messages: [CrewMessage], reactions: [UUID: [Reaction]], crew: Crew?) -> some View {
+        thread(messages, reactions: reactions, crew: crew)
+            // Over the thread and above the message field (found by
+            // review, 2026-10-13): hung on the whole sheet, "In your
+            // plan · Undo" lay on the field for five seconds.
+            .undoLine()
+            .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
+            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+            // Escape closes an open menu first, then the chat.
+            .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { leave() } }
+    }
+
+    /// **In the drawer, its own title row and no navigation stack**: a
+    /// stack inside the crew's own took the crew's navigation with it and
+    /// left you on the list (walked, 2026-10-14). As a sheet, the stack's
+    /// bar, as before.
+    @ViewBuilder
+    private func framed(_ page: some View, name: String) -> some View {
+        if close != nil {
+            VStack(spacing: 0) {
+                ChatDrawerTitle(name: name, done: { leave() })
+                page
+            }
+        } else {
+            NavigationStack {
+                page
+                    .navigationTitle(name.isEmpty ? "Chat" : name)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ChatSheetToolbar(name: name, done: { leave() }) }
+            }
+        }
+    }
+
+    private func leave() {
+        if let close { close() } else { dismiss() }
+    }
+
     init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false,
+         close: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
+        self.close = close
         self.startsWriting = startsWriting
         self.startsWithPlus = startsWithPlus
         self.onOpenWin = onOpenWin
@@ -158,22 +202,8 @@ struct CrewChatSheet: View {
         // line out of this chat for the day. Nothing takes it out now.
         let messages = store.messages(in: crewID)
         let reactions = store.messageReactions(in: crewID)
-        NavigationStack {
-            thread(messages, reactions: reactions, crew: crew)
-                // Over the thread and above the message field (found by
-                // review, 2026-10-13): hung on the whole sheet, "In your
-                // plan · Undo" lay on the field for five seconds.
-                .undoLine()
-                .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
-                .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-                // Escape closes an open menu first, then the chat.
-                .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { dismiss() } }
-                .navigationTitle(crew?.displayName(excluding: store.me) ?? "Chat")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ChatSheetToolbar(name: crew?.displayName(excluding: store.me) ?? "", done: { dismiss() })
-                }
-        }
+        framed(chatPage(messages, reactions: reactions, crew: crew),
+               name: crew?.displayName(excluding: store.me) ?? "")
         .presentationDetents([Self.drawerHeight, .large], selection: $detent)
         // The tower above stays the tower: a tap on it lands while the chat
         // is part way up, as Maps' card leaves the map.
@@ -1366,6 +1396,30 @@ private struct ChatSheetToolbar: ToolbarContent {
             Text("Done").sheetAction()
         }
         .buttonStyle(.pressWord)
+    }
+}
+
+/// The chat's title and Done, as the sheet's toolbar draws them, for the
+/// drawer, which has no navigation bar: "Roommates / Today" in the middle,
+/// Done on the right.
+private struct ChatDrawerTitle: View {
+    let name: String
+    let done: () -> Void
+
+    var body: some View {
+        ZStack {
+            TwoToneTitle(title: "\(name)\(TwoToneTitle.separator)Today")
+                .fitsLargeType(.body)
+                .padding(.horizontal, 72)
+            HStack {
+                Spacer(minLength: 0)
+                Button(action: done) { Text("Done").sheetAction() }
+                    .buttonStyle(.pressWord)
+                    .frame(minWidth: GlassIconButton.defaultSide, minHeight: GlassIconButton.defaultSide)
+            }
+        }
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.bottom, GridConstants.gapTight)
     }
 }
 

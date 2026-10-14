@@ -102,11 +102,18 @@ struct ChatRestBar: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.bottom, GridConstants.gapTight)
         .background {
-            // The page's own glass, edge to edge, rounded only where it meets
-            // the tower: a drawer pulled up from the foot of the screen.
-            UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
-                                   topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
+            // **The chat's own ground, edge to edge**, rounded only where it
+            // meets the tower and set off by a hairline (the owner,
+            // 2026-10-14: "on dark mode the chat around it is too bright ...
+            // in the chat is dark I like that"). It was a light material.
+            let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
+                                               topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
+            shape
+                .fill(WarmBackground.top)
+                .overlay(alignment: .top) {
+                    shape.strokeBorder(TipCard.hairline, lineWidth: 1)
+                        .mask(alignment: .top) { Rectangle().frame(height: GridConstants.cornerRadius * 2) }
+                }
                 .ignoresSafeArea(edges: .bottom)
         }
         .offset(y: -lift)
@@ -140,4 +147,78 @@ struct ChatRestBar: View {
 enum CrewChatWords {
     static let placeholder = "Message"
     static let quiet = "Quiet here. Yet."
+}
+
+/// **The chat, risen from its resting bar** (the owner, 2026-10-14: "it felt
+/// like it was taking me to another screen rather than just popping up
+/// enough to see the chat"; and of the system's part-height sheet, "there is
+/// a weird curve at the bottom").
+///
+/// A panel of the crew's own page, not a sheet: flush with the bottom of the
+/// screen, its top corners rounded where it meets the tower, the tower
+/// still there above it. Part way up by default; the grabber takes it to the
+/// whole height or back down. With the keyboard up it stands on the
+/// keyboard and keeps a band of the tower in view. Dark on dark: the chat's
+/// own ground, never a lighter material.
+struct ChatDrawer<Content: View>: View {
+    @Binding var isOpen: Bool
+    @ViewBuilder var content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var full = false
+    @State private var pull: CGFloat = 0
+
+    /// The tower kept in view above the open drawer.
+    private static var towerBand: CGFloat { 150 }
+    /// Part way: about three fifths of the room.
+    private static var partway: CGFloat { 560 }
+
+    var body: some View {
+        GeometryReader { geo in
+            let room = geo.size.height
+            let open = full ? room : min(Self.partway, max(room - Self.towerBand, 240))
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(AppColors.inkTertiary.opacity(0.5))
+                    .frame(width: 36, height: 5)
+                    .frame(maxWidth: .infinity, minHeight: 22)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 4)
+                            .onChanged { pull = $0.translation.height }
+                            .onEnded { value in
+                                let dy = value.translation.height
+                                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                                    pull = 0
+                                    if dy < -60 { full = true }
+                                    else if dy > 80 { if full { full = false } else { isOpen = false } }
+                                }
+                                if abs(dy) > 60 { HapticsEngine.lightTap() }
+                            })
+                    .accessibilityElement()
+                    .accessibilityLabel(full ? "Show Less of the Chat" : "Show All of the Chat")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { withAnimation(GridConstants.motionSnappy) { full.toggle() } }
+                content()
+            }
+            .frame(height: max(open - pull, 200))
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
+                                       topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
+                    .fill(WarmBackground.top)
+                    .overlay(alignment: .top) {
+                        // Chrome separates with a hairline, never a shadow.
+                        UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
+                                               topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
+                            .strokeBorder(TipCard.hairline, lineWidth: 1)
+                            .mask(alignment: .top) { Rectangle().frame(height: GridConstants.cornerRadius * 2) }
+                    }
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
+                                              topTrailingRadius: GridConstants.cornerRadius, style: .continuous))
+            .frame(maxHeight: .infinity, alignment: .bottom)
+        }
+        .onDisappear { full = false }
+    }
 }

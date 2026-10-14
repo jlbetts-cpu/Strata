@@ -305,19 +305,21 @@ struct CrewTowerView: View {
         }
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
-        .sheet(isPresented: $showsChat) {
-            CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
-                          startsWithPlus: chatOpening == .plus, onOpenWin: openQuotedWin, onAddWin: {
-                // The plus row's Win: once the chat has gone, the crew's own
-                // way to add one.
-                // 450, as `openQuotedWin` waits: a presentation asked for
-                // while this sheet is still leaving is dropped.
-                Task {
-                    try? await Task.sleep(for: .milliseconds(450))
-                    onAddWin()
+        // **The chat rises from its bar as part of this page** (`ChatDrawer`,
+        // 2026-10-14), not as a sheet: flush with the foot of the screen,
+        // the tower above it.
+        .overlay(alignment: .bottom) {
+            if showsChat {
+                ChatDrawer(isOpen: $showsChat) {
+                    CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
+                                  startsWithPlus: chatOpening == .plus,
+                                  close: { withAnimation(GridConstants.motionSnappy) { showsChat = false } },
+                                  onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
                 }
-            })
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom))
+            }
         }
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: showsChat)
         .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
         // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
         // told. Hung on a point at the foot of the screen, never on the whole
