@@ -46,7 +46,8 @@ nonisolated enum CrewActivity: Equatable {
             let who = win.senderProfileID == me ? "You" : name(win.senderProfileID)
             let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
             if title.isEmpty { return win.photo != nil ? "\(who) added a photo" : "\(who) added a win" }
-            return "\(who): \(title)"
+            // As the alert says it (`CrewNotifications.Text.of`).
+            return "\(who) added \(title)"
         case .message(let line):
             let who = line.senderProfileID == me ? "You" : name(line.senderProfileID)
             if line.isStrip { return "\(who) sent a strip" }

@@ -147,7 +147,7 @@ struct LaunchPackGapTests {
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w", title: "Workout", emoji: nil)
                 == ("Roommates", "Sam just did Workout"))
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w", title: "Morning run", emoji: nil)
-                == ("Roommates", "Sam: Morning run"))
+                == ("Roommates", "Sam added Morning run"))
         // Tagged still says tagged: that one is a question waiting.
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w", title: "Workout", emoji: nil, tagsMe: true).body
                 == "Sam added you to Workout")
@@ -168,6 +168,6 @@ struct LaunchPackGapTests {
                             colour: .health, icon: .health, blockSize: .small, photo: nil, cropX: nil, cropY: nil,
                             createdAt: .now, updatedAt: .now)
         #expect(CrewNotifications.Text.of(win, in: crew, me: me, plans: ["workout"]).body == "Sam just did Workout")
-        #expect(CrewNotifications.Text.of(win, in: crew, me: me).body == "Sam: Workout")
+        #expect(CrewNotifications.Text.of(win, in: crew, me: me).body == "Sam added Workout")
     }
 }

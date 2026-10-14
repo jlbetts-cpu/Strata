@@ -133,7 +133,7 @@ struct CrewPingTests {
                             members: ["sam": .init(profileID: "p", name: "Sam")], myWins: ["w1": "Gym"]),
         ])
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w2", title: "Run", emoji: nil)
-                == ("Roommates", "Sam: Run"))
+                == ("Roommates", "Sam added Run"))
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w2", title: nil, emoji: nil)
                 == ("Roommates", "Sam added a win"))
         #expect(cache.words(kind: .reaction, crew: "crew-1", sender: "sam", winID: "w1", title: nil, emoji: "🔥")

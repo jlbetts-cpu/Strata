@@ -65,7 +65,10 @@ nonisolated enum CrewPingRecord {
     /// What a ping says when the extension cannot reach iCloud to say more.
     static let fallbackWin = "A friend added a win"
     static let fallbackReaction = "A friend reacted to your win"
-    static let fallbackCrew = "Something new in your crew"
+    /// When the extension cannot read what came (voice.md: "Notifications
+    /// invite, they do not report"; "Something new in your crew" could have
+    /// come from any app, 2026-10-14).
+    static let fallbackCrew = "Your crew has something for you"
 }
 
 /// What the extension needs to put a ping into words: each crew's name, who
@@ -210,7 +213,7 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
             if !said.isEmpty, crew?.plans?.contains(Self.planKey(said)) == true {
                 return (heading, Self.didPlan(name, said))
             }
-            return (heading, said.isEmpty ? "\(name) added a win" : "\(name): \(said)")
+            return (heading, said.isEmpty ? "\(name) added a win" : "\(name) added \(said)")
         case .message:
             return chatWords(crew: crewTag, sender: sender, text: line, hasPicture: false)
         case .joined:

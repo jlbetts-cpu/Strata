@@ -369,7 +369,8 @@ struct CohesionCrewTests {
         tagged.withPeople = [jayden]
         #expect(CrewNotifications.Text.of(tagged, in: crew, me: jayden).body == "Sam added you to Morning run")
         // Somebody else in the crew, not tagged, hears the ordinary line.
-        #expect(CrewNotifications.Text.of(tagged, in: crew, me: UUID()).body == "Sam: Morning run")
+        // "added", not a colon, since 2026-10-14 (the voice, voice.md).
+        #expect(CrewNotifications.Text.of(tagged, in: crew, me: UUID()).body == "Sam added Morning run")
         var reply = Reaction(winID: tagged.winID, crewID: crew.id, profileID: sam, emoji: "🔥", createdAt: .now)
         reply.line = "so proud of you"
         #expect(CrewNotifications.Text.replied(reply, in: crew) == "Sam: so proud of you")
@@ -388,6 +389,6 @@ struct CohesionCrewTests {
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w2", title: "Morning run", emoji: nil,
                             tagsMe: true) == ("Roommates", "Sam added you to Morning run"))
         #expect(cache.words(kind: .win, crew: "crew-1", sender: "sam", winID: "w2", title: "Morning run", emoji: nil)
-                == ("Roommates", "Sam: Morning run"))
+                == ("Roommates", "Sam added Morning run"))
     }
 }

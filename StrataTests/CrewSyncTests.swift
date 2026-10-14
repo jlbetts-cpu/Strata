@@ -113,7 +113,7 @@ extension CrewSyncTests {
                       colour: .health, icon: .health, blockSize: .small, photo: photo, cropX: nil, cropY: nil,
                       createdAt: .now, updatedAt: .now)
         }
-        #expect(CrewNotifications.Text.of(win("Gym"), in: crew, me: me) == ("Roommates", "Sam: Gym"))
+        #expect(CrewNotifications.Text.of(win("Gym"), in: crew, me: me) == ("Roommates", "Sam added Gym"))
         #expect(CrewNotifications.Text.of(win("", photo: URL(fileURLWithPath: "/tmp/x.jpg")), in: crew, me: me).body
                 == "Sam added a photo")
         #expect(CrewNotifications.Text.of(win(""), in: crew, me: me).body == "Sam added a win")

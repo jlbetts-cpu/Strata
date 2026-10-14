@@ -334,7 +334,12 @@ enum CrewNotifications {
                 // A crew's plan, done (`CrewNoteCache.didPlan`).
                 body = CrewNoteCache.didPlan(who, title)
             } else {
-                body = "\(who): \(title)"
+                // **"Sam added Morning run"**, not "Sam: Morning run" (the
+                // owner, 2026-10-14: "make sure the notifications are using
+                // our language document"). With a colon a win read as a chat
+                // line; the voice's own crew line is "Rildy just did the
+                // workout."
+                body = "\(who) added \(title)"
             }
             return (crew.displayName(excluding: me), body)
         }

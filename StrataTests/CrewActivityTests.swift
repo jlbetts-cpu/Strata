@@ -47,7 +47,7 @@ struct CrewActivityTests {
         let mineReacting = Reaction(winID: theirs.winID, crewID: crew, profileID: me, emoji: "👑",
                                     createdAt: noon.addingTimeInterval(20 * 60))
         let newest = try #require(CrewActivity.newest(wins: [theirs], messages: [], reactions: [mineReacting], me: me))
-        #expect(newest.preview(name: name, me: me) == "Sam: Gym")
+        #expect(newest.preview(name: name, me: me) == "Sam added Gym")
     }
 
     @Test("a strip, a plan line and a doodle are said in words, never as invisible marks")
