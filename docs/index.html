@@ -16,6 +16,10 @@
 <meta name="twitter:card" content="summary_large_image">
 <!-- Light only, at the owner's word (2026-10-13). -->
 <meta name="color-scheme" content="light">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/site/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/site/icon-192.png">
+<link rel="apple-touch-icon" href="/site/icon-180.png">
 <meta name="theme-color" content="#ffffff">
 <link rel="preload" href="site/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script>document.documentElement.className = "js";</script>
@@ -102,8 +106,11 @@
      ring of one long stroke per win round the face, a capsule under it.
      Here a win is a part of the page read. It acts as the app's does (the
      owner, 2026-10-13: "the pill completion thing has to act like it does
-     in the app"): a stroke fills whole or not at all, it only ever fills,
-     and when the last one lands the crest swells once and settles. */
+     in the app"), and it follows the page (the same day: "the pill
+     animations need to be smooth and it should unfill when you are at the
+     top, full at the bottom"): the ink runs round stroke by stroke with
+     the scroll, back again on the way up, and at the bottom the crest
+     swells once and settles. */
   .crest { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; transition: opacity .4s var(--ease), transform .4s var(--ease); }
   /* There from the first frame (the owner, 2026-10-13: "the logo pill
      things should be present on launch"). It used to wait for the hero's
@@ -128,8 +135,8 @@
   .ring { position: relative; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.58); border: 1px solid var(--rule); -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.95); transition: transform .16s var(--ease); }
   .ring svg { position: absolute; inset: -1px; width: 60px; height: 60px; transform: rotate(-90deg); }
   /* Line 4 on a 26 radius, ink or ink at 8%: the app's numbers. */
-  .ring .seg { fill: none; stroke: rgba(22,23,26,.08); stroke-width: 4; stroke-linecap: round; transition: stroke .45s var(--ease); }
-  .ring .seg.won { stroke: var(--ink); }
+  .ring .seg { fill: none; stroke: rgba(22,23,26,.08); stroke-width: 4; stroke-linecap: round; }
+  .ring .ink-seg { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
   .ring.full { animation: swell .64s both; }
   @keyframes swell { 0% { transform: scale(1); animation-timing-function: cubic-bezier(.34,1.56,.64,1); } 66% { transform: scale(1.1); animation-timing-function: ease-in; } 100% { transform: scale(1); } }
   .ring .well { position: absolute; inset: 9px; border-radius: 50%; background: var(--fill); display: grid; place-items: center; }
@@ -380,37 +387,49 @@
     var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var canWatch = "IntersectionObserver" in window;
 
-    // The ring: one stroke for each part of the page, filled when that part
-    // has been read past, as Wins' ring fills a stroke a win. The app's own
-    // geometry: a gap of 1.8% of the ring either side of each stroke.
+    // The ring: the app's own strokes (a gap of 1.8% of the ring either side
+    // of each), inked round by how far down the page you are: empty at the
+    // top, full at the bottom, and back again on the way up. It is drawn
+    // once a frame from where the page is, eased toward it, so a flick of
+    // the wheel is a sweep and never a jump.
     var ring = document.getElementById("ring"), strokes = ring.querySelector("svg");
-    var parts = [".hero", "#state", "#day", "#crews", ".close"].map(function (q) {
-      var el = document.querySelector(q);
-      return el.closest("section") || el;
-    });
-    var gap = 0.018, span = 1 / parts.length;
-    var segs = parts.map(function (_, i) {
+    var count = 5, gap = 0.018, span = 1 / count, long = span - 2 * gap;
+    function stroke(kind, i) {
       var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      c.setAttribute("class", "seg");
+      c.setAttribute("class", kind);
       c.setAttribute("cx", 30); c.setAttribute("cy", 30); c.setAttribute("r", 26);
       c.setAttribute("pathLength", 1);
-      c.setAttribute("stroke-dasharray", (span - 2 * gap).toFixed(4) + " 1");
+      c.setAttribute("stroke-dasharray", long.toFixed(4) + " 1");
       c.setAttribute("stroke-dashoffset", (-(i * span + gap)).toFixed(4));
       strokes.appendChild(c);
       return c;
-    });
-    var won = 0;
+    }
+    var inks = [];
+    for (var n = 0; n < count; n++) stroke("seg", n);
+    for (var m = 0; m < count; m++) inks.push(stroke("ink-seg", m));
+    var shown = -1, wanted = 0, running = false;
+    function draw(p) {
+      inks.forEach(function (c, i) {
+        var part = Math.min(1, Math.max(0, p * count - i));
+        // A round cap makes a dot of a stroke with no length: none, not a dot.
+        c.style.opacity = part > 0.002 ? 1 : 0;
+        c.setAttribute("stroke-dasharray", (part * long).toFixed(4) + " 1");
+      });
+      // The swell, each time the bottom is reached.
+      if (p >= 0.999 && shown < 0.999 && shown >= 0 && !still) ring.classList.add("full");
+      if (p < 0.97) ring.classList.remove("full");
+      shown = p;
+    }
+    function step() {
+      var next = still || shown < 0 ? wanted : shown + (wanted - shown) * 0.22;
+      if (Math.abs(wanted - next) < 0.0015) next = wanted;
+      draw(next);
+      if (next !== wanted) requestAnimationFrame(step); else running = false;
+    }
     function read() {
       var room = document.documentElement.scrollHeight - window.innerHeight;
-      var ended = room <= 0 || window.scrollY >= room - 2;
-      var now = 0;
-      // Read past: its end is above the lower third of the screen.
-      parts.forEach(function (el, i) { if (ended || el.getBoundingClientRect().bottom <= window.innerHeight * 0.62) now = i + 1; });
-      // It only ever fills: scrolling back up takes nothing away.
-      if (now <= won) return;
-      var was = won; won = now;
-      segs.forEach(function (c, i) { c.classList.toggle("won", i < won); });
-      if (was < parts.length && won === parts.length && !still) ring.classList.add("full");
+      wanted = room > 0 ? Math.min(1, Math.max(0, window.scrollY / room)) : 0;
+      if (!running) { running = true; requestAnimationFrame(step); }
     }
     window.addEventListener("scroll", read, { passive: true });
     window.addEventListener("resize", read);
