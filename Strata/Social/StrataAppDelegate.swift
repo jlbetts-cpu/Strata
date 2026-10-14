@@ -166,6 +166,18 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         return true
     }
 
+    // **The push registration's answer, kept** (`AlertCheck`): without it
+    // a phone that never got a token looked the same as one that did.
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        AlertCheck.note(.push, ok: true)
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        AlertCheck.note(.push, ok: false, String(describing: error))
+    }
+
     /// A notification tapped: open what it was about. A crew's opens that
     /// crew at its win; the app's own land where `NotificationRoute` says.
     func userNotificationCenter(_ center: UNUserNotificationCenter,

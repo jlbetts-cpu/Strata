@@ -2401,6 +2401,7 @@ final class SocialStore {
             try await cloud.listen(for: plan)
             defaults.set(try? JSONEncoder().encode(plan), forKey: Self.planKey)
             lastListenFailure = nil
+            AlertCheck.note(.listen, ok: true, "\(plan.winCrews.count) crews")
         } catch {
             // **Then this phone is not subscribed, and says so** (found by
             // review, 2026-10-10). The old plan used to stay written down:
@@ -2412,10 +2413,20 @@ final class SocialStore {
             defaults.removeObject(forKey: Self.planKey)
             lastListenFailure = now()
             Self.log.notice("ping subscriptions not saved: \(error)")
+            AlertCheck.note(.listen, ok: false, String(describing: error))
         }
     }
 
     @ObservationIgnored private var lastListenFailure: Date?
+
+    /// **Check Again** (`AlertCheckSection`): the subscriptions asked for
+    /// now, as if the plan had changed, past the ten-minute wait a refusal
+    /// sets.
+    func checkAlertsNow() async {
+        lastListenFailure = nil
+        defaults.removeObject(forKey: Self.planKey)
+        await listenForPings()
+    }
 
     private func replan() {
         guard sendsPings else { return }
@@ -2577,9 +2588,11 @@ final class SocialStore {
         guard done[key] == nil, !pendingPings.contains(where: { $0.key == key }) else { return false }
         do {
             try await sendPing(ping, key: key)
+            AlertCheck.note(.send, ok: true, ping[CrewPingRecord.kind] ?? "")
             return true
         } catch {
             Self.log.notice("ping not sent: \(error)")
+            AlertCheck.note(.send, ok: false, String(describing: error))
             // No signal or a busy server says nothing about the ping: it is
             // kept and tried again (`CrewPingRetry`). Anything else is not.
             guard let server = Self.transientWait(error),

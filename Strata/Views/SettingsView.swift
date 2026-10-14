@@ -378,6 +378,13 @@ struct SettingsView: View {
             // and an email in the other. What you hear and what you feel when a
             // win lands are the same question, and Settings on the phone
             // already answers it with this heading.
+            // **Crew Alerts, link by link: TestFlight only** (2026-10-14:
+            // crew alerts had never arrived on his phone, and every failure
+            // went to a log). See `AlertCheck`.
+            if AlertCheck.shown {
+                AlertCheckSection()
+            }
+
             Section {
                 Toggle(isOn: Binding(
                     get: { !SoundEngine.isMuted },

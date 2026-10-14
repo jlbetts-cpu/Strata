@@ -1314,6 +1314,14 @@ final class FeedbackShots: XCTestCase {
         snap("planchat-4-chat")
     }
 
+    /// The TestFlight Crew Alerts check in Settings (2026-10-14).
+    func testAlertCheck() {
+        let app = launch(["-strataStartTab", "memories", "-strataOpenSheet", "settings", "-strataCrews", "1", "-strataSeedCrew", "2"])
+        wait(8)
+        for _ in 0..<3 where !app.staticTexts["Crew Alerts"].exists { app.swipeUp(); wait(1) }
+        snap("alertcheck")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
