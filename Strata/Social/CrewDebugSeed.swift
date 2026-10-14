@@ -374,7 +374,13 @@ extension DebugHarness {
 
     private static func win(_ i: Int, minutesAgo: Int) -> OwnWin {
         let (title, colour, size) = friendWins[i % friendWins.count]
-        let date = Date().addingTimeInterval(-Double(minutesAgo) * 60)
+        // Kept inside today, in the same order: just after midnight, wins
+        // from "an hour ago" were yesterday's and every seeded tower came
+        // up empty (2026-10-14, 00:05).
+        let now = Date(), start = Calendar.current.startOfDay(for: now)
+        let backdated = now.addingTimeInterval(-Double(minutesAgo) * 60)
+        let date = backdated >= start ? backdated
+            : start.addingTimeInterval(now.timeIntervalSince(start) / Double(2 + minutesAgo))
         let photo = i % 3 == 1 ? demoPhoto(1 + i % 12) : nil
         return OwnWin(winID: UUID(), title: title, colour: colour, icon: colour, blockSize: size,
                       photoJPEG: photo, cropX: nil, cropY: nil, createdAt: date, updatedAt: date)

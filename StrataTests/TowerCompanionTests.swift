@@ -194,6 +194,8 @@ struct TowerCompanionTests {
         #expect(out != nil, "a head the tower grew around was not seen as inside it")
         #expect(out?.dx == 0, "it was pushed sideways through the blocks: \(String(describing: out))")
         #expect((out?.dy ?? 0) < 0, "it was not sent up")
+        #expect((out?.dy ?? 0) >= -TowerCompanionSim.surfacingStep,
+                "it was moved \(out?.dy ?? 0)pt in one tick: a teleport")
     }
 
     /// A throw is capped, so a flick cannot hand the simulation a number it

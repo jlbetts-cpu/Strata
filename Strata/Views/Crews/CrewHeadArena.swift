@@ -614,7 +614,7 @@ private struct CrewHeadRunner: View {
         let bounds = CGRect(x: -arena.minX, y: -arena.minY + ceiling,
                             width: max(box.windowSize.width, arena.width),
                             height: arena.minY + arena.height - ceiling)
-        let skyline: TowerSkyline = probe.hasMeasured
+        let built: TowerSkyline = probe.hasMeasured
             ? TowerSkyline.build(cells: model.tower.placedBlocks.lazy.map {
                 TowerCompanionWorld.Cell($0.column, $0.row, $0.columnSpan, $0.rowSpan)
               }, originX: originX, cellSize: cell, gutter: gutter, gridTopY: gridTopY,
@@ -630,6 +630,16 @@ private struct CrewHeadRunner: View {
         // they lined up along the top edge (filmed 2026-10-02).
         let headerBottom = (parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY) - arena.minY
         let lower = max(headerBottom + side * 0.5, bounds.minY)
+        // **A tower taller than the screen leaves no air, so it is not a
+        // wall** (the owner, 2026-10-13: "the head kinda glitches when the
+        // tower is that high up to when i take it out"). With blocks from
+        // the header to the tab bar, a head let out had nowhere to be that
+        // was not inside one, and was shoved out of a block into the next
+        // every tick. Until the roof is on screen with a head's room above
+        // it, they float over the tower; scrolled to the top, it is solid
+        // again and a head inside rises out of it (`towerEscape`).
+        let roofline = built.hasTower ? built.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
+        let skyline = roofline - side > lower ? built : TowerSkyline()
         let roof = probe.hasMeasured ? skyline.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
         let upper = max(lower + side, min(roof - side * 0.6, lower + 320))
         return TowerCompanionWorld(bounds: bounds, opening: lower...upper, skyline: skyline, obstacles: local)

@@ -1039,6 +1039,23 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("hold-slid")
     }
 
+    /// **A head let out over a tower taller than the screen** (the owner,
+    /// 2026-10-13: "the head kinda glitches when the tower is that high").
+    func testHeadOnTallTower() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewWins", "40", "-strataSeedHead", "1"])
+        wait(10)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap(); wait(1.5)
+        let mine = app.buttons["Your head"].firstMatch
+        if mine.exists { mine.tap() }
+        for i in 0..<4 { wait(0.7); snap("tallhead-\(i)") }
+        wait(4); snap("tallhead-waited")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.3)).tap(); wait(1); snap("tallhead-folded")
+        app.scrollViews.firstMatch.swipeUp(velocity: .fast); wait(1.5); snap("tallhead-scrolled")
+        app.scrollViews.firstMatch.swipeDown(velocity: .fast); app.scrollViews.firstMatch.swipeDown(velocity: .fast)
+        wait(1.5); snap("tallhead-back")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

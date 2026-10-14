@@ -439,6 +439,9 @@ nonisolated struct TowerCompanionSim {
     /// a contact shadow exactly when it is standing on something, and this one
     /// never is).
     static let towerClearance: CGFloat = 6
+    /// How far a head the tower grew round rises through it in a tick
+    /// (`towerEscape`).
+    static let surfacingStep: CGFloat = 6
 
     /// Below this much overlap there is no collision. See `towerEscape`.
     static let contactEpsilon: CGFloat = 0.05
@@ -1110,7 +1113,10 @@ nonisolated struct TowerCompanionSim {
         // changed under it, and sideways runs THROUGH the next blocks, one
         // shove a tick. Up is clear air. (Not "up is deep": a head at the
         // foot of a tall column is deep by that measure and only grazing.)
-        if min(pushLeft, pushRight) > halfWidth { return CGVector(dx: 0, dy: -up) }
+        // **A few points a tick, not all at once**: the way out can be
+        // hundreds of points, and in one tick that is a teleport. It rises
+        // through the blocks and is out within a fraction of a second.
+        if min(pushLeft, pushRight) > halfWidth { return CGVector(dx: 0, dy: -min(up, Self.surfacingStep)) }
 
         // Sideways only when it is genuinely the shorter way out. A head sitting
         // squarely on a roof has a huge sideways escape and a small upward one.
