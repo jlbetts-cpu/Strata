@@ -196,12 +196,56 @@ struct CameraView: View {
     /// stops above the tab bar, so the curve is a real edge you look at rather
     /// than a corner tucked into the phone's own — and at 20 it read as a
     /// square that had been slightly softened rather than as a shape.
-    private let cornerRadius: CGFloat = 34
-    /// Air between the bottom of the viewfinder and the tab bar.
-    private let tabGap: CGFloat = 14
+    /// 40, his Apollo frame's (node 14172:8010), where the viewfinder stops
+    /// above the tab bar's strip (the owner, 2026-10-14: "closer to like
+    /// snapchats camera ... not going completely to the bottom at the bottom
+    /// we can have that curve design we did in the apollo branch").
+    private let cornerRadius: CGFloat = 40
+    /// Air between the bottom of the viewfinder and the tab bar: the 20 the
+    /// Apollo build measured as the bar's breathing room (`35b88cc`).
+    private let tabGap: CGFloat = 20
     /// Air between the shutter and the bottom edge of the viewfinder.
     private let shutterBottomGap: CGFloat = 40
 
+
+    /// **The picture the lens sees, under the system's soft edge at the tab
+    /// bar** (the owner, 2026-10-14: "add the blur to the camera tab at the
+    /// bottom like it is in all the other tabs"). The other tabs get it from
+    /// their scroll views; the live picture ran hard against the bar, and
+    /// over a bright scene the bar's white words were lost on light glass.
+    /// The edge belongs to a scroll view, so the lens is in one, held still,
+    /// as Move Photo holds its photograph (`CropEditor`).
+    private func lens(w: CGFloat, h: CGFloat) -> some View {
+        ScrollView {
+            ZStack {
+                CameraPreview(session: camera.session, box: previewBox, camera: camera)
+                #if DEBUG
+                // `-strataFakeLens`: a video where the lens would be, so the
+                // camera can be filmed in the simulator (`FakeLens`).
+                if let lens = FakeLens.shared {
+                    FakeLensView(lens: lens)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                #endif
+                // **The front camera, touched, live** (`LiveRetouch`). Over
+                // the plain preview, which stays underneath for focus and
+                // exposure taps and shows until the first touched frame is
+                // drawn, so flipping never flashes black.
+                if (camera.facing == .front && !camera.isDenied) || Self.debugRetouchStill {
+                    RetouchPreview(retouch: camera.retouch)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(width: w, height: h)
+        }
+        .scrollDisabled(true)
+        .scrollIndicators(.hidden)
+        .contentMargins(0, for: .scrollContent)
+        .ignoresSafeArea()
+        .softScrollEdge(fillsScreen ? .bottom : [])
+    }
 
     /// Whether the arrival dissolve has finished. See the overlay on the body.
     @State private var hasArrived = false
@@ -232,25 +276,7 @@ struct CameraView: View {
             let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
-                CameraPreview(session: camera.session, box: previewBox, camera: camera)
-                #if DEBUG
-                // `-strataFakeLens`: a video where the lens would be, so the
-                // camera can be filmed in the simulator (`FakeLens`).
-                if let lens = FakeLens.shared {
-                    FakeLensView(lens: lens)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-                #endif
-                // **The front camera, touched, live** (`LiveRetouch`). Over
-                // the plain preview, which stays underneath for focus and
-                // exposure taps and shows until the first touched frame is
-                // drawn, so flipping never flashes black.
-                if (camera.facing == .front && !camera.isDenied) || Self.debugRetouchStill {
-                    RetouchPreview(retouch: camera.retouch)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+                lens(w: w, h: h)
 
                 // **What a refused camera says, instead of saying nothing.**
                 //
@@ -328,7 +354,12 @@ struct CameraView: View {
         // once told to ignore them, and the header needs the real value to
         // clear the notch. The preview reaches the edges by being drawn taller
         // and offset instead.
-        .background { WarmBackground().ignoresSafeArea() }
+        //
+        // **The strip under the viewfinder is the page, in the phone's own
+        // appearance** (the owner, 2026-10-14: "making it light for light
+        // mode dark for dark mode"): the tab bar stands on it as it does on
+        // every other tab.
+        .background { WarmBackground().environment(\.colorScheme, reviewScheme).ignoresSafeArea() }
         // **THE SCREEN DISSOLVES IN INSTEAD OF CUTTING.**
         //
         // The owner, 2026-09-30: "the transitions of the screens are still a bit

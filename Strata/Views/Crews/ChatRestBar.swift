@@ -108,24 +108,34 @@ struct ChatRestBar: View {
             // meets the tower and set off by a hairline (the owner,
             // 2026-10-14: "on dark mode the chat around it is too bright ...
             // in the chat is dark I like that"). It was a light material.
-            let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
-                                               topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
+            let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.panelRadius,
+                                               topTrailingRadius: GridConstants.panelRadius, style: .continuous)
             shape
                 .fill(WarmBackground.top)
                 .overlay(alignment: .top) {
                     shape.strokeBorder(TipCard.hairline, lineWidth: 1)
-                        .mask(alignment: .top) { Rectangle().frame(height: GridConstants.cornerRadius * 2) }
+                        .mask(alignment: .top) { Rectangle().frame(height: GridConstants.panelRadius) }
                 }
                 .ignoresSafeArea(edges: .bottom)
         }
         .offset(y: -lift)
         .gesture(
-            DragGesture(minimumDistance: 8)
+            // On the screen: the bar lifts under the finger, and in its own
+            // space the drag chased itself.
+            DragGesture(minimumDistance: 8, coordinateSpace: .global)
                 .onChanged { value in lift = max(0, min(-value.translation.height, 60)) * 0.5 }
                 .onEnded { value in
-                    let up = -value.translation.height
-                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { lift = 0 }
-                    if up > Self.opensAt { HapticsEngine.lightTap(); open(.reading) }
+                    // Where it was thrown, not where it was let go: a flick
+                    // opens. Opening, the bar stays lifted until the drawer
+                    // has risen over it; springing it down as the drawer came
+                    // up was two things moving opposite ways (fix 9).
+                    if -value.predictedEndTranslation.height > Self.opensAt {
+                        HapticsEngine.lightTap()
+                        open(.reading)
+                        Task { try? await Task.sleep(for: .milliseconds(400)); lift = 0 }
+                    } else {
+                        withAnimation(GridConstants.drawerMove) { lift = 0 }
+                    }
                 }
         )
         .accessibilityElement(children: .contain)
@@ -168,72 +178,109 @@ struct ChatDrawer<Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var full = false
+    /// How far the finger has the panel from where it rests: down is
+    /// positive and 1:1, up is held back by `rubber`.
     @State private var pull: CGFloat = 0
 
     /// The tower kept in view above the open drawer.
     private static var towerBand: CGFloat { 150 }
     /// Part way: about three fifths of the room.
     private static var partway: CGFloat { 560 }
+    /// The ground runs on this far under the panel, so a pull upward never
+    /// shows a gap beneath it.
+    private static var groundBelow: CGFloat { 160 }
+
+    /// A pull past where it can go, given less and less: never a wall.
+    static func rubber(_ distance: CGFloat, limit: CGFloat = 70) -> CGFloat {
+        guard distance > 0 else { return 0 }
+        return limit * (1 - 1 / (distance / limit * 0.55 + 1))
+    }
 
     var body: some View {
         GeometryReader { geo in
             let room = geo.size.height
-            let open = full ? room : min(Self.partway, max(room - Self.towerBand, 240))
+            let part = min(Self.partway, max(room - Self.towerBand, 240))
+            let open = full ? room : part
+            let shown = pull > 0 ? pull : -Self.rubber(-pull)
+            let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.panelRadius,
+                                               topTrailingRadius: GridConstants.panelRadius, style: .continuous)
             VStack(spacing: 0) {
                 Capsule()
                     .fill(AppColors.inkTertiary.opacity(0.5))
                     .frame(width: 36, height: 5)
                     .frame(maxWidth: .infinity, minHeight: 22)
                     .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 4)
-                            .onChanged { pull = $0.translation.height }
-                            .onEnded { value in
-                                let dy = value.translation.height
-                                withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.3)) {
-                                    pull = 0
-                                    if dy < -60 { full = true }
-                                    else if dy > 80 { if full { full = false } else { isOpen = false } }
-                                }
-                                if abs(dy) > 60 { HapticsEngine.lightTap() }
-                            })
+                    .gesture(drag(room: room, part: part))
                     .accessibilityElement()
                     .accessibilityLabel(full ? "Show Less of the Chat" : "Show All of the Chat")
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { withAnimation(GridConstants.motionSnappy) { full.toggle() } }
+                    .accessibilityAction { withAnimation(GridConstants.drawerMove) { full.toggle() } }
                 content()
                     .frame(maxHeight: .infinity, alignment: .top)
             }
-            // **Pinned to the top** (seen frame by frame, 2026-10-14): centred,
-            // the chat measured short for a moment mid-slide and sat 100pt
-            // below the panel's edge, a dark band between them.
-            .frame(height: max(open - pull, 200), alignment: .top)
-            .background {
-                UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
-                                       topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
+            // **Moved, not resized** (the motion pass, 2026-10-14, fix 1):
+            // its height changes only between part and whole. Resized under
+            // the finger, the whole chat was laid out again every frame and
+            // its lines slid inside the panel on the way down.
+            .frame(height: open, alignment: .top)
+            // Rounded where it meets the tower and open at the foot: the field
+            // sinks toward the home indicator (`BarSink`), and a clip on the
+            // whole panel cut its glass in half.
+            .mask(alignment: .top) { shape.padding(.bottom, -Self.groundBelow) }
+            .background(alignment: .top) {
+                // Chrome separates with a hairline, never a shadow.
+                shape
                     .fill(WarmBackground.top)
                     .overlay(alignment: .top) {
-                        // Chrome separates with a hairline, never a shadow.
-                        UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
-                                               topTrailingRadius: GridConstants.cornerRadius, style: .continuous)
-                            .strokeBorder(TipCard.hairline, lineWidth: 1)
-                            .mask(alignment: .top) { Rectangle().frame(height: GridConstants.cornerRadius * 2) }
+                        shape.strokeBorder(TipCard.hairline, lineWidth: 1)
+                            .mask(alignment: .top) { Rectangle().frame(height: GridConstants.panelRadius) }
                     }
-                    .ignoresSafeArea(edges: .bottom)
+                    .padding(.bottom, -Self.groundBelow)
             }
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: GridConstants.cornerRadius,
-                                              topTrailingRadius: GridConstants.cornerRadius, style: .continuous))
             .frame(maxHeight: .infinity, alignment: .bottom)
             // **Kept built, below the screen, when it is down** (2026-10-14):
-            // the whole panel slides both ways on one curve instead of being
-            // made at the moment it is asked for. On the panel, its ground
-            // and all: on the contents alone the ground stayed behind.
-            .offset(y: isOpen ? 0 : open + 60)
+            // the whole panel slides both ways on one curve, its ground and
+            // all. Under Reduce Motion it fades where it stands (fix 8).
+            .offset(y: reduceMotion ? 0 : (isOpen ? shown : open + 60))
+            .opacity(reduceMotion && !isOpen ? 0 : 1)
         }
         .allowsHitTesting(isOpen)
         .accessibilityHidden(!isOpen)
-        .animation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.36), value: isOpen)
-        .animation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.3), value: full)
-        .onChange(of: isOpen) { _, open in if !open { full = false } }
+        .animation(GridConstants.drawerMove, value: isOpen)
+        .animation(GridConstants.drawerMove, value: full)
+        .onChange(of: isOpen) { _, open in if !open { full = false; pull = 0 } }
+    }
+
+    /// **The grabber, as a sheet's**: the panel follows the finger, and
+    /// where it lands is decided from where it was thrown, the nearest of
+    /// shut, part way and whole, with the throw's speed carried into the
+    /// settle (fix 2). Closing, the panel slides on from where the finger
+    /// left it; it no longer grew back to its height while it left (fix 3).
+    private func drag(room: CGFloat, part: CGFloat) -> some Gesture {
+        // On the screen: the grabber moves with the finger now, and measured
+        // in its own space the drag chased itself, so a slow pull read as a
+        // throw (walked, 2026-10-14).
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
+            .onChanged { value in
+                withAnimation(GridConstants.drawerFollow) { pull = value.translation.height }
+            }
+            .onEnded { value in
+                let thrown = value.predictedEndTranslation.height
+                // Where the panel's top would come to rest, measured down
+                // from the top of the room.
+                let top = (full ? 0 : room - part) + thrown
+                let rests: [(CGFloat, Int)] = [(0, 2), (room - part, 1), (room, 0)]
+                let landing = rests.min { abs($0.0 - top) < abs($1.0 - top) }?.1 ?? 1
+                let was = full ? 2 : 1
+                withAnimation(GridConstants.drawerMove) {
+                    pull = 0
+                    switch landing {
+                    case 2: full = true
+                    case 0: isOpen = false
+                    default: full = false
+                    }
+                }
+                if landing != was { HapticsEngine.lightTap() }
+            }
     }
 }

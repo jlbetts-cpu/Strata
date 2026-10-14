@@ -145,21 +145,21 @@ enum CrewPictures {
 /// places it stands: a crew's row, the Crews button, a crew's chat button.
 /// They were 9, 10 and 8 points (rule 1 of `docs/ten.md`, 2026-10-11).
 extension AppColors {
-    /// **The colour of "something new": dusk** (the owner, 2026-10-14: "I
-    /// feel like blue should be the notification color just because its
-    /// cleaner"; his pick from `docs/notify-blue-research-2026-10-14.md`).
-    /// Blue is how Mail and Messages mark unread, without red's alarm. Not
-    /// iOS's own blue: that sits a few steps from the Work block's #40A9FF
-    /// and on a tab bar reads as the selected tab. Dusk is one value in both
-    /// appearances: 4.59:1 on the light page and 3.64:1 on the dark one,
-    /// 3.69:1 on the light tab bar, and a white digit on it reads 4.67:1. It
-    /// also left terracotta behind, which was nearly the Social block's coral.
+    /// **The colour of "something new": the Social block's coral** (the
+    /// owner, 2026-10-14: "what if we use the red color we use for the
+    /// social category I think that makes sense and also is a pretty
+    /// color"). It was dusk blue (`docs/notify-blue-research-2026-10-14.md`)
+    /// and terracotta before that. A friend's news in the colour of time
+    /// with friends; one value in both appearances, read from the category
+    /// so the two can never drift. Measured: 2.9:1 on the light tab bar and
+    /// 5.9:1 on the dark one, so it is a mark beside the glyph and never the
+    /// only sign (the Crews label still carries the news to VoiceOver).
     ///
     /// **The tab bar's only** (the owner, 2026-10-13: "a lot of the
     /// notification areas around the crew could be in white or black"):
     /// inside the app a dot is ink (`NewsDot`).
-    static let notify = Color(hex: 0x4A72C4)
-    static let notifyUI = UIColor(red: 0x4A / 255, green: 0x72 / 255, blue: 0xC4 / 255, alpha: 1)
+    static let notify = Color(hex: HabitCategory.social.style.baseHex)
+    static let notifyUI = UIColor(notify)
 }
 
 struct NewsDot: View {

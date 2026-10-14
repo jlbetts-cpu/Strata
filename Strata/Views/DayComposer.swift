@@ -193,11 +193,14 @@ struct BarSink: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(.bottom, keyboardUp ? GridConstants.gapTight : GridConstants.gapTight - GridConstants.barSink)
+            // On the keys' own curve: flipped bare, the field stepped 17pt in
+            // one frame and then rode the keyboard (the motion pass,
+            // 2026-10-14, fix 5).
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-                keyboardUp = true
+                withAnimation(GridConstants.keyboard) { keyboardUp = true }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                keyboardUp = false
+                withAnimation(GridConstants.keyboard) { keyboardUp = false }
             }
     }
 }

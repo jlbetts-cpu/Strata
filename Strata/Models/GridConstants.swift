@@ -103,6 +103,12 @@ enum GridConstants {
     /// difference is the Wins tab, between a single block and the run beside
     /// it, which is the thing he has now looked at.
     static let cornerRadius: CGFloat = 8
+    /// **A panel that rises from the foot of the screen**: the chat's
+    /// resting bar and its drawer. The system's sheets over them round about
+    /// this much; at `cornerRadius` the two read as square beside them (the
+    /// owner, 2026-10-14: "the pull up and everything is really not rounded
+    /// like the apple way its very squarish").
+    static let panelRadius: CGFloat = 38
     /// Habit blocks on tower + timeline.
     ///
     /// 12, not 16: Figma Apollo (248:14) uses a constant 40px radius at every
@@ -424,6 +430,19 @@ enum GridConstants {
     static var layoutReflow: Animation { calm(Animation.spring(response: 0.55, dampingFraction: 0.90)) }
     /// Non-spatial transitions (cross-fades)
     static let crossFade = Animation.easeInOut(duration: 0.2)
+    /// **The chat drawer, opening, closing and stepping between part and
+    /// whole: one curve for one panel** (`docs/motion-pass-2026-10-14.md`
+    /// fix 4). It had four. A spring, so a drawer caught moving stops under
+    /// the finger and a release carries the throw's speed into it.
+    static var drawerMove: Animation { calm(.smooth(duration: 0.36)) }
+    /// The drawer under the finger: tight, so it follows 1:1, and a spring,
+    /// so the release spring takes over its speed (WWDC24, "Enhance your UI
+    /// animations").
+    static let drawerFollow = Animation.interactiveSpring(response: 0.14, dampingFraction: 0.86)
+    /// **The keyboard's own curve**, measured by others as an overdamped
+    /// spring (mass 3, stiffness 1000, damping 500): what rides on the keys
+    /// moves with them, never on a curve of its own (fix 5).
+    static let keyboard = Animation.interpolatingSpring(mass: 3, stiffness: 1000, damping: 500)
     /// **A line arriving, and leaving** (`WinCue`, the sticker lift): in on a
     /// little bounce as a message lands, out on a plain ease.
     // MARK: The ring's moment (`GoalRingMoment`, 2026-10-10)

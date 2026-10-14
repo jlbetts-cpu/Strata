@@ -1210,6 +1210,45 @@ final class FeedbackShots: XCTestCase {
         snap("plan-alone")
     }
 
+    /// **The drawer thrown as a thumb throws it** (the motion pass,
+    /// 2026-10-14): a flick up from the resting bar, a short pull that
+    /// springs back, a flick to the whole height, then down to part way
+    /// and shut. For a recording read frame by frame.
+    func testDrawerMotion() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9); snap("motion-0-rest")
+        func flick(from: CGFloat, to: CGFloat, speed: CGFloat) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)),
+                       withVelocity: XCUIGestureVelocity(speed), thenHoldForDuration: 0)
+        }
+        // The resting bar's line, flicked a short way.
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat'")).firstMatch
+        let barY = line.exists ? line.frame.midY / app.frame.height : 0.9
+        flick(from: barY, to: barY - 0.06, speed: 1500)
+        wait(1.5); snap("motion-1-opened")
+        let grab = app.descendants(matching: .any)["Show All of the Chat"].firstMatch
+        let grabY = grab.exists ? grab.frame.midY / app.frame.height : 0.4
+        print("PLANNING-drawer: opened \(grab.exists) grabber at \(grabY)")
+        // A slow short pull down: back to part way.
+        flick(from: grabY, to: grabY + 0.05, speed: 150)
+        wait(1.5); snap("motion-2-sprang-back")
+        // Flicked up: the whole height.
+        flick(from: grabY, to: grabY - 0.08, speed: 1500)
+        wait(1.5); snap("motion-3-full")
+        let less = app.descendants(matching: .any)["Show Less of the Chat"].firstMatch
+        print("PLANNING-drawer: full \(less.exists)")
+        let lessY = less.exists ? less.frame.midY / app.frame.height : 0.08
+        flick(from: lessY, to: lessY + 0.1, speed: 900)
+        wait(1.5); snap("motion-4-part")
+        let grab2 = app.descendants(matching: .any)["Show All of the Chat"].firstMatch
+        let y2 = grab2.exists ? grab2.frame.midY / app.frame.height : 0.4
+        flick(from: y2, to: y2 + 0.12, speed: 1500)
+        wait(1.5); snap("motion-5-shut")
+        print("PLANNING-drawer: shut \(!app.descendants(matching: .any)["Show All of the Chat"].firstMatch.isHittable)")
+    }
+
     /// **Tips and plan blocks on Wins** (the owner, 2026-10-14: tips "arent
     /// popping up in the right spot", "when you have the plan blocks on your
     /// tower the text shows up behind").

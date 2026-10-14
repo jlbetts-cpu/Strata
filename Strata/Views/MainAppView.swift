@@ -4273,7 +4273,10 @@ private struct StableCameraTab: View, Equatable {
         // is a dark room whatever the phone is set to, and the rest of the
         // app, its tab bar included, stays in the phone's own appearance.
         // The review after the shutter follows the phone (2026-10-14).
-        CameraView(onCaptured: onCaptured, fillsScreen: true, phoneScheme: phone)
+        // **Stopped short of the bar, on a strip** (the owner, 2026-10-14,
+        // his Apollo layout): not full screen, so the viewfinder ends in its
+        // rounded corners above the tab bar, as Snapchat's does.
+        CameraView(onCaptured: onCaptured, fillsScreen: false, phoneScheme: phone)
             .environment(\.colorScheme, .dark)
     }
 }
