@@ -579,11 +579,19 @@ struct CrewChatSheet: View {
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
 
     private func menuBinding(_ id: UUID) -> Binding<Bool> {
-        Binding(get: { menuOn == id }, set: { if !$0, menuOn == id { menuOn = nil } })
+        Binding(get: { menuOn == id }, set: {
+            guard !$0, menuOn == id else { return }
+            menuOn = nil
+            // The lift that ended the hold has been and gone by now.
+            held = nil
+        })
     }
 
+    /// `fromQuote` is kept for its callers; **every** held bubble now
+    /// ignores the lift that ended the hold, since a picture's tap opens it
+    /// full screen as a quote's opens the win.
     private func openMenu(on message: CrewMessage, fromQuote: Bool) {
-        if fromQuote { held = message.messageID }
+        held = message.messageID
         HapticsEngine.lightTap()
         writing = false
         menuOn = message.messageID
