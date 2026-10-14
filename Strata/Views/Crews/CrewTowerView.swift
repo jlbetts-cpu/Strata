@@ -146,7 +146,8 @@ struct CrewTowerView: View {
         // **No tab bar inside a crew**, as Messages and WhatsApp have none
         // inside a conversation: the drawer is the foot of the screen, and
         // the way out is the back button, which carries the other crews' news.
-        .toolbar(.hidden, for: .tabBar)
+        // Hidden by the Crews tab's stack, on one curve with the page
+        // (`crewTabBarHidden`), not here.
         .overlay { headsOverlay }
         // The fan, over everything, under the bubble; a tap anywhere else
         // folds it back.

@@ -1326,6 +1326,34 @@ final class FeedbackShots: XCTestCase {
         snap("plan-corner-switched")
     }
 
+    /// **Every tab's corner buttons, measured, and the tab bar coming back
+    /// from a crew** (the owner, 2026-10-14: "the plan button and add crew
+    /// button why are they so much bigger than the buttons on the other
+    /// pages"; "the tab bar going back when exiting crew chats ... should
+    /// just come back smoothly"). For a recording.
+    func testCornersAndTabReturn() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3"])
+        wait(8); snap("corners-crews")
+        for name in ["Plan", "New Crew"] {
+            print("PLANNING-corner crews \(name): \(app.buttons[name].firstMatch.frame)")
+        }
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if row.exists { row.tap() }
+        wait(3); snap("corners-crew")
+        let back = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch
+        print("PLANNING-corner crew back: \(back.exists) \(back.frame)")
+        if back.exists { back.tap() } else { app.swipeRight() }
+        wait(3); snap("corners-crews-back")
+        app.tabBars.buttons["Wins"].firstMatch.tap()
+        wait(3); snap("corners-wins")
+        for name in ["Plan", "Journal"] {
+            print("PLANNING-corner wins \(name): \(app.buttons[name].firstMatch.frame)")
+        }
+        app.tabBars.buttons["Memories"].firstMatch.tap()
+        wait(3); snap("corners-memories")
+    }
+
     /// **A plan made from the Crews list, in its crew's chat** (the owner,
     /// 2026-10-14: "when you plan does it enter the chat nicely?").
     func testPlanLandsInChat() {

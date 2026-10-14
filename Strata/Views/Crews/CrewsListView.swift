@@ -160,25 +160,25 @@ struct CrewsListView: View {
             // now one or two. The same glyph and word as Plan on Wins. Only
             // for someone who can write in a crew: a plan is a line in its chat.
             if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
+                // **The app's own round glass, as Plan stands on Wins and
+                // the map on Memories** (the owner, 2026-10-14: "why are they
+                // so much bigger than the buttons on the other pages"). The
+                // system's toolbar plate drew them 48 by 36 with a bigger
+                // glyph; these are the 44 point disc every other tab uses.
+                BareToolbarItem(placement: .topBarLeading) {
+                    GlassIconButton(systemName: DayIcon.name, onPage: true, accessibilityLabel: "Plan") {
                         HapticsEngine.lightTap()
                         choosePlanCrew()
                         planning = true
-                    } label: {
-                        Image(systemName: "checklist").sheetAction(.confirm, as: .glyph)
                     }
-                    .accessibilityLabel("Plan")
                     .accessibilityHint("Plan something with a crew.")
                 }
             }
-            if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
+            if age.opensCrews, CrewsFlag.osSupportsCrews { BareToolbarItem(placement: .topBarTrailing) {
                 // At the cap it still answers, with why (the crews audit,
                 // 2026-10-08: it went grey and said nothing).
-                Button(action: newCrew) {
-                    Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
-                }
-                .accessibilityLabel(CrewLine.newCrew)
+                GlassIconButton(systemName: "square.and.pencil", onPage: true,
+                                accessibilityLabel: CrewLine.newCrew, action: newCrew)
             } }
         }
         // Chosen before the press, so the sheet's title has its crew from

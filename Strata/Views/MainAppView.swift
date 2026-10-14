@@ -620,6 +620,11 @@ struct MainAppView: View {
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) },
                                            planned: { planned($0, $1, $2) }))
         }
+        .toolbar(crewTabBarHidden ? .hidden : .visible, for: .tabBar)
+        .onChange(of: crewPath.isEmpty) { _, atList in
+            withAnimation(GridConstants.calm(.smooth(duration: 0.35))) { crewTabBarHidden = !atList }
+        }
+        .onAppear { crewTabBarHidden = !crewPath.isEmpty }
     }
 
     /// How many crews have a new win, reaction or chat line not seen yet:
@@ -2040,6 +2045,13 @@ struct MainAppView: View {
     @State private var goalDanceSeeded = false
     /// Where the Wins tab's stack has gone: Crews, then a crew.
     @State private var crewPath: [CrewRoute] = []
+    /// **The tab bar's own state inside Crews, moved on one curve** (the
+    /// owner, 2026-10-14: "the tab bar going back when exiting crew chats ...
+    /// should just come back smoothly"). Hidden from the crew page itself, the
+    /// system brought it back after the pop had finished: shown, gone for
+    /// three frames, shown again. Held here and animated, it slides as the
+    /// page moves.
+    @State private var crewTabBarHidden = false
 
 
  
