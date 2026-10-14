@@ -123,6 +123,14 @@ struct OnboardingView: View {
     /// to the profile, most people never set it. The last page, so every
     /// page before it keeps its number.
     private static let nameStep = 8
+    /// **Lock Journal, offered once, at the end** (the owner, 2026-10-14:
+    /// "lock journal ... I would have it in the onboarding"). The Settings
+    /// switch, asked where a person is deciding how the app should be, with
+    /// Not Now beside it. After the name, so the name keeps its number.
+    private static let lockStep = 9
+    @AppStorage(JournalLock.defaultsKey) private var locksJournal = false
+    /// The lock's way past: the Settings switch stays off.
+    private static let lockLater = "Not Now"
     @State private var name = ""
     @FocusState private var nameFocused: Bool
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
@@ -134,7 +142,7 @@ struct OnboardingView: View {
     /// win: "that should be explained in the app they just kinda look lame").
     /// Your three is chosen from Your day; the first win is the tower's own
     /// slot, which the app opens on. Both pages stay in the code, unreached.
-    private var lastStep: Int { endsOnGoal ? Self.nameStep : Self.thanksStep }
+    private var lastStep: Int { endsOnGoal ? Self.lockStep : Self.thanksStep }
 
     /// **Seven pages, not nine** (2026-10-08, `docs/superpowers/specs/
     /// 2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
@@ -582,6 +590,7 @@ struct OnboardingView: View {
                 case Self.goalStep: goalPage
                 case Self.threeStep: threePage
                 case Self.nameStep: namePage
+                case Self.lockStep: lockPage
                 default: EmptyView()
                 }
             }
@@ -624,6 +633,17 @@ struct OnboardingView: View {
                 nameFocused = true
             }
             .accessibilityLabel("Your name")
+    }
+
+    /// The lock in the crest's glass, as the goal page holds its ring.
+    private var lockPage: some View {
+        Image(systemName: "lock")
+            .iconSize(44, relativeTo: .largeTitle, weight: .medium)
+            .foregroundStyle(AppColors.inkPrimary)
+            .frame(width: 128, height: 128)
+            .stillGlassCircle()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityHidden(true)
     }
 
     private var goalPage: some View {
@@ -1226,6 +1246,7 @@ struct OnboardingView: View {
         case Self.goalStep: return "A goal for each day"
         case Self.threeStep: return YourThree.Copy.onboardingTitle
         case Self.nameStep: return "What should we call you?"
+        case Self.lockStep: return "Keep your journal yours"
         default: return "Thank you, genuinely"
         }
     }
@@ -1286,6 +1307,7 @@ struct OnboardingView: View {
         case Self.goalStep: return "Reach it and your tower dances. The day's photos print as a strip."
         case Self.threeStep: return YourThree.Copy.onboardingLine
         case Self.nameStep: return "It goes on your photo strip, and your crew sees it beside your wins."
+        case Self.lockStep: return "Face ID or your passcode before a note opens. You can change it in Settings."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
@@ -1336,6 +1358,7 @@ struct OnboardingView: View {
             // Your three are asked for, never required (the owner's pick:
             // "skippable"), so this page has the head's way out too.
             if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }
+            if step == Self.lockStep { decline(Self.lockLater) }
 
             action
         }
@@ -1373,6 +1396,8 @@ struct OnboardingView: View {
         Button {
             HapticsEngine.lightTap()
             Analytics.shared.signal(.onboardingStep, [.step(step), .action(.skipped)])
+            // The last page's decline ends the walkthrough.
+            guard step < lastStep else { finish(); return }
             withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
         } label: {
             Text(word)
@@ -1467,7 +1492,8 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil ? "Make My Head" : "Go On"
         // The last page now (2026-10-08): it sets the goal and opens the app.
         case Self.goalStep: return "Set My Goal"
-        case Self.nameStep: return "Start"
+        case Self.nameStep: return "Go On"
+        case Self.lockStep: return "Lock My Journal"
         // Not the last page any more when the goal follows it.
         // Two follow it, the goal and your name, and it said "One More
         // Thing", as the page before it did.
@@ -1495,6 +1521,11 @@ struct OnboardingView: View {
         if step == Self.nameStep {
             ProfileStore.shared.setName(name.trimmingCharacters(in: .whitespacesAndNewlines))
             nameFocused = false
+        }
+        // The switch Settings has, on; the first note asks.
+        if step == Self.lockStep {
+            locksJournal = true
+            JournalLock.shared.relock()
         }
         Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
         guard step < lastStep else { finish(); return }
