@@ -55,7 +55,10 @@ struct WinCueTests {
         // is placed by the bar's own measured foot (`PinnedBar`), a gap
         // below it, and still takes no room.
         #expect(main.contains(".pinnedBar({ towerHeader }, below: {"))
-        #expect(main.contains("winsTip\n                    .padding(.top, GridConstants.gapTight)"))
+        // Four spaces deeper since 2026-10-14: the slot under the bar holds
+        // the tip and a friend's line over it (`WinsChatBanner`) in one
+        // ZStack. The tip is placed exactly as before.
+        #expect(main.contains("winsTip\n                        .padding(.top, GridConstants.gapTight)"))
         #expect(!main.contains("slotFrame"))
         #expect(main.contains("!logs.isEmpty"))
         let tip = SourceSweep.code(try SourceSweep.read("Strata/Views/TipCard.swift"))

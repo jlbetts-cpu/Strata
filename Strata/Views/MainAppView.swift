@@ -1312,11 +1312,20 @@ struct MainAppView: View {
                 // **And it is not inside the header's bar** (2026-10-13,
                 // `pinnedBar`): overflowing a bar it was drawn and took no
                 // touch.
-                winsTip
-                    .padding(.top, GridConstants.gapTight)
-                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
-                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
-                               value: TipStage.shared.invite == nil)
+                ZStack(alignment: .top) {
+                    winsTip
+                        .padding(.top, GridConstants.gapTight)
+                        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
+                        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
+                                   value: TipStage.shared.invite == nil)
+                    // **A friend's line, over the tower, for a moment**
+                    // (`WinsChatBanner`, the owner, 2026-10-13: "chat
+                    // notifications not noticeable, show message above
+                    // tower"). In the same place a tip hangs, over it while
+                    // it is up: it is gone in four seconds and the tip is not.
+                    WinsChatBanner(isClear: ringIsClear)
+                        .padding(.top, GridConstants.gapTight)
+                }
             })
             // **The head that lives on the tower, OVER the header** (moved
             // 2026-10-02). It was an overlay on the scroll view, under this
