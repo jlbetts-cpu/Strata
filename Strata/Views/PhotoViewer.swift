@@ -952,7 +952,11 @@ struct Filmstrip: View {
 /// below 1. Panning is rubber-banded at the edges rather than hard-stopped,
 /// per `docs/apple-design.md`, and only exists while zoomed — which is also
 /// when the deck stops paging, or a pan would flick to the next picture.
-private struct PhotoPage: View {
+///
+/// **Not private since the chat's pictures open full screen** (2026-10-14,
+/// `ChatPictureViewer`): the same print, the same pinch and double tap, one
+/// drawing of a photograph on the black.
+struct PhotoPage: View {
     let photo: GalleryPhoto
     /// Handed in, not loaded here — see `PhotoViewer.images`.
     let image: UIImage?

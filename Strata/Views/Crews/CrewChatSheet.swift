@@ -59,6 +59,8 @@ struct CrewChatSheet: View {
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
+    /// A strip, picture or sticker open full screen (`ChatPictureViewer`).
+    @State private var viewingPicture: CrewMessage?
     /// A heart just given by two taps, popping at its bubble's corner.
     @State private var bursts: [UUID: UUID] = [:]
     /// The line a sticker from the sheet goes on, when "+" in a line's
@@ -221,6 +223,16 @@ struct CrewChatSheet: View {
         .alert(stripProblem ?? "", isPresented: Binding(get: { stripProblem != nil },
                                                         set: { if !$0 { stripProblem = nil } })) {
             Button("OK", role: .cancel) {}
+        }
+        .fullScreenCover(item: $viewingPicture) { message in
+            ChatPictureViewer(message: message, sender: name(of: message.senderProfileID),
+                              mine: message.senderProfileID == store.me, hearted: isHearted(message.messageID),
+                              onClose: { viewingPicture = nil },
+                              onHeart: { heart(message) },
+                              onReport: {
+                                  viewingPicture = nil
+                                  afterSheet { reporting = message }
+                              })
         }
         .fullScreenCover(item: $planStrip) { plan in
             StripBooth(owner: .crew(crewID.rawValue), day: today) {
@@ -396,6 +408,10 @@ struct CrewChatSheet: View {
                 } else if let answered {
                     HapticsEngine.lightTap()
                     goTo(answered.id)
+                } else if message.isStrip || message.isPicture {
+                    // **A strip, picture or sticker opens full screen** (M4).
+                    HapticsEngine.lightTap()
+                    viewingPicture = message
                 }
             }
         .overlay(alignment: mine ? .topLeading : .topTrailing) {
@@ -416,7 +432,8 @@ struct CrewChatSheet: View {
         .blockMenu(isPresented: menuBinding(id), above: opensAbove(id)) { lineMenu(message, mine: mine) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken(message, quote: quote?.title ?? answered?.words))
-        .accessibilityHint(quote != nil ? "Opens the win." : answered != nil ? "Goes to the line it answers." : "")
+        .accessibilityHint(quote != nil ? "Opens the win." : answered != nil ? "Goes to the line it answers."
+                           : message.isStrip || message.isPicture ? "Opens it full screen." : "")
         .accessibilityActions {
             Button("React") { openMenu(on: message, fromQuote: false) }
             Button("Reply") { reply(to: message) }
