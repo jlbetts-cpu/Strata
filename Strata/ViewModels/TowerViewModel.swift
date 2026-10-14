@@ -254,6 +254,9 @@ final class TowerViewModel {
                 }
             }
 
+        #if DEBUG
+        let reactions = MyWinReactions.debugSeeded(eligibleLogs.map(\.id), over: reactions)
+        #endif
         let entries = eligibleLogs.compactMap { log -> TowerEntry? in
             guard let habit = log.habit else { return nil }
             var look = PlacedBlock.Look(habit: habit, log: log)

@@ -33,6 +33,26 @@ nonisolated enum MyWinReactions {
         }
         return latest.mapValues { $0.values.sorted { $0.createdAt < $1.createdAt } }
     }
+
+    #if DEBUG
+    /// `-strataSeedMyReactions 1`: friends' reactions on every other win of
+    /// yours, so the badge can be seen without a crew: one emoji on most,
+    /// seven people on every fourth (the tidy case: the most given and the
+    /// total). Your real ones win where there are any.
+    static func debugSeeded(_ ids: [UUID], over real: [UUID: [Reaction]]) -> [UUID: [Reaction]] {
+        guard ProcessInfo.processInfo.arguments.contains("-strataSeedMyReactions") else { return real }
+        let emoji = ["🔥", "🔥", "👑", "🔥", "❤️", "👑", "🔥"]
+        var out = real
+        for (i, id) in ids.enumerated() where i % 2 == 0 && out[id] == nil {
+            let count = i % 4 == 0 ? emoji.count : 1
+            out[id] = (0..<count).map { k in
+                Reaction(winID: id, crewID: CrewID(rawValue: "debug"), profileID: UUID(),
+                         emoji: emoji[(k + i) % emoji.count], createdAt: Date(timeIntervalSince1970: Double(k)))
+            }
+        }
+        return out
+    }
+    #endif
 }
 
 extension SocialStore {
