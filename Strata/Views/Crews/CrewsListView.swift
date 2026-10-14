@@ -87,17 +87,15 @@ struct CrewsListView: View {
                     // Under the crews, the owner's drawing of three friends
                     // and its line (2026-10-03): what a crew is for, said
                     // once, where the list ends.
-                    if let art = UIImage(named: "CrewsTogether") {
-                        // The owner's line for a crew since 2026-10-13 (his
-                        // pick from the night's research): who a crew is for.
-                        Illustration(art: art, line: CrewLine.forWho, height: 160,
-                                     motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
-                            .padding(.top, GridConstants.gapSection)
-                            .padding(.bottom, GridConstants.gapWide)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .selectionDisabled()
-                    }
+                    // The owner's line for a crew since 2026-10-13 (his
+                    // pick from the night's research): who a crew is for.
+                    // Held, it is yours to redraw or hide (`CrewsArt`).
+                    CrewsArt(line: CrewLine.forWho, height: 160)
+                        .padding(.top, GridConstants.gapSection)
+                        .padding(.bottom, GridConstants.gapWide)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -386,10 +384,10 @@ struct CrewsListView: View {
                 // drawing of three friends, three lines that each answer one
                 // question (who, what happens, who sees it), and New Crew where
                 // every page keeps its action, at the foot.
-                if let art = UIImage(named: "CrewsTogether") {
-                    Illustration(art: art, line: CrewLine.forWho, height: 190,
-                                 motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
-                }
+                // Held, it is yours to redraw or hide, as the month's drawing
+                // is (the owner, 2026-10-14, "Edit like Memories"); hidden,
+                // the line and the rows stay (`CrewsArt`).
+                CrewsArt(line: CrewLine.forWho, height: 190)
                 FeatureList(rows: [
                     // Not "So is eight": the Launch Pack has nothing advertise
                     // the cap (found by the 2026-10-13 research).

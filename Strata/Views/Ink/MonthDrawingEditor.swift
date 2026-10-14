@@ -29,6 +29,12 @@ struct MonthDrawingEditor: View {
     let month: String
     /// "October", for the title.
     let monthName: String
+    /// The canvas's shape and the height the page shows it at. A month's by
+    /// default; **the Crews page's drawing is 3:2** (the owner, 2026-10-14,
+    /// "Edit like Memories"), its three friends' own shape, so a drawing of
+    /// your own sits in the same room his did (`CrewsArt`).
+    var canvasAspect: CGFloat = MonthDrawingEditor.aspect
+    var pageHeight: CGFloat = MonthDrawingEditor.shownHeight
 
     @Environment(\.dismiss) private var dismiss
     @State private var ink: InkController
@@ -47,9 +53,12 @@ struct MonthDrawingEditor: View {
     /// The height the page shows a month drawing at, at most.
     static let shownHeight: CGFloat = 290
 
-    init(month: String, monthName: String, store: MonthDrawingStore? = nil) {
+    init(month: String, monthName: String, canvasAspect: CGFloat = MonthDrawingEditor.aspect,
+         pageHeight: CGFloat = MonthDrawingEditor.shownHeight, store: MonthDrawingStore? = nil) {
         self.month = month
         self.monthName = monthName
+        self.canvasAspect = canvasAspect
+        self.pageHeight = pageHeight
         let saved = (store ?? .shared).drawing(for: month)
         self.saved = saved
         let strokes = saved.flatMap { try? PKDrawing(data: $0.strokes) } ?? PKDrawing()
@@ -61,7 +70,7 @@ struct MonthDrawingEditor: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: GridConstants.gapWide) {
-                InkCanvas(controller: ink, aspectRatio: Self.aspect)
+                InkCanvas(controller: ink, aspectRatio: canvasAspect)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fit(width: $0) }
                     .frame(maxHeight: .infinity)
                 TextField("Add a few words", text: $line)
@@ -103,10 +112,10 @@ struct MonthDrawingEditor: View {
     /// first, drew the saved drawing at a third of its size in the corner
     /// (seen in the simulator, 2026-10-05).
     private func fit(width: CGFloat) {
-        let size = CGSize(width: width, height: width / Self.aspect)
+        let size = CGSize(width: width, height: width / canvasAspect)
         guard size.width > 0, size != canvasSize else { return }
         canvasSize = size
-        ink.penWidth = InkPen.monthWidth(onCanvasOfHeight: size.height, shownAt: Self.shownHeight)
+        ink.penWidth = InkPen.monthWidth(onCanvasOfHeight: size.height, shownAt: pageHeight)
         if !ink.canUndo, let saved, let strokes = try? PKDrawing(data: saved.strokes) {
             let k = size.width / saved.canvasWidth
             ink.load(abs(k - 1) < 0.001 ? strokes
