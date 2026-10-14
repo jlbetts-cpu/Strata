@@ -159,7 +159,9 @@
   section.wrap { padding-top: var(--section); scroll-margin-top: 24px; }
 
   /* One statement: the claim in ink, the rest quieter. */
-  .state { max-width: 22ch; margin: 0 auto; text-align: center; color: var(--ink-3); font-weight: 600; font-size: var(--t-state); line-height: 1.16; letter-spacing: -.03em; }
+  /* In ink where nothing dims it: with Reduce Motion, or no script, the
+     whole line is simply there. The words dim only while they wait to be read. */
+  .state { max-width: 22ch; margin: 0 auto; text-align: center; color: var(--ink); font-weight: 600; font-size: var(--t-state); line-height: 1.16; letter-spacing: -.03em; }
   @media (min-width: 760px) { .state { max-width: 26ch; } }
 
   .head { text-align: center; margin: 0 auto 48px; }
