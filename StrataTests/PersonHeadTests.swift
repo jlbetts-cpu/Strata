@@ -46,8 +46,10 @@ struct PersonHeadTests {
     func shares() {
         #expect(PersonHead.discShare == 0.9)
         #expect(PersonHead.ringShare == 0.76)
-        // The blank head stands where a head of the same side would.
-        #expect(HeadPlaceholder.aspect < 1)
+        // No head yet is a round picture now, not a head's outline (the
+        // owner, 2026-10-14: "dont need to shape it like a head"): its
+        // initial at `CrewFace`'s 0.42 of the circle.
+        #expect(HeadPlaceholder.letterShare == 0.42)
     }
 
     @Test("no screen draws a person with its own decision tree any more")

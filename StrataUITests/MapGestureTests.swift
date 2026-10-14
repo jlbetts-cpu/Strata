@@ -270,6 +270,12 @@ final class MapGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
         XCTAssertTrue(nameField.exists, "the page was left with no name written")
         app.typeText("Sam\n")
+        // Lock Journal, the last page since 2026-10-14 (the owner: "I would
+        // have it in the onboarding"). Not Now leaves the switch off and
+        // opens the app, as a first run most often will.
+        let notNow = app.buttons["Not Now"]
+        XCTAssertTrue(notNow.waitForExistence(timeout: 15), "no Lock Journal page")
+        notNow.tap()
         dismissSystemAlerts(app)
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
         // tower. A shorter wait catches the loading skeleton.

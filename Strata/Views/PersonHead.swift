@@ -135,15 +135,26 @@ struct PersonHead: View {
         switch setting {
         case .disc(let ground):
             ZStack {
-                well(ground)
-                face(rig, side: side * Self.discShare)
-                    .offset(y: side * Self.discDrop)
+                if rig != nil {
+                    well(ground)
+                    face(rig, side: side * Self.discShare)
+                        .offset(y: side * Self.discDrop)
+                } else {
+                    // No head yet: the round picture fills its disc, as a
+                    // contact's initials do.
+                    face(nil, side: side)
+                }
             }
             .frame(width: side, height: side)
             .clipShape(Circle())
             .accessibilityHidden(true)
         case .free:
             face(rig, side: side)
+                .accessibilityHidden(true)
+        case .standing where rig == nil:
+            // A round picture stands on nothing, so it casts nothing: the
+            // shadow is a head's alone.
+            face(nil, side: side)
                 .accessibilityHidden(true)
         case .standing:
             face(rig, side: side)
@@ -192,42 +203,37 @@ struct PersonHead: View {
     }
 }
 
-/// **The blank head: a slot in the shape of a person** (the owner's call,
-/// 2026-10-14, from `docs/heads-as-identity-2026-10-14.md` §5.6: their colour,
-/// with their initial). Snap Map draws someone without a Bitmoji as a blank
-/// outline, and this is that: the maker's own outline, filled, never a
-/// photograph and never a drawn face, which would be a fake person.
+/// **Someone with no head yet: their colour in a circle, with their
+/// initial** (the owner, 2026-10-14: "for the people without a head I think
+/// a pfp is okay dont need to shape it like a head"). It was the head
+/// maker's outline, filled, a slot in the shape of a person; a plain round
+/// picture, as a contact without a photo is, reads as a person who has not
+/// made their head rather than as a head that went wrong. Never a
+/// photograph and never a drawn face.
 ///
-/// Sized like a head: `side` is crown to chin, so it stands exactly where a
-/// head of the same `side` would.
+/// `side` is the circle's diameter.
 struct HeadPlaceholder: View {
     let colour: Color
     let initial: String
     let side: CGFloat
 
-    /// A head is about three quarters as wide as it is tall: the maker's own
-    /// outline, at the maker's own proportion.
-    static let aspect: CGFloat = 0.76
-    /// The initial, as a share of the head's height: the 0.42 of a circle
-    /// `CrewFace` set its initial at, on the narrower shape.
-    static let letterShare: CGFloat = 0.38
+    /// The initial, as a share of the circle: `CrewFace`'s own 0.42.
+    static let letterShare: CGFloat = 0.42
 
     var body: some View {
-        HeadOutline()
+        Circle()
             .fill(colour)
-            .frame(width: side * Self.aspect, height: side)
+            .frame(width: side, height: side)
             .overlay {
                 if !initial.isEmpty {
                     Text(initial)
-                        // The app's face and weight, as `CrewFace`'s initial
-                        // was: a letter sized to the head it is on, so it
-                        // scales with the head rather than with Dynamic Type.
+                        // The app's face and weight: a letter sized to its
+                        // circle, so it scales with it rather than with
+                        // Dynamic Type.
                         .font(.system(size: side * Self.letterShare, weight: Typography.bodyWeight))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                        // A little under the middle, where a face's middle is.
-                        .offset(y: side * 0.04)
                 }
             }
             .frame(width: side, height: side)
