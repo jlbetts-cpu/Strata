@@ -45,7 +45,9 @@ nonisolated enum HouseCard: String, Equatable {
 
     var line: String {
         switch self {
-        case .crew: "Start a crew with whoever you'd tell anyway."
+        // Not "whoever you'd tell anyway" under a title that already says
+        // it (found 2026-10-14: the card said "tell anyway" twice).
+        case .crew: "One tower for the day, with a friend or a few."
         case .tip: "If Some Wins helps, a tip keeps it going."
         }
     }

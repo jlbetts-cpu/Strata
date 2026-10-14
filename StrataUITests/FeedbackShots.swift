@@ -1332,6 +1332,18 @@ final class FeedbackShots: XCTestCase {
         wait(8); snap("memories")
     }
 
+    /// **A first month's drawing fits above the tab bar** (the owner,
+    /// 2026-10-14), with one win and no photos.
+    func testMemoriesNewUser() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedWins", "1"])
+        wait(8); snap("memories-new-card")
+        // A house card is due at most once a day: the second look has the
+        // drawing in its place.
+        app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedWins", "1"])
+        wait(8); snap("memories-new")
+    }
+
     func testSheets() {
         for sheet in ["add", "settings", "profile"] {
             let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "5", "-strataOpenSheet", sheet])

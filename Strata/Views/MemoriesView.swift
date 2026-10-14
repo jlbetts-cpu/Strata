@@ -33,6 +33,9 @@ struct MemoriesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Whether a cover above this page has put its heads to sleep.
     @Environment(\.headsAwake) private var coveringHeadsAwake
+    /// Where the month's drawing starts, and how much of the page shows.
+    @State private var artTop: CGFloat = 0
+    @State private var scrollBottom: CGFloat = 0
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
     @State private var monthStep = 0
     /// TipKit says the drawing's tip is due (`monthTipLayer`).
@@ -236,14 +239,16 @@ struct MemoriesView: View {
                     // photo, a sign-off for the month. It plays when it comes
                     // into view, as it played when the page opened. Some
                     // Wins' own card keeps its place in the drawing's slot.
-                    monthArt
+                    let artHeight = count == 0 && vm.monthAlbums.isEmpty ? fittedArtHeight : Self.artHeight
+                    monthArt(height: artHeight)
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { artTop = $0 }
                         // **Its whole height.** The drawing scales to the
                         // room it is given and gives up to half of it on a
                         // short page; at the end of a scrolling page it was
                         // proposed no height and drew at that half (the
                         // owner: "the skeleton is small now"). The room is the
                         // 290 it was drawn for, its line and the gap between.
-                        .frame(minHeight: Self.artRoom)
+                        .frame(minHeight: artHeight + Self.artLineRoom)
                         .frame(maxWidth: .infinity)
                         .padding(.top, GridConstants.gapPage)
                 }
@@ -275,6 +280,10 @@ struct MemoriesView: View {
             // On the scroll view itself: hung on the reader round it, the
             // edge drew nothing and the weekdays ran through the month's name.
             .softScrollEdge(.top)
+            // The room the page shows, above the tab bar: what the month's
+            // drawing fits into on a page with nothing else under it.
+            // The scroll ends where the tab bar's glass begins.
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { scrollBottom = $0 }
             // `safeAreaBar`, not `safeAreaInset`: a bar is what the system
             // draws its scroll edge under. Under a plain inset it drew
             // nothing (looked at, 2026-10-13).
@@ -826,10 +835,26 @@ struct MemoriesView: View {
     /// in a card for one build; "I dont like the illustration in the block
     /// try it just blank". See `Illustration`.
     /// The drawing's height (290), its gap and its one line under it.
-    static let artRoom: CGFloat = 290 + GridConstants.gapItem + 44
+    static let artRoom: CGFloat = artHeight + artLineRoom
+    static let artHeight: CGFloat = 290
+    /// Its line under it, and the gap between.
+    static let artLineRoom: CGFloat = GridConstants.gapItem + 44
+
+    /// **On a page with nothing under the calendar, the drawing fits the
+    /// room that is left** (the owner, 2026-10-14, of a first month with one
+    /// win: "make the skeleton on the memories small enough to fit in the
+    /// empty space"). At 290 it ran under the tab bar with its line hidden.
+    /// A page with photos keeps it whole at its end, a scroll away.
+    private var fittedArtHeight: CGFloat {
+        guard scrollBottom > 0, artTop > 0 else { return Self.artHeight }
+        // Both on the screen: where the drawing starts, and where the tab
+        // bar's glass begins.
+        let room = scrollBottom - artTop - Self.artLineRoom - GridConstants.gapWide
+        return min(Self.artHeight, max(150, room))
+    }
 
     @ViewBuilder
-    private var monthArt: some View {
+    private func monthArt(height: CGFloat) -> some View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         let key = MonthDrawingStore.key(for: vm.selectedMonth, calendar: MemoriesViewModel.mondayCalendar)
         Group {
@@ -845,7 +870,7 @@ struct MemoriesView: View {
             if let own = MonthDrawingStore.shared.drawing(for: key) {
                 // Your line under your drawing, set as the owner's are.
                 VStack(spacing: GridConstants.gapItem) {
-                    InkReplay(drawing: own, height: 290, onRest: Self.artPlayed)
+                    InkReplay(drawing: own, height: height, onRest: Self.artPlayed)
                         .layoutPriority(1)
                     if let line = own.line { DrawingLine(text: line) }
                 }
@@ -854,12 +879,12 @@ struct MemoriesView: View {
                 // **October: the skeleton dances and the crow lands on his
                 // hand** (the owner, 2026-10-06). `OctoberDance` has how.
                 // The scarecrow's assets stay in the catalogue.
-                OctoberDance(line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: 290,
+                OctoberDance(line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: height,
                              onRest: Self.artPlayed)
                     .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
                                            originalLine: Self.monthLine[month]))
             } else if let art = UIImage(named: "Month" + month) {
-                Illustration(art: art, line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: 290,
+                Illustration(art: art, line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: height,
                              motion: UIImage(named: "Month" + month + "Crow").map {
                                  .crowLands(crow: $0,
                                             head: UIImage(named: "Month" + month + "CrowHead"),
