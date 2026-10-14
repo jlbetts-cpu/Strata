@@ -974,8 +974,9 @@ final class FeedbackShots: XCTestCase {
         let mine = app.buttons["Your head"].firstMatch
         if mine.exists { mine.tap() }
         wait(6); snap("headchat-before")
-        let chat = app.buttons["Chat"].firstMatch
-        XCTAssertTrue(chat.waitForExistence(timeout: 4), "no chat button")
+        // The chat is the drawer's resting line now (2026-10-14).
+        let chat = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch
+        XCTAssertTrue(chat.waitForExistence(timeout: 4), "no chat drawer")
         chat.tap(); wait(2)
         let field = app.textViews.firstMatch
         // The first tap folds the fan, if it is open.

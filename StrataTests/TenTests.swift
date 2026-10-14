@@ -30,7 +30,9 @@ struct TenTests {
         #expect(try code("Strata/Views/OnboardingFilm.swift").contains("QuietWord(\"Skip\""))
         let list = try code("Strata/Views/Crews/CrewsListView.swift")
         #expect(list.components(separatedBy: "NewsDot(").count - 1 == 2)
-        #expect(try code("Strata/Views/Crews/CrewTowerView.swift").contains("NewsDot()"))
+        // The chat's dot moved from the crew screen's corner button to the
+        // drawer's resting line (2026-10-14, `ChatRestBar`): still the one dot.
+        #expect(try code("Strata/Views/Crews/ChatRestBar.swift").contains("NewsDot()"))
         #expect(NewsDot.side == 9)
         #expect(try code("Strata/Views/PlanSuggestionsView.swift").contains("PlanBullet(category: .unlabeled, isDone: false)"))
     }
