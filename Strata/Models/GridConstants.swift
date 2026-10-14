@@ -22,6 +22,14 @@ enum GridConstants {
 
     /// Between things that belong to each other — a glyph and its label.
     static let gapTight: CGFloat = 8
+    /// **How far a message bar sits into the home indicator's band** (the
+    /// owner, 2026-10-14: "the message bar ... feels too high everywhere not
+    /// really how apple does it"). Measured: a field stood 42pt off the
+    /// bottom of the screen, and iOS 26's own floating bars (the tab bar
+    /// beside it) stand about 21. Every bar that writes (the chat's, the
+    /// chat drawer's, the plan's, the journal's) sinks by this, so its field
+    /// sits where the system's would.
+    static let barSink: CGFloat = 17
     /// Between items in a set — photographs in a grid, chips in a row.
     static let gapItem: CGFloat = 12
     /// Between a heading and what it heads.

@@ -681,7 +681,7 @@ struct MainAppView: View {
             // 2026-10-05). It replaced the Plan sheet and today's Journal
             // sheet, then was one mixed page for an evening.
             DaySheet(dateString: DateUtils.dateString(from: Date()),
-                     tabs: .wins, opening: dayOpeningTab, scope: planOpeningScope, onThree: { three in
+                     tabs: .planOnly, opening: .plan, scope: planOpeningScope, onThree: { three in
                 // One of your three, from the top of the plan: written in the
                 // add sheet, small, in its colour (a typed one with no colour
                 // takes the one it was last logged in, as the ideas do).

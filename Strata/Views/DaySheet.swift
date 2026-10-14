@@ -172,6 +172,11 @@ struct DayTabSet: Equatable {
 
     static let wins = DayTabSet(tabs: [.plan, .journal])
     static let pastDay = DayTabSet(tabs: [.journal])
+    /// **Wins' Plan button: the plan, and only the plan** (the owner,
+    /// 2026-10-14: "plan and journal shouldnt be merged together on the left
+    /// side because it already has journal on the right"). The Journal
+    /// button beside it opens the journal by itself.
+    static let planOnly = DayTabSet(tabs: [.plan])
 }
 
 /// **The sheet opens on the tab used last** (`@AppStorage`, default Plan).
@@ -370,7 +375,7 @@ struct DaySheet: View {
                 // title's place. A past day has no switch and keeps its date.
                 // A past day's bar: "Yesterday / Sunday" in two tones
                 // (`DayTitle.twoTone`, the owner's pick, 2026-10-06).
-                .modifier(DayTitleOrTabs(title: DayTitle.twoTone(forKey: dateString),
+                .modifier(DayTitleOrTabs(title: tabSet == .planOnly ? DayTab.plan.title : DayTitle.twoTone(forKey: dateString),
                                          tabs: tabSet.showsSwitch ? AnyView(tabSwitch) : nil))
                 // Top left is the tab's own button: the emoji on the Journal,
                 // ＋ on the Plan (the owner, 2026-10-05: "why does there need

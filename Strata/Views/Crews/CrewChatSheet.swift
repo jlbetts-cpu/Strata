@@ -957,7 +957,9 @@ struct CrewChatSheet: View {
                     .disabled(isEmpty)
             }
             .padding(.horizontal, hPad)
-            .padding(.vertical, GridConstants.gapTight)
+            .padding(.top, GridConstants.gapTight)
+            // Low, where the system's own bars sit (`GridConstants.barSink`).
+            .modifier(BarSink())
             // 280 characters, the owner's number: the field stops there
             // rather than letting a long paste be cut on the way out.
             .onChange(of: draft) { _, text in

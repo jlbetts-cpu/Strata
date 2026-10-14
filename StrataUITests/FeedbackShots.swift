@@ -1167,7 +1167,52 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])
         wait(8); snap("crews-corners")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedPlan", "3"])
+        wait(8)
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2) }
+        app.buttons["Plan"].firstMatch.tap(); wait(2.5)
+        snap("plan-alone")
         print("PLANNING-corner: invite \(app.buttons["Invite a Friend"].firstMatch.exists)")
+    }
+
+    /// **Tips and plan blocks on Wins** (the owner, 2026-10-14: tips "arent
+    /// popping up in the right spot", "when you have the plan blocks on your
+    /// tower the text shows up behind").
+    func testTipsAndPlanBlocks() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedPlan", "5", "-strataTipsReset", "1", "-strataTipsShow", "1"])
+        wait(8)
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2.5) }
+        snap("tips-1-empty-plan")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedPlan", "5", "-strataTipsReset", "1", "-strataTipsShow", "1"])
+        wait(8)
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2.5) }
+        snap("tips-2-wins-plan")
+        let slot = app.descendants(matching: .any)["Log a win"].firstMatch
+        if slot.exists, slot.isHittable { slot.press(forDuration: 0.6); wait(0.3); snap("tips-3-placing"); wait(2.5); snap("tips-4-placed") }
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "1", "-strataTipsReset", "1", "-strataTipsShow", "1"])
+        wait(8); snap("tips-5-one-win")
+    }
+
+    /// **Where the menus with an arrow open** (the owner, 2026-10-14: "a lot
+    /// of tips with the arrow they arent popping up in the right spot").
+    func testArrowMenus() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataOpenSheet", "add"])
+        wait(7)
+        app.buttons["Add a photo"].firstMatch.tap(); wait(2); snap("arrow-1-add-photo")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataSeedTodayPhotos", "all", "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.82)).tap(); wait(2); snap("arrow-2-block")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedPlan", "5"])
+        wait(8)
+        if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2.5) }
+        let box = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Run the loop'")).firstMatch
+        if box.exists { box.tap(); wait(2) }
+        snap("arrow-3-plan-box")
     }
 
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.

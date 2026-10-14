@@ -100,7 +100,9 @@ struct ChatRestBar: View {
             }
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.bottom, GridConstants.gapTight)
+        // Low, where the system's own bars sit (`GridConstants.barSink`),
+        // and where the chat's field is when it rises.
+        .modifier(BarSink())
         .background {
             // **The chat's own ground, edge to edge**, rounded only where it
             // meets the tower and set off by a hairline (the owner,

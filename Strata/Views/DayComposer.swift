@@ -39,7 +39,9 @@ struct DayComposer<Field: View, Leading: View>: View {
                 .disabled(!canSend)
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.vertical, GridConstants.gapTight)
+        .padding(.top, GridConstants.gapTight)
+        // Low, where the system's own bars sit (`GridConstants.barSink`).
+        .modifier(BarSink())
     }
 }
 
@@ -178,5 +180,24 @@ enum DayComposing {
             }
             return line.isEmpty ? nil : line
         }
+    }
+}
+
+/// **A message bar's foot: low over the home indicator, clear of the
+/// keyboard** (`GridConstants.barSink`). With the keyboard down the bar sinks
+/// to where the system's own bars stand; with it up it keeps `gapTight` over
+/// the keys, as Messages does, never into them.
+struct BarSink: ViewModifier {
+    @State private var keyboardUp = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.bottom, keyboardUp ? GridConstants.gapTight : GridConstants.gapTight - GridConstants.barSink)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                keyboardUp = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardUp = false
+            }
     }
 }
