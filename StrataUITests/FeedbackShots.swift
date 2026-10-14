@@ -466,6 +466,39 @@ final class FeedbackShots: XCTestCase {
         wait(5); snap("review-6-tower")
     }
 
+    /// **The camera review's crop, as a thumb uses it** (the owner,
+    /// 2026-10-14: "the cropping its super not smooth and black bars appear
+    /// and it looks very jank ... mainly in the camera screen"). Slow drags
+    /// into each edge, a pinch in and back out, and the three sizes, for a
+    /// recording to be read frame by frame.
+    func testReviewCropFeel() {
+        let app = launch(["-strataStartTab", "camera", "-strataOpenReview", "regular",
+                          "-strataReviewPhoto", "DemoPhoto1"])
+        let use = app.buttons["Use Photo"]
+        XCTAssertTrue(use.waitForExistence(timeout: 30), "no review screen")
+        wait(2); snap("feel-0-rest")
+        let mid = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        func drag(_ dx: CGFloat, _ dy: CGFloat) {
+            mid.press(forDuration: 0.05,
+                      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5 + dx, dy: 0.42 + dy)),
+                      withVelocity: 300, thenHoldForDuration: 0.3)
+            wait(1)
+        }
+        drag(0.35, 0); snap("feel-1-right")
+        drag(-0.35, 0)
+        drag(0, 0.2); snap("feel-2-down")
+        drag(0, -0.2)
+        app.pinch(withScale: 2.0, velocity: 1); wait(1); snap("feel-3-zoomed")
+        drag(0, 0.25); snap("feel-4-zoomed-down")
+        drag(0.3, 0)
+        app.pinch(withScale: 0.4, velocity: -1); wait(1); snap("feel-5-out")
+        for size in ["Quick", "Deep", "Regular"] {
+            let pick = app.buttons[size].firstMatch
+            if pick.exists { pick.press(forDuration: 0.12) }
+            wait(1); snap("feel-6-\(size)")
+        }
+    }
+
     /// **Memories, top and end** (the owner, 2026-10-13: "you left the huge
     /// gap above the memories calendar ... the skeleton is small now and is
     /// it still animated?"). The calendar under the header; the drawing at

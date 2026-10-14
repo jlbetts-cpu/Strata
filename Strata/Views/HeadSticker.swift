@@ -217,8 +217,11 @@ struct HeadStickerOverlay: View {
                 guard widthBase == nil, angleBase == nil, !movingHead else { return }
                 let before = lastCropDrag?.from == value.startLocation ? (lastCropDrag?.moved ?? .zero) : .zero
                 lastCropDrag = (value.startLocation, value.translation)
-                let moved = CGPoint(x: crop.x - (value.translation.width - before.width) / max(size.width, 1),
-                                    y: crop.y - (value.translation.height - before.height) / max(size.height, 1))
+                // On the screen, where the layer is drawn at its zoom: it is
+                // laid out at the size it rests at and scaled (`reviewStage`).
+                let shown = CGSize(width: size.width * PhotoWindow.zoom(zoom), height: size.height * PhotoWindow.zoom(zoom))
+                let moved = CGPoint(x: crop.x - (value.translation.width - before.width) / max(shown.width, 1),
+                                    y: crop.y - (value.translation.height - before.height) / max(shown.height, 1))
                 crop = CachedImageView.held(moved, photo: photo, frame: box, zoom: zoom)
             }
             .onEnded { _ in lastCropDrag = nil }

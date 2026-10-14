@@ -646,12 +646,20 @@ struct CameraView: View {
         let fitted = CGSize(width: fitWidth, height: fitWidth / max(aspect, 0.01))
         let window = BlockCropOutline.crop(photo: image.size, block: drawnSize)
         let box = CGSize(width: fitted.width * window.width, height: fitted.height * window.height)
-        let drawn = CachedImageView.filled(image.size, in: box, zoom: zoom)
+        // **Laid out once, at the zoom it rests at, and zoomed as a picture**
+        // (the owner, 2026-10-14: "super not smooth and black bars appear").
+        // It was laid out again at its zoomed size on every frame of a pinch,
+        // the head and the marks with it, and at three times the box the
+        // photograph was drawn away from where it was laid out: a black band
+        // inside the box, the photograph showing past the stage's clip. As
+        // Photos does it, the picture keeps its size and is scaled.
+        let rests = CachedImageView.filled(image.size, in: box)
+        let scale = PhotoWindow.zoom(zoom)
         let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
         return ZStack {
             Image(uiImage: looked ?? image)
                 .resizable()
-                .frame(width: drawn.width, height: drawn.height)
+                .frame(width: rests.width, height: rests.height)
                 .overlay {
                     if let markLayer {
                         Image(uiImage: markLayer)
@@ -670,6 +678,7 @@ struct CameraView: View {
                         box: box,
                         look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
                 }
+                .scaleEffect(scale)
                 .offset(shift)
             CropBox(box: box, radius: CropBox.radius(for: box), ground: .black, ink: AppColors.drawingInkOnBlock)
         }
