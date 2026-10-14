@@ -98,12 +98,17 @@
   .glass .ink { width: 22px; height: 22px; }
   .glass svg { width: 22px; height: 22px; fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
-  /* The crest: on Wins the day's goal is a ring of short strokes round your
-     head, with a capsule under it. Here the ring is the page, and it fills
-     as you read down. */
+  /* The crest, as the app draws it (`GoalRing.swift`): a 60pt glass disc, a
+     ring of one long stroke per win round the face, a capsule under it.
+     Here a win is a part of the page read. It acts as the app's does (the
+     owner, 2026-10-13: "the pill completion thing has to act like it does
+     in the app"): a stroke fills whole or not at all, it only ever fills,
+     and when the last one lands the crest swells once and settles. */
   .crest { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; transition: opacity .4s var(--ease), transform .4s var(--ease); }
-  /* It arrives once the hero's own logo has gone by, so there are never two. */
-  .js header:not(.past) .crest { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(.9); pointer-events: none; }
+  /* There from the first frame (the owner, 2026-10-13: "the logo pill
+     things should be present on launch"). It used to wait for the hero's
+     own logo to go by; the trailer leads the page now and the logo is
+     under it, so the two are never on the first screen together. */
   button.crest { appearance: none; border: 0; background: none; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; }
   button.crest:active .ring { transform: scale(.94); }
   /* It drops from the ring, over the caption, the way a menu opens on an
@@ -120,11 +125,13 @@
   /* The caption steps back as the menu comes over it. */
   .crest[aria-expanded="true"] .caption { opacity: 0; transition: opacity .12s ease; }
   .caption { transition: opacity .2s ease .1s; }
-  .ring { position: relative; width: 56px; height: 56px; transition: transform .16s var(--ease); }
-  .ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
-  .ring .track { fill: none; stroke: rgba(22,23,26,.10); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
-  .ring .cut { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 6.6 3.4; }
-  .ring .read { fill: none; stroke: var(--ink); stroke-width: 6; stroke-dasharray: var(--read, 0) 120; transition: stroke-dasharray .24s linear; }
+  .ring { position: relative; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.58); border: 1px solid var(--rule); -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.95); transition: transform .16s var(--ease); }
+  .ring svg { position: absolute; inset: -1px; width: 60px; height: 60px; transform: rotate(-90deg); }
+  /* Line 4 on a 26 radius, ink or ink at 8%: the app's numbers. */
+  .ring .seg { fill: none; stroke: rgba(22,23,26,.08); stroke-width: 4; stroke-linecap: round; transition: stroke .45s var(--ease); }
+  .ring .seg.won { stroke: var(--ink); }
+  .ring.full { animation: swell .64s both; }
+  @keyframes swell { 0% { transform: scale(1); animation-timing-function: cubic-bezier(.34,1.56,.64,1); } 66% { transform: scale(1.1); animation-timing-function: ease-in; } 100% { transform: scale(1); } }
   .ring .well { position: absolute; inset: 9px; border-radius: 50%; background: var(--fill); display: grid; place-items: center; }
   .ring .well .ink { --art: url("invite/camera.png"); width: 22px; height: 21px; }
   .caption { height: 28px; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; background: rgba(255,255,255,.58); border: 1px solid var(--rule); -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.95); font: 700 14px/1 "Zen Maru", Inter, sans-serif; letter-spacing: -.01em; }
@@ -149,19 +156,17 @@
   /* The mark, large, leaning a little toward the pointer. */
   /* Small on purpose (the owner: "the logo should be smaller, it should
      look more premium"): the mark is a signature, not a poster. */
-  .logo { width: 56px; height: 54px; margin: 0 auto 12px; perspective: 400px; }
+  .logo { width: 56px; height: 54px; margin: 48px auto 12px; perspective: 400px; }
   .logo .ink { --art: url("invite/camera.png"); width: 100%; height: 100%; transform: rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg)); will-change: transform; }
-  @media (min-width: 760px) { .logo { width: 64px; height: 61px; margin-bottom: 16px; } }
+  @media (min-width: 760px) { .logo { width: 64px; height: 61px; margin-top: 64px; margin-bottom: 16px; } }
   h1 { margin: 0 auto; font: 700 var(--t-title)/1.08 "Zen Maru", Inter, sans-serif; letter-spacing: -.02em; }
   .lede { margin: 16px auto 0; max-width: 30ch; color: var(--ink-2); font-size: var(--t-lede); line-height: 1.28; letter-spacing: -.02em; }
   .hero .call { margin-top: 24px; }
 
   /* The trailer, on the page's own white, in a surface. */
-  .film { scroll-margin-top: 120px; position: relative; margin: 48px auto 0; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--surface); overflow: hidden; background: var(--fill); }
+  .film { scroll-margin-top: 120px; position: relative; margin: 0 auto; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--surface); overflow: hidden; background: var(--fill); }
   .film.tall { aspect-ratio: 9 / 16; max-width: 360px; }
   .film video { width: 100%; height: 100%; object-fit: cover; }
-  .film .sound { position: absolute; right: 12px; bottom: 12px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--rule); background: rgba(255,255,255,.7); color: var(--ink); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font: 600 13px/1 Inter, -apple-system, sans-serif; cursor: pointer; }
-  .film .sound:active { opacity: .7; }
 
   /* `.wrap` sets all four paddings, so a section's own top is named with it. */
   section.wrap { padding-top: var(--section); scroll-margin-top: 24px; }
@@ -227,7 +232,6 @@
   .film { transform: scale(calc(.92 + .08 * var(--p, 1))); transform-origin: 50% 0; }
   .state span { color: color-mix(in srgb, var(--ink) calc(var(--lit, 1) * 100%), var(--ink-3)); transition: color .2s linear; }
   .tile .phone { transform: translateY(calc((1 - var(--p, 1)) * 56px)); }
-  .hero .logo, .hero h1, .hero .lede { opacity: calc(1 - var(--gone, 0) * 1); }
 
   /* One move: each thing rises a little into place as it arrives. Only
      when the page can run it, and never with Reduce Motion. */
@@ -248,11 +252,7 @@
       <a class="glass" href="#day" aria-label="How it works"><span class="ink" style="--art:url('site/mark-layers.png')" aria-hidden="true"></span></a>
       <button type="button" class="crest" id="crest" aria-label="Some Wins, menu" aria-expanded="false" aria-controls="menu">
         <span class="ring" id="ring" aria-hidden="true">
-          <svg viewBox="0 0 44 44">
-            <defs><mask id="strokes"><circle class="cut" cx="22" cy="22" r="19.1" pathLength="120"/></mask></defs>
-            <circle class="track" cx="22" cy="22" r="19.1" pathLength="120"/>
-            <circle class="read" cx="22" cy="22" r="19.1" pathLength="120" mask="url(#strokes)"/>
-          </svg>
+          <svg viewBox="0 0 60 60"></svg>
           <span class="well"><span class="ink"></span></span>
         </span>
         <span class="caption">Some Wins</span>
@@ -276,10 +276,16 @@
 
   <main id="top">
     <div class="wrap hero">
-      <!-- The owner, 2026-10-13: "the logo should be above it ... make the
-           middle pill come in after you scroll past the hero so there
-           isn't two of the same logo on the same screen", and of another
-           site of his: "the logo also kind of tilts with the mouse". -->
+      <!-- The trailer leads (the owner, 2026-10-13: "the video should be
+           above the logo and stuff"): his launch film, wide on a desk and
+           the vertical cut on a phone. A player like any other ("you
+           should be able to full screen and have all the regular
+           controls"): the browser's own controls, silent until asked. -->
+      <div class="film rise" id="film">
+        <video controls muted loop playsinline preload="metadata" aria-label="The Some Wins trailer"></video>
+      </div>
+      <!-- Of another site of his: "the logo also kind of tilts with the
+           mouse". -->
       <div class="logo rise" id="logo" aria-hidden="true"><span class="ink"></span></div>
       <h1 class="rise">Some Wins</h1>
       <p class="lede rise">Win with your people.</p>
@@ -288,12 +294,6 @@
              the App Store badge is so different than the button"). Apple's
              own badge, alone, at the height the button was. -->
         <a class="badge" href="https://testflight.apple.com/join/ZWQ5cHv6" aria-label="Download on the App Store"><img src="site/app-store-badge.svg" alt="Download on the App Store" width="144" height="48"></a>
-      </div>
-      <!-- The trailer: his launch film, wide on a desk and the vertical cut
-           on a phone, silent until asked. -->
-      <div class="film rise" id="film">
-        <video muted loop playsinline preload="metadata" aria-label="The Some Wins trailer"></video>
-        <button type="button" class="sound" aria-pressed="false">Sound</button>
       </div>
     </div>
 
@@ -380,20 +380,43 @@
     var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var canWatch = "IntersectionObserver" in window;
 
-    // The ring fills as the page is read, as Wins' ring fills with the day.
-    var ring = document.getElementById("ring");
+    // The ring: one stroke for each part of the page, filled when that part
+    // has been read past, as Wins' ring fills a stroke a win. The app's own
+    // geometry: a gap of 1.8% of the ring either side of each stroke.
+    var ring = document.getElementById("ring"), strokes = ring.querySelector("svg");
+    var parts = [".hero", "#state", "#day", "#crews", ".close"].map(function (q) {
+      var el = document.querySelector(q);
+      return el.closest("section") || el;
+    });
+    var gap = 0.018, span = 1 / parts.length;
+    var segs = parts.map(function (_, i) {
+      var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("class", "seg");
+      c.setAttribute("cx", 30); c.setAttribute("cy", 30); c.setAttribute("r", 26);
+      c.setAttribute("pathLength", 1);
+      c.setAttribute("stroke-dasharray", (span - 2 * gap).toFixed(4) + " 1");
+      c.setAttribute("stroke-dashoffset", (-(i * span + gap)).toFixed(4));
+      strokes.appendChild(c);
+      return c;
+    });
+    var won = 0;
     function read() {
       var room = document.documentElement.scrollHeight - window.innerHeight;
-      var done = room > 0 ? Math.min(1, Math.max(0, window.scrollY / room)) : 0;
-      ring.style.setProperty("--read", (done * 120).toFixed(1));
+      var ended = room <= 0 || window.scrollY >= room - 2;
+      var now = 0;
+      // Read past: its end is above the lower third of the screen.
+      parts.forEach(function (el, i) { if (ended || el.getBoundingClientRect().bottom <= window.innerHeight * 0.62) now = i + 1; });
+      // It only ever fills: scrolling back up takes nothing away.
+      if (now <= won) return;
+      var was = won; won = now;
+      segs.forEach(function (c, i) { c.classList.toggle("won", i < won); });
+      if (was < parts.length && won === parts.length && !still) ring.classList.add("full");
     }
     window.addEventListener("scroll", read, { passive: true });
     window.addEventListener("resize", read);
     read();
 
-    // The crest arrives once the hero's own logo has gone under the bar.
-    var bar = document.getElementById("bar"), logo = document.getElementById("logo");
-    var lede = document.querySelector(".hero .lede");
+    var logo = document.getElementById("logo");
 
     // What moves with the scroll: one pass a frame, only while scrolling.
     var filmBox = document.getElementById("film");
@@ -412,14 +435,11 @@
     var queued = false;
     function move() {
       queued = false;
-      bar.classList.toggle("past", lede.getBoundingClientRect().bottom < 96);
       if (still) return;
       filmBox.style.setProperty("--p", between(filmBox, 1, 0.35).toFixed(3));
       var lit = between(state, 0.85, 0.25) * (words.length + 2);
       words.forEach(function (w, i) { w.style.setProperty("--lit", Math.min(1, Math.max(0, lit - i)).toFixed(2)); });
       phones.forEach(function (ph) { ph.style.setProperty("--p", between(ph.parentNode, 0.95, 0.45).toFixed(3)); });
-      var gone = Math.min(1, Math.max(0, window.scrollY / 280));
-      logo.parentNode.style.setProperty("--gone", gone.toFixed(2));
     }
     function ask() { if (!queued) { queued = true; requestAnimationFrame(move); } }
     window.addEventListener("scroll", ask, { passive: true });
@@ -461,7 +481,6 @@
     menu.addEventListener("click", shut);
     document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target)) shut(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") shut(); });
-    window.addEventListener("scroll", function () { if (!menu.hidden && !bar.classList.contains("past")) shut(); }, { passive: true });
 
     // The lattice: three rows of empty cells, and the next slot on the floor.
     var lattice = document.getElementById("lattice");
@@ -489,29 +508,32 @@
     }
 
     // The trailer: the wide cut on a desk, the vertical one on a phone. It
-    // plays silent, only while it is on screen; Sound turns its sound on.
-    // With Reduce Motion it waits to be asked, with the browser's controls.
+    // starts silent while it is on screen, and it is a player: the browser's
+    // own controls, so sound, scrubbing and full screen are where anyone
+    // expects them. Once the viewer pauses it or turns the sound on it is
+    // theirs: it still stops when it leaves the screen, and never starts
+    // again by itself.
     var box = document.getElementById("film");
-    var film = box.querySelector("video"), sound = box.querySelector(".sound");
+    var film = box.querySelector("video");
     var tall = window.matchMedia("(max-width: 700px)").matches;
     if (tall) box.classList.add("tall");
     film.poster = tall ? "site/trailer-tall.jpg" : "site/trailer-wide.jpg";
     film.src = tall ? "site/trailer-tall.mp4" : "site/trailer-wide.mp4";
-    sound.addEventListener("click", function () {
-      film.muted = !film.muted;
-      sound.textContent = film.muted ? "Sound" : "Mute";
-      sound.setAttribute("aria-pressed", String(!film.muted));
-      if (film.paused) film.play().catch(function () {});
-    });
+    var mine = false, theirs = false;
+    film.addEventListener("pause", function () { if (!mine) theirs = true; mine = false; });
+    film.addEventListener("volumechange", function () { if (!film.muted) theirs = true; });
+    function full() { return document.fullscreenElement === film || film.webkitDisplayingFullscreen; }
 
     // The films in the surfaces are short loops recorded in the app.
     var films = [film].concat([].slice.call(document.querySelectorAll("video.loop")));
-    if (still) { film.controls = true; sound.hidden = true; return; }
+    if (still) return;
     if (!canWatch) { films.forEach(function (f) { f.play().catch(function () {}); }); return; }
     var watch = new IntersectionObserver(function (seen) {
       seen.forEach(function (one) {
-        if (one.isIntersecting) one.target.play().catch(function () {});
-        else one.target.pause();
+        var v = one.target;
+        if (v !== film) { if (one.isIntersecting) v.play().catch(function () {}); else v.pause(); return; }
+        if (one.isIntersecting) { if (!theirs) v.play().catch(function () {}); }
+        else if (!v.paused && !full()) { mine = true; v.pause(); }
       });
     }, { threshold: 0.25 });
     films.forEach(function (f) { watch.observe(f); });
