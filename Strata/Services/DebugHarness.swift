@@ -297,6 +297,11 @@ enum DebugHarness {
     /// See the note where `HeadStore.init` reads it.
     static var seedHeadCount: Int? { argument("-strataSeedHeads").flatMap(Int.init) }
 
+    /// `-strataSeedEarlierHeads <n>`: up to three heads under Earlier Heads,
+    /// for the rows that bring one back (Profile, the catch-up page, the
+    /// onboarding head page).
+    static var seedEarlierHeadCount: Int? { argument("-strataSeedEarlierHeads").flatMap(Int.init) }
+
     /// `-strataSeedMadeHead`: writes a version 2 made head to disk from the
     /// creator's faces, with its blink and brows as separate, shifted frames,
     /// so the migration and a made head's own path can run here. A bare flag.

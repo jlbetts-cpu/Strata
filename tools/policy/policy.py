@@ -92,7 +92,10 @@ SECTIONS = [
         "never measurements of your face, and none of it leaves your device to "
         "be analysed. Your head is your picture in Some Wins: it appears in "
         "Profile, on your Wins tab and your map, and in your crews, and it is "
-        "offered as a sticker on your photos. Delete Head removes it.",
+        "offered as a sticker on your photos. Delete This Head takes it out of "
+        "use. It stays on this device with your last three heads, and is never "
+        "sent, until you choose Delete for Good on it in Profile or reset all "
+        "data.",
         "If you are in a crew and 16 or older, a smaller copy of your head goes "
         "to the crew, after the same check photos get.",
     ]),
@@ -174,7 +177,7 @@ SECTIONS = [
     ]),
     ("Deleting everything", [
         "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, "
-        "drawing, sticker and strip, your name and head, from "
+        "drawing, sticker and strip, your name and every head, from "
         "this device and from your iCloud. Leave your crews first, and end any "
         "you started, so your wins leave them too.",
         "Deleting the app removes it from this device only: what is in your "

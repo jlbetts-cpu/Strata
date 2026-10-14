@@ -763,7 +763,7 @@ final class FeedbackShots: XCTestCase {
             app.buttons[word].tap(); break
         }
         wait(4); snap("crews-empty")
-        if app.buttons["Start a Crew"].firstMatch.exists { app.buttons["Start a Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
+        if app.buttons["New Crew"].firstMatch.exists { app.buttons["New Crew"].firstMatch.tap(); wait(2); snap("crews-new") }
     }
 
     /// **Things that hang below a pinned header still take a touch**
@@ -1057,12 +1057,13 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("tallhead-back")
     }
 
-    /// Invite a Friend on the empty Crews tab, and a crew of one's tip
-    /// (the invites research, 2026-10-13).
+    /// New Crew on the empty Crews tab, and a crew of one's tip (the
+    /// invites research, 2026-10-13; Invite a Friend became New Crew on
+    /// 2026-10-14, the owner's "Merge into one").
     func testInviteAFriend() {
         var app = launch(["-strataCrews", "1", "-strataStartTab", "crews", "-crews.rulesAccepted.v1", "YES", "-strataCrewsSignedIn", "1"])
         wait(8); snap("invite-empty")
-        print("PLANNING-invite: button \(app.buttons["Invite a Friend"].firstMatch.exists) line \(app.staticTexts["Got a link from a friend? Open it again to join."].exists)")
+        print("PLANNING-invite: button \(app.buttons["New Crew"].firstMatch.exists) line \(app.staticTexts["Got a link from a friend? Open it again to join."].exists)")
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "1", "-strataOpenCrew", "0", "-crews.justYouShown", "()"])
         wait(6); snap("invite-alone")
@@ -1167,13 +1168,13 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])
         wait(8); snap("crews-corners")
+        print("PLANNING-corner: new crew \(app.buttons["New Crew"].firstMatch.exists)")
         app.terminate()
         app = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedPlan", "3"])
         wait(8)
         if app.buttons["Done"].firstMatch.exists { app.buttons["Done"].firstMatch.tap(); wait(2) }
         app.buttons["Plan"].firstMatch.tap(); wait(2.5)
         snap("plan-alone")
-        print("PLANNING-corner: invite \(app.buttons["Invite a Friend"].firstMatch.exists)")
     }
 
     /// **Tips and plan blocks on Wins** (the owner, 2026-10-14: tips "arent

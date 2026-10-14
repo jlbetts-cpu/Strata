@@ -22,7 +22,7 @@ struct TipCard: View {
     /// The owner's drawn mark (`docs/icons/source.png`, cut to `Tip*`):
     /// his sparkle star unless a tip names its own.
     var mark: String = "TipSparkle"
-    /// The action, as a small primary under the words ("Start a Crew").
+    /// The action, as a small primary under the words ("New Crew").
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
     /// The whole card answers a tap when the tip IS the action (the daily

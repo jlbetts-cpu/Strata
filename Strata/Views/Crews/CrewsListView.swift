@@ -26,8 +26,6 @@ struct CrewsListView: View {
 
     @State private var age = CrewAge.current
     @State private var signedOut = false
-    @State private var inviting = false
-    @State private var inviteProblem: String?
 
     var body: some View {
         Group {
@@ -89,17 +87,15 @@ struct CrewsListView: View {
                     // Under the crews, the owner's drawing of three friends
                     // and its line (2026-10-03): what a crew is for, said
                     // once, where the list ends.
-                    if let art = UIImage(named: "CrewsTogether") {
-                        // The owner's line for a crew since 2026-10-13 (his
-                        // pick from the night's research): who a crew is for.
-                        Illustration(art: art, line: CrewLine.forWho, height: 160,
-                                     motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
-                            .padding(.top, GridConstants.gapSection)
-                            .padding(.bottom, GridConstants.gapWide)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .selectionDisabled()
-                    }
+                    // The owner's line for a crew since 2026-10-13 (his
+                    // pick from the night's research): who a crew is for.
+                    // Held, it is yours to redraw or hide (`CrewsArt`).
+                    CrewsArt(line: CrewLine.forWho, height: 160)
+                        .padding(.top, GridConstants.gapSection)
+                        .padding(.bottom, GridConstants.gapWide)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -113,26 +109,19 @@ struct CrewsListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            // **Invite a Friend, always one press away** (the owner,
-            // 2026-10-14, for the corner that stood empty; his "add friends
-            // button"). A crew of you and the share sheet, as the empty
-            // page's button does; Start a Crew stays on the right for a group.
-            if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty { ToolbarItem(placement: .topBarLeading) {
-                Button(action: inviteAFriend) {
-                    Image(systemName: "person.badge.plus").sheetAction(.confirm, as: .glyph)
-                }
-                .disabled(inviting)
-                .accessibilityLabel("Invite a Friend")
-            } }
+            // **One way to a new crew: New Crew, top right** (the owner,
+            // 2026-10-14, his pick "Merge into one"). Invite a Friend in the
+            // left corner and Start a Crew in the right were two buttons for
+            // one thing; both made a crew and opened the share sheet. The
+            // compose glyph opens the one sheet, where the name and the photo
+            // are optional and Invite at its foot does what the left one did.
             if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
                 // At the cap it still answers, with why (the crews audit,
                 // 2026-10-08: it went grey and said nothing).
-                Button {
-                    if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
-                } label: {
+                Button(action: newCrew) {
                     Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
                 }
-                .accessibilityLabel("Start a Crew")
+                .accessibilityLabel(CrewLine.newCrew)
             } }
         }
         .task { await store.refresh() }
@@ -365,31 +354,9 @@ struct CrewsListView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// A crew of you, opened, and the share sheet over it: what New Crew's
-    /// Invite does, without the name and the photo first.
-    private func inviteAFriend() {
-        guard !inviting else { return }
-        guard store.crews.count < CrewCaps.crews else { atCap = true; return }
-        inviting = true
-        withAnimation(GridConstants.crossFade) { inviteProblem = nil }
-        Task {
-            do {
-                let (crew, _) = try await store.createCrew(name: "", photoJPEG: nil)
-                open(crew.id)
-                try? await Task.sleep(for: .milliseconds(450))
-                await CrewSharing.invite(crew.id)
-            } catch {
-                let words = CrewErrorWords.say(error, while: .starting)
-                // On the empty page under its button; from the corner, the
-                // list's own alert, since there is no line to put it on.
-                if store.crews.isEmpty {
-                    withAnimation(GridConstants.crossFade) { inviteProblem = words }
-                } else {
-                    problem = words
-                }
-            }
-            inviting = false
-        }
+    /// The one New Crew sheet, or why not at the cap.
+    private func newCrew() {
+        if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
     }
 
     private var empty: some View {
@@ -417,10 +384,10 @@ struct CrewsListView: View {
                 // drawing of three friends, three lines that each answer one
                 // question (who, what happens, who sees it), and New Crew where
                 // every page keeps its action, at the foot.
-                if let art = UIImage(named: "CrewsTogether") {
-                    Illustration(art: art, line: CrewLine.forWho, height: 190,
-                                 motion: UIImage(named: "CrewsTogetherCheer").map { .cheer(marks: $0) })
-                }
+                // Held, it is yours to redraw or hide, as the month's drawing
+                // is (the owner, 2026-10-14, "Edit like Memories"); hidden,
+                // the line and the rows stay (`CrewsArt`).
+                CrewsArt(line: CrewLine.forWho, height: 190)
                 FeatureList(rows: [
                     // Not "So is eight": the Launch Pack has nothing advertise
                     // the cap (found by the 2026-10-13 research).
@@ -436,32 +403,19 @@ struct CrewsListView: View {
             }
             Spacer()
             if !signedOut {
-                // **Invite a Friend, in one press** (the owner, 2026-10-13: "I
-                // dont want anyone to not know what to do or who to add and
-                // should we have a add friends button"). It makes a crew of
-                // you and opens the share sheet at once: the friend IS the
-                // crew, and an unnamed crew of two is shown by their name.
-                // Naming it and its photo stay in its card; the compose glyph
-                // keeps the full Start a Crew for a group.
+                // **New Crew, the same sheet as the corner's** (the owner,
+                // 2026-10-14, "Merge into one"). Invite a Friend made a crew
+                // of you in one press and opened the share sheet; New Crew's
+                // name and photo are optional, so its Invite is that same
+                // press one sheet later, with the chance to name it first.
                 VStack(spacing: GridConstants.gapItem) {
-                    if inviting {
-                        PrimaryCapsule(waiting: "Starting", because: "The crew is being made")
-                    } else {
-                        PrimaryCapsule(title: "Invite a Friend", action: inviteAFriend)
-                    }
+                    PrimaryCapsule(title: CrewLine.newCrew, action: newCrew)
                     // **For someone who was sent a link before they had the
                     // app**: installing loses it, and nothing said to go back.
                     Text(CrewLine.linkAgain)
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkSecondary)
                         .multilineTextAlignment(.center)
-                    if let inviteProblem {
-                        Text(inviteProblem)
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(AppColors.destructiveInk)
-                            .multilineTextAlignment(.center)
-                            .transition(.opacity)
-                    }
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.bottom, GridConstants.gapWide)
@@ -532,7 +486,7 @@ struct NewCrewSheet: View {
             }
             .padding(GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapTight)
-            .navigationTitle("Start a Crew")
+            .navigationTitle(CrewLine.newCrew)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 BareToolbarItem(placement: .topBarLeading) {
@@ -642,8 +596,13 @@ struct CrewsButton: View {
 /// better together"). With his drawing of three friends wherever it stands.
 nonisolated enum CrewLine {
     static let forWho = "For the people you'd tell anyway."
-    /// Under Invite a Friend, for whoever got a link before the app.
+    /// Under New Crew, for whoever got a link before the app.
     static let linkAgain = "Got a link from a friend? Open it again to join."
+    /// **One name for making a crew, everywhere** (the owner, 2026-10-14,
+    /// "Merge into one"): the corner's VoiceOver name, the empty page's
+    /// button, the sheet's title and the cards that lead there. It was
+    /// "Invite a Friend" in two places and "Start a Crew" in four.
+    static let newCrew = "New Crew"
 }
 
 /// The Crews tab's crew screens, and the router that opens one from outside

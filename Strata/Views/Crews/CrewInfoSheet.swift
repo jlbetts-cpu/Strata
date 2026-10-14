@@ -17,6 +17,10 @@ struct CrewInfoSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var name = ""
     @State private var pickerItem: PhotosPickerItem?
+    /// The photo library, asked for from Edit's menu.
+    @State private var pickingPhoto = false
+    /// Remove Photo asks first: the picture goes for everyone in the crew.
+    @State private var confirmsRemovePhoto = false
     @State private var confirmsLeave = false
     @State private var problem: String?
     @FocusState private var editingName: Bool
@@ -299,20 +303,7 @@ struct CrewInfoSheet: View {
                 // there is no colour or faces option to swap it for. 13 to
                 // 15 send no photos, so their crews keep everyone's faces.
                 if CrewAge.current.sendsPhotos {
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
-                        Text("Edit")
-                            .font(Typography.headerSmall)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            // The page's clear glass, as the crew's name
-                            // capsule has: the type-panel recipe is for words
-                            // over a photograph and read as a grey pill here.
-                            .glassCapsule(onPage: true)
-                            // 44 round a 30pt capsule, as the crew's name has.
-                            .padding(.vertical, 7)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Change the crew's photo")
+                    photoEdit(crew)
                 }
                 // The placeholder is what an EMPTY name shows, the people's
                 // names: it used to be the current name, so clearing the
@@ -339,6 +330,59 @@ struct CrewInfoSheet: View {
             .listRowBackground(Color.clear)
         }
         .listRowSeparator(.hidden)
+    }
+
+    /// **Edit: a new photo, or none** (the owner, 2026-10-14: "there is no
+    /// way to remove pfps from chats", of a crew's own picture). With a
+    /// photo, Edit opens the system's menu, as a member's row does: Choose
+    /// Photo, and Remove Photo in red, which asks first because the picture
+    /// goes for everyone. Without one there is nothing to remove, so Edit
+    /// goes straight to the library, as it always did. Taken off, the crew
+    /// shows its people's faces again (`CrewFaces`). Removing goes through
+    /// `SocialStore.setPhoto(_:jpeg: nil)`, the path a new picture takes,
+    /// so every phone in the crew sees it go; the same people may do it.
+    @ViewBuilder
+    private func photoEdit(_ crew: Crew) -> some View {
+        Group {
+            if crew.photo != nil {
+                Menu {
+                    Button("Choose Photo", systemImage: "photo") { pickingPhoto = true }
+                    Button("Remove Photo", systemImage: "trash", role: .destructive) { confirmsRemovePhoto = true }
+                } label: { editLabel }
+            } else {
+                Button {
+                    HapticsEngine.lightTap()
+                    pickingPhoto = true
+                } label: { editLabel }
+            }
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel(crew.photo != nil ? "Edit the crew's photo" : "Choose a photo for the crew")
+        .photosPicker(isPresented: $pickingPhoto, selection: $pickerItem, matching: .images)
+        .confirmationDialog("Remove the crew's photo?", isPresented: $confirmsRemovePhoto, titleVisibility: .visible) {
+            Button("Remove Photo", role: .destructive) {
+                Task {
+                    do { try await store.setPhoto(crewID, jpeg: nil) } catch { problem = "The photo could not be removed. Try once more." }
+                }
+            }
+        } message: {
+            Text("Everyone in the crew sees its people's faces instead.")
+        }
+    }
+
+    private var editLabel: some View {
+        Text("Edit")
+            .font(Typography.headerSmall)
+            .foregroundStyle(AppColors.inkPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            // The page's clear glass, as the crew's name
+            // capsule has: the type-panel recipe is for words
+            // over a photograph and read as a grey pill here.
+            .glassCapsule(onPage: true)
+            // 44 round a 30pt capsule, as the crew's name has.
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
     }
 
     private func members(_ crew: Crew) -> [CrewMember] {

@@ -57,6 +57,7 @@ struct ProfileView: View {
             streak
             trend
             headSection
+            earlierHeadsSection
             settingsLink
         }
         // **The same break Settings takes, for the same measured reason, and
@@ -104,6 +105,9 @@ struct ProfileView: View {
         // and the one control the colour was for was the one control that
         // never got it. Below them it does.
         .tint(AppColors.inkPrimary)
+        // "Head brought back" and its Undo, over this sheet: the Wins tab's
+        // own line is under it, out of sight (`EarlierHeads.bringBack`).
+        .undoLine()
         // Profile's head sleeps under the maker. Before that modifier, so the
         // maker's own preview head stays awake. ANDed with what arrives, so a
         // cover above Profile still pauses it.
@@ -126,9 +130,10 @@ struct ProfileView: View {
         .fullScreenCover(isPresented: $showsMaker) {
             HeadMakerView()
         }
-        // **By name, and it says out loud that it cannot be undone.** A head is
-        // minutes in front of the camera over a photograph that may not exist
-        // any more, so this is the one place in Profile that destroys work.
+        // **By name, and it says where the head goes.** A head is minutes in
+        // front of the camera over a photograph that may not exist any more.
+        // Since 2026-10-14 deleting keeps it under Earlier Heads, with your
+        // last three, so the words say that and not "cannot be undone".
         .confirmationDialog(Text(deleteHeadLabel + "?"),
                             isPresented: $confirmsDeleteHead, titleVisibility: .visible) {
             Button(deleteHeadLabel, role: .destructive) {
@@ -467,12 +472,13 @@ struct ProfileView: View {
         chosenHeadName.map { "Delete \($0)" } ?? "Delete This Head"
     }
 
-    /// The same fact as a sentence, so it can open one. "this head is removed
-    /// from this phone" was already the wording when no entry existed, and it
-    /// has always started a sentence in lower case; it is fixed here rather
-    /// than left, because this is now the common case and not the fallback.
+    /// **Where a deleted head goes, said before it goes** (the owner,
+    /// 2026-10-14, "the hint for delete your head"). It said a head "can't be
+    /// brought back, only made again"; since that day a deleted head waits
+    /// under Earlier Heads on this phone with your last three, and Delete for
+    /// Good is a hold on it there.
     private var deleteHeadMessage: String {
-        "\(chosenHeadName ?? "This head") is removed from this phone and from everywhere it appears. A head can't be brought back, only made again."
+        "\(chosenHeadName ?? "This head") moves to Earlier Heads on this phone, kept with your last three. Hold it there to delete it for good."
     }
 
     /// **Your head, not an option** (the owner, 2026-10-14: "make the head
@@ -680,6 +686,24 @@ struct ProfileView: View {
             // empty string: an empty footer still reserves a band.
             if let line = headFooter {
                 Text(line)
+                    .formFooter()
+            }
+        }
+    }
+
+    /// **Your last three heads, to take one back** (the owner, 2026-10-14:
+    /// "the app should save your previous three heads to go off of"). Under
+    /// your head, only once there is one: a press makes it yours again, with
+    /// Undo, and a hold deletes it for good (`EarlierHeadsRow`).
+    @ViewBuilder
+    private var earlierHeadsSection: some View {
+        if !heads.earlierEntries.isEmpty {
+            Section {
+                EarlierHeadsRow(entries: heads.earlierEntries) { EarlierHeads.bringBack($0) }
+            } header: {
+                FormSectionLabel(EarlierHeads.title)
+            } footer: {
+                Text(EarlierHeads.footer)
                     .formFooter()
             }
         }

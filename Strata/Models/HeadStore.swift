@@ -373,6 +373,20 @@ final class HeadStore {
             if onDisk.activeID == nil { onDisk.activeID = onDisk.heads.first?.id }
             Self.writeRoster(onDisk, in: support)
         }
+        // `-strataSeedEarlierHeads <n>`: n heads waiting under Earlier Heads,
+        // so the rows that bring one back can be photographed.
+        if let wanted = DebugHarness.seedEarlierHeadCount, wanted > onDisk.earlier.count,
+           let support = Self.support {
+            for i in onDisk.earlier.count..<min(wanted, Roster.earlierLimit) {
+                let folder = "Heads/debug-earlier-\(i)"
+                let base = support.appending(path: folder, directoryHint: .isDirectory)
+                try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+                Self.writeVersion2Fixture(to: base)
+                onDisk.earlier.append(Entry(id: UUID(), name: "Head \(i + 1)",
+                                            created: Date().addingTimeInterval(-86_400 * Double(i + 1)), folder: folder))
+            }
+            Self.writeRoster(onDisk, in: support)
+        }
         #endif
         roster = onDisk
         // A local, not `activeDirectory`: a computed property is a method call
@@ -525,8 +539,10 @@ final class HeadStore {
         if roster != before { persistRoster() }
     }
 
-    /// **Removes one head, files and all. It cannot be undone**, which is why
-    /// the only caller asks first, by name, in plain words.
+    /// **Takes one head out of use; it waits under Earlier Heads** (the
+    /// owner, 2026-10-14). Its files go only when three newer ones push it
+    /// out, or when it is deleted for good there (`forget`). The only caller
+    /// still asks first, by name, and says where it goes.
     ///
     /// The active head is never left empty: `Roster.remove` promotes the head
     /// beside it.

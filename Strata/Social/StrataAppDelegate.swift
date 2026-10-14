@@ -40,7 +40,7 @@ final class CrewRouter {
     /// **Kept across launches** (found by review, 2026-10-13). It lived in
     /// memory, so someone who came by a link, was asked the rules or was
     /// still in the first run, and closed the app, came back to a Crews
-    /// page offering only Start a Crew, with the invitation gone. A real
+    /// page offering only New Crew, with the invitation gone. A real
     /// link only, for a week, and let go the moment it is joined or refused.
     static let pendingKey = "crews.pendingInvite"
     static let pendingDays: TimeInterval = 7 * 86_400
