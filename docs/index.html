@@ -70,12 +70,20 @@
      (his word: "that blur, like the transparent effect of the header, not
      clean apart"). A glass button either side of the crest. */
   header { position: sticky; top: 0; z-index: 10; }
-  header::before {
-    content: ""; position: absolute; inset: 0 0 -32px 0; pointer-events: none;
-    background: linear-gradient(rgba(255,255,255,.92), rgba(255,255,255,.72) 60%, rgba(255,255,255,0));
-    -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
-    -webkit-mask: linear-gradient(#000 0, #000 62%, transparent); mask: linear-gradient(#000 0, #000 62%, transparent);
-  }
+  /* **A graded veil, not a band** (the owner, 2026-10-13: "the top blur of
+     the header is way too strong and sharp, not like in the app experience
+     at all"). It was one 20px blur under a nearly white wash with a short
+     fade: a frosted strip with an edge. The app's header has neither a
+     strip nor an edge: what scrolls under it softens by degrees. So four
+     light layers, each a little more blur than the one below and each
+     reaching less far down, under a wash that is mostly gone by the middle. */
+  .veil { position: absolute; inset: 0 0 -56px 0; pointer-events: none; }
+  .veil i { position: absolute; inset: 0; }
+  .veil i:nth-child(1) { -webkit-backdrop-filter: blur(1px); backdrop-filter: blur(1px); -webkit-mask: linear-gradient(to top, transparent 0%, #000 34%); mask: linear-gradient(to top, transparent 0%, #000 34%); }
+  .veil i:nth-child(2) { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); -webkit-mask: linear-gradient(to top, transparent 24%, #000 58%); mask: linear-gradient(to top, transparent 24%, #000 58%); }
+  .veil i:nth-child(3) { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); -webkit-mask: linear-gradient(to top, transparent 46%, #000 80%); mask: linear-gradient(to top, transparent 46%, #000 80%); }
+  .veil i:nth-child(4) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask: linear-gradient(to top, transparent 66%, #000 100%); mask: linear-gradient(to top, transparent 66%, #000 100%); }
+  .veil i:nth-child(5) { background: linear-gradient(to bottom, rgba(255,255,255,.72) 0%, rgba(255,255,255,.46) 34%, rgba(255,255,255,.16) 66%, rgba(255,255,255,0) 100%); }
   header .wrap { position: relative; display: flex; align-items: flex-start; justify-content: space-between; height: 104px; padding-top: 12px; }
   /* Glass: clear, a little light caught on its top edge, a hairline. */
   .glass {
@@ -235,6 +243,7 @@
 </head>
 <body>
   <header id="bar">
+    <div class="veil" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="wrap">
       <a class="glass" href="#day" aria-label="How it works"><span class="ink" style="--art:url('site/mark-layers.png')" aria-hidden="true"></span></a>
       <button type="button" class="crest" id="crest" aria-label="Some Wins, menu" aria-expanded="false" aria-controls="menu">
