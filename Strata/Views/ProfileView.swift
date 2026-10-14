@@ -23,6 +23,13 @@ struct ProfileView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var showsLookPicker = false
+    /// **The name as it is being typed; saved only with words in it** (the
+    /// owner, 2026-10-14: "You are still able to delete your name and save
+    /// which is a no no everyone should have a name"). It was saved on every
+    /// keystroke, so clearing it saved nothing. Emptied and left, it comes
+    /// back to the name it was.
+    @State private var nameDraft: String?
+    @FocusState private var namingSelf: Bool
     @State private var vm = ProfileViewModel()
     @State private var showsSettings = false
     @State private var showsMaker = false
@@ -237,9 +244,17 @@ struct ProfileView: View {
     /// control that takes one, and a contrast fix that may or may not land is
     /// not a fix. The accessibility label is set by hand because the title
     /// string that used to supply it is now empty.
+    /// The draft saved if it has words in it; otherwise the name it was.
+    private func keepName() {
+        guard let draft = nameDraft else { return }
+        let words = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !words.isEmpty, words != store.name { store.setName(words) }
+        nameDraft = nil
+    }
+
     private var nameField: some View {
         ZStack {
-            if store.name.isEmpty {
+            if (nameDraft ?? store.name).isEmpty {
                 // `inkTertiary` (2026-10-02, design review). It was
                 // `inkQuiet` at **3.32:1** on the sheet (rgb 135 on 246), and a
                 // placeholder that is the field's only visible label is text,
@@ -250,13 +265,17 @@ struct ProfileView: View {
                     .foregroundStyle(AppColors.inkTertiary)
                     .allowsHitTesting(false)
             }
-            TextField("", text: Binding(get: { store.name },
-                                        set: { store.setName($0) }))
+            TextField("", text: Binding(get: { nameDraft ?? store.name },
+                                        set: { nameDraft = String($0.prefix(24)) }))
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
                 .multilineTextAlignment(.center)
                 .textContentType(.name)
                 .submitLabel(.done)
+                .focused($namingSelf)
+                .onSubmit(keepName)
+                .onChange(of: namingSelf) { _, now in if !now { keepName() } }
+                .onDisappear(perform: keepName)
                 .accessibilityLabel("Your name")
         }
     }

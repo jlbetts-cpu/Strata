@@ -304,7 +304,7 @@ struct ChatReactionTests {
         #expect(!chat.contains(".contextMenu"), "the hold is two things again")
 
         let bar = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/ChatReactions.swift"))
-        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true, onMore: more)"),
+        #expect(bar.contains("ReactionBar(mine: mine.flatMap { $0.isSticker ? nil : $0.emoji }, bare: true, onMore: more,"),
                 "the chat's bar is a private copy of the win's")
         // **"+" is more emoji, as on a win** (the owner, 2026-10-14: "on the
         // tower when you press the + its for additional emojis"); it opened

@@ -71,7 +71,10 @@ final class ProfileStore {
         background = UserDefaults.standard.string(forKey: Self.backgroundKey).flatMap(HabitCategory.init(rawValue:))
     }
 
+    /// **Never empty** (the owner, 2026-10-14: "everyone should have a
+    /// name"): a name with no words in it is not saved.
     func setName(_ newValue: String) {
+        guard !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         name = newValue
         UserDefaults.standard.set(newValue, forKey: Self.nameKey)
         SocialStore.noteMyselfChanged()
@@ -119,7 +122,11 @@ final class ProfileStore {
     /// every photo; an old profile photo left on the phone is one.
     func reset() {
         removeOldPhoto()
-        setName("")
+        // The one way a name goes: everything is reset, and onboarding asks
+        // for one again before anyone sees it.
+        name = ""
+        UserDefaults.standard.removeObject(forKey: Self.nameKey)
+        SocialStore.noteMyselfChanged()
         setBackground(nil)
     }
 
