@@ -1118,7 +1118,12 @@ struct AddWinSheet: View {
                 // photo it replaced (2026-10-09, "the map behaves
                 // unexpectedly": a replaced photo stood where the old one
                 // was taken).
-                place = TodaysPhotos.place(of: asset)
+                //
+                // **Only while Remember Places is on** (the privacy review,
+                // 2026-10-14, section 7): Settings' switch said places were
+                // kept only from the camera, and a library photo's place was
+                // kept whatever it said.
+                place = LocationService.shared.remembersPlaces ? TodaysPhotos.place(of: asset) : nil
             }
         }
     }

@@ -37,6 +37,11 @@ nonisolated enum CrewAge: String, Sendable {
         UserDefaults.standard.set(version, forKey: versionKey)
         UserDefaults.standard.set(age.rawValue, forKey: key)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: askedKey)
+        // **A child's phone sends no usage counts** (the privacy review,
+        // 2026-10-14, COPPA 2.1): told it is under 13, anonymous analytics
+        // stop and the install id is forgotten. The only thing the app sends
+        // its maker, stopped for the one person it must not come from.
+        if age == .under13 { Task { @MainActor in Analytics.shared.stopSharing() } }
     }
 
     static let askedKey = "crews.ageAskedAt"
