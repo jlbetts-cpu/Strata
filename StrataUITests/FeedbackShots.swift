@@ -1145,47 +1145,23 @@ final class FeedbackShots: XCTestCase {
     /// 2026-10-13): at rest, opened by its line, closed again; opened by
     /// its field with the keyboard.
     func testChatDrawer() {
-        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+        var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
                           "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
         wait(9); snap("drawer-rest")
-        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat, '")).firstMatch
-        print("PLANNING-drawer: line \(line.exists) \(line.label) value \(String(describing: line.value))")
-        if line.exists { line.tap(); wait(2.5) }
-        snap("drawer-open")
-        let done = app.buttons["Done"].firstMatch
-        if done.exists { done.tap(); wait(2) }
-        snap("drawer-closed")
         let field = app.buttons["Write a message"].firstMatch
-        if field.exists { field.tap(); wait(2.5) }
+        print("PLANNING-field: exists \(field.exists) hittable \(field.isHittable) frame \(field.frame)")
+        if field.exists { field.press(forDuration: 0.12); wait(2.5) }
         snap("drawer-writing")
-    }
-
-    /// **The head as everyone's identity** (the owner, 2026-10-14): every
-    /// surface it changed, photographed.
-    func testHeadsWalk() {
-        let runs: [(String, [String])] = [
-            ("heads-1-wins-blank", ["-strataStartTab", "tower", "-strataSeedWins", "2"]),
-            ("heads-2-wins-head", ["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedHead", "1"]),
-            ("heads-3-crew-blank", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"]),
-            ("heads-4-crew-info", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "info"]),
-            ("heads-5-profile", ["-strataStartTab", "tower", "-strataOpenSheet", "profile"]),
-            ("heads-6-profile-head", ["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataSeedHead", "1"]),
-            ("heads-7-onboarding", ["-strataShowOnboarding", "1", "-strataOnboardingStep", "4"]),
-            ("heads-8-catchup", ["-strataStartTab", "tower", "-strataHeadCatchUp", "1"]),
-            ("heads-9-maker-denied", ["-strataStartTab", "tower", "-strataOpenSheet", "profile", "-strataOpenHeadMaker", "denied"]),
-            ("heads-10-crews-list", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews", "-strataCrewFaces", "none"]),
-        ]
-        for (name, args) in runs {
-            let app = launch(args)
-            wait(9); snap(name)
-            app.terminate()
-        }
-    }
-
-    /// Your head out on the tower leaves the crest empty (2026-10-14).
-    func testCrestEmptyWhileOut() {
-        _ = launch(["-strataStartTab", "tower", "-strataSeedWins", "2", "-strataSeedHead", "1"])
-        wait(9); snap("crest-out")
+        app.swipeDown(velocity: .fast); wait(2)
+        let plus = app.buttons["More to send"].firstMatch
+        if plus.exists { plus.tap(); wait(2.5) }
+        snap("drawer-plus")
+        app.swipeUp(velocity: .slow); wait(2)
+        snap("drawer-full")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews"])
+        wait(8); snap("crews-corners")
+        print("PLANNING-corner: invite \(app.buttons["Invite a Friend"].firstMatch.exists)")
     }
 
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.

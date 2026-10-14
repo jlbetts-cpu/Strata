@@ -77,6 +77,48 @@ struct HeadRosterTests {
 
     // MARK: - The head that already exists
 
+    // MARK: Your last three (the owner, 2026-10-14)
+
+    @Test("a deleted head waits with your last three, newest first, and the fourth goes for good")
+    func lastThree() {
+        var roster = HeadStore.Roster()
+        let heads = (0..<4).map { entry("Head \($0)") }
+        var past: [HeadStore.Entry] = []
+        for head in heads {
+            roster.add(head)
+            past += roster.retire(head.id)
+        }
+        #expect(roster.heads.isEmpty && roster.activeID == nil)
+        #expect(roster.earlier.map(\.id) == heads.reversed().prefix(3).map(\.id))
+        #expect(past.map(\.id) == [heads[0].id], "the oldest is the only one whose files go")
+    }
+
+    @Test("a new head keeps the one it replaces; bringing one back keeps the one in use")
+    func replaceAndBringBack() {
+        var roster = HeadStore.Roster()
+        let first = entry("First"), second = entry("Second")
+        roster.add(first)
+        roster.replaceWith(second)
+        #expect(roster.activeID == second.id && roster.heads.count == 1)
+        #expect(roster.earlier.map(\.id) == [first.id])
+        roster.bringBack(first.id)
+        #expect(roster.activeID == first.id && roster.heads.map(\.id) == [first.id])
+        #expect(roster.earlier.map(\.id) == [second.id])
+        #expect(roster.forget(second.id)?.id == second.id && roster.earlier.isEmpty)
+    }
+
+    @Test("a list from before earlier heads reads, and the earlier ones survive a round trip")
+    func earlierCodes() throws {
+        let old = try JSONDecoder().decode(HeadStore.Roster.self, from: Data(#"{"version":1,"heads":[]}"#.utf8))
+        #expect(old.earlier.isEmpty)
+        var roster = HeadStore.Roster()
+        let gone = entry("Gone")
+        roster.add(gone)
+        roster.retire(gone.id)
+        let back = try JSONDecoder().decode(HeadStore.Roster.self, from: JSONEncoder().encode(roster))
+        #expect(back.earlier.map(\.id) == [gone.id])
+    }
+
     @Test("the one head already on the phone is adopted and becomes the active head")
     @MainActor
     func anExistingHeadIsAdoptedAndBecomesActive() throws {

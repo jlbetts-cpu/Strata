@@ -15,12 +15,17 @@ import SwiftUI
 /// now where the eye already is.
 struct ChatRestBar: View {
     let crewID: CrewID
-    /// Open the chat; true when the field was what was pressed.
-    var open: (_ writing: Bool) -> Void
+    /// Open the chat, part way up: to read, to write, or with the + row out.
+    var open: (_ how: Opening) -> Void
+
+    enum Opening { case reading, writing, plus }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lift: CGFloat = 0
     private var store: SocialStore { SocialStore.shared }
+    /// A line started in the chat and not sent: shown in the field here, as
+    /// Messages keeps a draft under a conversation.
+    private var draft: String { CrewDrafts.chat(crewID) }
 
     /// Far enough up that it was meant; the sheet takes it from there.
     private static let opensAt: CGFloat = 36
@@ -33,7 +38,7 @@ struct ChatRestBar: View {
                 .frame(width: 36, height: 5)
                 .padding(.top, GridConstants.gapTight)
                 .accessibilityHidden(true)
-            Button { HapticsEngine.lightTap(); open(false) } label: {
+            Button { HapticsEngine.lightTap(); open(.reading) } label: {
                 HStack(spacing: GridConstants.gapTight) {
                     if unread {
                         NewsDot().transition(NewsDot.transition(reduceMotion: reduceMotion))
@@ -53,20 +58,46 @@ struct ChatRestBar: View {
             .accessibilityValue(unread ? "New messages" : "")
             .accessibilityHint("Opens today's chat.")
 
-            Button { HapticsEngine.lightTap(); open(true) } label: {
-                Text(CrewChatWords.placeholder)
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // The chat's own field, as it is drawn there
-                    // (`glassField`), so opening is one field rising.
-                    .padding(.horizontal, GridConstants.gapLabel)
-                    .frame(minHeight: GlassIconButton.defaultSide)
-                    .glassField()
-                    .contentShape(Rectangle())
+            // **The chat's own composer, as it stands in the chat** (the
+            // owner, 2026-10-14: "when i would type in message there wasnt
+            // like the + button or send on that message preview bar"): the
+            // +, the field and Send, so the bar is the foot of the chat
+            // before it rises. Each opens the chat part way, doing its job.
+            HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
+                if store.canReply() {
+                    GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "More to send") {
+                        open(.plus)
+                    }
+                    // A tap on the field itself, not a Button round glass:
+                    // wrapped in a Button, the glass took the press and the
+                    // chat never opened (walked, 2026-10-14).
+                    Text(draft.isEmpty ? CrewChatWords.placeholder : draft)
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(draft.isEmpty ? AppColors.inkTertiary : AppColors.inkPrimary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(minHeight: GlassIconButton.defaultSide)
+                        // The chat's own field (`glassField`), so opening is
+                        // one field rising.
+                        .glassField()
+                        .contentShape(Rectangle())
+                        .onTapGesture { HapticsEngine.lightTap(); open(.writing) }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel("Write a message")
+                        .accessibilityAction { open(.writing) }
+                    GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send") {
+                        open(.writing)
+                    }
+                    .disabled(draft.isEmpty)
+                } else {
+                    Text("Writing here is off on this phone.")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkTertiary)
+                        .frame(maxWidth: .infinity, minHeight: GlassIconButton.defaultSide)
+                }
             }
-            .buttonStyle(.press)
-            .accessibilityLabel("Write a message")
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.bottom, GridConstants.gapTight)
@@ -85,11 +116,11 @@ struct ChatRestBar: View {
                 .onEnded { value in
                     let up = -value.translation.height
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { lift = 0 }
-                    if up > Self.opensAt { HapticsEngine.lightTap(); open(false) }
+                    if up > Self.opensAt { HapticsEngine.lightTap(); open(.reading) }
                 }
         )
         .accessibilityElement(children: .contain)
-        .accessibilityAction(named: "Open the chat") { open(false) }
+        .accessibilityAction(named: "Open the chat") { open(.reading) }
     }
 
     /// The newest line as the Crews list says it ("Sam: see you at 6",

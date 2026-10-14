@@ -35,8 +35,8 @@ struct CrewTowerView: View {
     @State private var showsInfo = false
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
-    /// The chat was opened by pressing the resting bar's field.
-    @State private var chatStartsWriting = false
+    /// How the resting bar opened the chat: to read, to write, or with +.
+    @State private var chatOpening: ChatRestBar.Opening = .reading
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
     @State private var plansRefresh = 0
@@ -135,8 +135,8 @@ struct CrewTowerView: View {
         // **Today's chat, resting under the tower** (`ChatRestBar`). An
         // inset, so the tower's base stands above it rather than behind it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChatRestBar(crewID: crewID) { writing in
-                chatStartsWriting = writing
+            ChatRestBar(crewID: crewID) { how in
+                chatOpening = how
                 showsChat = true
             }
             // A real object the heads meet, as the chat button was: never a
@@ -180,7 +180,7 @@ struct CrewTowerView: View {
             switch DebugHarness.argument("-strataCrewSheet") {
             case "info": showsInfo = true
             // `-strataCrewSheet chat`: today's chat, over the crew.
-            case "chat": showsChat = true
+            case "chat": chatOpening = .reading; showsChat = true
             case "win": viewing = store.today(in: crewID).last { $0.senderProfileID != store.me && $0.photo == nil }?.winID.uuidString
             case "mine": viewing = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID.uuidString
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
@@ -306,7 +306,8 @@ struct CrewTowerView: View {
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
         .sheet(isPresented: $showsChat) {
-            CrewChatSheet(crewID: crewID, startsWriting: chatStartsWriting, onOpenWin: openQuotedWin, onAddWin: {
+            CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
+                          startsWithPlus: chatOpening == .plus, onOpenWin: openQuotedWin, onAddWin: {
                 // The plus row's Win: once the chat has gone, the crew's own
                 // way to add one.
                 // 450, as `openQuotedWin` waits: a presentation asked for
@@ -379,6 +380,7 @@ struct CrewTowerView: View {
         CrewRouter.shared.openChat = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
+            chatOpening = .reading
             showsChat = true
         }
     }

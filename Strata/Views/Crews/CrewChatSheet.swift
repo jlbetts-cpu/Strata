@@ -130,11 +130,20 @@ struct CrewChatSheet: View {
     /// Opened by pressing the resting bar's field (`ChatRestBar`): the
     /// keyboard comes up with the thread.
     var startsWriting = false
+    /// Opened by the resting bar's +: the plus row is already out.
+    var startsWithPlus = false
+    /// **Part way up, the tower still showing above** (the owner,
+    /// 2026-10-14: "it felt like it was taking me to another screen rather
+    /// than just popping up enough to see the chat"). A drag takes it to the
+    /// whole height.
+    static let drawerHeight = PresentationDetent.fraction(0.62)
+    @State private var detent: PresentationDetent = CrewChatSheet.drawerHeight
 
-    init(crewID: CrewID, startsWriting: Bool = false, onOpenWin: @escaping (UUID) -> Void = { _ in },
-         onAddWin: @escaping () -> Void = {}) {
+    init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false,
+         onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.startsWriting = startsWriting
+        self.startsWithPlus = startsWithPlus
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
@@ -165,7 +174,10 @@ struct CrewChatSheet: View {
                     ChatSheetToolbar(name: crew?.displayName(excluding: store.me) ?? "", done: { dismiss() })
                 }
         }
-        .presentationDetents([.large])
+        .presentationDetents([Self.drawerHeight, .large], selection: $detent)
+        // The tower above stays the tower: a tap on it lands while the chat
+        // is part way up, as Maps' card leaves the map.
+        .presentationBackgroundInteraction(.enabled(upThrough: Self.drawerHeight))
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         // Open is seen: the dot goes, and the hour's held alert with it. And
@@ -174,6 +186,7 @@ struct CrewChatSheet: View {
         .onAppear {
             store.markChatSeen(crewID)
             if startsWriting { writing = true }
+            if startsWithPlus { showsPlus = true }
         }
         .onChange(of: messages.map(\.messageID)) { _, _ in store.markChatSeen(crewID) }
         .alert("Try other words", isPresented: $refused) {

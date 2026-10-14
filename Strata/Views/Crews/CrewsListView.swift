@@ -113,6 +113,17 @@ struct CrewsListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
+            // **Invite a Friend, always one press away** (the owner,
+            // 2026-10-14, for the corner that stood empty; his "add friends
+            // button"). A crew of you and the share sheet, as the empty
+            // page's button does; Start a Crew stays on the right for a group.
+            if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty { ToolbarItem(placement: .topBarLeading) {
+                Button(action: inviteAFriend) {
+                    Image(systemName: "person.badge.plus").sheetAction(.confirm, as: .glyph)
+                }
+                .disabled(inviting)
+                .accessibilityLabel("Invite a Friend")
+            } }
             if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
                 // At the cap it still answers, with why (the crews audit,
                 // 2026-10-08: it went grey and said nothing).
@@ -368,7 +379,14 @@ struct CrewsListView: View {
                 try? await Task.sleep(for: .milliseconds(450))
                 await CrewSharing.invite(crew.id)
             } catch {
-                withAnimation(GridConstants.crossFade) { inviteProblem = CrewErrorWords.say(error, while: .starting) }
+                let words = CrewErrorWords.say(error, while: .starting)
+                // On the empty page under its button; from the corner, the
+                // list's own alert, since there is no line to put it on.
+                if store.crews.isEmpty {
+                    withAnimation(GridConstants.crossFade) { inviteProblem = words }
+                } else {
+                    problem = words
+                }
             }
             inviting = false
         }

@@ -140,9 +140,18 @@ final class HeadStore {
         var version = 1
         var heads: [Entry] = []
         var activeID: UUID?
+        /// **Your last heads, newest first** (the owner, 2026-10-14: "I took
+        /// a head already but I deleted it to try the new feature I feel like
+        /// the app should save your previous three heads to go off of"). A
+        /// head deleted, or replaced by a new one, waits here, on this phone
+        /// only, until three newer ones push it out. Never sent anywhere.
+        var earlier: [Entry] = []
 
-        init(version: Int = 1, heads: [Entry] = [], activeID: UUID? = nil) {
-            self.version = version; self.heads = heads; self.activeID = activeID
+        /// How many earlier heads are kept.
+        static let earlierLimit = 3
+
+        init(version: Int = 1, heads: [Entry] = [], activeID: UUID? = nil, earlier: [Entry] = []) {
+            self.version = version; self.heads = heads; self.activeID = activeID; self.earlier = earlier
         }
 
         /// Every key optional: the synthesized decoder ignores the defaults
@@ -154,6 +163,7 @@ final class HeadStore {
             version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
             heads = try c.decodeIfPresent([Entry].self, forKey: .heads) ?? []
             activeID = try c.decodeIfPresent(UUID.self, forKey: .activeID)
+            earlier = try c.decodeIfPresent([Entry].self, forKey: .earlier) ?? []
         }
 
         var active: Entry? { heads.first { $0.id == activeID } }
@@ -178,6 +188,49 @@ final class HeadStore {
                 activeID = (heads.indices.contains(index) ? heads[index] : heads.last)?.id
             }
             return removed
+        }
+
+        /// **Out of use, not out of the phone**: a head deleted goes to the
+        /// front of `earlier`. Returns the heads pushed past the last three,
+        /// whose folders the caller removes for good.
+        @discardableResult
+        mutating func retire(_ id: UUID) -> [Entry] {
+            guard let gone = remove(id) else { return [] }
+            earlier.removeAll { $0.id == gone.id }
+            earlier.insert(gone, at: 0)
+            guard earlier.count > Self.earlierLimit else { return [] }
+            let past = Array(earlier[Self.earlierLimit...])
+            earlier.removeLast(earlier.count - Self.earlierLimit)
+            return past
+        }
+
+        /// **A new head takes over, and the one it replaces is kept**: every
+        /// head but the new one is retired. Returns what fell past three.
+        @discardableResult
+        mutating func replaceWith(_ entry: Entry) -> [Entry] {
+            var past: [Entry] = []
+            for old in heads.map(\.id) { past += retire(old) }
+            add(entry)
+            return past
+        }
+
+        /// An earlier head back in use, and the one in use kept in its place.
+        /// Returns what fell past three.
+        @discardableResult
+        mutating func bringBack(_ id: UUID) -> [Entry] {
+            guard let index = earlier.firstIndex(where: { $0.id == id }) else { return [] }
+            let back = earlier.remove(at: index)
+            var past: [Entry] = []
+            for old in heads.map(\.id) { past += retire(old) }
+            add(back)
+            return past
+        }
+
+        /// An earlier head deleted for good. Returns it for its folder.
+        @discardableResult
+        mutating func forget(_ id: UUID) -> Entry? {
+            guard let index = earlier.firstIndex(where: { $0.id == id }) else { return nil }
+            return earlier.remove(at: index)
         }
 
         /// Puts a head in use. A head that is not in the list is ignored
@@ -214,6 +267,26 @@ final class HeadStore {
 
     var entries: [Entry] { roster.heads }
     var activeID: UUID? { roster.activeID }
+    /// Your last heads, newest first (`Roster.earlier`).
+    var earlierEntries: [Entry] { roster.earlier }
+
+    /// An earlier head is yours again; the one in use joins the earlier ones.
+    func bringBack(_ id: UUID) {
+        guard roster.earlier.contains(where: { $0.id == id }) else { return }
+        epoch &+= 1
+        for past in roster.bringBack(id) { Self.removeFolder(past) }
+        persistRoster()
+        loadActive()
+        SocialStore.noteMyselfChanged()
+    }
+
+    /// An earlier head deleted for good, files and all.
+    func forget(_ id: UUID) {
+        guard let gone = roster.forget(id) else { return }
+        epoch &+= 1
+        Self.removeFolder(gone)
+        persistRoster()
+    }
     var activeEntry: Entry? { roster.active }
 
     /// The head as every screen draws it: wearing `look`. **The active one.**
@@ -418,8 +491,11 @@ final class HeadStore {
             try? manager.removeItem(at: directory)
             throw error
         }
-        roster.add(Entry(id: id, name: name ?? suggestedName(), created: Date(),
-                         folder: Self.folder(for: id)))
+        // The head this replaces is kept with your last three, not lost.
+        for past in roster.replaceWith(Entry(id: id, name: name ?? suggestedName(), created: Date(),
+                                             folder: Self.folder(for: id))) {
+            Self.removeFolder(past)
+        }
         persistRoster()
         Analytics.shared.signal(.headMade)
         undressed = rig
@@ -458,9 +534,11 @@ final class HeadStore {
         let wasActive = roster.activeID == id
         // Bumped only once something is really going: `epoch` aborts a
         // migration in flight, and an id that is not here changes nothing.
-        guard let removed = roster.remove(id) else { return }
+        guard roster.heads.contains(where: { $0.id == id }) else { return }
         epoch &+= 1
-        Self.removeFolder(removed)
+        // **Kept with your last three**, not removed (the owner,
+        // 2026-10-14): only what falls past three goes for good.
+        for past in roster.retire(id) { Self.removeFolder(past) }
         persistRoster()
         if wasActive { loadActive() }
         if roster.heads.isEmpty { setShowsOnTower(false) }
@@ -473,7 +551,7 @@ final class HeadStore {
     /// app deletes more than one head at a time.
     func delete() {
         epoch &+= 1
-        for entry in roster.heads { Self.removeFolder(entry) }
+        for entry in roster.heads + roster.earlier { Self.removeFolder(entry) }
         roster = Roster()
         persistRoster()
         dressing?.cancel()
@@ -804,7 +882,8 @@ final class HeadStore {
     /// Profile.
     func swatches() async -> [UUID: HeadRig] {
         guard let support = Self.support else { return [:] }
-        let folders: [(UUID, URL)] = roster.heads.compactMap { entry in
+        // The earlier heads too: they are chosen by their faces.
+        let folders: [(UUID, URL)] = (roster.heads + roster.earlier).compactMap { entry in
             Self.resolve(folder: entry.folder, in: support).map { (entry.id, $0) }
         }
         guard !folders.isEmpty else { return [:] }
