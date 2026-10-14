@@ -163,8 +163,10 @@ struct RoughEdgesTests {
         #expect(viewer.contains(".lineLimit(1)\n            .fitsLargeType(.subheadline)"),
                 "the viewer's caption truncates at large type again")
         // The chat's fourth is the Reply quote over the field (2026-10-14),
-        // one line that shrinks at large type rather than cutting off.
-        for (path, count) in [("Strata/Views/Crews/CrewChatSheet.swift", 4),
+        // one line that shrinks at large type rather than cutting off; its
+        // fifth, the drawer's own title row, which has no navigation bar to
+        // do it (2026-10-14, `ChatDrawerTitle`).
+        for (path, count) in [("Strata/Views/Crews/CrewChatSheet.swift", 5),
                               ("Strata/Views/Crews/CrewReactions.swift", 2),
                               ("Strata/Views/Crews/CrewsListView.swift", 1),
                               ("Strata/Views/Crews/CrewTowerView.swift", 1)] {

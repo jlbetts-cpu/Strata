@@ -194,7 +194,11 @@ struct DaySheetTests {
                 "a switch is not remembered")
         let main = SourceSweep.code(try MorningSource.read("Views/MainAppView.swift"))
         #expect(main.contains("@AppStorage(DayTabs.defaultsKey) private var lastDayTab = DayTab.plan.rawValue"))
-        #expect(main.contains("tabs: .wins, opening: dayOpeningTab"))
+        // Wins' Plan button opens the plan alone since 2026-10-14 (the
+        // owner: "plan and journal shouldnt be merged together on the left
+        // side because it already has journal on the right"); the remembered
+        // tab still serves a sheet that has both.
+        #expect(main.contains("tabs: .planOnly, opening: .plan"))
     }
 
     // MARK: - Each tab has its own Suggest

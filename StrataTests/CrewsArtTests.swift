@@ -29,7 +29,7 @@ struct CrewsArtTests {
     @Test("the key never reads as a month, so no month's art or title is taken for it")
     func notAMonth() {
         #expect(MonthName.of(CrewsArt.key) == "")
-        #expect(CrewsArt.aspect == 3 / 2)
+        #expect(CrewsArt.aspect == 3.0 / 2.0)
     }
 
     @Test("both places the drawing stands use the one view, with the month's hold and a way to hide it")

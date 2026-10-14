@@ -3826,12 +3826,17 @@ struct MainAppView: View {
             // really have a clean animation"). They were inside the slot's
             // "not while anything falls": every drop took them off the tower
             // and put them back a beat later in new cells, a blink and a jump.
-            // Now they move to where the new block leaves room, on the slot's
-            // own spring, while it falls.
+            // Now they step aside and come back in the cells the new block
+            // leaves them: out quickly, then in, never both at once. A slide
+            // carried one box across another, and a cross-fade showed two
+            // sets of boxes at once (the owner, seeing the frames: "it looks
+            // kinda glitched").
             if !isRearranging {
                 plannedLayer(colW: colW, gridH: gridH, slotPos: slotPos)
-                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.slotSnap,
-                               value: towerVM.currentGrid)
+                    .id(towerVM.currentGrid)
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.16)),
+                        removal: .opacity.animation(.easeIn(duration: 0.14))))
             }
         }
         // A container, not one combined element: each win is reachable and
