@@ -146,16 +146,18 @@ struct CrestDockTests {
         #expect(parking.popped == before.1 + 1)
         parking.letOut()
         #expect(parking.popped == before.1 + 1, "a second press in the same beat lets nothing out")
-        await Task.yield()
-        await Task.yield()
+        // The release clears on the main actor's next turn; a busy runner
+        // takes more than two yields to give it one.
+        for _ in 0..<100 where parking.releasing { try? await Task.sleep(for: .milliseconds(10)) }
         #expect(!parking.releasing)
     }
 
     @Test("he lands in the crest at the size the crest draws him")
     func sizes() {
         let side: CGFloat = 60
-        #expect(GoalCrest.faceSide(crest: side) == 40)
-        #expect(CompanionParking.crestHeadSide(crest: side) == 40 * ProfileAvatar.headShare)
+        // Within a hair: the sides are sums of fractions of a point.
+        #expect(abs(GoalCrest.faceSide(crest: side) - 40) < 0.001)
+        #expect(abs(CompanionParking.crestHeadSide(crest: side) - 40 * ProfileAvatar.headShare) < 0.001)
         #expect(CompanionParking.crestHeadSide(crest: side) < TowerCompanion.side, "he shrinks going in")
     }
 

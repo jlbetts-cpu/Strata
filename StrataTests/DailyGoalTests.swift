@@ -116,7 +116,7 @@ struct DoodleRingTests {
     @Test("his pen's weight round the crest, on the same circle as the 4pt ring was")
     func pen() throws {
         #expect(GoalCrest.line == 2.6)
-        #expect(GoalCrest.faceSide(crest: 60) == 40, "the face kept its size")
+        #expect(abs(GoalCrest.faceSide(crest: 60) - 40) < 0.001, "the face kept its size")
         #expect(GoalCrest.ringInset == 4)
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
         let stroke = try #require(ring.components(separatedBy: "struct GoalRingStroke").dropFirst().first?

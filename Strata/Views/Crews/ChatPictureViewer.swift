@@ -66,7 +66,6 @@ struct ChatPictureViewer: View {
                     Spacer(minLength: 0)
                     menu
                 }
-                .buttonStyle(.plain)
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.top, Self.topInset)
                 Spacer(minLength: 0)

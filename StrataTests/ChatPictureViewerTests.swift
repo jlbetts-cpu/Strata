@@ -15,7 +15,10 @@ struct ChatPictureViewerTests {
         let mine = try #require(viewer.range(of: "if mine {"))
         let theirs = try #require(viewer.range(of: "} else {", range: mine.upperBound..<viewer.endIndex))
         let ownPart = String(viewer[mine.upperBound..<theirs.lowerBound])
-        let friendPart = String(viewer[theirs.upperBound...])
+        // Only the menu's own else: the file goes on to define `save()`,
+        // and reading to its end found the definition as a call.
+        let menuEnd = try #require(viewer.range(of: "GlassIconLabel(systemName: \"ellipsis\"", range: theirs.upperBound..<viewer.endIndex))
+        let friendPart = String(viewer[theirs.upperBound..<menuEnd.lowerBound])
         #expect(ownPart.contains("ShareLink(") && ownPart.contains("Save to Photos"))
         #expect(!friendPart.contains("ShareLink(") && !friendPart.contains("save()"), "a friend's picture can leave the app")
         #expect(friendPart.contains("\"Report\""))
