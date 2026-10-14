@@ -104,6 +104,23 @@ struct HeadCatchUpPage: View {
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
+            // **A head you made before, instead of a new one** (the owner,
+            // 2026-10-14: "I deleted it to try the new feature I feel like the
+            // app should save your previous three heads to go off of"). Taken,
+            // it is yours and the page has done its job; its Undo waits on
+            // Wins, under this page.
+            if !HeadStore.shared.earlierEntries.isEmpty {
+                VStack(spacing: GridConstants.gapTight) {
+                    Text(EarlierHeads.instead)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                    EarlierHeadsRow(entries: HeadStore.shared.earlierEntries, alignment: .center) { id in
+                        EarlierHeads.bringBack(id)
+                        onDone()
+                    }
+                }
+                .padding(.top, GridConstants.gapItem)
+            }
             Spacer(minLength: 0)
             VStack(spacing: GridConstants.gapTight) {
                 PrimaryCapsule(title: HeadAsk.Copy.makeMyHead) { making = true }
@@ -147,7 +164,11 @@ struct HeadCatchUpPrompt: ViewModifier {
             .onChange(of: HeadAsk.shared.makerAsked) { _, asked in
                 guard asked else { return }
                 HeadAsk.shared.makerAsked = false
-                if cover == nil { cover = .maker }
+                // **With earlier heads, the page that offers them** (the
+                // owner, 2026-10-14): somebody who deleted a head and pressed
+                // the blank one can take an earlier head back rather than
+                // only make a new one. With none, the maker, as before.
+                if cover == nil { cover = HeadStore.shared.earlierEntries.isEmpty ? .maker : .catchUp }
             }
             .fullScreenCover(item: $cover) { which in
                 switch which {

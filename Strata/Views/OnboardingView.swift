@@ -1320,6 +1320,19 @@ struct OnboardingView: View {
             // making one failed, and then a quiet Later, so nobody is stuck
             // on this page (`HeadAsk.offersLater`).
             if offersHead && HeadAsk.shared.offersLater { decline(HeadAsk.Copy.later) }
+            // **An earlier head instead of a new one** (the owner,
+            // 2026-10-14: "the app should save your previous three heads to
+            // go off of"). Only for somebody who has made heads before (a
+            // second run). Above the primary, as Later is, so the button
+            // never moves; taken, the page says "That's your head".
+            if offersHead && !heads.earlierEntries.isEmpty {
+                VStack(spacing: GridConstants.gapTight) {
+                    Text(EarlierHeads.instead)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                    EarlierHeadsRow(entries: heads.earlierEntries, alignment: .center) { heads.bringBack($0) }
+                }
+            }
             // Your three are asked for, never required (the owner's pick:
             // "skippable"), so this page has the head's way out too.
             if step == Self.threeStep { decline(YourThree.Copy.onboardingSkip) }
