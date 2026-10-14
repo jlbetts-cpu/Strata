@@ -141,7 +141,7 @@ extension View {
 /// **A toolbar item with no glass of the system's behind it** (rule 1 of
 /// `docs/ten.md`, 2026-10-11). iOS 26 puts a glass capsule behind every
 /// toolbar item. Day, Chat, Profile, Add and the editors strip it, each in
-/// its own toolbar; Crew details, Start a Crew, Your Day and Your Three did
+/// its own toolbar; Crew details, New Crew, Your Day and Your Three did
 /// not, so Done was a bare word on one sheet and a word in a pill on the
 /// next. One item, for every sheet's Cancel and Done.
 struct BareToolbarItem<Content: View>: ToolbarContent {

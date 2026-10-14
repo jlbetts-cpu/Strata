@@ -121,7 +121,7 @@ struct FirstWinInvitePrompt: ViewModifier {
 }
 
 /// **The invitation, as every tip is now** (`TipCard`, 2026-10-08): the line,
-/// Invite or Start a Crew as its word, and the close glyph, in the one tip
+/// Invite or New Crew as its word, and the close glyph, in the one tip
 /// container, under the header where it always stood.
 struct FirstWinInviteCard: View {
     let hasCrew: Bool
@@ -132,9 +132,9 @@ struct FirstWinInviteCard: View {
         TipCard(title: String(FirstWinInvite.lead.dropLast()),
                 message: FirstWinInvite.ask,
                 mark: "TipPersonPlus",
-                actionTitle: hasCrew ? "Invite" : "Start a Crew",
+                actionTitle: hasCrew ? "Invite" : CrewLine.newCrew,
                 action: invite,
                 close: close)
-            .accessibilityHint(hasCrew ? "Opens the invite" : "Starts a crew")
+            .accessibilityHint(hasCrew ? "Opens the invite" : "Opens New Crew")
     }
 }
