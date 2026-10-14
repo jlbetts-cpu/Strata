@@ -1061,6 +1061,8 @@ struct MainAppView: View {
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
+        // Friends' reactions to your wins, onto their blocks (`MyWinReactions`).
+        .modifier(MyWinReactionsWatch { _ = refreshData() })
         // The camera a planned win opens, and the sheet that changes one.
         .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
@@ -1310,11 +1312,20 @@ struct MainAppView: View {
                 // **And it is not inside the header's bar** (2026-10-13,
                 // `pinnedBar`): overflowing a bar it was drawn and took no
                 // touch.
-                winsTip
-                    .padding(.top, GridConstants.gapTight)
-                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
-                    .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
-                               value: TipStage.shared.invite == nil)
+                ZStack(alignment: .top) {
+                    winsTip
+                        .padding(.top, GridConstants.gapTight)
+                        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn, value: winCue)
+                        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn,
+                                   value: TipStage.shared.invite == nil)
+                    // **A friend's line, over the tower, for a moment**
+                    // (`WinsChatBanner`, the owner, 2026-10-13: "chat
+                    // notifications not noticeable, show message above
+                    // tower"). In the same place a tip hangs, over it while
+                    // it is up: it is gone in four seconds and the tip is not.
+                    WinsChatBanner(isClear: ringIsClear)
+                        .padding(.top, GridConstants.gapTight)
+                }
             })
             // **The head that lives on the tower, OVER the header** (moved
             // 2026-10-02). It was an overlay on the scroll view, under this
@@ -1436,9 +1447,10 @@ struct MainAppView: View {
             // 2026-10-05: "remove the head from the main home screen because
             // i feel like it would make too many buttons there since we added
             // the journal component"). It stood directly left of the Plan
-            // from 2026-10-02, and was where the tower head parked. Without
-            // it he cannot be parked, so he lives on the tower whenever
-            // Profile's tower switch is on (`CompanionParking.hasDock`).
+            // from 2026-10-02, and was where the tower head parked. He parks
+            // in the crest now (2026-10-14, `CompanionParking.hasDock`): a
+            // press on your face lets him out, and carried back over it he
+            // goes in.
             // No dot on it: on Wins only Crews ever carries one.
             headerDay
             Spacer(minLength: 0)
@@ -1800,7 +1812,8 @@ struct MainAppView: View {
         let byID = Dictionary(filteredLogs.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let logs = order.compactMap { byID[$0] }
         _ = withAnimation(GridConstants.slotSnap) {
-            towerVM.buildTower(from: logs, filterMode: towerFilterMode, preserveOrder: true)
+            towerVM.buildTower(from: logs, filterMode: towerFilterMode, preserveOrder: true,
+                               reactions: SocialStore.reactionsForMyTower)
         }
     }
 
@@ -3083,7 +3096,8 @@ struct MainAppView: View {
         // Inside one transaction the block is born at the top of the runway,
         // so there is no prior position to animate away from.
         withAnimation(GridConstants.motionSnappy) {
-            droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
+            droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode,
+                                            reactions: SocialStore.reactionsForMyTower)
             // Before anything renders, so no view body ever creates one.
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
@@ -4348,6 +4362,18 @@ private struct DebugFlipTabs: ViewModifier {
         #else
         content
         #endif
+    }
+}
+
+/// **A friend reacted to a win of yours**: the tower is built again, so the
+/// block wears it (`MyWinReactions`). A rebuild with the same wins drops
+/// nothing; only the look changes. One modifier: this body is at the type
+/// checker's ceiling.
+private struct MyWinReactionsWatch: ViewModifier {
+    let rebuild: () -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: SocialStore.reactionsForMyTower) { rebuild() }
     }
 }
 

@@ -17,6 +17,11 @@ import UIKit
 ///     -strataSeedCrewChat 1                      a few lines in today's chat,
 ///                                                a reply quoting your win among
 ///                                                them (also with -strataCrewSheet chat)
+///     -strataFriendSaysEvery 6                   a friend writes a line in the
+///                                                first crew's chat every 6
+///                                                seconds, so the line over the
+///                                                Wins tower can be seen
+///                                                (`WinsChatBanner`)
 ///     -strataChatReact seed|open                 friends react to the chat's
 ///                                                lines, an emoji pair and a
 ///                                                sticker among them; "open"
@@ -252,6 +257,27 @@ extension DebugHarness {
             CrewRouter.shared.open = store.crews[index].id
         }
         if let every = crewDropEvery { startDropping(every: every) }
+        if let every = argument("-strataFriendSaysEvery").flatMap(Double.init) { startTalking(every: every) }
+    }
+
+    /// `-strataFriendSaysEvery <s>`: a friend's line in the first crew's
+    /// chat every s seconds, as their phone would send it.
+    private static func startTalking(every seconds: Double) {
+        let lines = ["lunch at 1?", "just finished the run, legs are gone",
+                     "who's up for a walk after work?", "6 works", "proud of everyone today"]
+        Task { @MainActor in
+            var i = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(seconds))
+                guard let crew = SocialStore.shared.crews.first,
+                      let friend = friends.first(where: { $0.crew(crew.id) != nil }) else { continue }
+                friend.canReply = { true }
+                await friend.refresh()
+                await friend.send(lines[i % lines.count], in: crew.id)
+                await SocialStore.shared.refresh()
+                i += 1
+            }
+        }
     }
 
     /// A morning's chat in the first crew: two friends, you, and a reply

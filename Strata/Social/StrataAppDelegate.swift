@@ -203,7 +203,18 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         guard let crew = notification.request.content.userInfo["crew"] as? String else { return [] }
         // A ping about the crew you are looking at says nothing new.
         let onScreen = await MainActor.run { CrewNotifications.visibleCrew?.rawValue }
-        return crew == onScreen ? [] : [.banner, .list, .sound]
+        guard crew != onScreen else { return [] }
+        // **On Wins, a friend's line comes in over the tower instead**
+        // (`WinsChatBanner`, the owner, 2026-10-13: "chat notifications not
+        // noticeable, show message above tower"). Not twice: the system's
+        // banner stands down, and the alert fetches the line now rather than
+        // at the next refresh, so it is on screen in a moment.
+        let isChat = notification.request.content.userInfo[CrewNotifications.chatKey] != nil
+        if isChat, await MainActor.run(body: { ChatBanner.isListening }) {
+            Task { @MainActor in await SocialStore.shared.pushed() }
+            return []
+        }
+        return [.banner, .list, .sound]
     }
 
     func application(_ application: UIApplication,
