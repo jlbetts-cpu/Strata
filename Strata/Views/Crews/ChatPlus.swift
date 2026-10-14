@@ -204,7 +204,7 @@ struct GroupPlanSheet: View {
         // The keyboard after the sheet has landed, not during: both rising
         // at once was the jitter.
         .task {
-            try? await Task.sleep(for: .milliseconds(380))
+            try? await Task.sleep(for: GridConstants.sheetLands)
             writing = true
         }
     }

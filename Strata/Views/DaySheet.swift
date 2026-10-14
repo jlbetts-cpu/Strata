@@ -524,7 +524,7 @@ struct DaySheet: View {
         // rising drops the keyboard again.
         .task {
             guard writesOnOpen else { return }
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: GridConstants.sheetLands)
             planFocus = planComposerID
         }
         // Where a deleted line's Undo shows: over the list, above the bar.
@@ -827,7 +827,8 @@ struct DaySheet: View {
                 }
             }
         }
-        .animation(motion, value: writing || journalComposing)
+        // On the keys' curve: Suggest comes and goes with them (fix 6).
+        .animation(GridConstants.keyboard, value: writing || journalComposing)
     }
 
     private func sendParagraph() {

@@ -248,7 +248,7 @@ struct CrewChatSheet: View {
                 if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
                 guard startsWriting else { return }
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(360))
+                    try? await Task.sleep(for: GridConstants.drawerLands)
                     if visible { writing = true }
                 }
             } else {
@@ -274,7 +274,8 @@ struct CrewChatSheet: View {
         // Writing folds the plus row, which stands where the keyboard is
         // about to.
         .onChange(of: writing) { _, now in
-            if now, showsPlus { withAnimation(GridConstants.motionSnappy) { showsPlus = false } }
+            // On the keys' curve: the row folds as they rise (fix 6).
+            if now, showsPlus { withAnimation(GridConstants.keyboard) { showsPlus = false } }
         }
         // The clock a stuck line is read against, and the one warning when
         // a line of yours is first said not to have gone (M1).
@@ -968,16 +969,17 @@ struct CrewChatSheet: View {
                 ChatPlusRow(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos) { choice in
                     choose(choice)
                 }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity)
             }
             if let replyingTo {
                 replyQuote(replyingTo)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // A fade, so nothing travels against the keys (fix 6).
+                    .transition(.opacity)
             } else if let replyingToWin, let win = store.wins(in: crewID).first(where: { $0.winID == replyingToWin }) {
                 quoteRow("\u{21AA}\u{FE0E} \(win.title)") {
                     withAnimation(GridConstants.motionSnappy) { self.replyingToWin = nil }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.opacity)
             }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,

@@ -449,6 +449,14 @@ enum GridConstants {
     /// spring (mass 3, stiffness 1000, damping 500): what rides on the keys
     /// moves with them, never on a curve of its own (fix 5).
     static let keyboard = Animation.interpolatingSpring(mass: 3, stiffness: 1000, damping: 500)
+    /// **A system sheet has landed** (fix 7): the one wait before a field in
+    /// a sheet takes the keyboard, so the sheet and the keys never rise at
+    /// once. It was 380, 450 and 500 in three places for one job. A sheet
+    /// gives no completion to wait on, so this is measured, not guessed
+    /// fresh each time.
+    static let sheetLands: Duration = .milliseconds(450)
+    /// The chat drawer's own rise (`drawerMove`), for the same wait there.
+    static let drawerLands: Duration = .milliseconds(360)
     /// **A line arriving, and leaving** (`WinCue`, the sticker lift): in on a
     /// little bounce as a message lands, out on a plain ease.
     // MARK: The ring's moment (`GoalRingMoment`, 2026-10-10)
