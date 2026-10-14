@@ -148,6 +148,7 @@ struct DayAlbumDetailView: View {
         // bar (the cohesion pass, 2026-10-05). See `GlassBackButton`.
         .glassBackButton()
         .task { reload() }
+        .onChange(of: SocialStore.reactionsForMyTower) { reload() }
         .fullScreenCover(item: Binding(
             get: { viewing.map(PhotoID.init) },
             set: { viewing = $0?.id }
@@ -177,7 +178,9 @@ struct DayAlbumDetailView: View {
         var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == key })
         d.relationshipKeyPathsForPrefetching = [\.habit]
         logs = (try? modelContext.fetch(d)) ?? []
-        _ = vm.buildTower(from: logs, filterMode: .day)
+        // Friends' reactions to these wins, as the Wins tower shows them
+        // (`MyWinReactions`, 2026-10-14).
+        _ = vm.buildTower(from: logs, filterMode: .day, reactions: SocialStore.reactionsForMyTower)
     }
 
     // MARK: - Header

@@ -73,7 +73,12 @@ struct PlacedBlock: Identifiable, Equatable {
         /// block"). `BlockMerge` leaves these out, so a doodle is never
         /// hidden under a run it was folded into. Take the doodle off and the
         /// block is plain colour again, and joins its neighbours again.
-        var standsAlone: Bool { hasPhoto || hasDoodle }
+        ///
+        /// **And a block friends reacted to** (2026-10-14): its badge sits in
+        /// its own corner (`ReactionBadge`), and folded into a run there is
+        /// no corner of its own to sit in. The block rejoins the run if the
+        /// reactions are taken back.
+        var standsAlone: Bool { hasPhoto || hasDoodle || reactionCount > 0 }
 
         init(habit: Habit, log: HabitLog) {
             title = habit.title
@@ -91,9 +96,27 @@ struct PlacedBlock: Identifiable, Equatable {
         /// A crew's copy of a win. `sender` is nil when it is yours.
         init(win: SharedWin, sender: String?, reactions: [Reaction], me: UUID? = nil) {
             self.init(win: win, sender: sender)
+            setReactions(reactions, me: me)
+        }
+
+        /// **Your own win, with what friends gave it in your crews**
+        /// (the owner, 2026-10-13: "reactions on main wins and memories
+        /// with lots of reactions"). The crew block's own badge and its own
+        /// count: one emoji, the most given, and the total.
+        func withReactions(_ reactions: [Reaction]) -> Look {
+            var look = self
+            look.setReactions(reactions, me: nil)
+            return look
+        }
+
+        /// Up to three distinct emoji, most given first (yours first, when
+        /// you gave one), and how many reacted. `ReactionBadge` draws the
+        /// first and the count, so however many there are it stays one
+        /// emoji and a number.
+        private mutating func setReactions(_ reactions: [Reaction], me: UUID?) {
             let counted = Dictionary(grouping: reactions, by: \.emoji).mapValues(\.count)
             var emoji = counted.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.map(\.key)
-            myReaction = reactions.first { $0.profileID == me }?.emoji
+            myReaction = me.flatMap { me in reactions.first { $0.profileID == me }?.emoji }
             if let mine = myReaction { emoji.removeAll { $0 == mine }; emoji.insert(mine, at: 0) }
             reactionEmoji = Array(emoji.prefix(3))
             reactionCount = reactions.count
@@ -207,9 +230,12 @@ final class TowerViewModel {
     ///   nothing has been written to `towerOrder` yet — so sorting by
     ///   `towerOrder` here would quietly throw the proposal away and repack
     ///   the tower exactly as it already was.
+    /// - Parameter reactions: friends' reactions to your wins, by win id
+    ///   (`SocialStore.reactionsToMyWins`), drawn in each block's corner.
     func buildTower(from logs: [HabitLog],
                     filterMode: TowerFilterMode = .day,
-                    preserveOrder: Bool = false) -> Set<UUID> {
+                    preserveOrder: Bool = false,
+                    reactions: [UUID: [Reaction]] = [:]) -> Set<UUID> {
         // Include completed AND skipped blocks, oldest first so newest land on top
         let filtered = logs.filter { ($0.completed || $0.skipped) && $0.habit != nil }
         let eligibleLogs = preserveOrder ? filtered : filtered
@@ -230,7 +256,9 @@ final class TowerViewModel {
 
         let entries = eligibleLogs.compactMap { log -> TowerEntry? in
             guard let habit = log.habit else { return nil }
-            return TowerEntry(id: log.id, look: PlacedBlock.Look(habit: habit, log: log),
+            var look = PlacedBlock.Look(habit: habit, log: log)
+            if let given = reactions[log.id], !given.isEmpty { look = look.withReactions(given) }
+            return TowerEntry(id: log.id, look: look,
                               isSkipped: log.skipped && !log.completed, habit: habit, log: log)
         }
         return buildTower(entries: entries, filterMode: filterMode)

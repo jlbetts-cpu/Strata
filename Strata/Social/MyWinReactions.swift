@@ -1,0 +1,50 @@
+import Foundation
+
+/// **Friends' reactions to your own wins, for your own tower** (the owner,
+/// 2026-10-13: "reactions on main wins and memories with lots of
+/// reactions").
+///
+/// A win of yours that went to a crew is reacted to there, on the crew's
+/// copy (`SocialStore.reactionsByCrew`). This gathers them back onto the
+/// win itself, across every crew it went to, so the block on Wins and in
+/// Memories wears the same `ReactionBadge` the crew tower draws.
+///
+/// **Read, never stored.** Nothing is written to the win: no new SwiftData
+/// field and no new CloudKit field. A reaction taken back in the crew comes
+/// off your block at the next rebuild.
+nonisolated enum MyWinReactions {
+    /// Keyed by your win's id. Only reactions to wins YOU sent (so a chat
+    /// line's reactions, which share the record, and a friend's win never
+    /// count), never your own, never anyone you blocked. A friend in two of
+    /// your crews who reacted in both counts once, with their latest.
+    static func gather(reactionsByCrew: [CrewID: [Reaction]],
+                       winsByCrew: [CrewID: [SharedWin]],
+                       me: UUID,
+                       blocked: Set<UUID>) -> [UUID: [Reaction]] {
+        var latest: [UUID: [UUID: Reaction]] = [:]
+        for (crewID, reactions) in reactionsByCrew {
+            let mine = Set((winsByCrew[crewID] ?? []).filter { $0.senderProfileID == me }.map(\.winID))
+            guard !mine.isEmpty else { continue }
+            for reaction in reactions
+            where mine.contains(reaction.winID) && reaction.profileID != me && !blocked.contains(reaction.profileID) {
+                if let held = latest[reaction.winID]?[reaction.profileID], held.createdAt >= reaction.createdAt { continue }
+                latest[reaction.winID, default: [:]][reaction.profileID] = reaction
+            }
+        }
+        return latest.mapValues { $0.values.sorted { $0.createdAt < $1.createdAt } }
+    }
+}
+
+extension SocialStore {
+    /// Friends' reactions to your wins, every crew at once (`MyWinReactions`).
+    func reactionsToMyWins() -> [UUID: [Reaction]] {
+        MyWinReactions.gather(reactionsByCrew: reactionsByCrew, winsByCrew: winsByCrew, me: me, blocked: blocked)
+    }
+
+    /// What a tower of your wins is handed: nothing at all while crews are
+    /// off, so a phone without them never builds the store to ask.
+    @MainActor
+    static var reactionsForMyTower: [UUID: [Reaction]] {
+        CrewsFlag.isOn ? shared.reactionsToMyWins() : [:]
+    }
+}

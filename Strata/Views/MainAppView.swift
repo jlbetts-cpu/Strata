@@ -1061,6 +1061,8 @@ struct MainAppView: View {
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
+        // Friends' reactions to your wins, onto their blocks (`MyWinReactions`).
+        .modifier(MyWinReactionsWatch { _ = refreshData() })
         // The camera a planned win opens, and the sheet that changes one.
         .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
@@ -1801,7 +1803,8 @@ struct MainAppView: View {
         let byID = Dictionary(filteredLogs.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let logs = order.compactMap { byID[$0] }
         _ = withAnimation(GridConstants.slotSnap) {
-            towerVM.buildTower(from: logs, filterMode: towerFilterMode, preserveOrder: true)
+            towerVM.buildTower(from: logs, filterMode: towerFilterMode, preserveOrder: true,
+                               reactions: SocialStore.reactionsForMyTower)
         }
     }
 
@@ -3084,7 +3087,8 @@ struct MainAppView: View {
         // Inside one transaction the block is born at the top of the runway,
         // so there is no prior position to animate away from.
         withAnimation(GridConstants.motionSnappy) {
-            droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
+            droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode,
+                                            reactions: SocialStore.reactionsForMyTower)
             // Before anything renders, so no view body ever creates one.
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
@@ -4349,6 +4353,18 @@ private struct DebugFlipTabs: ViewModifier {
         #else
         content
         #endif
+    }
+}
+
+/// **A friend reacted to a win of yours**: the tower is built again, so the
+/// block wears it (`MyWinReactions`). A rebuild with the same wins drops
+/// nothing; only the look changes. One modifier: this body is at the type
+/// checker's ceiling.
+private struct MyWinReactionsWatch: ViewModifier {
+    let rebuild: () -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: SocialStore.reactionsForMyTower) { rebuild() }
     }
 }
 
