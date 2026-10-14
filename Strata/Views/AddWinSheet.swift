@@ -90,13 +90,30 @@ struct AddWinSheet: View {
     /// The lines planned in this sitting, shown under the name as they go.
     @State private var plannedHere: [(scope: PlanScope, text: String, days: String?)] = []
     private var isPlanning: Bool { planFor != nil }
+    /// Who a plan is with, said where it is made: from a crew, the crew
+    /// sees it, and the crew's row is gone while planning.
+    private var planTitle: String {
+        guard let crewID = planCrew, let crew = SocialStore.shared.crew(crewID) else { return "Plan a win" }
+        return "Plan with \(crew.displayName(excluding: SocialStore.shared.me))"
+    }
+    /// The crew a plan made here goes to: the one crew the sheet was
+    /// opened from. Nil from Wins, where a plan is your own.
+    private var planCrew: CrewID? {
+        guard let crews = initialCrews, crews.count == 1 else { return nil }
+        return crews.first
+    }
     /// Offered on a fresh win only: not while editing one, and not for a
     /// win already under way (a photo just taken, a plan line being done).
     /// **And never from a crew's tower** (the owner: planning "is Wins-screen
     /// only and has nothing to do with the crew tower; keep them fully
     /// separate"): the sheet opened there is for a win going to that crew.
+    ///
+    /// **From a crew's tower, Plan is that crew's** (the owner, 2026-10-13:
+    /// the crew's + "should be the same", and of what Plan does there,
+    /// "Crew plan"). This replaces his 2026-10-05 call to keep planning off
+    /// crew towers, which came before a crew's plan was a box on its tower.
     private var offersPlanning: Bool {
-        !isEditing && initialPhoto == nil && initialTitle == nil && initialCrews == nil
+        !isEditing && initialPhoto == nil && initialTitle == nil && (initialCrews == nil || planCrew != nil)
             // **Not once a photograph or a drawing is on it** (found by
             // review, 2026-10-11): a picture is of something done. Pressing
             // a day then hid the picture, and Plan closed the sheet with it
@@ -409,7 +426,10 @@ struct AddWinSheet: View {
                                     }
                                 }
                                 .onChange(of: planFor) { _, scope in
-                                    guard let scope, let onPlan else { return }
+                                    // A crew's plan is written here, line
+                                    // by line, and sent to the crew; only
+                                    // your own goes on to the Plan page.
+                                    guard let scope, planCrew == nil, let onPlan else { return }
                                     let words = title
                                     title = ""
                                     planFor = nil
@@ -486,7 +506,7 @@ struct AddWinSheet: View {
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
             }
-            .sheetTitle(isEditing ? "Edit" : isPlanning ? "Plan a win" : "Add a win", drawn: true)
+            .sheetTitle(isEditing ? "Edit" : isPlanning ? planTitle : "Add a win", drawn: true)
             .toolbar {
                 addWinToolbar
             }
@@ -1274,6 +1294,7 @@ struct AddWinSheet: View {
     @discardableResult
     private func planLine() -> Bool {
         guard let scope = planFor, DayComposing.hasWords(title) else { return false }
+        if let crewID = planCrew { return propose(to: crewID, scope) }
         let all = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
         let habits = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
         let made = DayComposing.addPlanLines(title, after: all, habits: habits, context: modelContext,
@@ -1283,6 +1304,42 @@ struct AddWinSheet: View {
         HapticsEngine.tick()
         withAnimation(GridConstants.motionSnappy) { plannedHere += made.map { (scope, $0.text, $0.repeatSummary(calendar: .current)) } }
         title = ""
+        return true
+    }
+
+    /// **A plan for the crew the sheet came from**: the chat's own plan
+    /// (`SocialStore.sendPlan`), so it is a line in their chat, a card to
+    /// say I'm In to, and a box on the crew's tower; and yours at once,
+    /// since you proposed it (`GroupPlan.join`). The day counts from the
+    /// crew's, as the chat's does. Shown under the name straight away, and
+    /// taken back with the words returned if it does not go.
+    private func propose(to crewID: CrewID, _ scope: PlanScope) -> Bool {
+        let store = SocialStore.shared
+        guard let crew = store.crew(crewID) else { return false }
+        let words = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(GroupPlan.titleLimit))
+        let when: GroupPlan.When
+        switch scope {
+        case .repeating:
+            when = .weekdays(planDays.sorted())
+        case .day(let offset):
+            let today = CrewDay.string(for: Date(), in: crew.timeZone)
+            guard let base = DateUtils.date(from: today),
+                  let date = DateUtils.keyCalendar().date(byAdding: .day, value: offset, to: base) else { return false }
+            when = .day(DateUtils.dateString(from: date))
+        }
+        let days = scope == .repeating ? PlanItem.repeatSummary(planDays, calendar: .current) : nil
+        HapticsEngine.tick()
+        withAnimation(GridConstants.motionSnappy) { plannedHere.append((scope, words, days)) }
+        title = ""
+        Task { @MainActor in
+            let result = await store.sendPlan(title: words, when: when, in: crewID)
+            if let plan = result.plan {
+                plan.join(context: modelContext)
+            } else if let i = plannedHere.lastIndex(where: { $0.scope == scope && $0.text == words }) {
+                withAnimation(GridConstants.motionSnappy) { _ = plannedHere.remove(at: i) }
+                if title.isEmpty { title = words }
+            }
+        }
         return true
     }
 

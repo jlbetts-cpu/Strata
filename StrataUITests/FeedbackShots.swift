@@ -988,6 +988,57 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("headchat-after2")
     }
 
+    /// **The crew's + is Wins' +** (the owner, 2026-10-13), Plan included:
+    /// from a crew, Plan proposes to that crew.
+    func testCrewPlusSheet() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0"])
+        wait(9)
+        let slot = app.descendants(matching: .any)["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 5), "no slot on the crew tower")
+        slot.tap(); wait(3)
+        snap("crewplus-sheet")
+        let row = app.descendants(matching: .any)["Plan for Later"].firstMatch
+        let offered = row.exists
+        print("PLANNING-crewplus: plan row \(offered)")
+        if offered { row.tap(); wait(1.5) }
+        let later = app.buttons["Tomorrow"].firstMatch
+        if later.waitForExistence(timeout: 3) { later.tap(); wait(1.5) }
+        snap("crewplus-tomorrow")
+        app.typeText("Pickup game at 5\n"); wait(3)
+        snap("crewplus-planned")
+        XCTAssertTrue(offered, "no plan row on the crew's add sheet")
+    }
+
+    /// **A tall crew tower scrolls to its top** (the owner, 2026-10-13: "when
+    /// the tower gets high on the crew but the scroll up doesnt get taller").
+    func testTallCrewTower() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewWins", "40"] + (ProcessInfo.processInfo.environment["STRATA_NOFACES"] == nil ? [] : ["-strataCrewFaces", "none"]))
+        wait(10); snap("tallcrew-start")
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<4 { scroll.swipeUp(velocity: .fast) }
+        wait(2); snap("tallcrew-bottom")
+        for _ in 0..<8 { scroll.swipeDown(velocity: .fast) }
+        wait(2); snap("tallcrew-top")
+    }
+
+    /// **Holding a crew block still opens the reactions, and sliding onto
+    /// one gives it** (2026-10-13, the hold moved to UIKit's long press so
+    /// a tall tower scrolls).
+    func testHoldToReact() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"])
+        wait(9)
+        let block = app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.62))
+        block.press(forDuration: 0.9); wait(0.6)
+        snap("hold-bar")
+        let barOpen = app.buttons.matching(NSPredicate(format: "label CONTAINS 'React with' OR label CONTAINS 'More reactions'")).count
+        print("PLANNING-hold: bar buttons \(barOpen)")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.3)).tap(); wait(2)
+        // Hold and slide up onto the bar, then let go.
+        block.press(forDuration: 0.6, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)))
+        wait(2); snap("hold-slid")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

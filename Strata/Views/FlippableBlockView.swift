@@ -53,7 +53,6 @@ struct FlippableBlockView: View {
     @State private var tapTrigger: Int = 0
     /// True from the moment a hold is long enough until the finger lifts.
     /// A `GestureState`, so a cancelled hold resets it too.
-    @GestureState private var holding = false
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.towerFilterMode) private var towerFilterMode
@@ -183,29 +182,18 @@ struct FlippableBlockView: View {
             // slides onto one and lets go (the owner, 2026-10-03: "i cant
             // drag my finger up to select one"). Positions are in the
             // tower's own space (`HoldPhase.space`), where the bar is drawn.
-            // Simultaneous, so the tower still scrolls under a finger that
-            // moves before the hold is long enough.
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.35, maximumDistance: 10)
-                    .sequenced(before: DragGesture(minimumDistance: 0,
-                                                   coordinateSpace: .named(HoldPhase.space)))
-                    .updating($holding) { value, state, _ in
-                        guard case .second(true, let drag) = value else { return }
-                        if !state {
-                            state = true
-                            Task { @MainActor in onHold?(.began) }
-                        }
-                        if let drag {
-                            let at = drag.location
-                            Task { @MainActor in onHold?(.moved(at)) }
-                        }
-                    }
-                    .onEnded { value in
-                        guard case .second(true, let drag) = value else { return }
-                        onHold?(.ended(drag?.location))
-                    },
-                including: onHold == nil ? .subviews : .all
-            )
+            //
+            // **UIKit's long press, not SwiftUI's long press into a drag**
+            // (the owner, 2026-10-13: "when the tower gets high on the crew
+            // the scroll up doesnt get taller"). The SwiftUI pair held every
+            // touch that landed on a block, so a crew tower tall enough to be
+            // all blocks could not be scrolled at all (measured: a 40-win
+            // tower stuck at its top, and it scrolled the moment the hold was
+            // taken off). `UILongPressGestureRecognizer` fails as soon as the
+            // finger travels before the hold is long enough, which hands the
+            // touch to the scroll, and after it begins it keeps reporting
+            // where the finger slides.
+            .modifier(BlockHold.Attached(onHold: onHold))
             .overlay(alignment: .topTrailing) {
                 if !block.look.reactionEmoji.isEmpty, !isGroupMember {
                     ReactionBadge(emoji: block.look.reactionEmoji, count: block.look.reactionCount,
@@ -407,6 +395,43 @@ private struct CrewBlockSpeech: ViewModifier {
             : (look.reactionCount == 1 ? ", 1 reaction" : ", \(look.reactionCount) reactions")
         let yours = look.myReaction.map { ", you reacted \($0)" } ?? ""
         return "\(who), \(what)\(reactions)\(yours)"
+    }
+}
+
+/// The hold on a crew block (`HoldPhase`), as UIKit's long press: it gives
+/// the touch up to the scroll if the finger moves first, and once held it
+/// follows the finger until it lifts.
+struct BlockHold: UIGestureRecognizerRepresentable {
+    var onHold: ((HoldPhase) -> Void)?
+    /// As long as the SwiftUI hold it replaces, and as still.
+    static let duration: TimeInterval = 0.35
+    static let slack: CGFloat = 10
+
+    /// On a crew's block only; a block that cannot be reacted to has no
+    /// recogniser at all. Whether it can is fixed for a block's life.
+    struct Attached: ViewModifier {
+        var onHold: ((HoldPhase) -> Void)?
+        func body(content: Content) -> some View {
+            if let onHold { content.gesture(BlockHold(onHold: onHold)) } else { content }
+        }
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let hold = UILongPressGestureRecognizer()
+        hold.minimumPressDuration = Self.duration
+        hold.allowableMovement = Self.slack
+        return hold
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        let at = context.converter.location(in: .named(HoldPhase.space))
+        switch recognizer.state {
+        case .began: onHold?(.began)
+        case .changed: onHold?(.moved(at))
+        case .ended: onHold?(.ended(at))
+        case .cancelled, .failed: onHold?(.ended(nil))
+        default: break
+        }
     }
 }
 
