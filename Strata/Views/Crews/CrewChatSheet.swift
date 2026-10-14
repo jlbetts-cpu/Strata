@@ -59,6 +59,8 @@ struct CrewChatSheet: View {
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
+    /// A heart just given by two taps, popping at its bubble's corner.
+    @State private var bursts: [UUID: UUID] = [:]
     /// The line a sticker from the sheet goes on, when "+" in a line's
     /// menu opened it. Nil: the sheet sends a sticker into the chat.
     @State private var stickerFor: UUID?
@@ -107,6 +109,8 @@ struct CrewChatSheet: View {
     private static let faceSide: CGFloat = 28
     /// A doodle's largest side in the chat: a mark, never a second photograph.
     private static let doodleSide: CGFloat = 160
+    /// The double tap's heart at a bubble's corner: the tower's burst, small.
+    private static let burstSide: CGFloat = 28
     /// How long a line is held before its bar opens: shorter than the
     /// system's half second, which the context menu it replaced waited.
     private static let holdToReact: Double = 0.35
@@ -374,26 +378,33 @@ struct CrewChatSheet: View {
         let quote = quoted(message)
         let answered = quotedLine(message)
         let face = bubbleFace(message, mine: mine, quote: quote?.title ?? answered?.words)
-        Group {
-            if let quote {
-                Button {
-                    // The lift that ended a hold is not a tap.
-                    if held == id { held = nil; return }
+        // **Two taps heart it** (M3; the owner, 2026-10-13: "double tap a
+        // message to heart it"), yours or a friend's, and two more take the
+        // heart back. Checked before the single tap, so on a bubble a tap
+        // opens something from (the quoted win, the answered line) that tap
+        // waits a beat, as Instagram's does. They were buttons; a button
+        // answers the first tap and never sees a second.
+        face
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { doubleTap(message) }
+            .onTapGesture {
+                // The lift that ended a hold is not a tap.
+                if held == id { held = nil; return }
+                if let quote {
                     HapticsEngine.lightTap()
                     onOpenWin(quote.winID)
-                } label: { face }
-                    .buttonStyle(.pressSurface)
-                    .accessibilityHint("Opens the win.")
-            } else if let answered {
-                Button {
-                    if held == id { held = nil; return }
+                } else if let answered {
                     HapticsEngine.lightTap()
                     goTo(answered.id)
-                } label: { face }
-                    .buttonStyle(.pressSurface)
-                    .accessibilityHint("Goes to the line it answers.")
-            } else {
-                face
+                }
+            }
+        .overlay(alignment: mine ? .topLeading : .topTrailing) {
+            // The heart pops at the bubble's corner, the tower's own burst,
+            // small.
+            if let burst = bursts[id] {
+                ReactionBurst(emoji: Reaction.doubleTap, size: Self.burstSide)
+                    .id(burst)
+                    .offset(x: mine ? -Self.burstSide / 3 : Self.burstSide / 3, y: -Self.burstSide / 3)
             }
         }
         .scaleEffect(lit == id ? 1.04 : 1, anchor: mine ? .trailing : .leading)
@@ -405,6 +416,7 @@ struct CrewChatSheet: View {
         .blockMenu(isPresented: menuBinding(id), above: opensAbove(id)) { lineMenu(message, mine: mine) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken(message, quote: quote?.title ?? answered?.words))
+        .accessibilityHint(quote != nil ? "Opens the win." : answered != nil ? "Goes to the line it answers." : "")
         .accessibilityActions {
             Button("React") { openMenu(on: message, fromQuote: false) }
             Button("Reply") { reply(to: message) }
@@ -487,6 +499,23 @@ struct CrewChatSheet: View {
                 BlockMenuAfter.run(closing: close) { reporting = message }
             }
         }
+    }
+
+    /// Two taps: the heart, or the heart taken back if it was yours. A
+    /// light tap either way; the pop only when one is given.
+    private func doubleTap(_ message: CrewMessage) {
+        let id = message.messageID
+        held = nil
+        HapticsEngine.lightTap()
+        if !isHearted(id) {
+            let burst = UUID()
+            bursts[id] = burst
+            Task {
+                try? await Task.sleep(for: .milliseconds(1100))
+                if bursts[id] == burst { bursts[id] = nil }
+            }
+        }
+        heart(message)
     }
 
     private func isHearted(_ id: UUID) -> Bool {
