@@ -115,6 +115,9 @@ struct GroupPlanSheet: View {
     let crewName: String
     /// The host's, so words a send refused are still here to change.
     @Binding var title: String
+    /// Which crew, for a plan made from the Crews list (`CrewPicker` with
+    /// `single`); nil in a crew's own chat, where the crew is given.
+    var crews: Binding<Set<CrewID>>? = nil
     let send: (String, Choice) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -134,6 +137,10 @@ struct GroupPlanSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                if let crews {
+                    CrewPicker(selection: crews, single: true)
+                        .padding(.horizontal, GridConstants.horizontalPadding)
+                }
                 TextField(scope.prompt(), text: $title)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkPrimary)
@@ -169,7 +176,7 @@ struct GroupPlanSheet: View {
                         dismiss()
                     } label: { Text("Plan").sheetAction(.confirm) }
                         .buttonStyle(.pressWord)
-                        .disabled(words.isEmpty || when == nil)
+                        .disabled(words.isEmpty || when == nil || crews?.wrappedValue.isEmpty == true)
                 }
             }
         }

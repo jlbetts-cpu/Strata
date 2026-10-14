@@ -16,6 +16,10 @@ struct CrewPicker: View {
     /// names are cut at the row's edge and fade into it, instead of running
     /// on under it (seen 2026-10-13: "Ana, Leo" under the tag).
     var endsAtEdge = false
+    /// **One crew, not several** (a plan made from the Crews list, 2026-10-14:
+    /// a plan is a line in one crew's chat). No Every crew, and a press moves
+    /// the choice rather than adding to it.
+    var single = false
 
     private var store: SocialStore { SocialStore.shared }
 
@@ -31,7 +35,7 @@ struct CrewPicker: View {
                         // are adding wins so you don't have to individually
                         // click crews"). First, and only when there is more
                         // than one crew to choose: with one, it is that crew.
-                        if store.crews.count > 1 { everyCrew }
+                        if store.crews.count > 1, !single { everyCrew }
                         ForEach(store.crews) { crew in
                             chip(crew)
                         }
@@ -107,7 +111,8 @@ struct CrewPicker: View {
         return Button {
             HapticsEngine.tick()
             withAnimation(GridConstants.motionSnappy) {
-                if on { selection.remove(crew.id) } else { selection.insert(crew.id) }
+                if single { selection = [crew.id] }
+                else if on { selection.remove(crew.id) } else { selection.insert(crew.id) }
             }
         } label: {
             label(crew.displayName(excluding: store.me), on: on)

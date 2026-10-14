@@ -16,6 +16,7 @@ nonisolated enum CrewRoute: Hashable {
 /// conversations and that is what one looks like on this phone.
 struct CrewsListView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     var open: (CrewID) -> Void
 
     @State private var startsCrew = false
@@ -26,6 +27,11 @@ struct CrewsListView: View {
 
     @State private var age = CrewAge.current
     @State private var signedOut = false
+    /// A plan made from the list: which crew, and the words kept if a
+    /// send is refused.
+    @State private var planning = false
+    @State private var planCrews: Set<CrewID> = []
+    @State private var planDraft = ""
 
     var body: some View {
         Group {
@@ -115,6 +121,28 @@ struct CrewsListView: View {
             // one thing; both made a crew and opened the share sheet. The
             // compose glyph opens the one sheet, where the name and the photo
             // are optional and Invite at its foot does what the left one did.
+            // **Plan, top left** (the owner's pick, 2026-10-14, from
+            // `docs/crews-list-corner-research-2026-10-14.md`): planning with
+            // a crew took four presses from here (the crew, +, Plan, Plan);
+            // now one or two. The same glyph and word as Plan on Wins. Only
+            // for someone who can write in a crew: a plan is a line in its chat.
+            if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        HapticsEngine.lightTap()
+                        if planCrews.isEmpty || !planCrews.isSubset(of: Set(store.crews.map(\.id))) {
+                            // The top row's crew: the one with the newest news.
+                            planCrews = store.crews.max { (store.activity(in: $0.id)?.date ?? .distantPast)
+                                < (store.activity(in: $1.id)?.date ?? .distantPast) }.map { [$0.id] } ?? []
+                        }
+                        planning = true
+                    } label: {
+                        Image(systemName: "checklist").sheetAction(.confirm, as: .glyph)
+                    }
+                    .accessibilityLabel("Plan")
+                    .accessibilityHint("Plan something with a crew.")
+                }
+            }
             if age.opensCrews, CrewsFlag.osSupportsCrews { ToolbarItem(placement: .topBarTrailing) {
                 // At the cap it still answers, with why (the crews audit,
                 // 2026-10-08: it went grey and said nothing).
@@ -123,6 +151,12 @@ struct CrewsListView: View {
                 }
                 .accessibilityLabel(CrewLine.newCrew)
             } }
+        }
+        .sheet(isPresented: $planning) {
+            GroupPlanSheet(crewName: planCrews.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? "a Crew",
+                           title: $planDraft, crews: $planCrews) { title, choice in
+                if let crewID = planCrews.first { proposePlan(title, choice, in: crewID) }
+            }
         }
         .task { await store.refresh() }
         // Seen once by any way in (an invitation, the first-win card): the
@@ -357,6 +391,35 @@ struct CrewsListView: View {
     /// The one New Crew sheet, or why not at the cap.
     private func newCrew() {
         if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
+    }
+
+    /// The chat's own plan (`CrewChatSheet.propose`): counted from the
+    /// crew's day, sent as a line in its chat, and yours at once.
+    private func proposePlan(_ title: String, _ choice: GroupPlanSheet.Choice, in crewID: CrewID) {
+        guard let crew = store.crew(crewID) else { return }
+        let when: GroupPlan.When
+        switch choice {
+        case .weekdays(let days): when = .weekdays(days)
+        case .inDays(let offset):
+            let today = CrewDay.string(for: Date(), in: crew.timeZone)
+            guard let base = DateUtils.date(from: today),
+                  let date = DateUtils.keyCalendar().date(byAdding: .day, value: offset, to: base) else { return }
+            when = .day(DateUtils.dateString(from: date))
+        }
+        Task {
+            let result = await store.sendPlan(title: title, when: when, in: crewID)
+            if let plan = result.plan {
+                planDraft = ""
+                plan.join(context: modelContext)
+                HapticsEngine.success()
+            } else {
+                problem = switch result.outcome {
+                case .dailyLimit: "That's plenty for today."
+                case .refusedWords: "Try other words."
+                default: "That didn't send. Try once more."
+                }
+            }
+        }
     }
 
     private var empty: some View {
