@@ -35,6 +35,16 @@ struct CrewTowerView: View {
     @State private var showsInfo = false
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
+    /// The drawer is over the resting bar (`ChatDrawer.covering`): the bar
+    /// hides under it, so the two read as one panel.
+    @State private var chatCovering = false
+    /// The chat has finished rising (or not yet finished falling): the heads
+    /// rest under it. A beat behind `showsChat`, so putting every head to
+    /// sleep, or waking them, never shares a frame with the drawer moving
+    /// (the probe, 2026-10-14: the first frame of the rise was held 160ms).
+    @State private var chatSettled = false
+    /// The resting bar's top edge on screen, where the drawer rises from.
+    @State private var restTop: CGFloat = 0
     /// How the resting bar opened the chat: to read, to write, or with +.
     @State private var chatOpening: ChatRestBar.Opening = .reading
     /// The win Reply under the hold's bar is answering, for the chat.
@@ -91,6 +101,9 @@ struct CrewTowerView: View {
     private let hPad = GridConstants.horizontalPadding
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("CrewTowerView")
+        #endif
         GeometryReader { geo in
             let gaps: CGFloat = spacing * CGFloat(columns - 1)
             let usable: CGFloat = geo.size.width - hPad * 2 - gaps
@@ -123,7 +136,13 @@ struct CrewTowerView: View {
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
         })
         // What was joined or closed in the chat shows here when it shuts.
-        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil } }
+        .onChange(of: showsChat) { _, open in
+            if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil }
+            Task { @MainActor in
+                try? await Task.sleep(for: GridConstants.drawerLands)
+                if showsChat == open { chatSettled = open }
+            }
+        }
         // **The page answers a touch, as Wins does**, header and all: rings
         // on water behind the content, consuming nothing. It was missing
         // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
@@ -139,11 +158,20 @@ struct CrewTowerView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChatRestBar(crewID: crewID) { how in
                 chatOpening = how
-                showsChat = true
+                // An explicit transaction: the drawer's own implicit one was
+                // not reaching the rise, which landed in one frame (filmed).
+                // Over the bar in the same pass as the open, not a pass later.
+                chatCovering = true
+                withAnimation(GridConstants.drawerMove) { showsChat = true }
             }
+            // Under the drawer while it is up: one panel, not two.
+            .opacity(chatCovering ? 0 : 1)
             // A real object the heads meet, as the chat button was: never a
             // head resting on the Message field.
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["chat"] = $0 }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                parking.controls["chat"] = $0
+                restTop = $0.minY
+            }
         }
         // **No tab bar inside a crew**, as Messages and WhatsApp have none
         // inside a conversation: the drawer is the foot of the screen, and
@@ -312,11 +340,11 @@ struct CrewTowerView: View {
         // 2026-10-14), not as a sheet: flush with the foot of the screen,
         // the tower above it.
         .overlay(alignment: .bottom) {
-            ChatDrawer(isOpen: $showsChat) {
+            ChatDrawer(isOpen: $showsChat, restTop: restTop, covering: $chatCovering) {
                 CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
                               startsWithPlus: chatOpening == .plus, visible: showsChat,
                               answeringWin: answeringWin,
-                              close: { showsChat = false },
+                              close: { withAnimation(GridConstants.drawerMove) { showsChat = false } },
                               onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
             }
         }
@@ -422,7 +450,7 @@ struct CrewTowerView: View {
                 // card, a win full screen), as Memories does: nobody is
                 // watching, and nothing moves under a sheet to be found
                 // somewhere odd when it shuts.
-                .environment(\.headsAwake, !(showsChat || showsInfo || viewing != nil))
+                .environment(\.headsAwake, !(chatSettled || showsInfo || viewing != nil))
         }
     }
 
@@ -922,6 +950,10 @@ struct CrewTowerView: View {
                     .frame(width: gridW)
             }
             .padding(.horizontal, hPad)
+            // **The open chat covers the tower's foot; the tower never moves**
+            // (the owner, 2026-10-14: "i dont think the bottom drawer should
+            // push up the whole tower"; covering, as Maps' card covers its
+            // map). It was lifted above the drawer for one build.
             .padding(.bottom, GridConstants.gapWide)
             .frame(minHeight: viewport, alignment: .bottom)
         }

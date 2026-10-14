@@ -74,6 +74,9 @@ struct CrewChatSheet: View {
     @State private var newBelow = false
     /// Asked of the scroll view: to the newest line, now.
     @State private var toNewest = 0
+    /// Bumped as the drawer starts to rise: the thread goes to its newest line
+    /// at once, before it can be seen, so it never opens short of it.
+    @State private var snapToNewest = 0
     /// A strip, picture or sticker open full screen (`ChatPictureViewer`).
     @State private var viewingPicture: CrewMessage?
     /// A heart just given by two taps, popping at its bubble's corner.
@@ -212,6 +215,9 @@ struct CrewChatSheet: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("CrewChatSheet")
+        #endif
         let crew = store.visible(crewID)
         // **A plan's line is a line of the chat, and stays in it** (the
         // owner, 2026-10-13: "why did it disappear from the chat when I
@@ -243,7 +249,14 @@ struct CrewChatSheet: View {
         // was a jolt). Down: the keyboard and the row put away.
         .onChange(of: visible) { _, up in
             if up {
-                store.markChatSeen(crewID)
+                snapToNewest += 1
+                // Seen once the drawer has risen, not during: marking it
+                // redraws the bar's dot, the back button and the tab under
+                // the rise (the probe, 2026-10-14).
+                Task { @MainActor in
+                    try? await Task.sleep(for: GridConstants.drawerLands)
+                    if visible { store.markChatSeen(crewID) }
+                }
                 showsPlus = startsWithPlus
                 if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
                 guard startsWriting else { return }
@@ -408,6 +421,10 @@ struct CrewChatSheet: View {
                     }
                 }
                 .defaultScrollAnchor(.bottom)
+                // And when its own height changes (the field settling, the
+                // drawer reaching its height): the newest line stays on the
+                // field, never half under it (filmed, 2026-10-14).
+                .defaultScrollAnchor(.bottom, for: .sizeChanges)
                 .scrollDismissesKeyboard(.interactively)
                 // Lines leave under the title softly, as the tower's do.
                 .softScrollEdge(.top)
@@ -440,6 +457,12 @@ struct CrewChatSheet: View {
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
                         proxy.scrollTo(last, anchor: .bottom)
                     }
+                }
+                .onChange(of: snapToNewest) { _, _ in
+                    guard let last = messages.last?.id else { return }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { proxy.scrollTo(last, anchor: .bottom) }
                 }
                 .onChange(of: toNewest) { _, _ in
                     guard let last = messages.last?.id else { return }

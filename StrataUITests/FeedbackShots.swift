@@ -480,6 +480,25 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **The chat opening by a tap, to read and to write** (the owner,
+    /// 2026-10-14: "the chat is still not smooth like the way it opens and
+    /// when you click like it feels delayed"), for a recording read frame by
+    /// frame. Each tap is a short press, as a finger's is.
+    func testChatOpenFeel() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataPerfProbe"])
+        wait(9)
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat'")).firstMatch
+        line.press(forDuration: 0.05)
+        wait(2.5)
+        app.buttons["Done"].firstMatch.tap()
+        wait(2.5)
+        app.buttons["Write a message"].firstMatch.press(forDuration: 0.05)
+        wait(3)
+        app.buttons["Done"].firstMatch.tap()
+        wait(2.5)
+    }
+
     /// **A crew's photo grows out of its block** (the motion pass,
     /// 2026-10-14), for a recording.
     func testCrewPhotoZoom() {

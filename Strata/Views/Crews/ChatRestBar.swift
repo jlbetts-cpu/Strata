@@ -31,6 +31,9 @@ struct ChatRestBar: View {
     private static let opensAt: CGFloat = 36
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("ChatRestBar")
+        #endif
         let unread = store.unreadChats.contains(crewID)
         VStack(spacing: GridConstants.gapTight) {
             Capsule()
@@ -217,11 +220,17 @@ enum CrewChatWords {
 /// own ground, never a lighter material.
 struct ChatDrawer<Content: View>: View {
     @Binding var isOpen: Bool
+    /// Where the resting bar's top edge is on screen, so the drawer starts
+    /// from it and comes back to it: one panel, not two.
+    var restTop: CGFloat = 0
+    /// True from the moment the drawer starts to rise until it has come back
+    /// down into the bar: the caller hides the resting bar under it.
+    @Binding var covering: Bool
     @ViewBuilder var content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var full = false
-    /// How far the finger has the panel from where it rests: down is
+    /// How far the finger has the edge from where it rests: down is
     /// positive and 1:1, up is held back by `rubber`.
     @State private var pull: CGFloat = 0
 
@@ -229,8 +238,8 @@ struct ChatDrawer<Content: View>: View {
     private static var towerBand: CGFloat { 150 }
     /// Part way: about three fifths of the room.
     private static var partway: CGFloat { 560 }
-    /// The ground runs on this far under the panel, so a pull upward never
-    /// shows a gap beneath it.
+    /// The ground runs on this far under the panel, past the safe area,
+    /// where the field sinks toward the home indicator.
     private static var groundBelow: CGFloat { 160 }
 
     /// A pull past where it can go, given less and less: never a wall.
@@ -239,15 +248,26 @@ struct ChatDrawer<Content: View>: View {
         return limit * (1 - 1 / (distance / limit * 0.55 + 1))
     }
 
+    /// **One drawer, the bar grown tall** (the owner, 2026-10-14: "right now
+    /// it kinda feels like not even the same drawer ... one drawer at the
+    /// bottom and one when you click into it ... it needs to feel like the
+    /// same exact drawer"). The open chat slid up from under the screen over
+    /// the resting bar, a second panel. Now it starts exactly where the bar
+    /// is, with the bar's ground, grabber and newest line, and its top edge
+    /// rises while the field stays under the thumb; closing, the edge comes
+    /// back down into the bar. The chat inside is laid out once at its open
+    /// height and uncovered from the foot up, so the rise costs no layout
+    /// (the probe measured a 148ms frame on opening when it was resized).
     var body: some View {
         GeometryReader { geo in
             let room = geo.size.height
             let part = min(Self.partway, max(room - Self.towerBand, 240))
             let open = full ? room : part
-            let shown = pull > 0 ? pull : -Self.rubber(-pull)
-            let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.panelRadius,
-                                               topTrailingRadius: GridConstants.panelRadius, style: .continuous)
-            VStack(spacing: 0) {
+            let rest = max(0, min(open, geo.frame(in: .global).maxY - restTop))
+            let edge = isOpen ? open : rest
+            let shown = max(rest * 0.5, edge - (pull > 0 ? pull : -Self.rubber(-pull)))
+            DrawerPanel(shown: shown, open: open, groundBelow: Self.groundBelow, content: content) {
+                // The grabber rides the top edge.
                 Capsule()
                     .fill(AppColors.inkTertiary.opacity(0.5))
                     .frame(width: 36, height: 5)
@@ -258,59 +278,42 @@ struct ChatDrawer<Content: View>: View {
                     .accessibilityLabel(full ? "Show Less of the Chat" : "Show All of the Chat")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { withAnimation(GridConstants.drawerMove) { full.toggle() } }
-                content()
-                    .frame(maxHeight: .infinity, alignment: .top)
-            }
-            // **Moved, not resized** (the motion pass, 2026-10-14, fix 1):
-            // its height changes only between part and whole. Resized under
-            // the finger, the whole chat was laid out again every frame and
-            // its lines slid inside the panel on the way down.
-            .frame(height: open, alignment: .top)
-            // Rounded where it meets the tower and open at the foot: the field
-            // sinks toward the home indicator (`BarSink`), and a clip on the
-            // whole panel cut its glass in half.
-            .mask(alignment: .top) { shape.padding(.bottom, -Self.groundBelow) }
-            .background(alignment: .top) {
-                // Chrome separates with a hairline, never a shadow.
-                shape
-                    .fill(WarmBackground.top)
-                    .overlay(alignment: .top) {
-                        shape.strokeBorder(TipCard.hairline, lineWidth: 1)
-                            .mask(alignment: .top) { Rectangle().frame(height: GridConstants.panelRadius) }
-                    }
-                    .padding(.bottom, -Self.groundBelow)
             }
             .frame(maxHeight: .infinity, alignment: .bottom)
-            // **Kept built, below the screen, when it is down** (2026-10-14):
-            // the whole panel slides both ways on one curve, its ground and
-            // all. Under Reduce Motion it fades where it stands (fix 8).
-            .offset(y: reduceMotion ? 0 : (isOpen ? shown : open + 60))
-            .opacity(reduceMotion && !isOpen ? 0 : 1)
+            .opacity(covering ? 1 : 0)
         }
         .allowsHitTesting(isOpen)
         .accessibilityHidden(!isOpen)
         .animation(GridConstants.drawerMove, value: isOpen)
         .animation(GridConstants.drawerMove, value: full)
-        .onChange(of: isOpen) { _, open in if !open { full = false; pull = 0 } }
+        .onChange(of: isOpen) { _, open in
+            if open {
+                // Over the bar before the first frame of the rise.
+                covering = true
+            } else {
+                full = false
+                pull = 0
+                // Back to the bar once the edge has come down into it.
+                Task { @MainActor in
+                    try? await Task.sleep(for: GridConstants.drawerLands)
+                    if !isOpen { covering = false }
+                }
+            }
+        }
     }
 
-    /// **The grabber, as a sheet's**: the panel follows the finger, and
-    /// where it lands is decided from where it was thrown, the nearest of
-    /// shut, part way and whole, with the throw's speed carried into the
-    /// settle (fix 2). Closing, the panel slides on from where the finger
-    /// left it; it no longer grew back to its height while it left (fix 3).
+    /// **The grabber, as a sheet's**: the edge follows the finger, and where
+    /// it lands is decided from where it was thrown, the nearest of shut,
+    /// part way and whole, with the throw's speed carried into the settle.
     private func drag(room: CGFloat, part: CGFloat) -> some Gesture {
-        // On the screen: the grabber moves with the finger now, and measured
-        // in its own space the drag chased itself, so a slow pull read as a
-        // throw (walked, 2026-10-14).
+        // On the screen: the grabber moves with the finger, and measured in
+        // its own space the drag chased itself (walked, 2026-10-14).
         DragGesture(minimumDistance: 4, coordinateSpace: .global)
             .onChanged { value in
                 withAnimation(GridConstants.drawerFollow) { pull = value.translation.height }
             }
             .onEnded { value in
                 let thrown = value.predictedEndTranslation.height
-                // Where the panel's top would come to rest, measured down
-                // from the top of the room.
                 let top = (full ? 0 : room - part) + thrown
                 let rests: [(CGFloat, Int)] = [(0, 2), (room - part, 1), (room, 0)]
                 let landing = rests.min { abs($0.0 - top) < abs($1.0 - top) }?.1 ?? 1
@@ -325,5 +328,56 @@ struct ChatDrawer<Content: View>: View {
                 }
                 if landing != was { HapticsEngine.lightTap() }
             }
+    }
+}
+
+/// **The drawer's panel, given its edge every frame.** `shown` is the
+/// animated value: SwiftUI interpolates it and draws the ground, the
+/// uncovered chat and the grabber from it on each frame. Frames and masks
+/// computed inside a `GeometryReader` from a changed state jumped to their
+/// end in one frame (filmed, 2026-10-14, opening and closing alike); as an
+/// `Animatable` view it is handed every step, logged at 96, 205, 337, 408,
+/// 463, 518, 549 and 560 points over the rise.
+private struct DrawerPanel<Content: View, Grabber: View>: View, Animatable {
+    var shown: CGFloat
+    let open: CGFloat
+    let groundBelow: CGFloat
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let grabber: () -> Grabber
+
+    var animatableData: CGFloat {
+        get { shown }
+        set { shown = newValue }
+    }
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: GridConstants.panelRadius,
+                                           topTrailingRadius: GridConstants.panelRadius, style: .continuous)
+        ZStack(alignment: .bottom) {
+            // The ground, the panel's own height, on past the foot.
+            shape
+                .fill(WarmBackground.top)
+                .overlay(alignment: .top) {
+                    // Chrome separates with a hairline, never a shadow.
+                    shape.strokeBorder(TipCard.hairline, lineWidth: 1)
+                        .mask(alignment: .top) { Rectangle().frame(height: GridConstants.panelRadius) }
+                }
+                .frame(height: shown + groundBelow)
+                .offset(y: groundBelow)
+            // The chat at its open height, uncovered from the foot up: a
+            // window whose height moves over a chat that does not, clipped by
+            // a plain rounded rectangle (layer bounds and a corner, cheap to
+            // draw each frame) rather than an alpha mask, which redrew the
+            // whole chat and its glass on every frame of the rise.
+            content()
+                .padding(.top, 22)
+                .frame(height: open, alignment: .top)
+                .padding(.bottom, groundBelow)
+                .frame(height: shown + groundBelow, alignment: .bottom)
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.panelRadius, style: .continuous))
+                .offset(y: groundBelow)
+            grabber()
+                .offset(y: -(shown - 22))
+        }
     }
 }
