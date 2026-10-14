@@ -67,23 +67,27 @@
   <h2>Photos</h2>
   <p>A photo you attach is copied into Some Wins' own storage so the block still has it if you later remove the original. Deleting a win deletes its photo with it.</p>
   <p>Photos are kept on this device, and a smaller copy of each is kept in your own iCloud when iCloud is on for Some Wins, so a new phone gets them back. If your iCloud is full, new photos stay on this device until there is room. They are also in your iPhone's iCloud Backup if that is on, and in the backup file you can make in Settings.</p>
+  <p>To show the photos you took today beside a new win, Some Wins asks iOS for your photo library, and only after you tap to allow it. It looks only at today's photos, on your device, and copies in only the one you pick. If you allow only some photos, it sees only those.</p>
+  <p>The front camera also finds the faces in view as you take a photo, to soften the light on them a little. This happens on your device, and what it finds is not kept.</p>
 
   <h2>Places</h2>
   <p>Some Wins asks first, and iOS will not give it a position until you say yes. After that, Some Wins notes where a photo was taken, at the moment you take it, so your wins can appear on your map. It checks only while the camera is open, never in the background. The place is kept with the win on your device and in your iCloud, and is never sent to a crew.</p>
-  <p>Photos you took before you turned it on have no place and cannot be given one.</p>
+  <p>A photo you choose from your library keeps the place it already has, but only while Keep Places is on in Settings. Photos you took with the camera before you turned it on have no place and cannot be given one.</p>
 
   <h2>Your profile</h2>
   <p>The name you add in Profile stays with your wins. If you join a crew, the people in it see your first name. Some Wins does not use a profile photo: your head is your picture. A profile photo saved by an earlier version is never sent, and is deleted once you have a head or when you reset all data.</p>
 
   <h2>Your head</h2>
-  <p>To make your head, Some Wins takes a few photos with the front camera, or uses one photo you choose from your library, and Apple's on-device tools find your face and cut it out. Choosing a photo does not give Some Wins your library: iOS hands over only the one you pick. It keeps only those small cut-out pictures and where to place them, never video and never measurements of your face, and none of it leaves your device to be analysed. Your head is your picture in Some Wins: it appears in Profile, on your Wins tab and your map, and in your crews, and it is offered as a sticker on your photos. Delete This Head takes it out of use. It stays on this device with your last three heads, and is never sent, until you choose Delete for Good on it in Profile or reset all data.</p>
-  <p>If you are in a crew and 16 or older, a smaller copy of your head goes to the crew, after the same check photos get.</p>
+  <p>To make your head, Some Wins takes a few photos with the front camera, or uses one photo you choose from your library. Apple's tools, on your device, find your face and the points of it (eyes, brows, mouth and jaw) to cut it out and choose the frames it keeps. Choosing a photo for your head does not give Some Wins your library: iOS hands over only the one you pick. It keeps those small cut-out pictures and, with each, where the eyes sit, their outline and their colour, so your head can blink. It never keeps video, never makes or keeps a faceprint or anything that could recognise you, and does not keep the other points it found. Some Wins cannot see any of it. Your head is your picture in Some Wins: it appears in Profile, on your Wins tab and your map, and in your crews, and it is offered as a sticker on your photos. Delete This Head takes it out of use. It stays on this device with your last three heads, and is never sent, until you choose Delete for Good on it in Profile or reset all data.</p>
+  <p>If you are in a crew and 16 or older, a smaller copy of your head, with where its eyes sit, goes to the crew, sealed like everything else there, after the same check photos get.</p>
 
   <h2>Sharing</h2>
   <p>Sharing a photo or a strip hands it to the iOS share sheet. Where it goes from there is between you and whatever app you send it to. Save to Photos, if you leave it on, puts a copy of each photo you take in your photo library. Save Video on a replay saves a video made on your device to your camera roll.</p>
 
   <h2>Crews</h2>
-  <p>A crew is up to 8 people who share a tower for the day. Crews need iOS 26 or later. A crew runs on iCloud: it lives in the iCloud of whoever started it, and Apple shares it with the people in it. There is no Some Wins server, and Some Wins cannot read what a crew holds.</p>
+  <p>A crew is up to 8 people who share a tower for the day. Crews need iOS 26 or later. Crews are kept in Some Wins' own area of Apple's iCloud, not in anyone's personal iCloud, so a crew uses none of your iCloud storage. Some Wins runs no server of its own.</p>
+  <p>Everything in a crew is sealed on the phone that sends it, with a key only the crew's phones hold, so Some Wins cannot open what a crew holds. What it can see is that a sealed record is there: which crew it belongs to, what kind of record it is, the iCloud account identifier that wrote it, when, and how big it is.</p>
+  <p>A crew's invite link carries its key, so anyone with the link can join while there is room and see the crew's last two weeks. Send it only to people you mean to. Each member's phone keeps the key, with a copy in their own iCloud.</p>
   <p>A win goes to a crew only if you tick that crew for that win. The crews you ticked last stay ticked until you change them.</p>
   <p>When someone adds a win or reacts to yours, their phone also leaves a short note in iCloud's public area so iCloud can alert the crew. The note holds scrambled tags for the crew and the people (which only phones already in the crew can match), the win's random id, and whether it is a win or a reaction: no names, titles or photos. The phone that left the note deletes it within minutes. Your phone then reads the win from the crew and writes the notification itself.</p>
 
@@ -93,12 +97,12 @@
   <p>The crew itself has a name and a photo that anyone in it can change, and keeps the time zone of whoever started it, so its day ends at one midnight for everyone.</p>
 
   <h2>Taking a win back</h2>
-  <p>Untick a crew on a win and the win leaves that crew. Delete a win and every copy goes. Remove its photo and the photo goes from every copy. Leave a crew and your wins leave with you; end a crew you started and it is deleted for everyone.</p>
-  <p>A crew keeps two weeks of days, and older wins and their photos are deleted the next time anyone opens it. Whoever started a crew can remove any win in it, and anyone can hide a win for themselves.</p>
+  <p>Untick a crew on a win and the win leaves that crew. Delete a win and every copy goes. Remove its photo and the photo goes from every copy. Leave a crew and your wins, reactions and messages leave with you. End a crew you started and it is removed from every phone, and each phone deletes its own posts from iCloud the next time it opens Some Wins.</p>
+  <p>A crew keeps two weeks of days. Older wins and their photos leave every phone, and each phone deletes its own from iCloud the next time it opens the crew. So the posts of someone who has deleted Some Wins stay in iCloud, sealed, until they open it again. Whoever started a crew can remove any win in it, and anyone can hide a win for themselves.</p>
 
   <h2>Block and Report</h2>
   <p>Block hides that person's wins, head and name in every crew on your phones. Your blocks and mutes reach your other devices through your own iCloud, which no crew can see. They are not told. If you started the crew, they are removed from it too.</p>
-  <p>You can report a win, a person (their name, photo or head) or a crew (its name or picture). A report sends Some Wins what you reported (the title and, if there is one, the photo), the reason you chose, the random ids of the crew, the person and you, and the iCloud account identifier that sent it, so the account can be removed from every crew. A report goes only to Some Wins, never to the crew, and only Some Wins can read it. Every report is looked at within a day, and reports are deleted after a year unless the law requires keeping one longer. Content that appears to exploit a child is reported to the National Center for Missing and Exploited Children, as the law requires.</p>
+  <p>You can report a win, a message, a person (their name, photo or head) or a crew (its name or picture). A report sends Some Wins what you reported (its title or the words of the message, and any photo or drawing with it), the reason you chose, the random ids of the crew, the person and you, the iCloud account identifier behind what you reported and the one that sent the report, so an account can be removed from every crew. A report goes only to Some Wins, never to the crew or the person you reported. Every report is looked at within a day. Reports are kept for a year, then deleted, unless the law requires keeping one longer. Content that appears to exploit a child is reported to the National Center for Missing and Exploited Children, as the law requires.</p>
 
   <h2>The photo check</h2>
   <p>Before a photo goes to a crew, your phone checks it with Apple's sensitive content check, when Sensitive Content Warning or Communication Safety is turned on. A photo it flags stays with you, and the win goes without it. Photos that arrive from your crews are checked on your phone the same way, and one it flags is never shown. Under 16, with the check turned off, friends' photos are not shown.</p>
@@ -108,19 +112,22 @@
 
   <h2>Deleting everything</h2>
   <p>Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, drawing, sticker and strip, your name and every head, from this device and from your iCloud. Leave your crews first, and end any you started, so your wins leave them too.</p>
-  <p>Deleting the app removes it from this device only: what is in your iCloud stays there and comes back if you reinstall. To remove that without the app, open the Settings app, your name, iCloud, and manage the storage Some Wins uses.</p>
+  <p>Deleting the app removes it from this device only: what is in your iCloud stays there and comes back if you reinstall. What you posted to crews also stays, sealed, until you reinstall and leave them. To remove what is in your iCloud without the app, open the Settings app, your name, iCloud, and manage the storage Some Wins uses.</p>
 
   <h2>Your rights</h2>
-  <p>Some Wins does not sell or share personal information, and does not track you across other apps or websites, so a Do Not Track signal changes nothing here. Because there is no server, the only things Some Wins itself holds are reports and the anonymous counts. You can ask what it holds about you, or ask for it to be deleted, by writing to the address below. Where you live may also give you the right to complain to a data protection authority.</p>
+  <p>Some Wins does not sell or share personal information, and does not track you across other apps or websites, so a Do Not Track signal changes nothing here. The only things about you Some Wins itself can read are reports and the anonymous counts; what you post to crews it holds only sealed. You can ask what it holds about you, or ask for it to be deleted, by writing to the address below. Where you live may also give you the right to complain to a data protection authority.</p>
 
   <h2>Children</h2>
-  <p>Some Wins is not directed at children under 13, and Crews do not open for anyone under 13. Some Wins receives only the reports someone chooses to make and the anonymous counts above, which say nothing about who you are.</p>
+  <p>Some Wins is not directed at children under 13, and Crews do not open for anyone under 13. Some Wins receives only the reports someone chooses to make and the anonymous counts above, which say nothing about who you are. If Apple tells Some Wins you are under 13, anonymous usage counts stop.</p>
+
+  <h2>If you are under 18 in California</h2>
+  <p>You can remove what you posted to a crew yourself, at any time, as Taking a win back describes.</p>
 
   <h2>Removal requests</h2>
   <p>Anyone, including people who do not use Some Wins, can ask for an intimate image shared without consent to be removed. How is in the <a href="terms.html">Terms of Use</a>, and a valid request is acted on within 48 hours.</p>
 
   <h2>Changes</h2>
-  <p>If this policy changes, the date at the top changes with it.</p>
+  <p>If this policy changes, the date at the top changes with it. If a change affects what happens to your information, the App Store notes for that update will say so.</p>
 
   <h2>Contact</h2>
   <p>Some Wins is made by Jayden Betts, in California, USA. Questions about any of this: <a href="mailto:jbett5@hotmail.com">jbett5@hotmail.com</a></p>
