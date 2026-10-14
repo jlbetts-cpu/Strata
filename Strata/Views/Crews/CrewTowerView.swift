@@ -765,10 +765,20 @@ struct CrewTowerView: View {
                         model.probe.gridHeight = gridH
                         model.probe.cellSize = colW
                     }
+                // **One person's same-colour wins run together**, under the
+                // blocks, as on Wins (`BlockMerge.groups(perPerson:)`). Not
+                // while anything is falling: a run's identity is its members,
+                // and a shape that appears and vanishes mid-drop is a cut.
+                let merging = model.animation.activelyAnimatingIDs.isEmpty && !model.animation.isCascading
+                if rows > 0, merging {
+                    ForEach(tower.mergeGroups) { group in
+                        MergedGroupView(group: group, cellSize: colW, gridWidth: gridW, gridHeight: gridH)
+                    }
+                }
                 if rows > 0 {
                     TowerBlocksForEach(
                         visibleBlocks: tower.placedBlocks, animCoord: model.animation, towerVM: tower,
-                        groupedIDs: [], mergeDestinedIDs: [],
+                        groupedIDs: merging ? tower.groupedBlockIDs : [], mergeDestinedIDs: tower.groupedBlockIDs,
                         colW: colW, gridH: gridH,
                         cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
                         reduceMotion: reduceMotion, colorScheme: colorScheme,

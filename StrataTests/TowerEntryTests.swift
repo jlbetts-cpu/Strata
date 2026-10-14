@@ -61,6 +61,26 @@ struct TowerEntryTests {
         #expect(vm.mergeGroups.isEmpty)
     }
 
+    /// **One person's run merges; two people's never do** (the owner,
+    /// 2026-10-13: "merge blocks in crew", inside spec 2.4's reason).
+    @Test func aCrewTowerMergesOnlyOnePersonsRun() {
+        let wins = (0..<6).map { i in
+            SharedWin(winID: UUID(), crewID: CrewID(rawValue: "crew-t"), senderProfileID: UUID(), crewDay: "2027-01-15",
+                      title: "", colour: .health, icon: .unlabeled, blockSize: .small, photo: nil, cropX: nil, cropY: nil,
+                      createdAt: Date(timeIntervalSince1970: Double(i)), updatedAt: .now)
+        }
+        let senders = ["Sam", "Sam", "Sam", "Ana", "Ana", "Ana"]
+        let vm = TowerViewModel()
+        vm.buildTower(entries: zip(wins, senders).map { .init(id: $0.winID, look: PlacedBlock.Look(win: $0, sender: $1)) },
+                      perPerson: true)
+        #expect(!vm.mergeGroups.isEmpty, "one person's touching greens did not run together")
+        let sender = Dictionary(uniqueKeysWithValues: zip(wins.map(\.winID), senders))
+        for group in vm.mergeGroups {
+            #expect(Set(group.memberIDs.compactMap { sender[$0] }).count == 1,
+                    "a run joined two people's wins: \(group.memberIDs.compactMap { sender[$0] })")
+        }
+    }
+
     @Test func aCrewBlockKnowsWhoseItIs() {
         let win = Self.wins(1)[0]
         let theirs = PlacedBlock.Look(win: win, sender: "Sam")

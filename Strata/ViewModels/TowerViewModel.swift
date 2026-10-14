@@ -247,12 +247,13 @@ final class TowerViewModel {
 
     /// Packs entries in the order given. The Wins tab reaches this through
     /// `buildTower(from:)`, which sorts its logs first; a crew tower sorts its
-    /// own wins by when they were sent and passes `merges: false`, because two
-    /// touching blocks there are two people's wins (spec 2.4).
+    /// own wins by when they were sent and passes `perPerson: true`, because
+    /// two touching blocks there can be two people's wins (spec 2.4).
     @discardableResult
     func buildTower(entries: [TowerEntry],
                     filterMode: TowerFilterMode = .day,
-                    merges: Bool = true) -> Set<UUID> {
+                    merges: Bool = true,
+                    perPerson: Bool = false) -> Set<UUID> {
         // Boolean grid matrix: grid[row][col] = true means occupied
         var grid = [[Bool]]()
         let useDayBoundaries = filterMode != .day
@@ -314,7 +315,7 @@ final class TowerViewModel {
         defer { if !hasBuiltOnce { hasBuiltOnce = true } }
 
         if placedBlocks != placed { placedBlocks = placed }
-        let groups = merges ? BlockMerge.groups(for: placed) : []
+        let groups = merges ? BlockMerge.groups(for: placed, perPerson: perPerson) : []
         if !Self.sameGroups(mergeGroups, groups) {
             mergeGroups = groups
             let grouped = Set(groups.flatMap(\.memberIDs))

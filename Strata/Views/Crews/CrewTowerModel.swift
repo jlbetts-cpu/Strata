@@ -91,7 +91,7 @@ final class CrewTowerModel {
         }
         let hadBuilt = tower.hasBuiltOnce
         withAnimation(GridConstants.motionSnappy) {
-            let dropped = tower.buildTower(entries: entries, merges: false)
+            let dropped = tower.buildTower(entries: entries, perPerson: true)
             animation.ensureStates(for: tower.placedBlocks.map(\.id))
             guard hadBuilt else { return }
             for id in dropped.subtracting(animation.activelyAnimatingIDs) {

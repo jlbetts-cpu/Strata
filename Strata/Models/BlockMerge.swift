@@ -61,7 +61,14 @@ enum BlockMerge {
     /// adjacent cells belonging to mergeable blocks of the same colour are
     /// unioned. Working in cells rather than blocks means a 2x2 and a 1x1 merge
     /// correctly without any special case.
-    static func groups(for blocks: [PlacedBlock]) -> [MergeGroup] {
+    ///
+    /// **`perPerson`: a crew's tower** (the owner, 2026-10-13: "merge blocks
+    /// in crew"). Two touching blocks there can be two people's wins, and
+    /// one shape would make them one person's (spec 2.4, which is why crews
+    /// never merged). So there a run is one person's same-colour wins, as
+    /// yours run together on Wins, and a friend's green beside yours stays
+    /// its own block.
+    static func groups(for blocks: [PlacedBlock], perPerson: Bool = false) -> [MergeGroup] {
         // Named blocks merge too.
         //
         // The rule used to be unnamed-only, on the reasoning that a merged run
@@ -117,6 +124,7 @@ enum BlockMerge {
             ] {
                 guard let other = cellOwner[neighbour],
                       other.look.displayCategory == key else { continue }
+                if perPerson, other.look.isMine != block.look.isMine || other.look.sender != block.look.sender { continue }
                 union(cell, neighbour)
             }
         }

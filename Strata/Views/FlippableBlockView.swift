@@ -195,7 +195,9 @@ struct FlippableBlockView: View {
             // where the finger slides.
             .modifier(BlockHold.Attached(onHold: onHold))
             .overlay(alignment: .topTrailing) {
-                if !block.look.reactionEmoji.isEmpty, !isGroupMember {
+                // On a crew's tower a run's members keep their reactions:
+                // each is still a win someone reacted to.
+                if !block.look.reactionEmoji.isEmpty, !isGroupMember || onDoubleTap != nil {
                     ReactionBadge(emoji: block.look.reactionEmoji, count: block.look.reactionCount,
                                   mine: block.look.myReaction != nil)
                         .padding(5)
