@@ -56,6 +56,11 @@ struct CrewChatSheet: View {
     @State private var lineFrames = ChatLineFrames()
     /// The line Reply quoted, over the field until the reply goes.
     @State private var replyingTo: CrewMessage?
+    /// **A win Reply quoted, from the hold on the tower** (the owner,
+    /// 2026-10-14: "when you are holding to react reply should pop up as an
+    /// option and the chat should pop up"). Over the field as a line's quote
+    /// is, and sent with the win quoted.
+    @State private var replyingToWin: UUID?
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
@@ -187,8 +192,12 @@ struct CrewChatSheet: View {
     /// stuff im noticing a lot of not smooth elements that jolt out"). Down,
     /// it reads nothing as seen and takes no keyboard.
     var visible = true
+    /// The win the chat rises to answer, when Reply under the hold's bar
+    /// raised it.
+    var answeringWin: UUID? = nil
 
     init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false, visible: Bool = true,
+         answeringWin: UUID? = nil,
          close: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
@@ -196,6 +205,7 @@ struct CrewChatSheet: View {
         self.startsWriting = startsWriting
         self.startsWithPlus = startsWithPlus
         self.visible = visible
+        self.answeringWin = answeringWin
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
@@ -235,6 +245,7 @@ struct CrewChatSheet: View {
             if up {
                 store.markChatSeen(crewID)
                 showsPlus = startsWithPlus
+                if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
                 guard startsWriting else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(360))
@@ -243,6 +254,7 @@ struct CrewChatSheet: View {
             } else {
                 writing = false
                 showsPlus = false
+                replyingToWin = nil
             }
         }
         .alert("Try other words", isPresented: $refused) {
@@ -961,6 +973,11 @@ struct CrewChatSheet: View {
             if let replyingTo {
                 replyQuote(replyingTo)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let replyingToWin, let win = store.wins(in: crewID).first(where: { $0.winID == replyingToWin }) {
+                quoteRow("\u{21AA}\u{FE0E} \(win.title)") {
+                    withAnimation(GridConstants.motionSnappy) { self.replyingToWin = nil }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,
@@ -1009,8 +1026,15 @@ struct CrewChatSheet: View {
     /// **What Reply is answering** (M2c), over the field: "↪ Sam: see you
     /// at 6", one line, and an x to drop it.
     private func replyQuote(_ line: CrewMessage) -> some View {
+        quoteRow("\u{21AA}\u{FE0E} \(name(of: line.senderProfileID)): \(gist(line))") {
+            withAnimation(GridConstants.motionSnappy) { replyingTo = nil }
+        }
+    }
+
+    /// The one quote over the field, for a line or a win.
+    private func quoteRow(_ words: String, drop: @escaping () -> Void) -> some View {
         HStack(spacing: GridConstants.gapTight) {
-            Text("\u{21AA}\u{FE0E} \(name(of: line.senderProfileID)): \(gist(line))")
+            Text(words)
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
                 .lineLimit(1)
@@ -1018,7 +1042,7 @@ struct CrewChatSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button {
                 HapticsEngine.lightTap()
-                withAnimation(GridConstants.motionSnappy) { replyingTo = nil }
+                drop()
             } label: {
                 Image(systemName: "xmark")
                     .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
@@ -1055,16 +1079,19 @@ struct CrewChatSheet: View {
         guard !isEmpty else { return }
         draft = ""
         let answering = replyingTo
-        withAnimation(GridConstants.motionSnappy) { replyingTo = nil }
+        let answeringWin = replyingToWin
+        withAnimation(GridConstants.motionSnappy) { replyingTo = nil; replyingToWin = nil }
         Task {
             let outcome: SocialStore.ReplyOutcome
             if let answering {
                 outcome = await store.send(text, in: crewID, answering: answering.messageID)
+            } else if let answeringWin {
+                outcome = await store.reply(text, to: answeringWin, in: crewID)
             } else {
                 outcome = await store.send(text, in: crewID)
             }
             // Words that come back bring their quote back with them.
-            if outcome != .sent, replyingTo == nil { replyingTo = answering }
+            if outcome != .sent, replyingTo == nil, replyingToWin == nil { replyingTo = answering; replyingToWin = answeringWin }
             switch outcome {
             case .sent:
                 CrewDrafts.clearChat(crewID, ifStill: text)

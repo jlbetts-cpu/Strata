@@ -480,6 +480,25 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
+    /// to react reply should pop up as an option and the chat should pop up").
+    func testReplyFromHold() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Shipped it'")).firstMatch
+        let at = block.exists ? block.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                              : app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.45))
+        at.press(forDuration: 0.9)
+        wait(1); snap("reply-0-held")
+        let reply = app.buttons["Reply"].firstMatch
+        print("PLANNING-reply: \(reply.exists) \(reply.frame)")
+        if reply.exists { reply.press(forDuration: 0.12) }
+        wait(2.5); snap("reply-1-chat")
+        app.typeText("Proud of you")
+        wait(1); snap("reply-2-typed")
+    }
+
     /// **Add a Win opening from the empty slot, for a recording** (the owner,
     /// 2026-10-14: "the add a win animation ... elements on the screen arent
     /// clean and clear like the block shrinking").

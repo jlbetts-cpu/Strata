@@ -37,6 +37,8 @@ struct CrewTowerView: View {
     @State private var showsChat = false
     /// How the resting bar opened the chat: to read, to write, or with +.
     @State private var chatOpening: ChatRestBar.Opening = .reading
+    /// The win Reply under the hold's bar is answering, for the chat.
+    @State private var answeringWin: UUID?
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
     @State private var plansRefresh = 0
@@ -121,7 +123,7 @@ struct CrewTowerView: View {
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
         })
         // What was joined or closed in the chat shows here when it shuts.
-        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1; plannedNudge += 1 } }
+        .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil } }
         // **The page answers a touch, as Wins does**, header and all: rings
         // on water behind the content, consuming nothing. It was missing
         // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
@@ -313,6 +315,7 @@ struct CrewTowerView: View {
             ChatDrawer(isOpen: $showsChat) {
                 CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
                               startsWithPlus: chatOpening == .plus, visible: showsChat,
+                              answeringWin: answeringWin,
                               close: { showsChat = false },
                               onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
             }
@@ -569,6 +572,37 @@ struct CrewTowerView: View {
                         if open { dismissing?.cancel() } else if reacting != nil { closeSoon() }
                     })) { emoji in
             give(emoji, to: id)
+        }
+        // **Reply, on the hold itself** (the owner, 2026-10-14: "replying to
+        // wins is really hidden like you have to press on the win and then
+        // press the reaction button and then press reply ... when you are
+        // holding to react reply should pop up as an option and the chat
+        // should pop up"). Over the bar, as an overlay, so the bar's own
+        // measure (what a sliding finger is read against) is the marks
+        // alone. The chat rises with the win quoted and the keyboard up.
+        .overlay(alignment: .top) {
+            if store.canReply() {
+                Button {
+                    HapticsEngine.lightTap()
+                    closeReactions()
+                    answeringWin = id
+                    chatOpening = .writing
+                    showsChat = true
+                } label: {
+                    Label("Reply", systemImage: "arrowshape.turn.up.left")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(minHeight: 44)
+                        .glassCapsule(carriesType: true)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.pressSurface)
+                .fixedSize()
+                // Its foot `gapTight` above the bar's top edge.
+                .offset(y: -(44 + GridConstants.gapTight))
+                .accessibilityHint("Opens the chat with this win quoted.")
+            }
         }
     }
 
