@@ -10,19 +10,26 @@ simulator and is unverified until it is tried on a phone.
 
 ## 1. The owner's decisions
 
-- **The head is 100% optional.** Every place it can appear is its own switch,
+> **Reversed 2026-10-14** (`docs/heads-as-identity-2026-10-14.md`): the head
+> is your identity, not an option, and there is no profile photograph. "treat
+> the head not really as an optional thing but an identity like our version of
+> the bit moji peoples identity remove the option for a pfp and make the head
+> making a must". The first, third and fifth bullets below are history; Let My
+> Head Onto the Tower is the one switch left.
+
+- ~~**The head is 100% optional.**~~ Every place it can appear is its own switch,
   and every switch starts OFF. Someone who never makes a head must never feel
   they are missing part of the app.
 - **Profile is a button, not a tab.** Three tabs stay and the camera stays in
   the middle. A fifth tab would need a fifth real destination, and
   `product-direction.md` already records the cost: a tab "costs a fifth of the
   bottom edge forever".
-- **The profile picture is a choice:** initials (the default), a photograph, or
+- ~~**The profile picture is a choice:**~~ initials (the default), a photograph, or
   the moving head.
 - **Profile shows a streak and a trend chart.** In the owner's words, for
   someone like his mum, who "loves seeing her progress and trends". Milestones
   are parked (they already exist in code — see §4.4).
-- **The head can appear on the map, in the camera, and on the tower** — each
+- ~~**The head can appear on the map, in the camera, and on the tower**~~ — each
   optional, each off by default.
 - **Settings lives only in Profile.** The gear leaves the Memories page.
 - **Making a head has no eye step.** The website maker's eye placement "gave

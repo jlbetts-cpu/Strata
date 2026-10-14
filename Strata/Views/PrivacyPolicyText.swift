@@ -3,14 +3,14 @@
 // StrataTests/PrivacyPolicyTests.swift fails if the two disagree.
 
 nonisolated enum PrivacyPolicyText {
-    static let updated = "8 October 2026"
+    static let updated = "14 October 2026"
     static let lede = "Some Wins has no account and no server of its own. What you log stays on your device and in your own iCloud, unless you send a win to a crew."
     static let sections: [(title: String, paragraphs: [String])] = [
         ("In short", [
             "The only things that leave your phone are: what you sync to your own iCloud, the wins you send to a crew, a report if you make one, and anonymous usage counts, which you can turn off. Some Wins includes no third-party code, shows no ads and never sells anything about you.",
         ]),
         ("What Some Wins stores", [
-            "Your wins: their names, sizes, colours, dates, any photo you attach, and where a photo was taken if you turn that on. Your journal, drawings, stickers and photo strips. And, if you add them, your name, a profile photo and a head.",
+            "Your wins: their names, sizes, colours, dates, any photo you attach, and where a photo was taken if you turn that on. Your journal, drawings, stickers and photo strips. Your name, and your head once you make it.",
         ]),
         ("Where it is stored", [
             "On your device, and in your own iCloud when iCloud is on for Some Wins, so it reaches your other devices and comes back if you reinstall. Some Wins cannot read your iCloud; only your Apple Account can. Nothing you log is sent anywhere else unless you send a win to a crew.",
@@ -29,11 +29,11 @@ nonisolated enum PrivacyPolicyText {
             "Photos you took before you turned it on have no place and cannot be given one.",
         ]),
         ("Your profile", [
-            "The name and profile photo you add in Profile stay with your wins. If you join a crew, the people in it see your first name, and your profile photo if you are 16 or older. Removing the photo deletes it.",
+            "The name you add in Profile stays with your wins. If you join a crew, the people in it see your first name. Some Wins does not use a profile photo: your head is your picture. A profile photo saved by an earlier version is never sent, and is deleted once you have a head or when you reset all data.",
         ]),
         ("Your head", [
-            "If you make a head, Some Wins takes a few photos with the front camera and Apple's on-device tools find your face and cut it out. It keeps only those small cut-out pictures and where to place them, never video and never measurements of your face, and none of it leaves your device to be analysed. Your head appears only where you turn it on, and Delete Head removes it.",
-            "If you are in a crew and 16 or older, a smaller copy of your head goes to the crew while it shows anywhere, after the same check photos get.",
+            "To make your head, Some Wins takes a few photos with the front camera, or uses one photo you choose from your library, and Apple's on-device tools find your face and cut it out. Choosing a photo does not give Some Wins your library: iOS hands over only the one you pick. It keeps only those small cut-out pictures and where to place them, never video and never measurements of your face, and none of it leaves your device to be analysed. Your head is your picture in Some Wins: it appears in Profile, on your Wins tab and your map, and in your crews, and it is offered as a sticker on your photos. Delete Head removes it.",
+            "If you are in a crew and 16 or older, a smaller copy of your head goes to the crew, after the same check photos get.",
         ]),
         ("Sharing", [
             "Sharing a photo or a strip hands it to the iOS share sheet. Where it goes from there is between you and whatever app you send it to. Save to Photos, if you leave it on, puts a copy of each photo you take in your photo library. Save Video on a replay saves a video made on your device to your camera roll.",
@@ -44,7 +44,7 @@ nonisolated enum PrivacyPolicyText {
             "When someone adds a win or reacts to yours, their phone also leaves a short note in iCloud's public area so iCloud can alert the crew. The note holds scrambled tags for the crew and the people (which only phones already in the crew can match), the win's random id, and whether it is a win or a reaction: no names, titles or photos. The phone that left the note deletes it within minutes. Your phone then reads the win from the crew and writes the notification itself.",
         ]),
         ("What a crew sees", [
-            "Of a win you send: its title, colour, size and icon, its photo, and when you logged it. The photo is a smaller copy with no place and no camera details in it. With it, your first name, and from 16, your profile photo and your head. Never your journal, notes, places or mood. Tag someone and they are asked whether to keep a copy; only your crew sees who a win was with.",
+            "Of a win you send: its title, colour, size and icon, its photo, and when you logged it. The photo is a smaller copy with no place and no camera details in it. With it, your first name, and from 16, your head. Never your journal, notes, places or mood. Tag someone and they are asked whether to keep a copy; only your crew sees who a win was with.",
             "Everything you send to a crew's day chat, the replies under a win, and the drawings, stickers and reactions you send are seen by everyone in the crew. A short list of words is kept out of the chat.",
             "The crew itself has a name and a photo that anyone in it can change, and keeps the time zone of whoever started it, so its day ends at one midnight for everyone.",
         ]),
@@ -60,10 +60,10 @@ nonisolated enum PrivacyPolicyText {
             "Before a photo goes to a crew, your phone checks it with Apple's sensitive content check, when Sensitive Content Warning or Communication Safety is turned on. A photo it flags stays with you, and the win goes without it. Photos that arrive from your crews are checked on your phone the same way, and one it flags is never shown. Under 16, with the check turned off, friends' photos are not shown.",
         ]),
         ("Ages", [
-            "Crews are for 13 and up. The first time you open Crews, Some Wins asks for your age range through Apple, never your birthday, and keeps the answer on your phone. Under 13, Crews do not open. From 13 to 15, crews work, but your photos, profile photo and head are never sent. If you would rather not say, Some Wins treats you as 13 to 15.",
+            "Crews are for 13 and up. The first time you open Crews, Some Wins asks for your age range through Apple, never your birthday, and keeps the answer on your phone. Under 13, Crews do not open. From 13 to 15, crews work, but your photos and your head are never sent. If you would rather not say, Some Wins treats you as 13 to 15.",
         ]),
         ("Deleting everything", [
-            "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, drawing, sticker and strip, your name, profile photo and head, from this device and from your iCloud. Leave your crews first, and end any you started, so your wins leave them too.",
+            "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, drawing, sticker and strip, your name and head, from this device and from your iCloud. Leave your crews first, and end any you started, so your wins leave them too.",
             "Deleting the app removes it from this device only: what is in your iCloud stays there and comes back if you reinstall. To remove that without the app, open the Settings app, your name, iCloud, and manage the storage Some Wins uses.",
         ]),
         ("Your rights", [

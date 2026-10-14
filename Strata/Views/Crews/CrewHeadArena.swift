@@ -154,14 +154,11 @@ struct CrewBubble: View {
     let me: UUID
     let parking: CrewParking
     var side: CGFloat = 60
-    /// Off: heads are switched off for this crew, and the bubble is only the
-    /// crew's picture.
-    var showsHeads = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let parked = showsHeads ? parking.parked.compactMap { id in crew.member(id) } : []
+        let parked = parking.parked.compactMap { id in crew.member(id) }
         let k = parked.count
         let circle = Self.circle(for: k, side: side)
         ZStack {
@@ -196,15 +193,10 @@ struct CrewBubble: View {
     private func crammed(_ member: CrewMember, index: Int, of count: Int, circle: CGFloat) -> some View {
         let spot = Self.spot(index, of: count)
         let size = circle * spot.size
-        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
-        Group {
-            if let rig {
-                LivingHeadView(rig: rig, side: size, liveliness: .calm)
-                    .frame(width: size, height: size)
-            } else {
-                CrewFace(member: member, crew: crew.id, me: me, side: size * 0.8)
-            }
-        }
+        // A head, or the blank head at a head's size: one shape in the
+        // bubble, whoever has made one (2026-10-14, `PersonHead`).
+        PersonHead(person: .member(member, crew: crew.id, me: me), side: size,
+                   life: .calm, setting: .free)
         // Squashed toward the middle: pressed by the others.
         .scaleEffect(x: count > 1 ? 0.9 : 1, y: count > 1 ? 1.04 : 1)
         .rotationEffect(.degrees(count > 1 ? spot.tilt : 0))
@@ -308,8 +300,8 @@ struct CrewHeadArena: View {
                 // **Everyone, head or not** (the owner, 2026-10-03: "even if a
                 // friend doesnt have a head there pfp should still show... they
                 // shouldnt be excluded"). A member with no head floats as the
-                // circle they are everywhere else in Crews: their photo, or
-                // their initial.
+                // blank head in their colour, with their initial, as they
+                // are everywhere else in Crews (2026-10-14, `PersonHead`).
                 ForEach(crew.members) { member in
                     CrewHeadRunner(member: member, isMe: member.profileID == me,
                                    rig: CrewHeads.shared.rig(for: member, in: crew.id, me: me),
@@ -350,7 +342,7 @@ private final class CrewHeadLife {
 private struct CrewHeadRunner: View {
     let member: CrewMember
     let isMe: Bool
-    /// Nil for someone with no head: they float as their circle.
+    /// Nil for someone with no head: they walk as the blank head.
     let rig: HeadRig?
     let crewID: CrewID
     let me: UUID
@@ -365,6 +357,8 @@ private struct CrewHeadRunner: View {
     @State private var life: CrewHeadLife
     @State private var take: HeadTake.Played?
     @State private var deck = HeadTakeDeck()
+    /// Your own blank head was pressed: the maker is up.
+    @State private var making = false
 
     init(member: CrewMember, isMe: Bool, rig: HeadRig?, crewID: CrewID, me: UUID, arena: CGRect,
          model: CrewTowerModel, parking: CrewParking, box: CrewArenaBox) {
@@ -397,13 +391,12 @@ private struct CrewHeadRunner: View {
         // at arm's length and still smaller than one block. See
         // `TowerCompanion.side(forCell:)`.
         let side = TowerCompanion.side(forCell: model.probe.cellSize)
-        let head = Group {
-            if let rig {
-                LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
-            } else {
-                CrewFace(member: member, crew: crewID, me: me, side: side * 0.78)
-            }
-        }
+        // **Everyone walks as a head** (2026-10-14): a member with none is
+        // the blank head in their colour, at the size a head would be, where
+        // a floating disc used to stand in. `PersonHead` resolves the same
+        // rig this runner was handed.
+        let head = PersonHead(person: .member(member, crew: crewID, me: me), side: side,
+                              life: .calm, setting: .free, take: take)
         .frame(width: side, height: side)
         .contentShape(Circle())
 
@@ -420,7 +413,7 @@ private struct CrewHeadRunner: View {
                     .simultaneousGesture(TapGesture().onEnded { changeFace() })
                     .accessibilityElement()
                     .accessibilityLabel(name)
-                    .accessibilityHint("Double-tap for a new face.")
+                    .accessibilityHint(isMe && rig == nil ? "Opens the head maker." : "Double-tap for a new face.")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { changeFace() }
                     .accessibilityAction(named: "Put in the bubble") {
@@ -444,6 +437,7 @@ private struct CrewHeadRunner: View {
             life.flightFrom = life.position
             life.flightStart = nil
         }
+        .fullScreenCover(isPresented: $making) { HeadMakerView() }
     }
 
     // MARK: Gestures
@@ -482,7 +476,18 @@ private struct CrewHeadRunner: View {
     }
 
     private func changeFace() {
-        guard let rig else { HapticsEngine.tick(); return }
+        // **Your own blank head opens the maker** (the owner, 2026-10-14:
+        // "make the head making a must"; plan §4.4). A friend's has no faces
+        // to change, so it only ticks.
+        guard let rig else {
+            if isMe {
+                HapticsEngine.lightTap()
+                making = true
+            } else {
+                HapticsEngine.tick()
+            }
+            return
+        }
         let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
         guard let next = deck.next(from: available) else { return }
         HapticsEngine.tick()
@@ -694,21 +699,13 @@ struct CrewFan: View {
     }
 
     private func head(_ member: CrewMember) -> some View {
-        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
         return Button {
             parking.pop(member.profileID, from: centres[member.profileID])
         } label: {
-            // Everyone in the same circle: a head on the disc a photo fills.
-            Group {
-                if let rig {
-                    LivingHeadView(rig: rig, side: Self.side * 0.92, liveliness: .calm)
-                        .frame(width: Self.side, height: Self.side)
-                        .background(Circle().fill(AppColors.quietFill))
-                        .clipShape(Circle())
-                } else {
-                    CrewFace(member: member, crew: crew.id, me: me, side: Self.side)
-                }
-            }
+            // Everyone in the same circle, at the one share a head takes of
+            // a disc (`PersonHead.discShare`; this was 0.92, its own size).
+            PersonHead(person: .member(member, crew: crew.id, me: me), side: Self.side,
+                       life: .calm)
             .frame(width: Self.side, height: Self.side)
             .contentShape(Circle())
         }

@@ -127,9 +127,9 @@ final class CompanionParking {
 
     /// His height in the crest, crown to chin, for a crest of `side`: the
     /// face `GoalCrest` hands `CrestFace`, times the share a face gives its
-    /// head (`ProfileAvatar.headShare`).
+    /// head (`PersonHead.ringShare`).
     static func crestHeadSide(crest side: CGFloat) -> CGFloat {
-        GoalCrest.faceSide(crest: side) * ProfileAvatar.headShare
+        GoalCrest.faceSide(crest: side) * PersonHead.ringShare
     }
 
     /// Whether the bubble is on screen at all.

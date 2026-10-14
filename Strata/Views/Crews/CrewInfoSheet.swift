@@ -69,21 +69,11 @@ struct CrewInfoSheet: View {
                             .formFooter()
                     }
                     .listRowSeparator(.hidden)
-                    Section {
-                        Toggle(isOn: Binding(get: { store.showsHeads(crewID) },
-                                             set: { on in withAnimation(GridConstants.motionSnappy) { store.setShowsHeads(on, for: crewID) } })) {
-                            Label {
-                                Text("Heads").foregroundStyle(AppColors.inkPrimary)
-                            } icon: { SettingsIcon(systemName: "face.smiling") }
-                                .font(Typography.bodyLarge)
-                        }
-                        .tint(AppColors.switchTrack)
-                    } footer: {
-                        Text(store.showsHeads(crewID) ? "Everyone's heads live on this crew's tower."
-                                                     : "Only the wins, on your phone. Nobody else is told.")
-                            .formFooter()
-                    }
-                    .listRowSeparator(.hidden)
+                    // **No Heads switch** (the owner, 2026-10-14: "the heads
+                    // dont need to be an option in the settings for crew").
+                    // A head is who somebody is in a crew, not a setting on
+                    // it; the switch from 2026-10-03 is gone and its stored
+                    // choice cleared once (`RetiredHeadSwitches`).
                     notifications
                     hiddenSection
                     blockedSection

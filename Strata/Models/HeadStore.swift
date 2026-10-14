@@ -1,12 +1,16 @@
 import Observation
 import UIKit
 
-/// Your head: made once in Profile, kept on this phone, drawn only where you
-/// switch it on.
+/// Your head: made once, kept on this phone, and who you are everywhere the
+/// app draws you.
 ///
-/// **Every switch starts OFF.** The head is 100% optional — the owner's call
-/// — so somebody who never makes one must never see a gap where it would
-/// have been. Plan and reasoning: `docs/profile-and-head-plan.md` §5.
+/// **The head is your identity, not an option** (the owner, 2026-10-14:
+/// "treat the head not really as an optional thing but an identity like our
+/// version of the bit moji ... remove the option for a pfp and make the head
+/// making a must"). This reverses 2026-09-11's "100% optional, every switch
+/// starts OFF". One switch is left, the tower companion, because it is about
+/// how busy Wins is, not about who you are. Somebody without a head yet is
+/// the blank head (`HeadPlaceholder`). Plan: `docs/heads-as-identity-2026-10-14.md`.
 @Observable
 @MainActor
 final class HeadStore {
@@ -227,24 +231,16 @@ final class HeadStore {
     /// one of them must not write over the new head or bring back a deleted
     /// one, so it checks this, on the main actor, before it touches disk.
     @ObservationIgnored private(set) var epoch = 0
-    private(set) var isProfilePicture: Bool
-    private(set) var showsOnMap: Bool
-    private(set) var showsCameraSticker: Bool
     private(set) var showsOnTower: Bool
 
     private enum Key {
-        static let picture = "headIsProfilePicture"
-        static let map = "headOnMap"
-        static let sticker = "headCameraSticker"
         static let tower = "headOnTower"
         static let look = "headLook"
     }
 
     private init() {
         let defaults = UserDefaults.standard
-        isProfilePicture = defaults.bool(forKey: Key.picture)
-        showsOnMap = defaults.bool(forKey: Key.map)
-        showsCameraSticker = defaults.bool(forKey: Key.sticker)
+        RetiredHeadSwitches.clear(defaults)
         // **Off by default.** It was on for one build, to make sure he could
         // see it at all, and he called that back straight away: "head on
         // tower should not be on by default." He is right. It is a companion
@@ -323,16 +319,18 @@ final class HeadStore {
             let seeded = Entry(id: UUID(), name: Self.firstHeadName, created: Date(), folder: "")
             roster = Roster(heads: [seeded], activeID: seeded.id)
         }
+        // `-strataHeadOn tower`. Only the tower is a switch now; `picture`,
+        // `map` and `camera` in old scripts are read and mean nothing.
         if let on = DebugHarness.headSwitches {
-            isProfilePicture = on.contains("picture")
-            showsOnMap = on.contains("map")
-            showsCameraSticker = on.contains("camera")
             showsOnTower = on.contains("tower")
         }
         #endif
         head = undressed
         dress()
         if loaded?.needsMigration == true, let directory { migrate(directory) }
+        // A head made on an older build already stands for you, so the old
+        // photograph goes now rather than at the next head (see `save`).
+        if undressed != nil { ProfileStore.shared.removeOldPhoto() }
     }
 
     /// What the head that was here before the collection is called until
@@ -365,58 +363,29 @@ final class HeadStore {
         }
     }
 
-    // MARK: - Switches
+    // MARK: - The one switch
 
-    // No `didSet` on these: a property observer on an `@Observable` stored
+    // No `didSet` on this: a property observer on an `@Observable` stored
     // property is where the macro's accessors and the observer meet, and
     // `CameraService` records it as a combination not to rely on.
 
-    func setProfilePicture(_ on: Bool) {
-        isProfilePicture = on
-        UserDefaults.standard.set(on, forKey: Key.picture)
-    }
-
-    func setShowsOnMap(_ on: Bool) {
-        showsOnMap = on
-        UserDefaults.standard.set(on, forKey: Key.map)
-    }
-
-    func setShowsCameraSticker(_ on: Bool) {
-        showsCameraSticker = on
-        UserDefaults.standard.set(on, forKey: Key.sticker)
-    }
-
-    /// **Whether the head is on any surface at all.**
-    ///
-    /// The look picker asks this before it draws: a row of treatments for a
-    /// head that appears nowhere is a control for something that is not
-    /// happening, which is the owner's note ("why are the filter picker
-    /// always visible").
-    var isSomewhere: Bool {
-        isProfilePicture || showsOnMap || showsCameraSticker || showsOnTower
-    }
-
+    /// **Let My Head Onto the Tower, the one switch left** (the owner's call
+    /// on 2026-10-14, keeping 2026-10-03's "head on tower should not be on
+    /// by default"): it decides how busy Wins is, not who you are, so it
+    /// does not change what your crews see.
     func setShowsOnTower(_ on: Bool) {
         if on, !showsOnTower { CompanionParking.shared.containOnArrival() }
         showsOnTower = on
         UserDefaults.standard.set(on, forKey: Key.tower)
-        // Your crews see the head on your tower, so they hear about it.
-        SocialStore.noteMyselfChanged()
     }
 
-    /// A head exists AND its switch is on. Callers ask this rather than the
-    /// switch, so deleting the head can never leave a switch pointing at
-    /// nothing.
-    var headForPicture: HeadRig? { isProfilePicture ? head : nil }
-    var headForMap: HeadRig? { showsOnMap ? head : nil }
-    var headForSticker: HeadRig? { showsCameraSticker ? head : nil }
+    /// The head on your Wins tower: a head exists AND the switch is on.
     var headForTower: HeadRig? { showsOnTower ? head : nil }
-    /// **The head your crews see: the one you use, wherever you use it.**
-    /// Not the tower switch: a first head starts with the tower switch off,
-    /// so tying crews to it meant a friend's new head never reached anyone
-    /// (the owner's sister, 2026-10-02). A head switched off everywhere is
-    /// one you have put away, and it stays home.
-    var headForCrews: HeadRig? { isSomewhere ? head : nil }
+    /// **The head your crews see: yours, whenever you have one** (the owner,
+    /// 2026-10-14: "the head should just be the default"). There is no
+    /// putting it away any more; Delete is how a head leaves. Under 16 it
+    /// still never leaves the phone (`SocialStore.headToSend`).
+    var headForCrews: HeadRig? { head }
 
     // MARK: - Saving
 
@@ -449,7 +418,6 @@ final class HeadStore {
             try? manager.removeItem(at: directory)
             throw error
         }
-        let isFirstHead = roster.heads.isEmpty
         roster.add(Entry(id: id, name: name ?? suggestedName(), created: Date(),
                          folder: Self.folder(for: id)))
         persistRoster()
@@ -457,16 +425,11 @@ final class HeadStore {
         undressed = rig
         head = rig
         dress()
+        // **The old profile photograph goes once a head is made** (the
+        // owner's call, 2026-10-14): the head is the picture now, and a face
+        // photo nobody can see or send is not kept.
+        ProfileStore.shared.removeOldPhoto()
         SocialStore.noteMyselfChanged()
-        // **On the map and on your photos; not on the tower, not as your
-        // picture** (the owner, 2026-10-03: "show head on map and add my head
-        // to photos is on by default while let my head onto the tower and use
-        // as profile picture should not be"). Your crews see it either way:
-        // it is in use (`headForCrews`).
-        if isFirstHead {
-            setShowsOnMap(true)
-            setShowsCameraSticker(true)
-        }
     }
 
     /// Puts one head in use. Every caller that asks for "the head" gets this
@@ -500,7 +463,7 @@ final class HeadStore {
         Self.removeFolder(removed)
         persistRoster()
         if wasActive { loadActive() }
-        if roster.heads.isEmpty { turnEverySwitchOff() }
+        if roster.heads.isEmpty { setShowsOnTower(false) }
         SocialStore.noteMyselfChanged()
     }
 
@@ -516,15 +479,8 @@ final class HeadStore {
         dressing?.cancel()
         undressed = nil
         head = nil
-        turnEverySwitchOff()
-        SocialStore.noteMyselfChanged()
-    }
-
-    private func turnEverySwitchOff() {
-        setProfilePicture(false)
-        setShowsOnMap(false)
-        setShowsCameraSticker(false)
         setShowsOnTower(false)
+        SocialStore.noteMyselfChanged()
     }
 
     /// Loads whatever is active now, and migrates it if it predates
@@ -615,12 +571,8 @@ final class HeadStore {
 
     private var activeDirectory: URL? { Self.directory(of: roster.active) }
 
-    /// The folder of the head on the tower, for a crew to pack and send
-    /// (`CrewHeadPack`). Nil when no head is on the tower: a head you keep off
-    /// your own tower does not go to your friends either.
-    var towerHeadDirectory: URL? { showsOnTower ? activeDirectory : nil }
     /// The folder `headForCrews` is read from, for packing.
-    var crewHeadDirectory: URL? { isSomewhere ? activeDirectory : nil }
+    var crewHeadDirectory: URL? { activeDirectory }
 
     nonisolated static func directory(of entry: Entry?) -> URL? {
         guard let support else { return nil }
@@ -1032,4 +984,21 @@ final class HeadStore {
         }
     }
     #endif
+}
+
+/// **The switches the head no longer has, forgotten once** (the owner,
+/// 2026-10-14: "the heads dont need to be an option in the settings for crew
+/// or settings"). Use as Profile Picture, Show My Head on the Map, Add My
+/// Head to Photos and the per-crew Heads switch were each a stored choice;
+/// left on disk they would only mislead a later build that read them.
+/// Removing a key that is not there costs nothing, so this runs every launch
+/// rather than keeping a flag to say it ran.
+nonisolated enum RetiredHeadSwitches {
+    static let keys = ["headIsProfilePicture", "headOnMap", "headCameraSticker", "crews.headsHidden"]
+
+    static func clear(_ defaults: UserDefaults) {
+        for key in keys where defaults.object(forKey: key) != nil {
+            defaults.removeObject(forKey: key)
+        }
+    }
 }

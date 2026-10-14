@@ -356,7 +356,7 @@ struct HeadStickerButton: View {
             HapticsEngine.tick()
             action()
         } label: {
-            LivingHeadView(rig: rig, side: GlassIconButton.defaultSide * ProfileAvatar.headShare, liveliness: .calm)
+            LivingHeadView(rig: rig, side: GlassIconButton.defaultSide * PersonHead.ringShare, liveliness: .calm)
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .clipShape(Circle())
                 .glassCircle()

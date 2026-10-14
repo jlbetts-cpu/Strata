@@ -157,19 +157,32 @@ struct CrestDockTests {
         let side: CGFloat = 60
         // Within a hair: the sides are sums of fractions of a point.
         #expect(abs(GoalCrest.faceSide(crest: side) - 40) < 0.001)
-        #expect(abs(CompanionParking.crestHeadSide(crest: side) - 40 * ProfileAvatar.headShare) < 0.001)
+        // The share moved from `ProfileAvatar` to `PersonHead` when the head
+        // became one identity component (the owner, 2026-10-14); the number
+        // is the same 0.76, so he still lands at the size the crest draws.
+        #expect(abs(CompanionParking.crestHeadSide(crest: side) - 40 * PersonHead.ringShare) < 0.001)
         #expect(CompanionParking.crestHeadSide(crest: side) < TowerCompanion.side, "he shrinks going in")
     }
 
-    @Test("with no head, or with him out, the face opens Your day as it did")
+    /// **Rewritten 2026-10-14.** This pinned that with no head the face
+    /// opened Your day. The owner's call that day ("make the head making a
+    /// must"; plan §4.4) makes your blank head the way to the maker, so with
+    /// no head the press asks for it; with him out it still opens Your day,
+    /// and the fraction under the ring always does.
+    @Test("with no head the face opens the maker; with him out, Your day as it did")
     func pressWithoutAHead() throws {
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
         let press = try #require(ring.components(separatedBy: "private func pressFace() {").dropFirst().first?
             .components(separatedBy: "private func letOut()").first)
+        #expect(press.contains("if HeadStore.shared.head == nil {"))
+        #expect(press.contains("HeadAsk.shared.askForMaker()"))
         #expect(press.contains("guard canLetOut else {"))
         #expect(press.contains("openDay()"))
         #expect(ring.contains("HeadStore.shared.headForCrews != nil && !Self.headIsOut"))
-        // Out on the tower, the ring holds your picture, never a second head.
-        #expect(ring.contains("ProfileAvatar(side: side, showsHead: !headIsOut)"))
+        // Out on the tower, the ring holds the blank head, never a second
+        // head. It held your picture until the owner's 2026-10-14 call
+        // ("remove the option for a pfp"): there is no picture now, and
+        // `PersonHead` draws the placeholder when told not to show the head.
+        #expect(ring.contains("setting: .free, showsHead: !headIsOut)"))
     }
 }

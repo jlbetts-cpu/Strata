@@ -234,14 +234,16 @@ final class MapGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
 
         // The head page. Its primary opens the head maker, which needs a front
-        // camera and cannot run here; "Not Now" moves on without one. A
-        // simulator that already holds a head (an earlier test made one) shows
-        // "Go On" instead, since there is nothing to offer. (It said "One
-        // More Thing", as the next page did; the voice pass of 2026-10-12
-        // made this one "Go On" and that one "Two More Things", which is how
-        // many pages follow it.)
+        // camera and cannot run here. **"Later", not "Not Now"** (rewritten
+        // 2026-10-14): the owner's call that day made the head a must, so
+        // nothing skips it on first sight, and Later appears only where the
+        // camera cannot work, which a simulator with no front lens is
+        // (`HeadAsk.cameraBlocked`). A simulator that already holds a head
+        // shows "Go On" instead. (It said "One More Thing", as the next page
+        // did; the voice pass of 2026-10-12 made this one "Go On" and that
+        // one "Two More Things", which is how many pages follow it.)
         let onFromHead = app.buttons.matching(NSPredicate(
-            format: "label == %@ OR label == %@", "Not Now", "Go On")).firstMatch
+            format: "label == %@ OR label == %@", "Later", "Go On")).firstMatch
         XCTAssertTrue(onFromHead.waitForExistence(timeout: 15),
                       "no head page. On screen: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label))")
         onFromHead.tap()

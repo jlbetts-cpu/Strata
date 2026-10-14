@@ -2,19 +2,19 @@ import SwiftUI
 
 /// Your head, standing where you are on the Memories map.
 ///
-/// Only when switched on in Profile — otherwise the map keeps Apple's own
-/// blue dot, whose whole value is that it needs no explaining. With the head
-/// on, the dot's job is done by something that is unmistakably you.
+/// **Whenever you have a head** (the owner, 2026-10-14: "the head should just
+/// be the default unless you dont have a head for the map"). Without one the
+/// map keeps Apple's own blue dot, whose whole value is that it needs no
+/// explaining; with one, the dot's job is done by something that is
+/// unmistakably you.
 ///
-/// **It gets a contact shadow**, and it is the only head in the app that
-/// does: in the portfolio a head casts one exactly when it is standing on
-/// something, and here it is standing on the ground. Light, not heavy — a
-/// soft ellipse under the chin, not a drop shadow on the whole head.
+/// **It gets a contact shadow**, because it is standing on the ground: a head
+/// casts one exactly when it stands on something. `PersonHead`'s `.standing`
+/// draws it, a soft ellipse under the chin, not a drop shadow on the head.
 ///
 /// Calm: it blinks and glances. It is a marker, and a marker that pulls faces
 /// pulls the eye from the wins the map is actually about (plan §5.3).
 struct HeadMarker: View {
-    let head: HeadRig
 
     /// About the size of a finger pad: big enough to read as a face at street
     /// zoom, small enough not to cover the block for the place you are in.
@@ -36,17 +36,10 @@ struct HeadMarker: View {
     static let side: CGFloat = 52
 
     var body: some View {
-        // `LivingHeadView` centres the head by its face, so the chin sits on
-        // the frame's bottom edge and the shadow can sit just under it.
-        LivingHeadView(rig: head, side: Self.side, liveliness: .calm)
+        // You, standing: the head centres by its face, so the chin sits on
+        // the frame's bottom edge and the shadow just under it.
+        PersonHead(person: .me, side: Self.side, life: .calm, setting: .standing)
             .background { halo }
-            .background(alignment: .bottom) {
-                Ellipse()
-                    .fill(Color.black.opacity(0.26))
-                    .frame(width: Self.side * 0.72, height: Self.side * 0.17)
-                    .blur(radius: 2.5)
-                    .offset(y: Self.side * 0.06)
-            }
             .accessibilityElement()
             .accessibilityLabel("You are here")
     }

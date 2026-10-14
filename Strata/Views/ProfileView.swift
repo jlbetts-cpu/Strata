@@ -1,6 +1,5 @@
 import Accessibility
 import Charts
-import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -26,8 +25,6 @@ struct ProfileView: View {
     @State private var showsLookPicker = false
     @State private var vm = ProfileViewModel()
     @State private var showsSettings = false
-    @State private var showsLibrary = false
-    @State private var pickerItem: PhotosPickerItem?
     @State private var showsMaker = false
     @State private var confirmsDeleteHead = false
     /// One neutral face per head, for the row of heads. Read off the main
@@ -107,10 +104,10 @@ struct ProfileView: View {
         // and the one control the colour was for was the one control that
         // never got it. Below them it does.
         .tint(AppColors.inkPrimary)
-        // Profile's head sleeps under the maker and the photo library. Before
-        // those modifiers, so the maker's own preview head stays awake.
-        // ANDed with what arrives, so a cover above Profile still pauses it.
-        .environment(\.headsAwake, coveringHeadsAwake && !(showsMaker || showsLibrary))
+        // Profile's head sleeps under the maker. Before that modifier, so the
+        // maker's own preview head stays awake. ANDed with what arrives, so a
+        // cover above Profile still pauses it.
+        .environment(\.headsAwake, coveringHeadsAwake && !showsMaker)
         .navigationDestination(isPresented: $showsSettings) {
             SettingsView(onResetAllData: onResetAllData)
         }
@@ -139,18 +136,6 @@ struct ProfileView: View {
             }
         } message: {
             Text(deleteHeadMessage)
-        }
-        .photosPicker(isPresented: $showsLibrary, selection: $pickerItem, matching: .images)
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task {
-                defer { pickerItem = nil }
-                guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-                let prepared = await Task.detached(priority: .userInitiated) {
-                    ProfileStore.preparedPhotoData(from: data)
-                }.value
-                if let prepared { store.setPhotoData(prepared) }
-            }
         }
         }
     }
@@ -188,10 +173,9 @@ struct ProfileView: View {
         Section {
             VStack(spacing: GridConstants.gapItem) {
                 pictureControl
-                // Only when asked for, from the picture's menu (owner: the
-                // colours "should not be visible at all times"), and only
-                // when there is a background to colour.
-                if showsSwatches && hasBackground {
+                // Only when asked for, from a press on the picture (owner:
+                // the colours "should not be visible at all times").
+                if showsSwatches {
                     backgroundSwatches
                         .transition(.opacity)
                 }
@@ -273,38 +257,21 @@ struct ProfileView: View {
     }
 
     /// The picture is the control, with no "Edit" under it (the owner's call;
-    /// the picture is obviously the thing to press). Always a menu now that
-    /// there is always a choice: a photo, or a colour behind your initials.
-    /// A menu rather than a confirmation dialog, because presenting the
-    /// library from a dialog that is still dismissing is the double
-    /// presentation `MainAppView` records UIKit silently dropping.
+    /// the picture is obviously the thing to press).
+    ///
+    /// **It is your head, so a press does one of two things** (2026-10-14):
+    /// with no head yet it opens the maker, because the blank head is where
+    /// yours goes (the owner: "make the head making a must"); with one, it
+    /// opens the colour behind it. Choose Photo, Remove Photo and Use Photo
+    /// or Initials went with the photograph, which left a menu of one item,
+    /// so it is a press now and not a menu.
     private var pictureControl: some View {
-        Menu {
-            if heads.head != nil {
-                if heads.isProfilePicture {
-                    Button("Use Photo or Initials", systemImage: "person.crop.circle") {
-                        heads.setProfilePicture(false)
-                    }
-                } else {
-                    // Named once there is more than one, because with several
-                    // heads "my head" does not say which.
-                    Button(useHeadLabel, systemImage: "face.smiling") {
-                        heads.setProfilePicture(true)
-                    }
-                }
-            }
-            Button("Choose Photo", systemImage: "photo.on.rectangle") {
-                // A photo you just chose is the picture you meant to see.
-                if heads.isProfilePicture { heads.setProfilePicture(false) }
-                showsLibrary = true
-            }
-            if hasBackground {
-                Button("Background Colour", systemImage: "paintpalette") {
-                    withAnimation(GridConstants.motionSnappy) { showsSwatches = true }
-                }
-            }
-            if store.photo != nil {
-                Button("Remove Photo", systemImage: "trash", role: .destructive) { store.removePhoto() }
+        Button {
+            HapticsEngine.lightTap()
+            if heads.head == nil {
+                showsMaker = true
+            } else {
+                withAnimation(GridConstants.motionSnappy) { showsSwatches.toggle() }
             }
         } label: {
             ProfileAvatar(side: Self.pictureSide)
@@ -318,11 +285,8 @@ struct ProfileView: View {
         // with a face in it is nearer a glyph than a card, and a scale alone is
         // invisible on something that round.
         .buttonStyle(.press)
-        .accessibilityLabel("Change profile photo")
+        .accessibilityLabel(heads.head == nil ? "Make Your Head" : "Background Colour")
     }
-
-    /// Behind a head or initials. A photograph covers the whole circle.
-    private var hasBackground: Bool { store.photo == nil || heads.headForPicture != nil }
 
     // MARK: - Background colour
 
@@ -503,19 +467,6 @@ struct ProfileView: View {
         chosenHeadName.map { "Delete \($0)" } ?? "Delete This Head"
     }
 
-    /// "Use Sam", "Use This Head", or "Use My Head" with only one.
-    ///
-    /// Same correction as `deleteHeadLabel`: this used to interpolate the
-    /// active head's name unconditionally once there was more than one, which
-    /// after cut 14 would name a head by a word printed nowhere on the page.
-    /// With several unnamed heads nothing CAN name one, and the honest label is
-    /// the one that points at the picture this menu is attached to — the faces
-    /// are what tell them apart, which is the argument cut 14 is made of.
-    private var useHeadLabel: String {
-        if let chosen = chosenHeadName { return "Use \(chosen)" }
-        return heads.entries.count > 1 ? "Use This Head" : "Use My Head"
-    }
-
     /// The same fact as a sentence, so it can open one. "this head is removed
     /// from this phone" was already the wording when no entry existed, and it
     /// has always started a sentence in lower case; it is fixed here rather
@@ -524,14 +475,13 @@ struct ProfileView: View {
         "\(chosenHeadName ?? "This head") is removed from this phone and from everywhere it appears. A head can't be brought back, only made again."
     }
 
-    /// 100% optional. Before a head exists, one row and a footer saying what
-    /// it is. Once it exists, only switches for places it can actually
-    /// appear — a switch for a placement that is not built would be a
-    /// feature that cannot fire, which CLAUDE.md calls worse than none.
+    /// **Your head, not an option** (the owner, 2026-10-14: "make the head
+    /// making a must"). Before a head exists, one row and a footer saying what
+    /// it is. Once it exists: the tower switch, its look, and Delete.
     ///
     /// **Several heads since 2026-09-23** (owner: "add your friend's head for
     /// instance to your tower instead of yours"). The row picks which one is
-    /// in use; every switch under it is about that head, which is what the
+    /// in use; everything under it is about that head, which is what the
     /// footer says. Branching on the LIST rather than on `heads.head`, so a
     /// head whose files will not load still shows in the row and can be
     /// deleted, rather than the whole section falling back to "Make Your
@@ -610,13 +560,29 @@ struct ProfileView: View {
                 // thumb AND both grounds. The arithmetic, the window it sits in,
                 // and the one thing about it that needs his eye are all on the
                 // token.
-                Toggle(isOn: Binding(get: { heads.isProfilePicture },
-                                     set: { heads.setProfilePicture($0) })) {
+                // **The head that lives on the tower.**
+                //
+                // The owner, 2026-09-23: "for the head I want it to be added
+                // to the Wins screen as an option, where it kinda just floats
+                // on the top, around, bouncing off the walls... occasionally
+                // he can drop down and jump along the tops of the blocks."
+                //
+                // "As an option" is the load bearing part, and it is why this
+                // row exists rather than the companion simply being there:
+                // off by default, and while it is off `TowerCompanionLayer`
+                // builds no view, starts no clock and asks for no frames.
+                // **The one switch the head has left** (the owner's call,
+                // 2026-10-14): Use as Profile Picture, Show My Head on the
+                // Map and Add My Head to Photos went when the head became who
+                // you are. This one stays because it is about how busy Wins
+                // is, not about who you are.
+                Toggle(isOn: Binding(get: { heads.showsOnTower },
+                                     set: { heads.setShowsOnTower($0) })) {
                     Label {
-                        Text("Use as Profile Picture")
+                        Text("Let My Head Onto the Tower")
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
-                        SettingsIcon(systemName: "person.crop.circle")
+                        SettingsIcon(systemName: "square.stack")
                     }
                 }
                 .tint(AppColors.switchTrack)
@@ -644,7 +610,10 @@ struct ProfileView: View {
                 // something somebody changes once and then forgets, so it is
                 // a row you open, with the current one named on the right,
                 // like every other settings row in the app.
-                if let made = heads.undressed, heads.isSomewhere {
+                // **Always, now that the head is always somewhere** (the
+                // owner, 2026-10-14): it is your picture and your crews see
+                // it, so its look is never a control for nothing.
+                if let made = heads.undressed {
                     DisclosureGroup(isExpanded: $showsLookPicker) {
                         HeadLookPicker(head: made, selection: heads.look) { kind in
                             heads.setLook(kind)
@@ -653,7 +622,7 @@ struct ProfileView: View {
                         HStack {
                             Label {
                                 // One black down the column. See the note on
-                                // Use as Profile Picture above.
+                                // the tower switch above.
                                 Text("Look")
                                     .foregroundStyle(AppColors.inkPrimary)
                             } icon: {
@@ -666,52 +635,6 @@ struct ProfileView: View {
                         }
                     }
                 }
-
-                // **The head that lives on the tower.**
-                //
-                // The owner, 2026-09-23: "for the head I want it to be added
-                // to the Wins screen as an option, where it kinda just floats
-                // on the top, around, bouncing off the walls... occasionally
-                // he can drop down and jump along the tops of the blocks."
-                //
-                // "As an option" is the load bearing part, and it is why this
-                // row exists rather than the companion simply being there:
-                // off by default, and while it is off `TowerCompanionLayer`
-                // builds no view, starts no clock and asks for no frames.
-                // First in this group because it is the one you SEE, above
-                // the two that decide where the head is stamped.
-                Toggle(isOn: Binding(get: { heads.showsOnTower },
-                                     set: { heads.setShowsOnTower($0) })) {
-                    Label {
-                        Text("Let My Head Onto the Tower")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "square.stack")
-                    }
-                }
-                .tint(AppColors.switchTrack)
-
-                Toggle(isOn: Binding(get: { heads.showsOnMap },
-                                     set: { heads.setShowsOnMap($0) })) {
-                    Label {
-                        Text("Show My Head on the Map")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "map")
-                    }
-                }
-                .tint(AppColors.switchTrack)
-
-                Toggle(isOn: Binding(get: { heads.showsCameraSticker },
-                                     set: { heads.setShowsCameraSticker($0) })) {
-                    Label {
-                        Text("Add My Head to Photos")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "camera")
-                    }
-                }
-                .tint(AppColors.switchTrack)
 
                 // **One head, yours** (the owner, 2026-10-03: "lets remove the
                 // option to add another head I think i like the intimacy of
@@ -763,25 +686,19 @@ struct ProfileView: View {
     }
 
     /// **Nothing, when there is one head** (cut 6, `docs/copy-audit.md`,
-    /// 2026-10-01). It read "It only appears where you switch it on." directly
-    /// under four switches that each name their own surface — `Let My Head Onto
-    /// the Tower`, `Show My Head on the Map`, `Add My Head to Photos`, `Use as
-    /// Profile Picture`. Four labelled switches do not need a sentence saying
-    /// that switches work.
+    /// 2026-10-01): labelled rows do not need a sentence saying what they do.
     ///
-    /// Both other cases stay, and each for a reason the switches cannot carry:
-    /// the multi-head line resolves WHICH face the switches belong to, which
-    /// nothing else on the page says; the no-head line is a promise made before
-    /// the thing exists, under a single `Make Your Head` row.
+    /// The other two cases stay, each for a reason the rows cannot carry: the
+    /// multi-head line says WHICH face is you, which nothing else on the page
+    /// says; the no-head line is a promise made before the thing exists, under
+    /// a single `Make Your Head` row. Neither speaks of switches any more
+    /// (2026-10-14): the head appears wherever you do.
     private var headFooter: String? {
         if heads.entries.isEmpty {
-            return "About fifteen seconds in front of the camera. It appears where you switch it on, and your crews see it while it does."
+            return HeadAsk.Copy.profileFooter
         }
         if heads.entries.count > 1 {
-            // Says which head the switches under it are about. Without this,
-            // four switches sit under a row of faces with nothing saying
-            // which face they belong to.
-            return "The head you pick above is the one that appears where you switch it on."
+            return "The head you pick above is the one your crews see."
         }
         return nil
     }
@@ -794,8 +711,8 @@ struct ProfileView: View {
                 SettingsView(onResetAllData: onResetAllData)
             } label: {
                 Label {
-                    // One black down the column. See the note on Use as Profile
-                    // Picture above.
+                    // One black down the column. See the note on the tower
+                    // switch above.
                     Text("Settings")
                         .foregroundStyle(AppColors.inkPrimary)
                 } icon: {

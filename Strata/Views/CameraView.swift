@@ -662,7 +662,7 @@ struct CameraView: View {
                 }
                 .overlay {
                     HeadStickerOverlay(
-                        rig: sticker == nil ? nil : HeadStore.shared.headForSticker,
+                        rig: sticker == nil ? nil : HeadStore.shared.head,
                         placement: $sticker,
                         crop: $crop,
                         zoom: $zoom,
@@ -787,8 +787,9 @@ struct CameraView: View {
                     marking = .stickers
                 }
             }
-            // Your head, only if you made one and switched the sticker on.
-            if let rig = HeadStore.shared.headForSticker {
+            // Your head, whenever you have one: no switch since the owner's
+            // 2026-10-14 call, and adding it is still a choice per photo.
+            if let rig = HeadStore.shared.head {
                 reviewTool("Head") {
                     HeadStickerButton(rig: rig, isOn: sticker != nil) {
                         withAnimation(GridConstants.motionSnappy) {
@@ -952,7 +953,7 @@ struct CameraView: View {
         // The head, drawn into the picture, if you added it. The camera roll
         // and the win both get the same photograph you approved.
         var composed = image
-        if let placement = sticker, let rig = HeadStore.shared.headForSticker {
+        if let placement = sticker, let rig = HeadStore.shared.head {
             composed = HeadSticker.composite(image, rig: rig, placement: placement)
         }
         sticker = nil

@@ -411,7 +411,7 @@ struct CrewTowerView: View {
     /// into the bubble. See `CrewHeadArena`.
     @ViewBuilder
     private var headsOverlay: some View {
-        if let crew, store.showsHeads(crewID) {
+        if let crew {
             CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
                 .ignoresSafeArea()
                 // Still while something covers them (the chat, the crew's
@@ -640,7 +640,7 @@ struct CrewTowerView: View {
                 // dot moved to the line it was about.
             }
             if let crew {
-                let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)
+                let crowded = !parking.parked.isEmpty
                 // **Apart, not overlapping** (the owner, 2026-10-03: "the shadow
                 // is too dark"). Each glass shape casts its own soft shadow, and
                 // where the name overlapped the bubble the two shadows met and
@@ -649,8 +649,7 @@ struct CrewTowerView: View {
                 // glass container would merge them, but it frosted the heads
                 // inside the bubble.)
                 VStack(spacing: GridConstants.spacing) {
-                    CrewBubble(crew: crew, me: store.me, parking: parking, side: 60,
-                               showsHeads: store.showsHeads(crewID))
+                    CrewBubble(crew: crew, me: store.me, parking: parking, side: 60)
                         // The whole bubble is the target, never one 34pt head.
                         .contentShape(Circle())
                         .onTapGesture { tapBubble() }
@@ -733,7 +732,7 @@ struct CrewTowerView: View {
     /// Empty, the bubble is the crew: its details. With heads in it, a tap
     /// fans them out to choose from.
     private func tapBubble() {
-        if parking.parked.isEmpty || !store.showsHeads(crewID) {
+        if parking.parked.isEmpty {
             HapticsEngine.lightTap()
             showsInfo = true
         } else {
