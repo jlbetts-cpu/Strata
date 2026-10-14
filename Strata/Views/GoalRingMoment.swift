@@ -248,7 +248,7 @@ struct GoalRingMomentLayer: View {
                       progress: moment.filled ? 1 : 0)
                 .padding(line / 2 + side * 2 / 60)
             ZStack {
-                CrestFace(side: side - 2 * (line + side * 6 / 60))
+                CrestFace(side: side - 2 * (line + side * 6 / 60), headIsOut: GoalCrest.headIsOut)
                     .opacity(moment.filled ? 0 : 1)
                     .scaleEffect(moment.filled ? 0.86 : 1)
                 // His drawn check, in ink: done.

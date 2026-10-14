@@ -34,9 +34,16 @@ struct CompanionParkingTests {
     /// "directly left of the Plan button" (his call, 2026-10-02); he then took
     /// it off the Wins header: "remove the head from the main home screen
     /// because i feel like it would make too many buttons there since we
-    /// added the journal component." So it now pins the opposite, and that
-    /// with no bubble nothing can park him out of sight.
-    @Test("the Wins header has no head bubble, and with no bubble he is never parked")
+    /// added the journal component." So it now pins the opposite.
+    ///
+    /// **And the dock came back as the crest, 2026-10-14** (the owner,
+    /// 2026-10-13: "pfp/head in middle of wins tower (press, head comes
+    /// out)"). It pinned `!hasDock` and "never parked", because a head
+    /// parked in a bubble nobody can see has vanished. The crest is on
+    /// screen whenever the tower is, so parking in it is somewhere he can
+    /// be seen and let out of; what this still pins is that the crest
+    /// reports its frame, the thing that made the old bubble safe.
+    @Test("the Wins header has no head bubble; the crest is his dock and says where it is")
     func placement() throws {
         let text = try MorningSource.read("Views/MainAppView.swift")
         let header = text.components(separatedBy: "private var towerHeader: some View {").last ?? ""
@@ -45,8 +52,10 @@ struct CompanionParkingTests {
         let row = header.components(separatedBy: "Spacer(minLength: 0)").first ?? ""
         #expect(!row.contains("CompanionDock()"), "the bubble is back in the Wins header, which the owner removed")
         #expect(row.contains("headerDay"))
-        #expect(!CompanionParking.hasDock)
-        #expect(!CompanionParking.shared.parked, "parked with no bubble on screen is a head that has vanished")
+        #expect(CompanionParking.hasDock)
+        let ring = try MorningSource.read("Views/GoalRing.swift")
+        #expect(ring.contains("CompanionParking.shared.dockFrame = $0"),
+                "parked in a crest that never said where it is, he could not be let out of it")
         #expect(row.contains("HStack(alignment: .center, spacing: GridConstants.gapTight)"))
         // The 2026-10-02 group fused two discs into one peanut, which is what
         // this guards. Journal and Plan were one `HeaderGlassPair` for the
@@ -63,11 +72,17 @@ struct CompanionParkingTests {
         #expect(text.contains("guard let next = deck.next(from: available) else { return }"))
     }
 
-    @Test("parked or flying in, the tower stops simulating him and the bubble draws him")
+    /// **Flying in is the tower's now** (2026-10-14). This pinned `arriving`
+    /// among the things that pause and hide him, because the header bubble
+    /// drew his flight. The crest does not; the tower's layer sits over the
+    /// header, so it draws the flight itself, as a crew's arena does, and
+    /// needs its clock to.
+    @Test("parked, the tower stops simulating him and the crest draws him; flying in, the tower does")
     func parkedPausesTheHead() throws {
         let text = try MorningSource.read("Views/TowerCompanionLayer.swift")
-        #expect(text.contains("|| parking.parked || parking.arriving"))
-        #expect(text.contains("parking.parked || parking.arriving || parking.releasing"))
+        #expect(text.contains("|| parking.parked\n"))
+        #expect(text.contains("parking.parked || parking.releasing"))
+        #expect(text.contains("if fly(at: now) {"))
         #expect(text.contains("if !hidden {"))
         let dock = try MorningSource.read("Views/CompanionDock.swift")
         #expect(dock.contains(".overlay { head(rig: rig) }"), "he is drawn over the glass, not under it")
@@ -107,7 +122,52 @@ struct CompanionParkingTests {
         let layer = try MorningSource.read("Views/TowerCompanionLayer.swift")
         #expect(layer.contains(".accessibilityLabel(\"Your head\")"))
         #expect(!layer.contains(".accessibilityAction(named: \"Park in the bubble\")"))
+        // The crest is on screen, so VoiceOver can put him there (2026-10-14).
+        #expect(layer.contains(".accessibilityAction(named: \"Put in the Ring\")"))
         let dock = try MorningSource.read("Views/CompanionDock.swift")
         #expect(dock.contains(".accessibilityAction { pop() }"))
+    }
+}
+
+/// **Your face in the middle of Wins lets your head out** (the owner,
+/// 2026-10-13: "pfp/head in middle of wins tower (press, head comes out)").
+@MainActor
+@Suite("Wins crest: the head goes in and comes out")
+struct CrestDockTests {
+    @Test("let out: handed over in order, out of the crest, and never twice")
+    func letOutOrder() async {
+        let parking = CompanionParking.shared
+        let before = (parking.parked, parking.popped)
+        defer { parking.parked = before.0 }
+        parking.parked = true
+        parking.letOut()
+        #expect(!parking.parked)
+        #expect(parking.releasing, "the crest keeps drawing him for the beat the tower takes to place him")
+        #expect(parking.popped == before.1 + 1)
+        parking.letOut()
+        #expect(parking.popped == before.1 + 1, "a second press in the same beat lets nothing out")
+        await Task.yield()
+        await Task.yield()
+        #expect(!parking.releasing)
+    }
+
+    @Test("he lands in the crest at the size the crest draws him")
+    func sizes() {
+        let side: CGFloat = 60
+        #expect(GoalCrest.faceSide(crest: side) == 40)
+        #expect(CompanionParking.crestHeadSide(crest: side) == 40 * ProfileAvatar.headShare)
+        #expect(CompanionParking.crestHeadSide(crest: side) < TowerCompanion.side, "he shrinks going in")
+    }
+
+    @Test("with no head, or with him out, the face opens Your day as it did")
+    func pressWithoutAHead() throws {
+        let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
+        let press = try #require(ring.components(separatedBy: "private func pressFace() {").dropFirst().first?
+            .components(separatedBy: "private func letOut()").first)
+        #expect(press.contains("guard canLetOut else {"))
+        #expect(press.contains("openDay()"))
+        #expect(ring.contains("HeadStore.shared.headForCrews != nil && !Self.headIsOut"))
+        // Out on the tower, the ring holds your picture, never a second head.
+        #expect(ring.contains("ProfileAvatar(side: side, showsHead: !headIsOut)"))
     }
 }

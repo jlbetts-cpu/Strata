@@ -80,7 +80,13 @@ struct YourDayTests {
         let ring = SourceSweep.code(try SourceSweep.read("Strata/Views/GoalRing.swift"))
         // Each gives the light tap an open gives (2026-10-11, rule 5 of
         // `docs/ten.md`); still two ways in, to one place.
-        #expect(ring.components(separatedBy: "Button { HapticsEngine.lightTap(); openDay() }").count - 1 == 2)
+        // **The face's press lets your head out when he is in it** (the
+        // owner, 2026-10-13: "press, head comes out"), so the face's button
+        // is `pressFace()` now, which opens Your day with the same tap
+        // whenever there is no head to let out (`CrestDockTests`).
+        #expect(ring.components(separatedBy: "Button { HapticsEngine.lightTap(); openDay() }").count - 1 == 1)
+        #expect(ring.contains("Button { pressFace() } label: {"))
+        #expect(ring.contains("HapticsEngine.lightTap()\n            openDay()"))
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
         #expect(main.contains("YourDaySheet(goal: $dailyGoal)"))
     }

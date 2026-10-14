@@ -9,6 +9,10 @@ import SwiftUI
 /// both (see CLAUDE.md, *An ink is not a surface*).
 struct ProfileAvatar: View {
     let side: CGFloat
+    /// **Off while your head is out on the tower** (`GoalCrest`,
+    /// 2026-10-14): the crest it left shows your picture or initial, so
+    /// the one head on screen is the one floating, never a second copy.
+    var showsHead = true
 
     /// Crown to chin as a share of the circle. The head sits whole in the
     /// middle, hair clear of the edge.
@@ -41,7 +45,7 @@ struct ProfileAvatar: View {
     /// a profile picture is not one.
     ///
     var body: some View {
-        if let head = HeadStore.shared.headForPicture {
+        if showsHead, let head = HeadStore.shared.headForPicture {
             ZStack {
                 // The same ground as the empty circle below, for the same
                 // reason: a head's crown-to-chin is 0.76 of the circle, so what

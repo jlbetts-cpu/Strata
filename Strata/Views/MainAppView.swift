@@ -1436,9 +1436,10 @@ struct MainAppView: View {
             // 2026-10-05: "remove the head from the main home screen because
             // i feel like it would make too many buttons there since we added
             // the journal component"). It stood directly left of the Plan
-            // from 2026-10-02, and was where the tower head parked. Without
-            // it he cannot be parked, so he lives on the tower whenever
-            // Profile's tower switch is on (`CompanionParking.hasDock`).
+            // from 2026-10-02, and was where the tower head parked. He parks
+            // in the crest now (2026-10-14, `CompanionParking.hasDock`): a
+            // press on your face lets him out, and carried back over it he
+            // goes in.
             // No dot on it: on Wins only Crews ever carries one.
             headerDay
             Spacer(minLength: 0)

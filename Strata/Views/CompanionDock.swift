@@ -66,31 +66,70 @@ final class CompanionParking {
         flightFrom = global
     }
 
-    private static let key = "strata.companionParked"
+    /// **A new key, on purpose.** `strata.companionParked` still holds a
+    /// `true` on phones that ran a build with the header bubble (2026-10-02
+    /// to 05); read back now, it would put a head that has floated for a
+    /// week into the crest on the next launch.
+    private static let key = "strata.headInCrest"
 
-    /// **Whether the bubble is on screen anywhere. It is not, since
-    /// 2026-10-05**: the owner took it off the Wins header ("remove the head
-    /// from the main home screen because i feel like it would make too many
-    /// buttons there since we added the journal component"). A head parked
-    /// in a bubble nobody can see is a head that has vanished with no way
-    /// back, so with no dock he is never parked: a remembered `parked` from
-    /// before is let go at launch, and nothing parks him again. `CompanionDock`
-    /// is kept, unmounted, with this switch, so the bubble can return in one
-    /// line if he asks for it.
-    static let hasDock = false
+    /// **The dock is the crest, since 2026-10-14** (the owner, 2026-10-13:
+    /// "pfp/head in middle of wins tower (press, head comes out)"). The
+    /// header bubble beside the Plan stays off (2026-10-05: "too many
+    /// buttons there"); your face in the goal ring is where he lives
+    /// instead, as a crew's faces live in its bubble. Press the face and he
+    /// comes out onto the tower; carry him back over it and let go, and he
+    /// goes in. `CompanionDock` is kept, unmounted, for the bubble's own
+    /// drawing; the crest draws him now (`GoalCrest`).
+    static let hasDock = true
 
     private init() {
-        // Never set: he starts in the bubble (the owner, 2026-10-02), so the
-        // first thing you learn about the head on your tower is where it
-        // lives and that a tap lets it out. Only while there is a bubble.
-        parked = Self.hasDock ? (UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true) : false
+        // **Out unless he was put in.** Someone whose head already floats
+        // on the tower keeps it floating; the crest holds him only once he
+        // has been carried into it, or for the beat before a press lets him
+        // out (`GoalCrest.letOut`).
+        parked = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? false
     }
 
-    /// The head was just put on the tower: in the bubble first, for the
-    /// same reason, when there is a bubble.
+    /// The head was just switched onto the tower from Profile: out, since
+    /// the switch says so ("Let My Head Onto the Tower"). It used to start
+    /// him in the header bubble, which is gone.
     func containOnArrival() {
-        guard Self.hasDock else { return }
-        parked = true
+        parked = false
+    }
+
+    /// **The press on the crest that lets him out** (`GoalCrest`): the
+    /// tower places him on the crest first and a beat later draws him, so
+    /// he is never on screen twice or nowhere. The bubble's own order
+    /// (`CompanionDock.burst`), without glass bursting: the crest is your
+    /// face, not a bubble.
+    func letOut() {
+        guard parked, !releasing else { return }
+        releasing = true
+        parked = false
+        popped += 1
+        Task { @MainActor in
+            await Task.yield()
+            self.releasing = false
+        }
+    }
+
+    /// **He is in the crest**: the flight is over, or there was none
+    /// (Reduce Motion, VoiceOver).
+    func land() {
+        arriving = false
+        flightFrom = nil
+        withAnimation(GridConstants.elasticPop) {
+            parked = true
+            landed += 1
+        }
+        HapticsEngine.success()
+    }
+
+    /// His height in the crest, crown to chin, for a crest of `side` with a
+    /// ring of `line`: the face `GoalCrest` hands `CrestFace`, times the
+    /// share a face gives its head (`ProfileAvatar.headShare`).
+    static func crestHeadSide(crest side: CGFloat, line: CGFloat = GoalCrest.line) -> CGFloat {
+        GoalCrest.faceSide(crest: side, line: line) * ProfileAvatar.headShare
     }
 
     /// Whether the bubble is on screen at all.

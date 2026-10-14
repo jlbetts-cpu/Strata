@@ -437,6 +437,17 @@ private final class TowerCompanionLife {
     /// Set at the pop; the clock starts on the first frame actually drawn, so
     /// a frame the timeline took to wake up is not counted as travel.
     var emergePending = false
+    /// **Into the crest** (2026-10-14): where he was when the finger let
+    /// go over it, and when the flight began. The tower draws the flight
+    /// itself now, as a crew's arena does: this overlay is over the header
+    /// (moved there 2026-10-02), so nothing frosts him on the way in.
+    var flightFrom: CGPoint?
+    var flightStart: Date?
+    /// What the flight has shrunk him to, 1 at its start.
+    var flightScale: CGFloat = 1
+    /// Out of the crest he grows from the crest's size to his own, with
+    /// the emergence: the share he starts at.
+    var emergeScale: CGFloat = 1
 }
 
 // MARK: - The one that actually runs
@@ -487,9 +498,11 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             // Parked, or flying into the bubble, nothing simulates him.
             // Under Reduce Motion the clock still runs while a finger carries
             // him, so he follows it; it is the only motion he makes there.
-            let paused = (reduceMotion && !parking.dragging) || !active || !headsAwake
-                || scenePhase != .active || (Self.heldStill && !parking.dragging)
-                || parking.parked || parking.arriving
+            // **Flying into the crest, the clock runs**: the tower draws the
+            // flight now (2026-10-14), so `arriving` no longer stops it.
+            let paused = (reduceMotion && !parking.dragging && !parking.arriving) || !active || !headsAwake
+                || scenePhase != .active || (Self.heldStill && !parking.dragging && !parking.arriving)
+                || parking.parked
 
             // **Built once per evaluation of this body, never inside the frame
             // loop.** `LivingHeadView` is a big view. The loop below applies a
@@ -522,8 +535,8 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                     // blurred at zero opacity on every frame is a cost for
                     // something that cannot appear.
                     if life.grounded && !hidden { contactShadow }
-                    // In the bubble, on his way in or bursting out of it, the
-                    // bubble draws him.
+                    // In the crest, or the beat it lets him go, the crest
+                    // draws him.
                     if !hidden {
                         freeHead(head, side: side, now: context.date)
                     }
@@ -546,7 +559,7 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                 try? await Task.sleep(for: .seconds(every))
                 if !parking.parked { parkWithoutCarrying() }
                 try? await Task.sleep(for: .seconds(every))
-                parking.debugPop += 1
+                parking.letOut()
             }
         }
         #endif
@@ -574,9 +587,11 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
     private func freeHead(_ head: some View, side: CGFloat, now: Date) -> some View {
         let emerge = emergence(at: now)
         return head
+            // Shrinking into the crest, or growing out of it.
+            .scaleEffect(life.flightScale * emerge.scale)
             .rotationEffect(.degrees(life.tilt))
-            .offset(x: life.position.x - side / 2 + emerge.width,
-                    y: life.position.y - side / 2 + emerge.height)
+            .offset(x: life.position.x - side / 2 + emerge.offset.width,
+                    y: life.position.y - side / 2 + emerge.offset.height)
             .gesture(drag)
             // The system's own tap, beside the drag rather than worked out
             // from it: it has the platform's slop and timing, and a drag that
@@ -587,19 +602,18 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             .accessibilityHint("Double-tap for a new face.")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { changeFace() }
-            // "Park in the bubble" went with the bubble (2026-10-05,
-            // `CompanionParking.hasDock`): an action for a place that is not
-            // on screen would park him out of sight.
+            // "Park in the bubble" went with the bubble (2026-10-05); back
+            // in the crest is somewhere on screen (2026-10-14), so VoiceOver
+            // can put him there as a finger can.
+            .accessibilityAction(named: "Put in the Ring") { parkWithoutCarrying() }
             // Taken back from the bubble in one frame. SwiftUI's default
             // insertion faded him in over 150ms after the pop (filmed).
             .transition(.identity)
     }
 
-    /// The bubble without the drag, for VoiceOver: he goes straight in.
+    /// The crest without the drag, for VoiceOver: he goes straight in.
     private func parkWithoutCarrying() {
-        withAnimation(GridConstants.motionSnappy) { parking.parked = true }
-        parking.landed += 1
-        HapticsEngine.success()
+        parking.land()
     }
 
     /// The head itself, or a plain disc under `-strataCompanionPlain`.
@@ -685,66 +699,102 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                     dy: (value.predictedEndTranslation.height - value.translation.height) / 0.25)
                 let parks = parking.over
                 parking.over = false
-                // Let go over the bubble: he stops where he is and flies in.
+                // Let go over the crest: he stops where he is and flies in.
                 life.sim.touch(.ended, at: p, velocity: parks ? .zero : v, in: life.world)
-                if parks {
+                withAnimation(GridConstants.motionSnappy) { parking.dragging = false }
+                guard parks else { return }
+                if reduceMotion {
+                    parking.land()
+                } else {
                     // From where he is drawn, not from the finger: the grab
                     // keeps him off the finger by wherever it took hold of
                     // him, and starting from the finger jumped him (filmed).
-                    let drawn = CGPoint(x: life.arenaOrigin.x + life.position.x,
-                                        y: life.arenaOrigin.y + life.position.y)
-                    parking.beginArrival(from: drawn, side: life.side)
-                } else {
-                    withAnimation(GridConstants.motionSnappy) { parking.dragging = false }
+                    life.flightFrom = life.position
+                    life.flightStart = nil
+                    parking.arriving = true
                 }
             }
     }
 
-    /// The bubble is drawing him, so the tower does not.
+    /// The crest is drawing him, so the tower does not. Not while he flies
+    /// in: the tower draws that (2026-10-14).
     private var hidden: Bool {
-        parking.parked || parking.arriving || parking.releasing
+        parking.parked || parking.releasing
     }
 
-    /// The bubble's centre in this overlay's coordinates.
+    /// The crest's centre in this overlay's coordinates.
     private var dockCentre: CGPoint {
         CGPoint(x: parking.dockFrame.midX - life.arenaOrigin.x,
                 y: parking.dockFrame.midY - life.arenaOrigin.y)
     }
 
-    /// **Out of the popped bubble**: taken from the bubble at its centre and at
-    /// his own size, then clear of it as he starts to float again.
-    ///
-    /// The bubble is an obstacle he keeps off, so the simulation puts him just
-    /// clear of it rather than inside it. He is drawn from the bubble's centre
-    /// anyway, offset back to it, and the offset runs out as he grows: filmed
-    /// without it, his first frame was already beside the bubble, which read
-    /// as a jump rather than a pop.
+    /// **Out of the crest** (2026-10-14), the way a head leaves a crew's
+    /// bubble (`CrewHeadRunner.leaveTheBubble`): placed under the crest and
+    /// its caption, in the room, never on the ring (placed on a crew's rim,
+    /// a head pressed against it and sat there, filmed 2026-10-02). Drawn
+    /// from the crest's centre at the crest's size, he grows to his own as
+    /// the offset runs out: filmed without the offset, a first frame
+    /// already beside the bubble read as a jump rather than a pop.
     private func leaveTheBubble() {
         let centre = dockCentre
-        life.sim.place(in: life.world, at: centre,
-                       velocity: CGVector(dx: CGFloat.random(in: -60...60), dy: 90))
-        // The bubble has already grown him to his own size on its spot (see
-        // `CompanionDock.burst`); he only has to move clear of it.
+        let below = parking.dockFrame.maxY - life.arenaOrigin.y + GoalCrest.captionRoom
+        life.sim.place(in: life.world,
+                       at: CGPoint(x: centre.x + CGFloat.random(in: -24...24),
+                                   y: below + life.sim.halfHeight + 8),
+                       velocity: CGVector(dx: CGFloat.random(in: -80...80), dy: 140))
         life.emergeFrom = CGSize(width: centre.x - life.sim.position.x,
                                  height: centre.y - life.sim.position.y)
+        life.emergeScale = min(1, CompanionParking.crestHeadSide(crest: parking.dockFrame.width)
+                                  / max(life.side, 1))
         life.emergeStart = nil
         life.emergePending = !reduceMotion
+        life.flightFrom = nil
+        life.flightScale = 1
     }
 
-    /// How far from the simulation's spot to draw him this frame: all of
-    /// `emergeFrom` at the pop, none of it `emergeTime` later, eased out.
-    private func emergence(at now: Date) -> CGSize {
+    /// How far from the simulation's spot to draw him this frame, and how
+    /// big: all of `emergeFrom` and the crest's size at the pop, none of it
+    /// `emergeTime` later, eased out.
+    private func emergence(at now: Date) -> (offset: CGSize, scale: CGFloat) {
         if life.emergePending {
             life.emergePending = false
             life.emergeStart = now
         }
-        guard let start = life.emergeStart else { return .zero }
+        guard let start = life.emergeStart else { return (.zero, 1) }
         let p = min(max(now.timeIntervalSince(start) / Self.emergeTime, 0), 1)
-        if p >= 1 { life.emergeStart = nil; return .zero }
+        if p >= 1 { life.emergeStart = nil; return (.zero, 1) }
         let left = pow(1 - p, 3)
-        return CGSize(width: life.emergeFrom.width * left,
-                      height: life.emergeFrom.height * left)
+        return (CGSize(width: life.emergeFrom.width * left,
+                       height: life.emergeFrom.height * left),
+                1 + (life.emergeScale - 1) * left)
     }
+
+    /// **The flight into the crest**, a frame of it: from where he was let
+    /// go to the crest's centre, shrinking to the size the crest draws him
+    /// at, on the crew arena's curve and time (0.26s, ease in and out).
+    /// Returns true while it is flying, so the simulation is left alone.
+    private func fly(at now: Date) -> Bool {
+        guard let from = life.flightFrom else { return false }
+        if life.flightStart == nil { life.flightStart = now }
+        let t = min(now.timeIntervalSince(life.flightStart ?? now) / Self.flightTime, 1)
+        let e = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2
+        let to = dockCentre
+        let landing = min(1, CompanionParking.crestHeadSide(crest: parking.dockFrame.width) / max(life.side, 1))
+        life.position = CGPoint(x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e)
+        life.tilt *= 0.9
+        life.flightScale = 1 + (landing - 1) * e
+        if t >= 1 {
+            life.flightFrom = nil
+            life.flightStart = nil
+            life.flightScale = 1
+            // Where he went in, so the next press lets him out from there.
+            life.sim.place(in: life.world, at: to)
+            parking.land()
+        }
+        return true
+    }
+
+    private static var flightTime: Double { 0.26 }
 
     private static var emergeTime: Double { 0.32 }
 
@@ -832,6 +882,13 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             life.lastFrame = now
         }
         life.sim.reduceMotion = reduceMotion
+
+        // On his way into the crest, the flight has him, not the simulation.
+        if fly(at: now) {
+            life.lastFrame = now
+            life.grounded = false
+            return true
+        }
 
         let elapsed = life.lastFrame.map { now.timeIntervalSince($0) } ?? TowerCompanionSim.tick
         life.lastFrame = now

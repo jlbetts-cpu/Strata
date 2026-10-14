@@ -225,7 +225,8 @@ struct CrestCaption: View {
 /// can have the head in there and the fraction under like where the name
 /// would be in the crew ... as close to the crew experience as possible").
 /// Your head in the ring, the day's fraction in the crew's caption under it.
-/// A tap on either sets the goal.
+/// A tap on the fraction opens Your day; so does a tap on your face, unless
+/// your head is in it, when the tap lets him out onto the tower.
 struct GoalCrest: View {
     let wins: Int
     /// Today's goal, the one you set. Read only; the number is set in Your day.
@@ -242,18 +243,59 @@ struct GoalCrest: View {
     @State private var swell = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let line: CGFloat = 4
+    static let line: CGFloat = 4
+
+    /// The face inside a crest of `side`: the ring and a little glass round
+    /// it. One sum for the crest, its trip (`GoalRingMomentLayer`) and the
+    /// head's flight in and out (`CompanionParking.crestHeadSide`).
+    static func faceSide(crest side: CGFloat, line: CGFloat = line) -> CGFloat {
+        side - 2 * (line + 6)
+    }
+
+    /// The caption under the ring and its 44pt target: how far below the
+    /// ring a head let out is put, so he starts in the room and not on the
+    /// fraction.
+    static let captionRoom: CGFloat = 48
+
+    private var parking: CompanionParking { .shared }
+
+    /// **Your head is out on the tower**, so the ring holds your picture
+    /// (`CrestFace.headIsOut`). Not while the crest is handing him over.
+    static var headIsOut: Bool {
+        let parking = CompanionParking.shared
+        return HeadStore.shared.headForTower != nil && !parking.parked && !parking.releasing
+    }
+
+    /// **A press on your face lets your head out** (the owner, 2026-10-13:
+    /// "pfp/head in middle of wins tower (press, head comes out)"), as a
+    /// press on a face in a crew's bubble does (`CrewParking.pop`). Only
+    /// with a head in the ring: with none, or with him already out, the
+    /// press opens Your day, as it always has.
+    private var canLetOut: Bool {
+        HeadStore.shared.headForCrews != nil && !Self.headIsOut
+            && !parking.arriving && !parking.releasing
+    }
 
     var body: some View {
         VStack(spacing: GridConstants.spacing) {
-            Button { HapticsEngine.lightTap(); openDay() } label: {
+            Button { pressFace() } label: {
                 ZStack {
                     GoalRingStroke(wins: shown, goal: goal, line: Self.line)
                         .padding(Self.line / 2 + 2)
-                    CrestFace(side: side - 2 * (Self.line + 6))
+                    CrestFace(side: Self.faceSide(crest: side), headIsOut: Self.headIsOut)
                 }
                 .frame(width: side, height: side)
                 .stillGlassCircle()
+                // **Carried over it, it swells to say "let go here"**; he
+                // lands and it gives and comes back: the crew bubble's two
+                // answers (`CrewBubble`), on the crest that is his dock now.
+                .scaleEffect(parking.over && !reduceMotion ? 1.12 : 1)
+                .animation(GridConstants.motionSnappy, value: parking.over)
+                .phaseAnimator([false, true], trigger: parking.landed) { content, phase in
+                    content.scaleEffect(phase && !reduceMotion ? 1.1 : 1)
+                } animation: { phase in
+                    phase ? GridConstants.tapSquashSpring : GridConstants.elasticPop
+                }
                 // His drawn check over it, where it sits, when a win lands
                 // and nothing may travel (Reduce Motion, `RingMoment`).
                 .overlay {
@@ -280,6 +322,8 @@ struct GoalCrest: View {
                 // out of sight while it is away on it.
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                     RingMoment.shared.crestFrame = $0
+                    // And where the head goes in and comes out.
+                    CompanionParking.shared.dockFrame = $0
                 }
                 .opacity(RingMoment.shared.lifted ? 0 : 1)
             }
@@ -323,6 +367,41 @@ struct GoalCrest: View {
         .accessibilityHint("Opens your day.")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { openDay() }
+        .accessibilityActions {
+            if canLetOut {
+                Button("Let Your Head Out") { letOut() }
+            }
+        }
+    }
+
+    private func pressFace() {
+        guard canLetOut else {
+            HapticsEngine.lightTap()
+            openDay()
+            return
+        }
+        letOut()
+    }
+
+    /// **Out onto the tower.** With the tower switch already on he is in
+    /// the ring and simply goes. With it off, the press is the switch: on,
+    /// which mounts the tower's head layer, with him held in the ring for
+    /// the beat it takes to be measured, then out, so he leaves from the
+    /// ring rather than appearing wherever the tower would first put him.
+    /// Profile's "Let My Head Onto the Tower" reads on after, which is true.
+    private func letOut() {
+        HapticsEngine.lightTap()
+        let heads = HeadStore.shared
+        guard !heads.showsOnTower else {
+            parking.letOut()
+            return
+        }
+        heads.setShowsOnTower(true)
+        parking.parked = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            CompanionParking.shared.letOut()
+        }
     }
 }
 
@@ -330,14 +409,18 @@ struct GoalCrest: View {
 /// so Wins and a crew show the same you; without one, your profile picture.
 struct CrestFace: View {
     let side: CGFloat
+    /// **Your head is out on the tower** (2026-10-14): your picture or
+    /// initial holds the ring, as a crew's bubble shows its faces once its
+    /// heads are out. Never the head twice.
+    var headIsOut = false
 
     var body: some View {
-        if let rig = HeadStore.shared.headForCrews {
+        if !headIsOut, let rig = HeadStore.shared.headForCrews {
             LivingHeadView(rig: rig, side: side * ProfileAvatar.headShare, liveliness: .calm)
                 .frame(width: side, height: side)
                 .accessibilityHidden(true)
         } else {
-            ProfileAvatar(side: side)
+            ProfileAvatar(side: side, showsHead: !headIsOut)
         }
     }
 }
