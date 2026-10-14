@@ -1092,6 +1092,22 @@ final class FeedbackShots: XCTestCase {
         if show.exists { show.tap(); wait(1.5); snap("hide-shown") }
     }
 
+    /// **A win from earlier today, sent to a crew that did not get it**
+    /// (the owner, 2026-10-13), from that crew's + sheet.
+    func testEarlierToday() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedHistory", "1", "-strataSeedHistoryPerDay", "3", "-strataCrewFaces", "none"])
+        wait(9)
+        let slot = app.descendants(matching: .any)["Log a win"].firstMatch
+        if slot.waitForExistence(timeout: 5) { slot.tap(); wait(3) }
+        snap("earlier-sheet")
+        let row = app.staticTexts["Earlier Today"].exists
+        print("PLANNING-earlier: row \(row)")
+        let chip = app.buttons.matching(NSPredicate(format: "label IN %@", ["Deep work", "Walk", "Inbox zero", "Sketch", "Ran 5k", "Stretched"])).firstMatch
+        if chip.exists { chip.tap(); wait(2.5) }
+        snap("earlier-sent")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

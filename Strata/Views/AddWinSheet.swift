@@ -179,6 +179,8 @@ struct AddWinSheet: View {
     /// an Edit opened before crews had loaded saw no ticks, and saving it
     /// withdrew the win from every crew).
     @State private var crewChoiceTouched = false
+    /// Wins logged today that the crew this sheet came from has not got.
+    @State private var earlierToday: [HabitLog] = []
     /// Who the win was with (`CrewWithRow`): people in the ticked crews,
     /// three at most. Only on a new win; it is sent with it and never kept
     /// on the `HabitLog`.
@@ -477,6 +479,11 @@ struct AddWinSheet: View {
                                 }
                             }
                             .padding(.top, GridConstants.gapSection)
+                            if !earlierToday.isEmpty, !isPlanning, photo == nil, doodle == nil, title.isEmpty {
+                                earlierTodayRow
+                                    .padding(.top, GridConstants.gapItem)
+                                    .transition(.opacity)
+                            }
                         }
                         if !isPlanning {
                             subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
@@ -696,6 +703,7 @@ struct AddWinSheet: View {
         .task {
             guard !isEditing, ideaSource == nil else { return }
             ideaSource = WinIdeas.candidates(context: modelContext)
+            loadEarlierToday()
         }
     }
 
@@ -704,6 +712,68 @@ struct AddWinSheet: View {
         guard let source = ideaSource else { return [] }
         return WinIdeas.pick(three: source.three, plan: source.plan, logged: source.logged, today: source.today,
                              typed: title)
+    }
+
+    /// **A win you logged today that this crew has not got** (the owner,
+    /// 2026-10-13: "lets say you didnt add a win earlier to a crew you
+    /// should be able to add a win from that day you didnt add"). Only on
+    /// the sheet opened from a crew, before anything is typed or chosen:
+    /// one press sends that win here, as ticking the crew on its Edit
+    /// sheet does, with the Undo line to take it back.
+    private var earlierTodayRow: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            Text("Earlier Today")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: GridConstants.gapTight) {
+                    ForEach(earlierToday, id: \.id) { log in
+                        Button { sendEarlier(log) } label: {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(log.habit?.displayCategory.style.flatFill ?? AppColors.quietFill)
+                                    .frame(width: 8, height: 8)
+                                Text(log.habit?.title ?? "")
+                                    .font(Typography.screenSubtitle)
+                                    .foregroundStyle(AppColors.inkPrimary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, GridConstants.gapItem)
+                            .frame(minHeight: 34)
+                            .background(Capsule().fill(AppColors.quietFill))
+                            .frame(minHeight: GlassIconButton.defaultSide)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.press)
+                        .accessibilityHint("Sends this win to the crew.")
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    /// Today's wins this crew has not got, newest first.
+    private func loadEarlierToday() {
+        guard let crewID = planCrew, !isEditing, CrewsFlag.isOn else { return }
+        let today = DateUtils.dateString(from: Date())
+        var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString == today },
+                                          sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+        d.relationshipKeyPathsForPrefetching = [\.habit]
+        let store = SocialStore.shared
+        earlierToday = ((try? modelContext.fetch(d)) ?? []).filter { log in
+            log.habit != nil && !store.crews(holding: log.id).contains(crewID)
+        }
+    }
+
+    private func sendEarlier(_ log: HabitLog) {
+        guard let crewID = planCrew else { return }
+        let holding = SocialStore.shared.crews(holding: log.id)
+        HapticsEngine.success()
+        CrewSync.setCrews(for: log, to: holding.union([crewID]))
+        let name = SocialStore.shared.crew(crewID)?.displayName(excluding: SocialStore.shared.me) ?? "the crew"
+        UndoLine.shared.show("Sent to \(name)", undo: { CrewSync.setCrews(for: log, to: holding) })
+        dismiss()
     }
 
     /// **Wins to recognise, where QuickType's words would be** (`WinIdeas`).
