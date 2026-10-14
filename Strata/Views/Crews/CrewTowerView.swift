@@ -35,6 +35,8 @@ struct CrewTowerView: View {
     @State private var showsInfo = false
     /// Today's crew chat, from the glass button top right.
     @State private var showsChat = false
+    /// "Just you so far.": once a crew, while nobody else has joined.
+    @State private var aloneTip = false
     @State private var plansRefresh = 0
     /// A photograph opened from its block, in the same viewer a past day's
     /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
@@ -108,9 +110,13 @@ struct CrewTowerView: View {
             // as the tower's tips do, so nothing on the page moves. Under
             // the bar and not in it, or I'm In takes no touch. Once you are
             // in, it is a box on the tower below (`CrewPlannedLayer`).
-            CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
-                .padding(.horizontal, hPad)
-                .padding(.top, GridConstants.gapTight)
+            VStack(spacing: GridConstants.gapTight) {
+                if aloneTip { justYouTip }
+                CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
+            }
+            .padding(.horizontal, hPad)
+            .padding(.top, GridConstants.gapTight)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
         })
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in if !open { plansRefresh += 1; plannedNudge += 1 } }
@@ -228,7 +234,12 @@ struct CrewTowerView: View {
             // (found 2026-10-06; it was only tried on appear).
             openWinFromNotification()
         }
-        .onChange(of: crew?.members) { _, _ in rebuild() }
+        .onChange(of: crew?.members) { _, members in
+            rebuild()
+            // Someone joined: the tip has said its piece.
+            if (members?.count ?? 0) > 1, aloneTip { withAnimation(GridConstants.cueOut) { aloneTip = false } }
+        }
+        .task { await considerAloneTip() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays live: this crew's changes
         // (`refreshLive`, one small request when nothing moved), since a
@@ -555,6 +566,45 @@ struct CrewTowerView: View {
         model.rebuild(wins: wins, me: store.me, names: names,
                       everyoneIn: CrewTowerModel.everyoneIn(wins: wins, members: (crew?.members ?? []).map(\.profileID)),
                       reactions: { store.reactions(to: $0, in: crewID) })
+    }
+
+    // MARK: Just you
+
+    /// **A crew of one gets one quiet tip, not a button** (the invites
+    /// research, 2026-10-13; the owner on a bare Invite under a crew's name:
+    /// "i dont like how invite is just there"). The first time a crew is
+    /// opened while it is still only you, the one tip container says so and
+    /// offers the invite, then leaves by itself, as every tip does. Once a
+    /// crew, ever.
+    private var justYouTip: some View {
+        TipCard(title: "Just you so far.",
+                message: "A crew starts when one friend joins.",
+                mark: "TipPersonPlus",
+                actionTitle: "Invite",
+                action: {
+                    withAnimation(GridConstants.cueOut) { aloneTip = false }
+                    Task { await CrewSharing.invite(crewID) }
+                },
+                close: {
+                    HapticsEngine.lightTap()
+                    withAnimation(GridConstants.cueOut) { aloneTip = false }
+                })
+            .accessibilityHint("Opens the invite")
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    static let aloneShownKey = "crews.justYouShown"
+
+    private func considerAloneTip() async {
+        guard let crew, crew.members.count == 1 else { return }
+        let shown = UserDefaults.standard.stringArray(forKey: Self.aloneShownKey) ?? []
+        guard !shown.contains(crewID.rawValue) else { return }
+        UserDefaults.standard.set(shown + [crewID.rawValue], forKey: Self.aloneShownKey)
+        // After the screen has settled, not over the push.
+        try? await Task.sleep(for: .milliseconds(900))
+        aloneTip = true
+        try? await Task.sleep(for: .seconds(12))
+        if aloneTip { withAnimation(GridConstants.cueOut) { aloneTip = false } }
     }
 
     // MARK: Header

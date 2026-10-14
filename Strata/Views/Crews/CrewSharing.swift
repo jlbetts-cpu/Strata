@@ -30,7 +30,6 @@ enum CrewSharing {
     /// a rich preview (the crew's name and your tower), so Messages shows a
     /// card a friend taps to open the app straight into the crew.
     static func invite(_ crewID: CrewID, card: UIImage? = nil) async {
-        Analytics.shared.signal(.crewInviteSent)
         let card = card ?? nextCard
         nextCard = nil
         let store = SocialStore.shared
@@ -41,8 +40,16 @@ enum CrewSharing {
             // new one "Join New Crew on Some Wins".
             let name = store.crew(crewID)?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let title = name.isEmpty ? message : "Join \(name) on Some Wins"
-            present(UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
-                                             applicationActivities: nil))
+            let sheet = UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
+                                                 applicationActivities: nil)
+            // **Counted when it went, not when the sheet opened** (the invites
+            // research, 2026-10-13): opened-and-closed counted as an invite,
+            // so the one number that says whether invites work could not be
+            // read.
+            sheet.completionWithItemsHandler = { _, completed, _, _ in
+                if completed { Analytics.shared.signal(.crewInviteSent) }
+            }
+            present(sheet)
         } catch {
             CrewRouter.shared.joinProblem = CrewErrorWords.say(error, while: .inviting)
         }

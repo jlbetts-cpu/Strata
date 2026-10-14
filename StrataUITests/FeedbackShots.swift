@@ -1056,6 +1056,18 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("tallhead-back")
     }
 
+    /// Invite a Friend on the empty Crews tab, and a crew of one's tip
+    /// (the invites research, 2026-10-13).
+    func testInviteAFriend() {
+        var app = launch(["-strataCrews", "1", "-strataStartTab", "crews", "-crews.rulesAccepted.v1", "YES", "-strataCrewsSignedIn", "1"])
+        wait(8); snap("invite-empty")
+        print("PLANNING-invite: button \(app.buttons["Invite a Friend"].firstMatch.exists) line \(app.staticTexts["Got a link from a friend? Open it again to join."].exists)")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "1", "-strataOpenCrew", "0", "-crews.justYouShown", "()"])
+        wait(6); snap("invite-alone")
+        print("PLANNING-alone: tip \(app.staticTexts["Just you so far."].exists)")
+    }
+
     /// The chat's Strip: today's strip shown, and Send puts it in the chat.
     func testChatStrip() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",

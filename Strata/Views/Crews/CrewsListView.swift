@@ -26,6 +26,8 @@ struct CrewsListView: View {
 
     @State private var age = CrewAge.current
     @State private var signedOut = false
+    @State private var inviting = false
+    @State private var inviteProblem: String?
 
     var body: some View {
         Group {
@@ -352,6 +354,26 @@ struct CrewsListView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// A crew of you, opened, and the share sheet over it: what New Crew's
+    /// Invite does, without the name and the photo first.
+    private func inviteAFriend() {
+        guard !inviting else { return }
+        guard store.crews.count < CrewCaps.crews else { atCap = true; return }
+        inviting = true
+        withAnimation(GridConstants.crossFade) { inviteProblem = nil }
+        Task {
+            do {
+                let (crew, _) = try await store.createCrew(name: "", photoJPEG: nil)
+                open(crew.id)
+                try? await Task.sleep(for: .milliseconds(450))
+                await CrewSharing.invite(crew.id)
+            } catch {
+                withAnimation(GridConstants.crossFade) { inviteProblem = CrewErrorWords.say(error, while: .starting) }
+            }
+            inviting = false
+        }
+    }
+
     private var empty: some View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer()
@@ -393,13 +415,44 @@ struct CrewsListView: View {
             }
             Spacer()
             if !signedOut {
-                PrimaryCapsule(title: "Start a Crew") { startsCrew = true }
-                    .padding(.horizontal, GridConstants.horizontalPadding)
-                    .padding(.bottom, GridConstants.gapWide)
+                // **Invite a Friend, in one press** (the owner, 2026-10-13: "I
+                // dont want anyone to not know what to do or who to add and
+                // should we have a add friends button"). It makes a crew of
+                // you and opens the share sheet at once: the friend IS the
+                // crew, and an unnamed crew of two is shown by their name.
+                // Naming it and its photo stay in its card; the compose glyph
+                // keeps the full Start a Crew for a group.
+                VStack(spacing: GridConstants.gapItem) {
+                    if inviting {
+                        PrimaryCapsule(waiting: "Starting", because: "The crew is being made")
+                    } else {
+                        PrimaryCapsule(title: "Invite a Friend", action: inviteAFriend)
+                    }
+                    // **For someone who was sent a link before they had the
+                    // app**: installing loses it, and nothing said to go back.
+                    Text(CrewLine.linkAgain)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .multilineTextAlignment(.center)
+                    if let inviteProblem {
+                        Text(inviteProblem)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.destructiveInk)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
+                    }
+                }
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.bottom, GridConstants.gapWide)
             }
         }
         .frame(maxWidth: .infinity)
         .task {
+            #if DEBUG
+            // `-strataCrewsSignedIn 1`: the signed-in page on a simulator
+            // with no iCloud account, so it can be photographed.
+            if DebugHarness.argument("-strataCrewsSignedIn") == "1" { return }
+            #endif
             guard let cloud = store.cloud as? PublicCrewCloud else { return }
             let status = try? await cloud.container.accountStatus()
             signedOut = status != .available
@@ -568,6 +621,8 @@ struct CrewsButton: View {
 /// better together"). With his drawing of three friends wherever it stands.
 nonisolated enum CrewLine {
     static let forWho = "For the people you'd tell anyway."
+    /// Under Invite a Friend, for whoever got a link before the app.
+    static let linkAgain = "Got a link from a friend? Open it again to join."
 }
 
 /// The Crews tab's crew screens, and the router that opens one from outside
