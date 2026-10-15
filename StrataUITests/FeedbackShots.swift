@@ -1718,6 +1718,19 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("edges-3-swiped")
     }
 
+    /// Memories as the profile, at rest and scrolled (2026-10-15). A pinned
+    /// month header under the bar was tried here and looked worse: a slab of
+    /// white at rest, and the calendar showing through above it when pinned.
+    func testMemoriesMonthPins() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "memories",
+                          "-strataSeedWins", "8", "-strataSeedRealPhotos", "1", "-strataSeedHead", "1"])
+        wait(8); snap("pins-0-top")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+            .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)),
+                   withVelocity: XCUIGestureVelocity(500), thenHoldForDuration: 0.3)
+        wait(1.5); snap("pins-1-scrolled")
+    }
+
     /// Your head, as a sticker in the chat (2026-10-15).
     func testHeadSticker() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
