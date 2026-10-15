@@ -1,4 +1,4 @@
-# Some Wins: every screen (2026-10-14, build 142)
+# Some Wins: every screen (updated 2026-10-15, after the night's build)
 
 A map of the app as it ships, for brainstorming what to add next. Each
 screen lists what is on it and what you can do there. Rare screens and
@@ -11,8 +11,8 @@ Memories. Friends share wins in small private crews. There is no account
 and no server: everything lives on the phone and in the person's own
 iCloud.
 
-**Four tabs:** Wins, Crews, Camera, Memories. Profile and Settings open
-from the corner.
+**Four tabs:** Wins, Crews, Camera, Memories. Memories is your profile;
+Settings opens from its gear.
 
 ---
 
@@ -81,6 +81,9 @@ can save the video or share it. A count-up header, simple dates.
 ## 3. Crews tab
 
 **Crews list.**
+- Today: a row of every friend's head across your crews; someone who has
+  logged today is ringed in their newest win's colour and opens it; the
+  rest are faded. Invite at the end.
 - Your crews as cards: name, faces, and today's wins.
 - New Crew.
 - Join from a link: a walking-cat drawing while it joins, then a thumbs
@@ -100,12 +103,15 @@ stacked, with their heads living in a little arena.
   also Delete Win (new).
 - The crew's slot: log a win straight into the crew.
 - A crew plan: a checkbox block on the crew tower.
+- Cards under the header, one at a time: Catch Up (the days you missed),
+  the crew's week from Sunday evening, and a one-time widget tip.
 - The chat drawer at the foot.
 
-**Crew chat (drawer).**
-- At rest it shows the last line as a bubble with the sender's head.
-- Pull it up for the chat. Writing takes it full screen with the crew's
-  name on top.
+**Crew chat (a native sheet).**
+- At rest: the newest line over the composer. A drag or a tap lifts it to
+  reading; writing takes the whole height with the crew's name on top.
+- A "New" marker where you left off; big emoji; links; reply starters on
+  a friend's win; tap a reaction to see who; Hide for Me on a line.
 - Messages, quoted replies to wins, and reactions on a hold (Reply,
   Copy, Report).
 - The + menu: Win, Plan, Sticker, Strip.
@@ -145,7 +151,10 @@ from Jayden.
 
 ## 5. Memories tab
 
-**Memories.**
+**Memories (your profile).**
+- At the top: your head, your name, Score, Wins and Crews, and the streak
+  as one line. A press on your head opens Edit Profile; on the figures,
+  Your Score (how it adds up, the streak, the trend).
 - Months, newest first, each with its month drawing. November's turkey
   runs at the end of the list.
 - Photos for each month in a grid, split into Deep, Regular, and Quick.
@@ -172,10 +181,10 @@ immersive on black.
 
 ---
 
-## 6. Profile and Settings
+## 6. Edit Profile and Settings
 
-**Profile.** Your head, your name (which can't be emptied), your goal
-history, and your win trend.
+**Edit Profile.** Your picture, your name (which can't be emptied), your
+heads and earlier heads. **Settings** is the gear on Memories.
 
 **Settings.**
 - Reminders: Daily Reminder, Reminder Time, Weekly and Monthly Replays,
@@ -209,7 +218,8 @@ scratching-cat drawing when it fails.
 - **Undo line:** after any add, delete, or send.
 - **iCloud full:** a notice in Settings.
 - **Notifications:** daily reminder, crew wins, chat, and replays ready.
-  The social dot uses the Social coral.
+  The social dot uses the Social coral. A friend's win offers 🔥, ❤️ and
+  Reply from the alert; a chat line offers Reply.
 
 ## 8. Outside the app
 
