@@ -1229,8 +1229,10 @@ struct CrewChatSheet: View {
                         draft = line
                         writing = true
                     } label: {
+                        // The chat's own weight, not a heading's: a starter
+                        // is words you might say (the fresh-eyes critique).
                         Text(line)
-                            .font(Typography.headerSmall)
+                            .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkPrimary)
                             .padding(.horizontal, GridConstants.gapItem)
                             .frame(height: 34)
