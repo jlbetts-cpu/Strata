@@ -1858,7 +1858,7 @@ struct MainAppView: View {
         // No `NavigationStack` here — `MemoriesView` owns its own, because it
         // pushes from four places: an album on the shelf, a curated album, a
         // day in the month tower, and the full grid behind the tail card.
-        StableMemoriesTab(openProfile: { profileOrigin = .memories })
+        StableMemoriesTab(openProfile: { profileOrigin = .memories }, resetAllData: resetAllData)
         .equatable()
         // The header's head sleeps while Profile covers it. Before `.sheet`,
         // so Profile's own head is not put to sleep with it.
@@ -2722,23 +2722,23 @@ struct MainAppView: View {
 
     private var profileSheet: some View {
         NavigationStack {
-            ProfileView(
-                onResetAllData: {
-                    // Profile and head only if the record really went: a reset
-                    // that deleted your face and kept your wins would be the
-                    // original bug the other way round.
-                    guard resetTower() else { return false }
-                    // The policy says Reset All Data removes every photo; a
-                    // profile photo is one, and a head is made of them.
-                    ProfileStore.shared.reset()
-                    HeadStore.shared.delete()
-                    // Your wins leave every crew with the record.
-                    if CrewsFlag.isOn { Task { await SocialStore.shared.withdrawEverything() } }
-                    return true
-                },
-                opensSettings: profileOpensSettings
-            )
+            ProfileView(onResetAllData: resetAllData, opensSettings: profileOpensSettings)
         }
+    }
+
+    /// Reset All Data, from Settings wherever it is pushed.
+    private func resetAllData() -> Bool {
+        // Profile and head only if the record really went: a reset
+        // that deleted your face and kept your wins would be the
+        // original bug the other way round.
+        guard resetTower() else { return false }
+        // The policy says Reset All Data removes every photo; a
+        // profile photo is one, and a head is made of them.
+        ProfileStore.shared.reset()
+        HeadStore.shared.delete()
+        // Your wins leave every crew with the record.
+        if CrewsFlag.isOn { Task { await SocialStore.shared.withdrawEverything() } }
+        return true
     }
 
     // MARK: - Setup
@@ -4259,11 +4259,12 @@ private final class WidgetPublisher {
 /// observed models still update it.
 private struct StableMemoriesTab: View, Equatable {
     let openProfile: () -> Void
+    let resetAllData: () -> Bool
 
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 
     var body: some View {
-        MemoriesView(openProfile: openProfile)
+        MemoriesView(openProfile: openProfile, resetAllData: resetAllData)
     }
 }
 

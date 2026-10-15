@@ -30,7 +30,6 @@ struct ProfileView: View {
     /// back to the name it was.
     @State private var nameDraft: String?
     @FocusState private var namingSelf: Bool
-    @State private var vm = ProfileViewModel()
     @State private var showsSettings = false
     @State private var showsMaker = false
     @State private var confirmsDeleteHead = false
@@ -38,13 +37,9 @@ struct ProfileView: View {
     /// actor, because five heads are five 600px PNGs and this draws five 60pt
     /// squares.
     @State private var headSwatches: [UUID: HeadRig] = [:]
-    /// Remembered: somebody who reads their weeks will want their weeks the
-    /// next time too.
-    @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
 
     private var store: ProfileStore { .shared }
     private var heads: HeadStore { .shared }
-    private var unit: WinTrend.Unit { WinTrend.Unit(rawValue: unitRaw) ?? .week }
 
     /// Twice the header button: the same picture, near and far.
     private static let pictureSide: CGFloat = GlassIconButton.defaultSide * 2
@@ -59,13 +54,14 @@ struct ProfileView: View {
         // only capture anybody ever got of screen 19 was screen 12 again, with
         // a byte-for-byte identical layout signature. See `scrollToAnchor`.
         ScrollViewReader { scroller in
+        // **Edit Profile** (2026-10-15): Memories is the profile now, with
+        // your score, streak and trend a press away there (`ProfileHeader`,
+        // `YourScoreSheet`) and Settings behind its gear. What is left here
+        // is changing who you are: the picture, the name, the heads.
         Form {
             identity
-            streak
-            trend
             headSection
             earlierHeadsSection
-            settingsLink
         }
         // **The same break Settings takes, for the same measured reason, and
         // because these two screens have to agree.** The full argument — the
@@ -103,7 +99,7 @@ struct ProfileView: View {
         // problem from neither direction — `inkPrimary` against the page is
         // about 15:1 whichever way round the scheme is.
         .background { WarmBackground().ignoresSafeArea() }
-        .sheetTitle("Profile", drawn: true)
+        .sheetTitle("Edit Profile", drawn: true)
         .toolbar { doneToolbar }
         // **AFTER `.toolbar`, not before it.** Measured: with the tint applied
         // above, Done still rendered (10, 10, 10). A toolbar item is hosted by
@@ -123,11 +119,9 @@ struct ProfileView: View {
             SettingsView(onResetAllData: onResetAllData)
         }
         .task {
-            vm.load(context: modelContext)
             if opensSettings { showsSettings = true }
             #if DEBUG
             if DebugHarness.headMakerState != nil { showsMaker = true }
-            if let unit = DebugHarness.profileChartUnit { unitRaw = unit }
             await scrollToAnchor(scroller)
             #endif
         }
@@ -410,54 +404,6 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Streak
-
-    /// Current and best, side by side. Best is always there, so a break never
-    /// looks like the record was lost — broken streaks shown in a log make
-    /// people less likely to carry on (Silverman & Barasch, 2023). No red and
-    /// no warning; a zero is an invitation, not a verdict.
-    private var streak: some View {
-        Section {
-            HStack(alignment: .top, spacing: GridConstants.gapWide) {
-                StreakFigure(value: vm.currentStreak, label: "Current")
-                StreakFigure(value: vm.bestStreak, label: "Best")
-            }
-            .padding(.vertical, GridConstants.gapTight)
-        // **The platform's card, not ours**, and that is the owner's call
-        // (2026-09-30): "a lot of those panels and elements should just be
-        // Apple native to make them cleaner instead of our system — I think it
-        // looks a bit off in Profile and Settings having the custom stuff."
-        //
-        // He is right, and the reason is that the ground moved under the
-        // argument. `PageSurface` went on here when the page was a lower, warmer
-        // thing and a stock white card sat eight levels over it, reading as
-        // paper on a lit sheet. The page is clean white now; the platform's own
-        // card is already nearly the page, so the problem it was solving is gone
-        // and all that is left is a settings screen that does not behave like
-        // one.
-        } header: {
-            FormSectionLabel("Streak")
-        } footer: {
-            if vm.currentStreak == 0 {
-                Text("Log a win to start one.")
-                    .formFooter()
-            } else {
-                // Rest days (`Streaks.Rest`): said once, here, so a day off
-                // is known to be allowed before it is taken.
-                Text("A day off a week won't break it.")
-                    .formFooter()
-            }
-        }
-    }
-
-    // MARK: - Trend
-
-    /// The chart and its sentence: `WinTrendSection`, which a crew's page
-    /// draws too, so the two can never drift apart.
-    private var trend: some View {
-        WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)
-    }
-
     // MARK: - Your head
 
     /// The active head's name, but only when somebody CHOSE it.
@@ -723,36 +669,8 @@ struct ProfileView: View {
         return nil
     }
 
-    // MARK: - Settings
+    // MARK: - Done
 
-    private var settingsLink: some View {
-        Section {
-            NavigationLink {
-                SettingsView(onResetAllData: onResetAllData)
-            } label: {
-                Label {
-                    // One black down the column. See the note on the tower
-                    // switch above.
-                    Text("Settings")
-                        .foregroundStyle(AppColors.inkPrimary)
-                } icon: {
-                    SettingsIcon(systemName: "gearshape")
-                }
-            }
-        }
-    }
-
-    // MARK: - Toolbar
-
-    /// **Settings has no Done to be "like" any more**: the comment that stood
-    /// here pointed at `SettingsView.settingsToolbar` for why the iOS 26 capsule
-    /// is stripped, and that property is deleted — it was behind a flag both of
-    /// this file's own call sites set the same way, so Settings drew no confirm
-    /// word at all (`docs/consistency-audit.md` §1.4). The capsule rule it was
-    /// cited for is live and is below: iOS 26 draws a glass capsule behind every
-    /// toolbar item and the app strips it deliberately, so a screen that misses
-    /// the treatment looks unlike its neighbours and can render that capsule
-    /// black against the warm ground.
     @ToolbarContentBuilder
     private var doneToolbar: some ToolbarContent {
         if #available(iOS 26.0, *) {

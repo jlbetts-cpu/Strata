@@ -45,6 +45,8 @@ struct MemoriesView: View {
     /// Some Wins' own card in the drawing's place this visit (`HouseCard`).
     @State private var houseCard: HouseCard?
     @State private var showsTipAsk = false
+    /// Your Score, from a press on the number under your name.
+    @State private var showsScore = false
     @State private var vm = MemoriesViewModel()
     /// Today's past win (`PastWin`), the line under the calendar.
     @State private var path: [MemoriesRoute] = []
@@ -87,6 +89,8 @@ struct MemoriesView: View {
     }
 
     var openProfile: (() -> Void)?
+    /// Reset All Data, for Settings pushed from this page's gear.
+    var resetAllData: (() -> Bool)?
 
     @AppStorage(JournalLock.defaultsKey) private var journalLockOn = false
     /// Lock Journal is on and this session has not opened it yet.
@@ -196,9 +200,14 @@ struct MemoriesView: View {
                     // Nothing for the moment the page takes to learn whether
                     // it is empty; an empty month is the calendar alone, the
                     // emptiness you then fill being the point.
+                    // **You, at the top: Memories is your profile** (the
+                    // owner, 2026-10-15). Your head, your name and your
+                    // score, then your months.
+                    ProfileHeader(onEdit: { openProfile?() }, onScore: { showsScore = true })
+                        .padding(.horizontal, GridConstants.horizontalPadding)
                     if !pageIsUndecided || pageIsEmpty {
                         monthTower
-                            .padding(.top, GridConstants.gapItem)
+                            .padding(.top, GridConstants.gapSection)
                     }
 
                     // Under the fold: the photos are a scroll away, their
@@ -423,6 +432,8 @@ struct MemoriesView: View {
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
+                case .settings:
+                    SettingsView(onResetAllData: { resetAllData?() ?? false })
                 case .map:
                     MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, style: mapStyle) { key in
                         path.append(.place(key))
@@ -764,7 +775,14 @@ struct MemoriesView: View {
                 }
                 Spacer(minLength: 0)
                 recapButton
-                ProfileButton { openProfile?() }
+                // **Settings, where your picture was** (2026-10-15): the page
+                // is your profile now, so the picture that opened it is the
+                // big one under this bar, and the corner keeps the settings.
+                GlassIconButton(systemName: "gearshape", onPage: true,
+                                accessibilityLabel: "Settings") {
+                    HapticsEngine.lightTap()
+                    path.append(.settings)
+                }
             }
             }
             MonthPicker(
@@ -926,6 +944,7 @@ struct MemoriesView: View {
         .layoutPriority(1)
         .transition(.opacity)
         .sheet(isPresented: $showsTipAsk) { TipAskSheet() }
+        .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet() } }
         .fullScreenCover(item: $drawingMonth) { which in
             MonthDrawingEditor(month: which.id, monthName: MonthName.of(which.id))
         }
@@ -1139,6 +1158,9 @@ struct ViewedPhoto: Identifiable, Equatable {
 
 /// Where the Memories tab can go.
 enum MemoriesRoute: Hashable {
+    /// Settings, from the gear: you are on your profile, so its settings
+    /// are pushed here, as Instagram's are from its profile.
+    case settings
     /// The map, full screen. **Not embedded in the page.**
     ///
     /// A MapKit `Map` placed inside this screen's `LazyVStack` stopped the

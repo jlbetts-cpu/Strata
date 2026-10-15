@@ -1662,6 +1662,25 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("corners-memories")
     }
 
+    /// **Memories as your profile** (2026-10-15): the header, Your Score,
+    /// Edit Profile and Settings from the gear.
+    func testProfileOnMemories() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
+                          "-strataSeedWins", "6"])
+        wait(7); snap("profile-1-page")
+        let score = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Score'")).firstMatch
+        if score.exists { score.tap() }
+        wait(2.5); snap("profile-2-score")
+        app.swipeDown(velocity: .fast); wait(1.5)
+        let head = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Edit Profile'")).firstMatch
+        if head.exists { head.tap() }
+        wait(2.5); snap("profile-3-edit")
+        app.swipeDown(velocity: .fast); wait(1.5)
+        let gear = app.buttons["Settings"].firstMatch
+        if gear.exists { gear.tap() }
+        wait(2.5); snap("profile-4-settings")
+    }
+
     /// **The crew's week, offered on its tower** (2026-10-14), and played.
     func testCrewWeekCard() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
