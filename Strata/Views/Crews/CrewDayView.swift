@@ -217,18 +217,13 @@ struct CrewReportAnchor: View {
             } message: { _ in
                 Text("Your report goes to Some Wins. Nobody in the crew is told.")
             }
-            .alert("Thanks for telling us",
-                   isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
-                   presenting: reported) { win in
-                if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
-                    let name = store.crew(crewID)?.member(win.senderProfileID)?.shortName ?? ""
-                    Button("Block \(name.isEmpty ? "Them" : name)", role: .destructive) {
-                        Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
-                    }
-                }
-                Button("Done", role: .cancel) {}
-            } message: { _ in
-                Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
+            // His thumbs up and the alert's words (`ReportThanks`): a card,
+            // at the whole size, after the dialog that hangs on the point.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .reportThanks($reported, message: "Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.") { win in
+                guard win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) else { return nil }
+                let name = store.crew(crewID)?.member(win.senderProfileID)?.shortName ?? ""
+                return ("Block \(name.isEmpty ? "Them" : name)", { Task { await CrewSafety.block(win.senderProfileID, from: crewID) } })
             }
     }
 }

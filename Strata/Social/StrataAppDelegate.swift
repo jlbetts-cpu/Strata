@@ -79,6 +79,11 @@ final class CrewRouter {
     /// "Joining" rather than inviting a person who came by a link to start a
     /// crew of their own while theirs is being opened.
     private(set) var joining = false
+    /// **A beat for "it worked"** (the owner, 2026-10-14): a first crew
+    /// joined by a link shows his thumbs up where the walking cat was, for
+    /// as long as it plays, and then the crew opens.
+    private(set) var justJoined = false
+    static let joinedBeat = 1.2
 
     /// What the Wins tab watches to come to the front: a crew, or the list.
     /// A crew asked for from outside, or the list: both are on the Crews
@@ -131,8 +136,14 @@ final class CrewRouter {
         joining = true
         defer { joining = false }
         do {
+            let first = SocialStore.shared.crews.isEmpty
             let crew = try await SocialStore.shared.accept(invite)
             Self.forget()
+            if first {
+                justJoined = true
+                try? await Task.sleep(for: .seconds(Self.joinedBeat))
+                justJoined = false
+            }
             open = crew.id
         } catch {
             // An answer that will not change (a full crew, five already) is

@@ -43,6 +43,8 @@ struct CrewsListView: View {
                 needsNewerOS
             } else if !age.opensCrews {
                 tooYoung
+            } else if CrewRouter.shared.justJoined {
+                joinedState
             } else if store.crews.isEmpty, CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil {
                 joiningState
             } else if store.crews.isEmpty {
@@ -427,6 +429,19 @@ struct CrewsListView: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Joined: his thumbs up where the walking cat was, for a moment before
+    /// the crew opens (`CrewRouter.justJoined`). No words: the crew opening
+    /// says the rest.
+    private var joinedState: some View {
+        VStack {
+            Spacer()
+            ThumbsUp()
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// The one New Crew sheet, or why not at the cap.

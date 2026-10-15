@@ -148,11 +148,8 @@ struct CrewInfoSheet: View {
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
-                .alert("Thanks for telling us", isPresented: $thanked) {
-                    Button("Done", role: .cancel) {}
-                } message: {
-                    Text("Every report is looked at within a day.")
-                }
+                // His thumbs up and the alert's words (`ReportThanks`).
+                .reportThanks($thanked, message: "Every report is looked at within a day.")
                 .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
                     Button("OK", role: .cancel) {}
                 } message: {

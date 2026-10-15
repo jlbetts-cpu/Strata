@@ -1490,18 +1490,6 @@ struct CrewChatSheet: View {
             } message: { _ in
                 Text("Their name, photo or head. Your report goes to Some Wins and nobody in the crew is told.")
             }
-            .alert("Thanks for telling us",
-                   isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
-                   presenting: reported) { person in
-                if !store.blocked.contains(person) {
-                    Button("Block \(name(of: person))", role: .destructive) {
-                        Task { await CrewSafety.block(person, from: crewID) }
-                    }
-                }
-                Button("Done", role: .cancel) {}
-            } message: { _ in
-                Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
-            }
             .confirmationDialog(blockingPerson.map { "Block \(name(of: $0))?" } ?? "",
                                 isPresented: Binding(get: { blockingPerson != nil }, set: { if !$0 { blockingPerson = nil } }),
                                 titleVisibility: .visible, presenting: blockingPerson) { person in
@@ -1512,6 +1500,14 @@ struct CrewChatSheet: View {
                 Text(store.crew(crewID)?.isOwner(store.me) == true
                      ? "You won't see their wins or words in any crew, and they leave this one. They are not told."
                      : "You won't see their wins or words in any crew. They are not told.")
+            }
+            // His thumbs up and the alert's words (`ReportThanks`): a card,
+            // so it is the one thing here at the whole size, after the
+            // dialogs that need to hang on the point.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .reportThanks($reported, message: "Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.") { person in
+                store.blocked.contains(person) ? nil
+                    : ("Block \(name(of: person))", { Task { await CrewSafety.block(person, from: crewID) } })
             }
     }
 }

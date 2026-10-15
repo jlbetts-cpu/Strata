@@ -43,6 +43,10 @@ struct SettingsView: View {
     @AppStorage(PastWinReminder.defaultsKey) private var pastWinRemindersOn = true
     /// Off by default (spec section 2). `JournalLock` reads the same key.
     @AppStorage(JournalLock.defaultsKey) private var locksJournal = false
+    /// His thumbs up beside the row, once, when the lock goes on.
+    @State private var lockThumb = false
+    /// The lock put back on because turning it off was refused: no thumbs up.
+    @State private var keptLocked = false
     @AppStorage(Analytics.shareKey) private var sharesUsage = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
@@ -566,13 +570,34 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.switchTrack)
+                // His thumbs up, small, in the row's empty middle beside the
+                // switch: it plays once and fades, and moves nothing in the
+                // list (the owner, 2026-10-14).
+                .overlay(alignment: .trailing) {
+                    if lockThumb {
+                        ThumbsUp(height: 30)
+                            .padding(.trailing, 64)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
+                }
                 .onChange(of: locksJournal) { _, on in
                     // Switching it on starts a locked session, so the next
                     // note asks; it does not wait for the app to leave.
-                    if on { JournalLock.shared.relock(); return }
+                    if on {
+                        JournalLock.shared.relock()
+                        if keptLocked { keptLocked = false; return }
+                        lockThumb = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.6))
+                            withAnimation(GridConstants.crossFade) { lockThumb = false }
+                        }
+                        return
+                    }
+                    withAnimation(GridConstants.crossFade) { lockThumb = false }
                     // Off only for whoever can open it; refused, it stays on.
                     Task {
-                        if !(await JournalLock.shared.mayTurnOff()) { locksJournal = true }
+                        if !(await JournalLock.shared.mayTurnOff()) { keptLocked = true; locksJournal = true }
                     }
                 }
             } header: {

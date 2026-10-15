@@ -53,9 +53,15 @@ struct TipJarSection: View {
         } header: {
             FormSectionLabel(TipJar.Copy.section)
         } footer: {
-            Text(thanked || jar.hasTipped ? TipJar.Copy.thanks : TipJar.Copy.line)
-                .formFooter()
-                .contentTransition(.opacity)
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                // His thumbs up over the thanks, the moment a tip goes
+                // through (the owner, 2026-10-14). Only then: a tip from
+                // another day is thanked in words alone.
+                if thanked { ThumbsUp(height: 72) }
+                Text(thanked || jar.hasTipped ? TipJar.Copy.thanks : TipJar.Copy.line)
+                    .formFooter()
+                    .contentTransition(.opacity)
+            }
         }
         .task {
             if jar.products.isEmpty { await jar.loadProducts() }
@@ -75,6 +81,8 @@ struct TipAskSheet: View {
     var body: some View {
         VStack(spacing: GridConstants.gapSection) {
             VStack(spacing: GridConstants.gapTight) {
+                // His thumbs up over the thanks (the owner, 2026-10-14).
+                if thanked { ThumbsUp().padding(.bottom, GridConstants.gapTight) }
                 Text(thanked ? TipJar.Copy.thanks : TipJar.Copy.askTitle)
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
@@ -96,7 +104,8 @@ struct TipAskSheet: View {
                                     HapticsEngine.success()
                                     Analytics.shared.signal(.tipAsk, [.action(.tipped)])
                                     withAnimation(GridConstants.crossFade) { thanked = true }
-                                    try? await Task.sleep(for: .seconds(1.4))
+                                    // Long enough for the thumbs up to play and be seen.
+                                    try? await Task.sleep(for: .seconds(1.8))
                                     dismiss()
                                 }
                             }
