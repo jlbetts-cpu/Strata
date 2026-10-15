@@ -369,7 +369,7 @@ enum GlassRecipe {
             return traits.userInterfaceStyle == .dark
                 ? UIColor.white.withAlphaComponent(darkPageLift * lift)
                 : traits.accessibilityContrast == .high
-                ? UIColor.black.withAlphaComponent(pageInk)
+                ? UIColor.black.withAlphaComponent(pageInk * lift)
                 : UIColor.white.withAlphaComponent(lightPageLift)
         })
     }

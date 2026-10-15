@@ -1871,6 +1871,42 @@ final class FeedbackShots: XCTestCase {
         wait(2.5); snap("friend-2-bare")
     }
 
+    /// **A friend's profile from the chat and from the crew card**
+    /// (2026-10-15): the face menu's Profile, and the member menu's.
+    func testFriendProfileEntries() {
+        var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.818))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)),
+                   withVelocity: XCUIGestureVelocity(900), thenHoldForDuration: 0)
+        wait(1.5); snap("entry-0-chat")
+        let card = app.buttons.matching(NSPredicate(format: "label ENDSWITH \"'s Card\"")).firstMatch
+        print("PLANNING-entry card \(card.exists)")
+        if card.exists { card.tap() }
+        wait(1); snap("entry-1-menu")
+        let profile = app.buttons["Profile"].firstMatch
+        print("PLANNING-entry chat profile \(profile.exists)")
+        if profile.exists { profile.tap() }
+        wait(2.5); snap("entry-2-from-chat")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                      "-strataCrewSheet", "info", "-strataCrewFaces", "none"])
+        wait(9); snap("entry-3-info")
+        let options = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Options for'")).firstMatch
+        for _ in 0..<4 where !options.isHittable { app.swipeUp(); wait(0.8) }
+        print("PLANNING-entry options \(options.exists)")
+        if options.exists { options.tap() }
+        wait(1)
+        let again = app.buttons["Profile"].firstMatch
+        print("PLANNING-entry info profile \(again.exists)")
+        if again.exists { again.tap() }
+        wait(2.5); snap("entry-4-from-card")
+        let back = app.navigationBars.buttons.firstMatch
+        if back.exists { back.tap() }
+        wait(1.5); snap("entry-5-back")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

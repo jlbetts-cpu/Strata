@@ -81,9 +81,10 @@ can save the video or share it. A count-up header, simple dates.
 ## 3. Crews tab
 
 **Crews list.**
-- Today: a row of every friend's head across your crews; someone who has
-  logged today is ringed in their newest win's colour and opens it; the
-  rest are faded. Invite at the end.
+- Today: a row of every friend's head across your crews, each standing
+  on a small tower of today's blocks (one block a win). Someone who
+  hasn't logged stands on one empty cell, faded. A press opens their
+  profile. Invite at the end.
 - Your crews as cards: name, faces, and today's wins.
 - New Crew.
 - Join from a link: a walking-cat drawing while it joins, then a thumbs
@@ -106,6 +107,14 @@ stacked, with their heads living in a little arena.
 - Cards under the header, one at a time: Catch Up (the days you missed),
   the crew's week from Sunday evening, and a one-time widget tip.
 - The chat drawer at the foot.
+
+**A friend's profile.** Opens from their head in Today, Profile in the
+chat's face menu, or Profile in the crew card's member menu.
+- Their head, name, and one line: wins today and crews together. Never
+  their score.
+- Their tower today: only what they shared with you, on the lattice.
+  Hold a block to react, double-tap for a heart, tap to open it.
+  Nothing shared yet is the bare lattice.
 
 **Crew chat (a native sheet).**
 - At rest: the newest line over the composer. A drag or a tap lifts it to
@@ -152,9 +161,9 @@ from Jayden.
 ## 5. Memories tab
 
 **Memories (your profile).**
-- At the top: your head, your name, Score, Wins and Crews, and the streak
-  as one line. A press on your head opens Edit Profile; on the figures,
-  Your Score (how it adds up, the streak, the trend).
+- At the top: your head, your name, and one quiet line: score, wins,
+  crews. A press on your head opens Edit Profile; on the line, Your
+  Score (how it adds up, the streak, the trend).
 - Months, newest first, each with its month drawing. November's turkey
   runs at the end of the list.
 - Photos for each month in a grid, split into Deep, Regular, and Quick.

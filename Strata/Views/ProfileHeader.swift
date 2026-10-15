@@ -23,7 +23,7 @@ struct ProfileHeader: View {
         // Once a pass: each read faults every log's win (the review).
         let tally = WinsScore.tally(logs.compactMap { $0.habit?.blockSize })
         let crews = CrewsFlag.isOn ? SocialStore.shared.crews.count : nil
-        ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name,
+        ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
                    figures: [ProfileTop.Figure(tally.score, "score"),
                              ProfileTop.Figure(tally.wins, tally.wins == 1 ? "win" : "wins")]
                        + (crews.map { [ProfileTop.Figure($0, $0 == 1 ? "crew" : "crews")] } ?? []),
@@ -52,6 +52,9 @@ struct ProfileTop: View {
 
     let person: HeadPerson
     let name: String
+    /// "Your Name" before there is one, in the quiet ink a prompt wears, so
+    /// it does not read as somebody's name (found by review, 2026-10-15).
+    var nameIsPrompt = false
     let figures: [Figure]
     var onPerson: (() -> Void)? = nil
     var personHint: String = ""
@@ -68,7 +71,7 @@ struct ProfileTop: View {
                     PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
                     Text(name)
                         .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkPrimary)
+                        .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
                         .lineLimit(1)
                 }
             }

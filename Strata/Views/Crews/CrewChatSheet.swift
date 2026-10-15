@@ -693,7 +693,11 @@ struct CrewChatSheet: View {
         return Menu {
             Section(crew.isOwner(member.profileID) ? "\(who), started the crew" : who) {
                 // Their profile, as a press on their head in Crews opens it.
-                Button("Profile", systemImage: "person.crop.circle") { alone { profileOf = member } }
+                // Not someone you blocked: their head and name are gone
+                // from your phone, and a profile would bring them back.
+                if !store.blocked.contains(member.profileID) {
+                    Button("Profile", systemImage: "person.crop.circle") { alone { profileOf = member } }
+                }
                 Button("Report", systemImage: "exclamationmark.bubble") { reportingPerson = member }
                 if !store.blocked.contains(member.profileID) {
                     Button("Block", systemImage: "nosign", role: .destructive) { blockingPerson = member.profileID }

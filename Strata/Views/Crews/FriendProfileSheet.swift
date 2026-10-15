@@ -42,16 +42,20 @@ struct FriendProfileSheet: View {
             .filter { crew in crew.members.contains { $0.profileID == member.profileID } }
     }
 
-    /// What they shared today in those crews, each crew's today by its own
-    /// clock, once each, without anything you hid.
-    private var wins: [SharedWin] {
+    private var wins: [SharedWin] { Self.today(of: member.profileID, store: store) }
+
+    /// What they shared today in the crews you share, each crew's today by
+    /// its own clock (`store.today`, which also reads the test clock), once
+    /// each, without anything you hid. Static, so the reactions' lookup can
+    /// hold an id rather than this view.
+    static func today(of friend: UUID, store: SocialStore) -> [SharedWin] {
         var seen: Set<UUID> = []
-        return together.flatMap { crew in
-            store.wins(in: crew.id, on: CrewDay.string(for: Date(), in: crew.timeZone))
-        }
-        .filter { $0.senderProfileID == member.profileID && !store.hiddenWins.contains($0.winID) }
-        .sorted { $0.createdAt < $1.createdAt }
-        .filter { seen.insert($0.winID).inserted }
+        return store.crews.compactMap { store.visible($0.id) }
+            .filter { crew in crew.members.contains { $0.profileID == friend } }
+            .flatMap { store.today(in: $0.id) }
+            .filter { $0.senderProfileID == friend && !store.hiddenWins.contains($0.winID) }
+            .sorted { $0.createdAt < $1.createdAt }
+            .filter { seen.insert($0.winID).inserted }
     }
 
     private var name: String { member.shortName.isEmpty ? "A friend" : member.firstName }
@@ -84,8 +88,11 @@ struct FriendProfileSheet: View {
         }
         .applying(pushed) { $0.glassBackButton() }
         .onAppear {
-            let profile = self
-            reacts.crewOf = { id in profile.wins.first { $0.winID == id }?.crewID }
+            model.wire(reduceMotion: reduceMotion)
+            let friend = member.profileID
+            reacts.crewOf = { id in
+                Self.today(of: friend, store: .shared).first { $0.winID == id }?.crewID
+            }
         }
         .task(id: today) { rebuild(today) }
         // A reaction given here, or by anyone, shows on its block as it does
@@ -109,7 +116,11 @@ struct FriendProfileSheet: View {
                         },
                         reactions: { photo in
                             guard let id = UUID(uuidString: photo.id) else { return AnyView(EmptyView()) }
-                            return AnyView(CrewPhotoReactions(winID: id, crewID: crew, mine: false))
+                            // The crew of the win on screen, not of the one
+                            // tapped: the carousel runs across every crew you
+                            // share (found by review, 2026-10-15).
+                            let its = today.first { $0.winID == id }?.crewID ?? crew
+                            return AnyView(CrewPhotoReactions(winID: id, crewID: its, mine: false))
                         })
         }
         .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: reporting?.crewID ?? crewID) }

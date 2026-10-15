@@ -98,6 +98,7 @@ final class TowerReactions {
 
     func close() {
         dismissing?.cancel()
+        barFrame = nil
         hovered = nil
         pickingMore = false
         reacting = nil
@@ -186,8 +187,11 @@ struct TowerReactionLayers: ViewModifier {
                             .onGeometryChange(for: CGSize.self) { $0.size } action: { reactions.barSize = $0 }
                             .position(reactions.barCenter(over: f, gridW: gridW, gridH: gridH))
                             .onAppear {
-                                let r = reactions
-                                r.barFrame = { r.barCenter(over: f, gridW: gridW, gridH: gridH) }
+                                // Weak: the object holding a closure that
+                                // holds the object never let go of either.
+                                reactions.barFrame = { [weak reactions] in
+                                    reactions?.barCenter(over: f, gridW: gridW, gridH: gridH) ?? .zero
+                                }
                             }
                             .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
                     }

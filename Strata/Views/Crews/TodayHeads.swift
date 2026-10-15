@@ -105,17 +105,19 @@ struct TodayHeads: View {
             if let crew { Task { await CrewSharing.invite(crew.id) } }
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                Circle()
-                    .strokeBorder(AppColors.inkTertiary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                    .frame(width: Self.side, height: Self.side)
-                    .overlay {
-                        Image(systemName: "plus")
-                            .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                            .foregroundStyle(AppColors.inkSecondary)
-                    }
-                    .padding(.horizontal, Self.inset)
-                    .padding(.top, Self.inset)
-                Color.clear.frame(height: Self.block)
+                VStack(spacing: GridConstants.spacing / 2) {
+                    Circle()
+                        .strokeBorder(AppColors.inkTertiary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                        .frame(width: Self.side, height: Self.side)
+                        .overlay {
+                            Image(systemName: "plus")
+                                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                                .foregroundStyle(AppColors.inkSecondary)
+                        }
+                        .padding(.horizontal, Self.inset)
+                        .padding(.top, Self.inset)
+                    Color.clear.frame(height: Self.block)
+                }
                 Text("Invite")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
