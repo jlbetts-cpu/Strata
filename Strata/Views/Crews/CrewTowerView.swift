@@ -51,6 +51,9 @@ struct CrewTowerView: View {
     @State private var answeringWin: UUID?
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
+    /// The crew's week, offered from Sunday evening (`CrewWeekReplay`).
+    @State private var weekCard: Replay?
+    @State private var playingWeek: Replay?
     @State private var plansRefresh = 0
     /// A photograph opened from its block, in the same viewer a past day's
     /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
@@ -129,11 +132,13 @@ struct CrewTowerView: View {
             // in, it is a box on the tower below (`CrewPlannedLayer`).
             VStack(spacing: GridConstants.gapTight) {
                 if aloneTip { justYouTip }
+                if let weekCard { weekTip(weekCard) }
                 CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
             }
             .padding(.horizontal, hPad)
             .padding(.top, GridConstants.gapTight)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: weekCard?.id)
         })
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
@@ -288,6 +293,10 @@ struct CrewTowerView: View {
             if (members?.count ?? 0) > 1, aloneTip { withAnimation(GridConstants.cueOut) { aloneTip = false } }
         }
         .task { await considerAloneTip() }
+        .task { await considerWeekCard() }
+        .fullScreenCover(item: $playingWeek) { shown in
+            ReplayView(replay: shown) { playingWeek = nil }
+        }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays live: this crew's changes
         // (`refreshLive`, one small request when nothing moved), since a
@@ -679,6 +688,42 @@ struct CrewTowerView: View {
     }
 
     static let aloneShownKey = "crews.justYouShown"
+
+    /// **"Your week, put together."** (`docs/voice.md`, albums and recaps:
+    /// the warmest the app gets, and still quiet.) The line under it is the
+    /// week's own numbers.
+    private func weekTip(_ replay: Replay) -> some View {
+        // As the tower shows them: nobody blocked, nothing hidden.
+        let people = Set(replay.period.days.flatMap { store.wins(in: crewID, on: $0) }
+            .map(\.senderProfileID)).count
+        let wins = replay.blocks.count
+        return TipCard(title: "Your week, put together.",
+                       message: people > 1 ? "\(wins) wins, from \(people) of you."
+                           : wins == 1 ? "1 win." : "\(wins) wins.",
+                       actionTitle: "Play",
+                       action: {
+                           HapticsEngine.tick()
+                           CrewWeekReplay.markShown(replay, in: crewID)
+                           withAnimation(GridConstants.cueOut) { weekCard = nil }
+                           playingWeek = replay
+                       },
+                       close: {
+                           HapticsEngine.lightTap()
+                           CrewWeekReplay.markShown(replay, in: crewID)
+                           withAnimation(GridConstants.cueOut) { weekCard = nil }
+                       })
+            .accessibilityHint("Plays the crew's week")
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    /// Once a week per crew, after the screen settles, and not over the
+    /// just-you tip.
+    private func considerWeekCard() async {
+        try? await Task.sleep(for: .milliseconds(1200))
+        guard !aloneTip, let replay = CrewWeekReplay.live(in: crewID),
+              !CrewWeekReplay.wasShown(replay, in: crewID) else { return }
+        weekCard = replay
+    }
 
     private func considerAloneTip() async {
         guard let crew, crew.members.count == 1 else { return }

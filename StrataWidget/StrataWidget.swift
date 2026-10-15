@@ -134,6 +134,7 @@ struct TowerProvider: TimelineProvider {
 struct StrataWidgetBundle: WidgetBundle {
     var body: some Widget {
         StrataWidget()
+        CrewWidget()
         LogWinWidget()
         LogWinControl()
     }

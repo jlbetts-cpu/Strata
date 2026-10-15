@@ -88,6 +88,10 @@ final class SocialStore {
     // MARK: State
 
     private(set) var crews: [Crew] = []
+    /// The crews have been read from the cloud at least once this launch.
+    /// Until then `crews` is empty because nothing has been asked, not
+    /// because there are none (`CrewWidgetPublisher` waits on this).
+    private(set) var hasFetchedCrews = false
     private(set) var winsByCrew: [CrewID: [SharedWin]] = [:]
     private(set) var reactionsByCrew: [CrewID: [Reaction]] = [:]
     /// Each crew's day chat as fetched, every day's lines it still holds.
@@ -1976,6 +1980,7 @@ final class SocialStore {
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
             if messagesByCrew != messages { messagesByCrew = messages }
+            if !hasFetchedCrews { hasFetchedCrews = true }
             recordHistory(counted, for: fetched)
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
             recomputeUnread()

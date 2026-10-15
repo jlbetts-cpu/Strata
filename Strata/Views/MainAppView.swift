@@ -2864,6 +2864,10 @@ struct MainAppView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 WidgetPreviewRenderer.run(snapshot: WidgetSnapshot.read())
             }
+            // Later, so the crews have loaded and their heads unpacked.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                WidgetPreviewRenderer.runCrew(snapshot: CrewWidgetSnapshot.read())
+            }
         }
         #endif
         if DebugHarness.reportsLocation {

@@ -261,6 +261,9 @@ struct StrataApp: App {
                 Analytics.shared.didEnterBackground()
             }
             if newPhase == .active { Analytics.shared.didBecomeActive() }
+            // The crew widget's file follows the crews from here on, and is
+            // cleared when crews are off.
+            if newPhase == .active { CrewWidgetPublisher.shared.start() }
             if newPhase == .active, CrewsFlag.isOn {
                 Task { await SocialStore.shared.refresh() }
             }

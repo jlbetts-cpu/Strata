@@ -67,6 +67,33 @@ enum WidgetPreviewRenderer {
         NSLog("[strata-widget] done")
     }
 
+    /// The crew widget, for every crew, small and medium, light and dark.
+    static func runCrew(snapshot: CrewWidgetSnapshot) {
+        for scheme in [ColorScheme.light, .dark] {
+            for (index, crew) in snapshot.crews.enumerated() {
+                for (name, size, family) in sizes where family != .accessoryRectangular {
+                    let view = ZStack {
+                        WidgetGround()
+                        CrewWidgetView(crew: crew, forcedFamily: family)
+                            .padding(16)
+                            .frame(width: size.width, height: size.height)
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .environment(\.colorScheme, scheme)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 3
+                    guard let data = renderer.uiImage?.pngData() else { continue }
+                    let url = FileManager.default
+                        .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                        .appendingPathComponent("crewwidget-\(index)-\(name)-\(scheme == .dark ? "dark" : "light").png")
+                    try? data.write(to: url)
+                }
+            }
+        }
+        NSLog("[strata-widget] crew done")
+    }
+
     static var isRequested: Bool { DebugHarness.argument("-strataRenderWidget") != nil }
 }
 #endif

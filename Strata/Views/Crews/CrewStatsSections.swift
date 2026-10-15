@@ -377,14 +377,7 @@ struct CrewStatsSections: View {
     }
 
     private func playWeek(_ period: ReplayPeriod) {
-        let wins = period.days.flatMap { store.wins(in: crew.id, on: $0) }
-            .sorted { $0.createdAt < $1.createdAt }
-            .map { win in
-                ReplayWin(id: win.winID, dateString: win.crewDay, completedAt: win.createdAt,
-                          title: win.title, category: win.colour, size: win.blockSize,
-                          photo: win.photo.map { .file($0.path) },
-                          crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
-            }
+        let wins = CrewWeekReplay.wins(on: period.days, in: crew.id, store: store)
         guard !wins.isEmpty else { return }
         HapticsEngine.tick()
         play(Replay(period: period, wins: wins))
@@ -393,15 +386,8 @@ struct CrewStatsSections: View {
     private func playDay(_ key: String) {
         guard let period = ReplayPeriod.day(key, name: crew.displayName(excluding: store.me),
                                             calendar: Self.calendar(crew.timeZone)) else { return }
-        let wins = store.wins(in: crew.id, on: key)
-            .map { win in
-                ReplayWin(id: win.winID, dateString: win.crewDay, completedAt: win.createdAt,
-                          title: win.title, category: win.colour, size: win.blockSize,
-                          photo: win.photo.map { .file($0.path) },
-                          crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
-            }
         HapticsEngine.tick()
-        play(Replay(period: period, wins: wins))
+        play(Replay(period: period, wins: CrewWeekReplay.wins(on: [key], in: crew.id, store: store)))
     }
 
     private static func calendar(_ zone: TimeZone) -> Calendar {

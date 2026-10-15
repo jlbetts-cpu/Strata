@@ -1662,6 +1662,19 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("corners-memories")
     }
 
+    /// **The crew's week, offered on its tower** (2026-10-14), and played.
+    func testCrewWeekCard() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3", "-strataCrewWeek", "1"])
+        wait(8)
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if row.exists { row.tap() }
+        wait(4); snap("week-1-card")
+        let play = app.buttons["Play"].firstMatch
+        if play.exists { play.tap() }
+        wait(4); snap("week-2-playing")
+    }
+
     /// **A plan made from the Crews list, in its crew's chat** (the owner,
     /// 2026-10-14: "when you plan does it enter the chat nicely?").
     func testPlanLandsInChat() {
