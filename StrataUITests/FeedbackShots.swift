@@ -480,6 +480,48 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **Does anything leave Wins raised?** (the owner, 2026-10-14: "randomly
+    /// like the tower and all the ui would get higher than they usually
+    /// are"). Wins photographed after each everyday thing: a sheet with the
+    /// keyboard, the camera, a crew's chat with the keyboard, the plan.
+    func testLayoutStaysPut() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedWins", "4",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataStartTab", "tower"])
+        wait(8); snap("put-0-start")
+        // Add a win, keyboard up, cancelled.
+        let slot = app.buttons["Log a win"].firstMatch
+        if slot.exists { slot.press(forDuration: 0.08) }
+        wait(2.5)
+        app.typeText("x")
+        wait(1)
+        let cancel = app.buttons["Cancel"].firstMatch
+        if cancel.exists { cancel.tap() }
+        let discard = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Discard'")).firstMatch
+        if discard.waitForExistence(timeout: 2) { discard.tap() }
+        wait(2.5); snap("put-1-after-add")
+        // The camera and back.
+        app.tabBars.buttons["Camera"].firstMatch.tap(); wait(3)
+        app.tabBars.buttons["Wins"].firstMatch.tap(); wait(2.5); snap("put-2-after-camera")
+        // A crew's chat with the keyboard, then back.
+        app.tabBars.buttons["Crews"].firstMatch.tap(); wait(2.5)
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if row.exists { row.tap() }
+        wait(3)
+        let field = app.buttons["Write a message"].firstMatch
+        if field.exists { field.press(forDuration: 0.05) }
+        wait(2.5)
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+        wait(2)
+        let back = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch
+        if back.exists { back.tap() }
+        wait(2)
+        app.tabBars.buttons["Wins"].firstMatch.tap(); wait(2.5); snap("put-3-after-chat")
+        // The plan, keyboard up, then away.
+        app.buttons["Plan"].firstMatch.tap(); wait(3)
+        app.swipeDown(velocity: .fast); wait(2.5); snap("put-4-after-plan")
+    }
+
     /// **Every choice on the chat's +, opened** (the owner, 2026-10-14: "make
     /// sure the + button all the functions actually are useful and work
     /// properly").
