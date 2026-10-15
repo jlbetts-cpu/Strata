@@ -296,11 +296,13 @@ struct WhenRow: View {
                             .iconSize(GridConstants.iconChevron, relativeTo: .caption2, weight: .semibold)
                     }
                     .foregroundStyle(AppColors.inkSecondary)
-                    .padding(.horizontal, GridConstants.gapItem)
-                    .frame(height: 34)
-                    .background(Capsule(style: .continuous).fill(AppColors.quietFill))
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    // **The glass it opens into** (the consistency pass,
+                    // 2026-10-15): a flat grey chip that became a glass bar
+                    // when pressed read as two different things.
+                    .frame(height: GlassChoiceBar<Int>.height)
+                    .glassCapsule(onPage: true)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.pressWord)
                 .accessibilityLabel("Plan for later")

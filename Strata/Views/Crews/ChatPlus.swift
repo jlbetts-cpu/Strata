@@ -175,7 +175,8 @@ struct GroupPlanSheet: View {
                 }
                 DayComposer(canSend: !words.isEmpty && when != nil && crews?.wrappedValue.isEmpty != true,
                             onSend: sendNow) {
-                    TextField(scope.prompt(), text: $title)
+                    TextField(scope.prompt(), text: $title,
+                              prompt: Text(scope.prompt()).foregroundStyle(AppColors.inkTertiary))
                         .focused($writing)
                         .submitLabel(.send)
                         .onSubmit(sendNow)

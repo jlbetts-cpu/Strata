@@ -77,13 +77,12 @@ struct WinTrendSection: View {
                 // the card growing once, at the moment there is a chart to
                 // show, is the right moment for it to change.
                 if summary.kind != .empty {
-                    Picker("Wins per", selection: $unitRaw) {
-                        ForEach(WinTrend.Unit.allCases) { option in
-                            Text(option.title).tag(option.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    // The app's one bar for one-of-a-few (`GlassChoiceBar`).
+                    GlassChoiceBar(items: WinTrend.Unit.allCases.map(\.rawValue), chosen: unitRaw,
+                                   title: { WinTrend.Unit(rawValue: $0)?.title ?? $0 },
+                                   spoken: { WinTrend.Unit(rawValue: $0)?.title ?? $0 },
+                                   choose: { unitRaw = $0 }, fills: true)
+                    .accessibilityLabel("Wins per")
                 }
 
                 // `GridConstants.spacing`, and it was a hand-typed 0.

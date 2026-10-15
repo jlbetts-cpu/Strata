@@ -945,8 +945,9 @@ struct InkSheetToolbar: ToolbarContent {
     private var confirmButton: some View {
         Button(action: onConfirm) { Text(confirm).sheetAction() }
             .buttonStyle(.pressWord)
+            // `sheetAction` dims a disabled word itself; a second dim made
+            // Doodle's Send fainter than every other sheet's (2026-10-15).
             .disabled(confirmDisabled)
-            .opacity(confirmDisabled ? 0.4 : 1)
     }
 }
 

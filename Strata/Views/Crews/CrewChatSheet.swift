@@ -1113,7 +1113,11 @@ struct CrewChatSheet: View {
                     if atRest { reopen?() }
                     withAnimation(GridConstants.motionSnappy) { showsPlus.toggle() }
                 }
-                TextField("Message", text: draftField, axis: .vertical)
+                // The hint in the resting bar's own ink, so the word does not
+                // change colour as the chat rises (the consistency pass).
+                TextField("Message", text: draftField,
+                          prompt: Text(CrewChatWords.placeholder).foregroundStyle(AppColors.inkTertiary),
+                          axis: .vertical)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkPrimary)
                     .lineLimit(1...5)

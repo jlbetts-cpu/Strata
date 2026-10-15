@@ -433,7 +433,9 @@ struct MemoriesView: View {
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
                 case .settings:
+                    // The app's glass back, as every page pushed here has.
                     SettingsView(onResetAllData: { resetAllData?() ?? false })
+                        .glassBackButton()
                 case .map:
                     MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, style: mapStyle) { key in
                         path.append(.place(key))

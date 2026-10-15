@@ -527,6 +527,7 @@ struct SettingsView: View {
             Section {
                 NavigationLink {
                     MonthDrawingSettingsView()
+                        .glassBackButton()
                 } label: {
                     Label {
                         Text("Month Drawing")
@@ -540,6 +541,7 @@ struct SettingsView: View {
                 if !removedAlbums.isEmpty {
                     NavigationLink {
                         RemovedAlbumsView()
+                            .glassBackButton()
                     } label: {
                         Label {
                             Text("Removed Albums")
@@ -826,6 +828,7 @@ struct SettingsView: View {
                 // beside the privacy page because both say what the app is.
                 NavigationLink {
                     WhyItWorksView()
+                        .glassBackButton()
                 } label: {
                     Label {
                         Text(WhyItWorksView.title)
@@ -836,6 +839,7 @@ struct SettingsView: View {
                 }
                 NavigationLink {
                     PrivacyPolicyView()
+                        .glassBackButton()
                 } label: {
                     Label {
                         Text("Privacy")

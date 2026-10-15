@@ -19,6 +19,10 @@ struct GlassChoiceBar<Item: Hashable>: View {
     /// Something is there: a dot under the word, never a number.
     var dot: (Item) -> Bool = { _ in false }
     var choose: (Item) -> Void
+    /// **Equal shares of the width, nothing scrolls**: the segmented shape,
+    /// for a few words that always fit (Quick, Regular, Deep; Day, Week,
+    /// Month), so every choice of one-of-a-few in the app is this one bar.
+    var fills = false
 
     @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,6 +31,22 @@ struct GlassChoiceBar<Item: Hashable>: View {
     private static var inset: CGFloat { 4 }
 
     var body: some View {
+        if fills {
+            HStack(spacing: 0) {
+                ForEach(items, id: \.self) { item in
+                    word(item).frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, Self.inset)
+            .frame(height: Self.height)
+            .clipShape(Capsule(style: .continuous))
+            .glassCapsule(onPage: true, interactive: false)
+        } else {
+            scrolling
+        }
+    }
+
+    private var scrolling: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
@@ -62,7 +82,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
                 .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkSecondary)
                 .lineLimit(1)
                 .padding(.horizontal, GridConstants.gapItem)
-                .frame(minWidth: 44)
+                .frame(minWidth: 44, maxWidth: fills ? .infinity : nil)
                 .frame(height: Self.height - Self.inset * 2)
                 .overlay(alignment: .bottom) {
                     Circle()

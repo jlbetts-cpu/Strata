@@ -817,7 +817,8 @@ struct DaySheet: View {
                 journalSuggest.transition(.opacity)
             }
             DayComposer(canSend: DayComposing.hasWords(journalDraft), onSend: sendParagraph) {
-                TextField(invitation, text: $journalDraft, axis: .vertical)
+                TextField(invitation, text: $journalDraft,
+                          prompt: Text(invitation).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
                     .lineLimit(1...5)
                     .focused($journalComposing)
             } leading: {

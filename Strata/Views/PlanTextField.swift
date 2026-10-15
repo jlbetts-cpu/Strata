@@ -85,7 +85,10 @@ struct PlanTextField: UIViewRepresentable {
     func updateUIView(_ field: Field, context: Context) {
         context.coordinator.parent = self
         if field.text != text { field.text = text }
-        field.placeholder = placeholder
+        // The hint in the app's quiet ink, as every writing bar's (the
+        // consistency pass, 2026-10-15): the system's grey measured 1.73:1.
+        field.attributedPlaceholder = NSAttributedString(
+            string: placeholder, attributes: [.foregroundColor: UIColor(AppColors.inkTertiary)])
         // A finished line is quieter, but never struck through: this is a list
         // of what you did, and crossing it out reads as cancelled.
         //

@@ -1841,19 +1841,16 @@ struct AddWinSheet: View {
         // The haptic and the shared transaction stay: changing this resizes
         // the photo well and moves everything under it, and that has to be ONE
         // animation or the parts look like they are moving separately.
-        Picker("Size", selection: Binding(
-            get: { size },
-            set: { chosen in
-                guard chosen != size else { return }
-                HapticsEngine.tick()
-                withAnimation(GridConstants.slotSnap) { size = chosen }
-            })) {
-            ForEach([BlockSize.small, .medium, .hard], id: \.self) { option in
-                Text(option.effortLabel).tag(option)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        // **On glass, the bar the When row and the plan's days are** (the
+        // owner, 2026-10-15: "if someone goes through a flow very similar it
+        // should feel the same"), its words in equal shares. The haptic and
+        // the one shared transaction stay (`GlassChoiceBar` ticks).
+        GlassChoiceBar(items: [BlockSize.small, .medium, .hard], chosen: size,
+                       title: { $0.effortLabel }, spoken: { $0.effortLabel },
+                       choose: { chosen in
+                           withAnimation(GridConstants.slotSnap) { size = chosen }
+                       }, fills: true)
+        .accessibilityLabel("Size")
     }
 
     /// **The red the delete button is tinted, and it is TWO reds** (2026-10-01).
