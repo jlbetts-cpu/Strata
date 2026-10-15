@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// **What the chat reads off a line** (2026-10-14): a win said in it, words
 /// that can be copied, when a time stands above it, whether the thread
@@ -74,5 +75,64 @@ nonisolated enum ChatClears {
                                                matchingPolicy: .nextTime) else { return midnight }
         let style = Date.FormatStyle(date: .omitted, time: .shortened, timeZone: here)
         return "Today's chat clears at \(next.formatted(style))."
+    }
+}
+
+/// **A line of only emoji draws large, with no bubble** (the chat research,
+/// 2026-10-15, item 6), as Messages draws one to three emoji: the emoji is
+/// the whole message, and a bubble round it made it read as text.
+nonisolated enum ChatEmoji {
+    static let most = 3
+
+    static func isBig(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let glyphs = trimmed.filter { !$0.isWhitespace }
+        guard glyphs.count <= most else { return false }
+        return glyphs.allSatisfy { character in
+            character.unicodeScalars.contains { $0.properties.isEmojiPresentation }
+                || (character.unicodeScalars.count > 1 && character.unicodeScalars.first?.properties.isEmoji == true)
+        }
+    }
+}
+
+/// **Links in a line open** (the chat research, 2026-10-15, item 5): found
+/// by the system's own detector and handed to Safari by a tap, with no
+/// preview card fetched for them, so nothing about a line is ever asked of
+/// a website.
+nonisolated enum ChatLinks {
+    static func attributed(_ text: String) -> AttributedString {
+        var out = AttributedString(text)
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return out }
+        let ns = text as NSString
+        for match in detector.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard let url = match.url, url.scheme == "https" || url.scheme == "http",
+                  let range = Range(match.range, in: text),
+                  let lower = AttributedString.Index(range.lowerBound, within: out),
+                  let upper = AttributedString.Index(range.upperBound, within: out) else { continue }
+            out[lower..<upper].link = url
+            out[lower..<upper].underlineStyle = .single
+        }
+        return out
+    }
+
+    static func hasLink(_ text: String) -> Bool {
+        attributed(text).runs.contains { $0.link != nil }
+    }
+}
+
+/// **Reply starters on a friend's win** (the social research, 2026-10-15,
+/// item 2): a question about the win itself is what makes sharing good news
+/// pay off (Gable 2004, active and interested responding), and a personal
+/// line moves a friendship where a one-tap reaction barely does (Burke and
+/// Kraut 2016). Three starters under the win's quote, that fill the field
+/// and never send themselves: the words are yours to change.
+nonisolated enum ReplyStarters {
+    static func lines(title: String, mine: Bool) -> [String] {
+        guard !mine else { return [] }
+        // A win's title is past tense ("Shipped it", "Called Mom"), so it
+        // cannot be put into a question ("How was Shipped it?"). The quote
+        // over the field already says which win; the question asks about it.
+        return ["How did it go?", "Doing this tomorrow", "🔥"]
     }
 }

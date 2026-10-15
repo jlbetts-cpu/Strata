@@ -416,7 +416,13 @@ struct ChatPicture: View {
                         .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: caption.isEmpty ? 0 : GridConstants.radiusSurface, style: .continuous))
                 } else {
-                    Color.clear.frame(width: Self.side, height: Self.side)
+                    // **A quiet fill at the picture's place while it loads**
+                    // (the chat research, 2026-10-15, item 3): an empty
+                    // frame drew nothing, then the thread moved when the
+                    // picture landed in it.
+                    RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+                        .fill(AppColors.quietFill)
+                        .frame(width: Self.side, height: Self.side)
                 }
             }
             .frame(maxWidth: Self.side, maxHeight: Self.side * 4 / 3)

@@ -56,6 +56,9 @@ struct ChatReactionChips: View {
         return out
     }
 
+    /// The chip whose names are showing, from a tap on it.
+    @State private var naming: String?
+
     var body: some View {
         let chips = Self.chips(reactions, me: me)
         if !chips.isEmpty {
@@ -78,6 +81,24 @@ struct ChatReactionChips: View {
                             .fill(chip.mine ? AppColors.chosenFill : AppColors.quietFill)
                     }
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    // **A tap says who** (the chat research, 2026-10-15, item
+                    // 4): only VoiceOver could tell who chose what. The names,
+                    // in a small popover over the chip, as Messages shows who
+                    // tapped back.
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        HapticsEngine.lightTap()
+                        naming = chip.id
+                    }
+                    .popover(isPresented: Binding(get: { naming == chip.id }, set: { if !$0 { naming = nil } })) {
+                        Text(chip.people.map(name).joined(separator: ", "))
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, GridConstants.gapItem)
+                            .padding(.vertical, GridConstants.gapTight)
+                            .presentationCompactAdaptation(.popover)
+                    }
                 }
             }
             .accessibilityElement(children: .ignore)

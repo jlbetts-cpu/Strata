@@ -138,6 +138,8 @@ struct CrewChatSheet: View {
     /// How long a line is held before its bar opens: shorter than the
     /// system's half second, which the context menu it replaced waited.
     private static let holdToReact: Double = 0.35
+    /// An emoji-only line's size: Messages' large emoji, a size a glance reads.
+    private static let bigEmoji: CGFloat = 44
 
     /// Opened by pressing the resting bar's field (`ChatRestBar`): the
     /// keyboard comes up with the thread.
@@ -976,6 +978,9 @@ struct CrewChatSheet: View {
         // A win said in the chat with no photo: its title, once, behind the
         // quote's mark. Drawn as a reply it read "↪ Gym / Gym".
         let saysWin = quote != nil && store.isWinLine(message)
+        // Only emoji, one to three of them, and nothing quoted or drawn:
+        // large and bare, as Messages draws it (`ChatEmoji`).
+        let big = quote == nil && message.sketch == nil && ChatEmoji.isBig(message.text)
         return VStack(alignment: .leading, spacing: GridConstants.spacing) {
             if let quote, !saysWin {
                 // U+FE0E: the arrow as type, never the emoji tile it draws as bare.
@@ -990,18 +995,27 @@ struct CrewChatSheet: View {
                     .frame(maxWidth: Self.doodleSide, maxHeight: Self.doodleSide * 3 / 4)
             }
             if !message.text.isEmpty {
-                Text(saysWin ? "\u{21AA}\u{FE0E} \(message.text)" : message.text)
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
+                if big {
+                    Text(message.text)
+                        .font(.system(size: Self.bigEmoji))
+                } else {
+                    // Links open in Safari, in the line's own ink, underlined.
+                    Text(saysWin ? AttributedString("\u{21AA}\u{FE0E} \(message.text)") : ChatLinks.attributed(message.text))
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(ink)
+                        .tint(ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
             }
         }
-        .padding(.horizontal, GridConstants.gapLabel)
-        .padding(.vertical, GridConstants.gapItem)
+        .padding(.horizontal, big ? 0 : GridConstants.gapLabel)
+        .padding(.vertical, big ? 0 : GridConstants.gapItem)
         .background {
-            RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                .fill(mine ? AppColors.inkPrimary : AppColors.quietFill)
+            if !big {
+                RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+                    .fill(mine ? AppColors.inkPrimary : AppColors.quietFill)
+            }
         }
         .contentShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
     }
@@ -1073,6 +1087,13 @@ struct CrewChatSheet: View {
                     // A fade, so nothing travels against the keys (fix 6).
                     .transition(.opacity)
             } else if let replyingToWin, let win = store.wins(in: crewID).first(where: { $0.winID == replyingToWin }) {
+                // Starters for a friend's win, while the field is empty
+                // (`ReplyStarters`): a press fills the field, never sends.
+                let starters = ReplyStarters.lines(title: win.title, mine: win.senderProfileID == store.me)
+                if draft.isEmpty, !starters.isEmpty {
+                    starterRow(starters)
+                        .transition(.opacity)
+                }
                 quoteRow("\u{21AA}\u{FE0E} \(win.title)") {
                     withAnimation(GridConstants.motionSnappy) { self.replyingToWin = nil }
                 }
@@ -1132,6 +1153,35 @@ struct CrewChatSheet: View {
         }
     }
 
+    /// The starters, as chips in a row that scrolls, the plus row's own
+    /// quiet capsule.
+    private func starterRow(_ starters: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: GridConstants.gapTight) {
+                ForEach(starters, id: \.self) { line in
+                    Button {
+                        HapticsEngine.lightTap()
+                        draft = line
+                        writing = true
+                    } label: {
+                        Text(line)
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .padding(.horizontal, GridConstants.gapItem)
+                            .frame(height: 34)
+                            .background(Capsule(style: .continuous).fill(AppColors.quietFill))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressWord)
+                    .accessibilityHint("Puts these words in the message, to change or send.")
+                }
+            }
+            .padding(.horizontal, hPad)
+        }
+        .edgeFade()
+    }
+
     /// The one quote over the field, for a line or a win.
     private func quoteRow(_ words: String, drop: @escaping () -> Void) -> some View {
         HStack(spacing: GridConstants.gapTight) {
@@ -1178,6 +1228,8 @@ struct CrewChatSheet: View {
     private func send() {
         let text = draft
         guard !isEmpty else { return }
+        // The press is felt, as Messages' send is.
+        HapticsEngine.lightTap()
         draft = ""
         let answering = replyingTo
         let answeringWin = replyingToWin
