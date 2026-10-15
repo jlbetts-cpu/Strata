@@ -44,6 +44,40 @@ enum CrewWeekReplay {
         return wins.isEmpty ? nil : Replay(period: period, wins: wins)
     }
 
+    /// **Catch Up** (the social research, 2026-10-15, item 6): back in a
+    /// crew after a whole day or more away, the days you missed, built back
+    /// up. It never counts the days you were gone: the card says what is
+    /// there, not how long you were not. At most the last seven, and only
+    /// days the crew still holds.
+    static func missed(in crewID: CrewID, store: SocialStore = .shared) -> Replay? {
+        guard let crew = store.crew(crewID),
+              let last = UserDefaults.standard.string(forKey: openedKey(crewID)) else { return nil }
+        let zone = crew.timeZone
+        let today = CrewDay.string(for: store.now(), in: zone)
+        var days: [String] = []
+        var day = CrewDay.day(today, offsetBy: -1, in: zone)
+        while let d = day, d > last, days.count < 7 {
+            days.insert(d, at: 0)
+            day = CrewDay.day(d, offsetBy: -1, in: zone)
+        }
+        guard let first = days.first, let start = CrewDay.start(of: first, in: zone) else { return nil }
+        let wins = wins(on: days, in: crewID, store: store)
+        guard !wins.isEmpty else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let period = ReplayPeriod(kind: .week, days: days, firstDay: start, calendar: calendar,
+                                  name: crew.displayName(excluding: store.me))
+        return Replay(period: period, wins: wins)
+    }
+
+    /// The crew's day you last had it open, for `missed`.
+    static func noteOpened(_ crewID: CrewID, store: SocialStore = .shared) {
+        guard let crew = store.crew(crewID) else { return }
+        UserDefaults.standard.set(CrewDay.string(for: store.now(), in: crew.timeZone), forKey: openedKey(crewID))
+    }
+
+    private static func openedKey(_ crewID: CrewID) -> String { "crews.lastOpened.\(crewID.rawValue)" }
+
     /// Whether the card for this crew's week was already shown and put away.
     static func wasShown(_ replay: Replay, in crewID: CrewID) -> Bool {
         (UserDefaults.standard.stringArray(forKey: shownKey) ?? []).contains(key(replay, crewID))

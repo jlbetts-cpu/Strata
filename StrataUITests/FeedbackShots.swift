@@ -1666,7 +1666,7 @@ final class FeedbackShots: XCTestCase {
     /// whole height to write, a block opened under it, and back to the list.
     func testNativeChat() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
-                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataPerfProbe"])
         wait(9); snap("native-0-rest")
         func drag(_ from: CGFloat, _ to: CGFloat, speed: CGFloat = 900) {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
@@ -1699,6 +1699,23 @@ final class FeedbackShots: XCTestCase {
         let back = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch
         if back.exists { back.tap() }
         wait(2); snap("native-6-list")
+    }
+
+    /// The native chat with the crew's card, and swiped back.
+    func testNativeChatEdges() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        let title = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Roommates'")).firstMatch
+        print("PLANNING-edges: title \(title.exists)")
+        if title.exists { title.tap() }
+        wait(2.5); snap("edges-1-info")
+        app.swipeDown(velocity: .fast); wait(2)
+        snap("edges-2-back-from-info")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)),
+                   withVelocity: XCUIGestureVelocity(1200), thenHoldForDuration: 0)
+        wait(2); snap("edges-3-swiped")
     }
 
     /// The resting chat lifted by a drag on its line rather than its grabber.

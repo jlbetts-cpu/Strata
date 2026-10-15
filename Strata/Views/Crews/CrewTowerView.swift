@@ -66,6 +66,8 @@ struct CrewTowerView: View {
     /// **The crew widget, said once** (the second round of research,
     /// 2026-10-15: nothing in the app mentioned it).
     @State private var widgetTip = false
+    /// The days missed while away (`CrewWeekReplay.missed`), offered once.
+    @State private var catchUp: Replay?
     @State private var playingWeek: Replay?
     @State private var plansRefresh = 0
     /// A photograph opened from its block, in the same viewer a past day's
@@ -147,7 +149,7 @@ struct CrewTowerView: View {
             // in, it is a box on the tower below (`CrewPlannedLayer`).
             VStack(spacing: GridConstants.gapTight) {
                 if aloneTip { justYouTip }
-                if let weekCard { weekTip(weekCard) } else if widgetTip { crewWidgetTip }
+                if let catchUp { catchUpTip(catchUp) } else if let weekCard { weekTip(weekCard) } else if widgetTip { crewWidgetTip }
                 CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
             }
             .padding(.horizontal, hPad)
@@ -155,6 +157,7 @@ struct CrewTowerView: View {
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: weekCard?.id)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: widgetTip)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: catchUp?.id)
         })
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
@@ -343,6 +346,7 @@ struct CrewTowerView: View {
             if (members?.count ?? 0) > 1, aloneTip { withAnimation(GridConstants.cueOut) { aloneTip = false } }
         }
         .task { await considerAloneTip() }
+        .task { await considerCatchUp() }
         .task { await considerWeekCard() }
         .task { await considerWidgetTip() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
@@ -849,6 +853,35 @@ struct CrewTowerView: View {
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
     }
 
+    /// "While you were away.": the days you missed, never how many.
+    private func catchUpTip(_ replay: Replay) -> some View {
+        let wins = replay.blocks.count
+        return TipCard(title: "While you were away.",
+                       message: wins == 1 ? "1 win from your crew." : "\(wins) wins from your crew.",
+                       actionTitle: "Catch Up",
+                       action: {
+                           HapticsEngine.tick()
+                           withAnimation(GridConstants.cueOut) { catchUp = nil }
+                           playingWeek = replay
+                       },
+                       close: {
+                           HapticsEngine.lightTap()
+                           withAnimation(GridConstants.cueOut) { catchUp = nil }
+                       })
+            .accessibilityHint("Plays the days you missed")
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    /// Read as the crew opens, then the day is noted as opened, so it is
+    /// offered once for each time away.
+    private func considerCatchUp() async {
+        let found = CrewWeekReplay.missed(in: crewID)
+        CrewWeekReplay.noteOpened(crewID)
+        guard let found, !aloneTip else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { catchUp = found }
+    }
+
     static let widgetTipKey = "crews.widgetTipShown"
 
     /// "Your crew, on your Home Screen.": once ever, the first time a
@@ -867,7 +900,7 @@ struct CrewTowerView: View {
     private func considerWidgetTip() async {
         guard !UserDefaults.standard.bool(forKey: Self.widgetTipKey) else { return }
         try? await Task.sleep(for: .milliseconds(1600))
-        guard !aloneTip, weekCard == nil,
+        guard !aloneTip, weekCard == nil, catchUp == nil,
               store.today(in: crewID).contains(where: { $0.senderProfileID != store.me }) else { return }
         UserDefaults.standard.set(true, forKey: Self.widgetTipKey)
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { widgetTip = true }
@@ -879,7 +912,7 @@ struct CrewTowerView: View {
     /// just-you tip.
     private func considerWeekCard() async {
         try? await Task.sleep(for: .milliseconds(1200))
-        guard !aloneTip, let replay = CrewWeekReplay.live(in: crewID),
+        guard !aloneTip, catchUp == nil, let replay = CrewWeekReplay.live(in: crewID),
               !CrewWeekReplay.wasShown(replay, in: crewID) else { return }
         weekCard = replay
     }
