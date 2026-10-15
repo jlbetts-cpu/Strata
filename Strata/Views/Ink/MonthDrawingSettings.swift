@@ -63,6 +63,10 @@ struct MonthDrawingSettingsView: View {
             // change"), shown here as he drew it, standing still.
             OctoberDance(line: nil, height: 220, still: true)
                 .accessibilityLabel("The month's drawing")
+        } else if UIImage(named: "Month" + MonthName.of(month) + "TurkeyBody") != nil {
+            // November's is his running turkey, shown standing as he drew it.
+            NovemberRun(line: nil, height: 220, still: true)
+                .accessibilityLabel("The month's drawing")
         } else if let art = UIImage(named: "Month" + MonthName.of(month)) {
             Image(uiImage: art)
                 .renderingMode(.template)

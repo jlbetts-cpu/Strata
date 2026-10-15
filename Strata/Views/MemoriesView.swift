@@ -890,6 +890,13 @@ struct MemoriesView: View {
                              onRest: Self.artPlayed)
                     .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
                                            originalLine: Self.monthLine[month]))
+            } else if UIImage(named: "Month" + month + "TurkeyBody") != nil {
+                // **November: the turkey runs** (the owner, 2026-10-14).
+                // `NovemberRun` has how.
+                NovemberRun(line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: height,
+                            onRest: Self.artPlayed)
+                    .modifier(MonthArtHold(month: key, hasOwn: false, editing: $drawingMonth,
+                                           originalLine: Self.monthLine[month]))
             } else if let art = UIImage(named: "Month" + month) {
                 Illustration(art: art, line: MonthLines.shared.line(for: key) ?? Self.monthLine[month], height: height,
                              motion: UIImage(named: "Month" + month + "Crow").map {
@@ -943,8 +950,11 @@ struct MemoriesView: View {
     /// "Winning is better together", and then for one that motivates ("can
     /// it be like an actually motivating quote"); his pick, "Small wins
     /// still count". A hold on the drawing changes it (`MonthLines`).
+    /// November's runs with his turkey toward Thanksgiving: the month for
+    /// being thankful, said about the thing this app keeps.
     static let monthLine: [String: String] = [
         "October": "Small wins still count",
+        "November": "Thankful for the small wins",
     ]
 
     /// The chosen month's photographs, as one untitled section.
