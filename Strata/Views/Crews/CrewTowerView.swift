@@ -63,6 +63,9 @@ struct CrewTowerView: View {
     @State private var aloneTip = false
     /// The crew's week, offered from Sunday evening (`CrewWeekReplay`).
     @State private var weekCard: Replay?
+    /// **The crew widget, said once** (the second round of research,
+    /// 2026-10-15: nothing in the app mentioned it).
+    @State private var widgetTip = false
     @State private var playingWeek: Replay?
     @State private var plansRefresh = 0
     /// A photograph opened from its block, in the same viewer a past day's
@@ -144,13 +147,14 @@ struct CrewTowerView: View {
             // in, it is a box on the tower below (`CrewPlannedLayer`).
             VStack(spacing: GridConstants.gapTight) {
                 if aloneTip { justYouTip }
-                if let weekCard { weekTip(weekCard) }
+                if let weekCard { weekTip(weekCard) } else if widgetTip { crewWidgetTip }
                 CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
             }
             .padding(.horizontal, hPad)
             .padding(.top, GridConstants.gapTight)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: weekCard?.id)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: widgetTip)
         })
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
@@ -340,6 +344,7 @@ struct CrewTowerView: View {
         }
         .task { await considerAloneTip() }
         .task { await considerWeekCard() }
+        .task { await considerWidgetTip() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays live: this crew's changes
         // (`refreshLive`, one small request when nothing moved), since a
@@ -842,6 +847,32 @@ struct CrewTowerView: View {
                        })
             .accessibilityHint("Plays the crew's week")
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    static let widgetTipKey = "crews.widgetTipShown"
+
+    /// "Your crew, on your Home Screen.": once ever, the first time a
+    /// friend's win stands on a crew's tower, and never over another tip.
+    private var crewWidgetTip: some View {
+        TipCard(title: "Your crew, on your Home Screen.",
+                message: "Hold the Home Screen, tap Edit, then Add Widget, and choose Some Wins.",
+                mark: "TipPersonPlus",
+                close: {
+                    HapticsEngine.lightTap()
+                    withAnimation(GridConstants.cueOut) { widgetTip = false }
+                })
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    private func considerWidgetTip() async {
+        guard !UserDefaults.standard.bool(forKey: Self.widgetTipKey) else { return }
+        try? await Task.sleep(for: .milliseconds(1600))
+        guard !aloneTip, weekCard == nil,
+              store.today(in: crewID).contains(where: { $0.senderProfileID != store.me }) else { return }
+        UserDefaults.standard.set(true, forKey: Self.widgetTipKey)
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { widgetTip = true }
+        try? await Task.sleep(for: .seconds(14))
+        if widgetTip { withAnimation(GridConstants.cueOut) { widgetTip = false } }
     }
 
     /// Once a week per crew, after the screen settles, and not over the
