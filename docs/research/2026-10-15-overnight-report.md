@@ -1,5 +1,7 @@
 # The night of 2026-10-15: what was researched, what was built, what is yours
 
+**Build 145 is in TestFlight for you, with these notes. It's not with Friends: that's your call.**
+
 **Your brief:** a native chat pull-up, Memories as your profile with a wins score, a fuller Crews page, a chat people would rather use than iMessage, matching icons, Liquid Glass consistency across look-alike flows, everything to the letter of the law, and research written down as it went. Everything below was built, photographed and checked in light and dark, and the unit suite passes.
 
 ## Research written tonight (docs/research/)
