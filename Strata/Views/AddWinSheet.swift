@@ -769,6 +769,22 @@ struct AddWinSheet: View {
         }
     }
 
+    /// **Where a new win went, said once** (2026-10-15): a win sent to
+    /// friends left the sheet without a word, and seeing your people reached
+    /// is the point of sending. The words the send-earlier path already says,
+    /// and its Undo: the win comes back from those crews and stays yours.
+    private func sayWhereItWent(_ winID: UUID) {
+        guard CrewsFlag.isOn, editingLog == nil, !crewChoice.isEmpty else { return }
+        let store = SocialStore.shared
+        let crews = crewChoice
+        let name = crews.count == 1
+            ? (crews.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? "your crew")
+            : "\(crews.count) crews"
+        UndoLine.shared.show("Sent to \(name)", undo: {
+            Task { for crew in crews { await store.withdraw(winID: winID, from: crew) } }
+        })
+    }
+
     private func sendEarlier(_ log: HabitLog) {
         guard let crewID = planCrew else { return }
         let holding = SocialStore.shared.crews(holding: log.id)
@@ -2159,6 +2175,7 @@ struct AddWinSheet: View {
             // The crew a group plan ticked is this win's, not your usual.
             if initialCrews == nil { CrewChoice.save(groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
+            sayWhereItWent(log.id)
         }
         finish(win.habit)
     }

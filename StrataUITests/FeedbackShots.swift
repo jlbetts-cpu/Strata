@@ -1718,6 +1718,20 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("edges-3-swiped")
     }
 
+    /// A new win sent to a crew says where it went (2026-10-15).
+    func testSentToCrew() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
+                          "-strataSeedWins", "2", "-strataOpenSheet", "add"])
+        wait(7)
+        app.typeText("Called grandma")
+        let crew = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if crew.exists { crew.tap() }
+        wait(1); snap("sent-0-sheet")
+        let add = app.buttons["Add"].firstMatch
+        if add.exists { add.tap() }
+        wait(2.5); snap("sent-1-line")
+    }
+
     /// Memories as the profile, at rest and scrolled (2026-10-15). A pinned
     /// month header under the bar was tried here and looked worse: a slab of
     /// white at rest, and the calendar showing through above it when pinned.
