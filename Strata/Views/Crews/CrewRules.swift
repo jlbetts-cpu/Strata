@@ -34,7 +34,10 @@ struct CrewRulesSheet: View {
             // a day, a way to block), split into a title and its detail.
             FeatureList(rows: [
                 ("MarkCheck", "Your own wins", "Send your own wins and your own photos."),
-                ("MarkSlash", "Nothing hurtful", "Nothing hateful, sexual, violent or cruel. Ever."),
+                // **Zero tolerance, said in those words** (the compliance
+                // audit, 2026-10-15, §3.5): what App Review's guideline 1.2
+                // asks the terms to say, of content and of people.
+                ("MarkSlash", "Nothing hurtful", "Zero tolerance for anything hateful, sexual, violent or cruel, or for anyone who abuses others."),
                 ("MarkAlert", "Report it", "Every report is looked at within a day, and whatever or whoever broke these rules is removed."),
                 ("MarkLock", "Block anyone", "Any time. They are not told."),
             ])
@@ -49,6 +52,12 @@ struct CrewRulesSheet: View {
                 }
 
                 QuietWord("Not Now", fills: true) { onNotNow() }
+                // The rules in full, a press away from agreeing to them (the
+                // compliance audit, 2026-10-15, §3.5).
+                Link("Terms of Use", destination: Support.termsURL)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .frame(minHeight: 44)
             }
         }
         .padding(.horizontal, GridConstants.horizontalPadding)

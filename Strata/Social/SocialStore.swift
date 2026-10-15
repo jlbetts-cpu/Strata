@@ -651,6 +651,7 @@ final class SocialStore {
     func createCrew(name: String, photoJPEG: Data? = nil) async throws -> (crew: Crew, invite: URL) {
         try requireOn()
         guard joinGate() == .open else { throw CrewError.notReady }
+        guard CrewWords.isAcceptable(name) else { throw CrewError.wordsRefused }
         await cloud.prepare()
         guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
         // The photo first, so a refused one stops the crew before its zone
@@ -773,6 +774,7 @@ final class SocialStore {
     func rename(_ crewID: CrewID, to name: String) async throws {
         try requireOn()
         guard var crew = crew(crewID) else { throw CrewError.unknownCrew }
+        guard CrewWords.isAcceptable(name) else { throw CrewError.wordsRefused }
         crew.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         replace(crew)
         // Held over any refresh until it is saved: the live sync every few
@@ -1189,6 +1191,9 @@ final class SocialStore {
                 !message.isToss
                     && message.crewDay == today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
+                    // Hidden for you (`hide`): a line's id shares the set a
+                    // win's does, synced the same way to your other phones.
+                    && !hiddenWins.contains(message.messageID)
                     && (message.text.isEmpty || message.isStrip || CrewWords.isAcceptable(message.text))
                     && (message.senderProfileID == me || message.sketch.map(photoIsShown) ?? true)
                     // A line of yours deleted a moment ago, while its Undo stands.

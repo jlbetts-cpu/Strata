@@ -34,6 +34,9 @@ struct CrewWidgetView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(crew.name)
                         .font(.system(size: 15, weight: .semibold))
+                        // Redacted on a locked phone and in StandBy: friends'
+                        // names and faces are for whoever unlocked it.
+                        .privacySensitive()
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Spacer(minLength: 6)
@@ -45,6 +48,7 @@ struct CrewWidgetView: View {
                     }
                 }
                 CrewStand(members: shown)
+                    .privacySensitive()
             }
         } else {
             VStack(alignment: .leading, spacing: 6) {

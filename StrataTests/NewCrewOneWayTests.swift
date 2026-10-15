@@ -21,10 +21,12 @@ struct NewCrewOneWayTests {
         #expect(list.contains("accessibilityLabel: CrewLine.newCrew"))
         #expect(list.contains("PrimaryCapsule(title: CrewLine.newCrew, action: newCrew)"))
         #expect(list.contains(".navigationTitle(CrewLine.newCrew)"))
-        // Two leading items: the sheet's own Cancel, and Plan in the list's
-        // left corner (the owner's pick, 2026-10-14), which is not a second
-        // way to a new crew. Invite a Friend must not come back there.
-        #expect(list.components(separatedBy: ".topBarLeading").count - 1 == 2, "a third corner button is here")
+        // One leading toolbar item: the sheet's own Cancel. Plan stands in
+        // the list's own header since 2026-10-15 (`listHeader`, the corners
+        // where Wins and Memories stand theirs), and is not a second way to
+        // a new crew. Invite a Friend must not come back there.
+        #expect(list.components(separatedBy: ".topBarLeading").count - 1 == 1, "a second corner button is here")
+        #expect(list.contains(".pinnedBar { listHeader }"))
         #expect(list.contains("accessibilityLabel: \"Plan\""))
         #expect(!list.contains("person.badge.plus"), "a second way to a new crew is back in the corner")
         // Kept on the empty page (the owner's ask).

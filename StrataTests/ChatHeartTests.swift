@@ -55,8 +55,10 @@ struct ChatHeartTests {
     func wired() throws {
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
         let double = try #require(chat.range(of: ".onTapGesture(count: 2) { doubleTap(message) }"))
-        let single = try #require(chat.range(of: ".onTapGesture {\n                // The lift that ended a hold is not a tap.")
-                                  ?? chat.range(of: ".onTapGesture {"))
+        // The bubble's own single tap, the first one AFTER its double: the
+        // resting chat's overlay (2026-10-15) has a single tap of its own
+        // earlier in the file, on a different view, which this is not about.
+        let single = try #require(chat.range(of: ".onTapGesture {", range: double.upperBound..<chat.endIndex))
         #expect(double.lowerBound < single.lowerBound, "the single tap is checked first and eats the double")
         #expect(chat.contains("react(.emoji(Reaction.doubleTap), to: message.messageID)"))
         // The count is the chips' own: a number only when two chose the same.

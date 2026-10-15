@@ -54,7 +54,10 @@ struct DoodleIconTests {
     /// option of letting head on tower").
     @Test("Settings and Profile rows have their glyphs")
     func rowGlyphs() throws {
-        for (path, least) in [("Strata/Views/SettingsView.swift", 15), ("Strata/Views/ProfileView.swift", 4),
+        // Profile's least is 3 since 2026-10-15: it is Edit Profile now, and
+        // its Settings row went to the gear on Memories, which is the
+        // profile (`ProfileHeader`).
+        for (path, least) in [("Strata/Views/SettingsView.swift", 15), ("Strata/Views/ProfileView.swift", 3),
                               ("Strata/Views/Ink/MonthDrawingSettings.swift", 1)] {
             let code = SourceSweep.code(try SourceSweep.read(path))
             let uses = code.components(separatedBy: "SettingsIcon(").count - 1

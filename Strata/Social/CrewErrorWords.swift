@@ -80,6 +80,7 @@ nonisolated enum CrewErrorWords {
         case .photoNotAllowed: "That photo can't be used for a crew. Pick another one."
         case .photoNeeded: "Choose a photo for the crew first."
         case .notReady: "Agree to the crew rules first, then try again."
+        case .wordsRefused: "Try other words for the crew's name."
         }
     }
 }

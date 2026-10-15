@@ -27,6 +27,15 @@ nonisolated enum CrewWords {
         "rapeseed",
     ]
 
+    /// **What a phone shows of a name or a title it received** (the
+    /// compliance audit, 2026-10-15, §3.3): the chat's lines were checked
+    /// on the way in, and crew names, first names and win titles were not;
+    /// a crew name now leaves the app on the home screen too. A refused one
+    /// is shown as nothing, as an unnamed one already is.
+    static func kept(_ text: String) -> String {
+        isAcceptable(text) ? text : ""
+    }
+
     static func isAcceptable(_ text: String) -> Bool {
         let folded = fold(text)
         let words = folded.split(separator: " ").map(String.init).filter { !innocent.contains($0) }

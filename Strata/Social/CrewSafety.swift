@@ -10,10 +10,14 @@ enum CrewSafety {
     private static let log = Logger(subsystem: "Strata", category: "crews.safety")
 
     enum Reason: String, CaseIterable, Identifiable {
-        case inappropriate, harassment, spam, other
+        /// `child` first in the list a reporter sees, and first in
+        /// `reports.sh`: a report about a child carries a legal clock (the
+        /// compliance audit, 2026-10-15, §2 and §3.4).
+        case child, inappropriate, harassment, spam, other
         var id: String { rawValue }
         var words: String {
             switch self {
+            case .child: "It involves a child"
             case .inappropriate: "It's inappropriate"
             case .harassment: "It's harassment or bullying"
             case .spam: "It's spam"

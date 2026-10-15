@@ -719,6 +719,7 @@ struct CrewChatSheet: View {
             if mine {
                 if store.canDelete(message) { Button("Delete") { delete(message) } }
             } else {
+                Button("Hide for Me") { CrewHiding.hide(message.messageID) }
                 Button("Report") { reporting = message }
                 Button("Block \(name(of: message.senderProfileID))") { blockingPerson = message.senderProfileID }
             }
@@ -822,6 +823,11 @@ struct CrewChatSheet: View {
                 }
             }
         } else {
+            // **Out of your sight, for you** (the compliance audit,
+            // 2026-10-15, §3.2): a win could be hidden and a line could not.
+            BlockMenuRow("Hide for Me", "eye.slash") {
+                BlockMenuAfter.run(closing: close) { CrewHiding.hide(id) }
+            }
             BlockMenuRow("Report", "exclamationmark.bubble", destructive: true) {
                 BlockMenuAfter.run(closing: close) { reporting = message }
             }
@@ -1545,6 +1551,8 @@ struct CrewChatSheet: View {
                                 titleVisibility: .visible, presenting: reporting) { message in
                 ForEach(CrewSafety.Reason.allCases) { reason in
                     Button(reason.words) {
+                        // What you report leaves your sight at once.
+                        store.hide(winID: message.messageID)
                         Task {
                             await CrewSafety.report(.message(message), in: crewID, reason: reason)
                             reported = message.senderProfileID

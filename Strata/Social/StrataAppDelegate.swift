@@ -303,6 +303,7 @@ final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
         case .photoNotAllowed: "That photo stays with you."
         case .photoNeeded: "Choose a photo for the crew first."
         case .notReady: "Crews open once the crew rules and your age are set."
+        case .wordsRefused: "Try other words."
         }
     }
 }

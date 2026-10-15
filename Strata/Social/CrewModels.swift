@@ -54,6 +54,8 @@ nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
     /// 26 still stand in the way (`CrewGate`). Joining or starting a crew
     /// waits for them; nothing is written to any crew first.
     case notReady
+    /// A crew name the words check refuses, as a chat line's are.
+    case wordsRefused
 
     var errorDescription: String? {
         switch self {
@@ -66,6 +68,7 @@ nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
         case .photoNotAllowed: "That photo stays with you."
         case .photoNeeded: "Choose a photo for the crew first."
         case .notReady: "Crews open once the crew rules and your age are set."
+        case .wordsRefused: "Try other words."
         }
     }
 }

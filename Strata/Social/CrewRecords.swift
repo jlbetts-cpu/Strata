@@ -142,7 +142,7 @@ nonisolated enum CrewRecords {
               let sender = fields["senderProfileID"]?.uuid,
               let day = fields["crewDay"]?.string,
               let created = fields["createdAt"]?.date else { return nil }
-        let title: String = fields["title"]?.string ?? ""
+        let title: String = CrewWords.kept(fields["title"]?.string ?? "")
         let colour: HabitCategory = fields["colour"]?.string.flatMap { HabitCategory(rawValue: $0) } ?? .unlabeled
         let icon: HabitCategory = fields["icon"]?.string.flatMap { HabitCategory(rawValue: $0) } ?? .unlabeled
         let size: BlockSize = fields["blockSize"]?.string.flatMap { BlockSize(rawValue: $0) } ?? .small
@@ -244,7 +244,7 @@ nonisolated enum CrewRecords {
     static func crew(_ fields: RecordFields, id: CrewID, members: [CrewMember]) -> Crew? {
         guard let owner = fields["ownerProfileID"]?.uuid else { return nil }
         return Crew(id: id,
-                    name: fields["name"]?.string ?? "",
+                    name: CrewWords.kept(fields["name"]?.string ?? ""),
                     ownerProfileID: owner,
                     timeZoneIdentifier: fields["timeZoneIdentifier"]?.string ?? TimeZone.current.identifier,
                     createdAt: fields["createdAt"]?.date ?? .distantPast,
@@ -270,7 +270,7 @@ nonisolated enum CrewRecords {
     static func member(_ fields: RecordFields) -> CrewMember? {
         guard let id = fields["profileID"]?.uuid else { return nil }
         return CrewMember(profileID: id,
-                          firstName: fields["firstName"]?.string ?? "",
+                          firstName: CrewWords.kept(fields["firstName"]?.string ?? ""),
                           head: fields["head"]?.asset,
                           joinedAt: fields["joinedAt"]?.date ?? .distantPast,
                           photo: fields["photo"]?.asset)
