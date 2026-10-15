@@ -79,24 +79,10 @@ struct CrewTowerView: View {
     @State private var viewingDay: String?
     @State private var reporting: SharedWin?
     /// Reported a moment ago: the thank-you and the offer to block.
-    /// Double-tap hearts in the air, over the blocks they landed on.
-    @State private var bursts: [Burst] = []
+    /// Hold to react and double-tap hearts (`TowerReactions`, shared with
+    /// a friend's profile).
+    @State private var reacts = TowerReactions()
     @State private var touchRipples: [TouchRipple] = []
-    private struct Burst: Identifiable { let id = UUID(); let block: UUID; let emoji: String }
-    /// The block a press and hold opened the reactions over.
-    @State private var reacting: UUID?
-    /// When it opened: the finger lifting off a hold must not also count as
-    /// a tap and open the block.
-    @State private var heldAt = Date.distantPast
-    @State private var barSize = CGSize(width: 200, height: 44)
-    /// The mark under a finger sliding from a hold (`HoldPhase`).
-    @State private var hovered: Int?
-    /// Where the open bar stands, for reading a finger against it.
-    @State private var barFrame: (() -> CGPoint)?
-    /// The emoji keyboard, opened from "+".
-    @State private var pickingMore = false
-    /// The bar closing itself after a hold let go of nothing.
-    @State private var dismissing: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -275,6 +261,7 @@ struct CrewTowerView: View {
         .onAppear {
             CrewNotifications.visibleCrew = crewID
             model.wire(reduceMotion: reduceMotion)
+            wireReactions()
             #if DEBUG
             // `-strataCrewSheet info|win`: the crew's sheets, for captures.
             switch DebugHarness.argument("-strataCrewSheet") {
@@ -295,7 +282,7 @@ struct CrewTowerView: View {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(2))
                     if let win = store.today(in: crewID).first(where: { $0.senderProfileID != store.me }) {
-                        hold(win.winID, .began)
+                        reacts.hold(win.winID, .began)
                     }
                 }
             }
@@ -306,7 +293,7 @@ struct CrewTowerView: View {
                     while !Task.isCancelled {
                         try? await Task.sleep(for: .seconds(every))
                         if let win = store.today(in: crewID).filter({ $0.senderProfileID != store.me }).randomElement() {
-                            doubleTap(win.winID)
+                            reacts.doubleTap(win.winID)
                         }
                     }
                 }
@@ -437,7 +424,7 @@ struct CrewTowerView: View {
         }
         // Escape closes the reaction bar first, the way a tap outside it does,
         // rather than leaving the crew with the bar still open.
-        .accessibilityAction(.escape) { if reacting != nil { closeReactions() } else { leave() } }
+        .accessibilityAction(.escape) { if reacts.reacting != nil { reacts.close() } else { leave() } }
     }
 
     /// The crew's own covers and sheets: the week's replay, the crew's card,
@@ -467,7 +454,7 @@ struct CrewTowerView: View {
             // screen: with the native chat, from the chat's sheet, and only
             // while it rests (the review, 2026-10-15: it never showed).
             .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil
-                           || reacting != nil || playingWeek != nil)
+                           || reacts.reacting != nil || playingWeek != nil)
             // The list's two alerts, from here while the chat is up
             // (`NativeChatPresence`).
             .alert("This photo stays with you", isPresented: Binding(
@@ -584,19 +571,6 @@ struct CrewTowerView: View {
     /// heart you already gave stays given (it is never taken back by the same
     /// gesture that gave it); a different reaction you gave becomes the heart.
     /// Your own block takes yours too (the owner, 2026-10-13, from a tester).
-    private func doubleTap(_ id: UUID) {
-        guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
-        HapticsEngine.success()
-        let burst = Burst(block: id, emoji: Reaction.doubleTap)
-        bursts.append(burst)
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(1100))
-            bursts.removeAll { $0.id == burst.id }
-        }
-        if store.myReaction(to: id, in: crewID) != Reaction.doubleTap {
-            Task { await store.react(Reaction.doubleTap, to: id, in: crewID) }
-        }
-    }
 
     /// A tapped notification named a win: open it in the carousel, as a tap
     /// on its block would, once it is here.
@@ -726,128 +700,24 @@ struct CrewTowerView: View {
                     })
     }
 
-    private func hold(_ id: UUID, _ phase: HoldPhase) {
-        switch phase {
-        case .began:
-            guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
-            HapticsEngine.success()
-            heldAt = Date()
-            dismissing?.cancel()
-            hovered = nil
-            reacting = id
-        case .moved(let at):
-            guard reacting == id else { return }
-            let next = mark(at: at)
-            if next != hovered {
-                if next != nil { HapticsEngine.lightTap() }
-                hovered = next
-            }
-        case .ended(let at):
-            guard reacting == id else { return }
-            let chosen = at.flatMap { mark(at: $0) }
-            hovered = nil
-            if let chosen {
-                let glyph = ReactionBar.glyphs(mine: store.myReaction(to: id, in: crewID))[chosen]
-                if glyph == "+" { pickingMore = true } else { give(glyph, to: id) }
-            } else {
-                // Let go anywhere else: the bar stays a moment for a tap,
-                // then goes on its own (the owner, 2026-10-03: "it doesnt
-                // disappear automatically").
-                closeSoon()
-            }
+    /// Reply from a held block: the chat rises with the win quoted and the
+    /// keyboard up.
+    private func replyTo(_ id: UUID) {
+        answeringWin = id
+        chatOpening = .writing
+        showsChat = true
+        // Already up, the chat goes to the whole height to write (the
+        // review, 2026-10-15: Reply did nothing at reading).
+        if native, chatDetent != .large {
+            withAnimation(GridConstants.drawerMove) { chatDetent = .large }
         }
     }
 
-    /// The mark under a finger, read from where the bar stands: the finger
-    /// can be a little above or below the row, as on a Tapback.
-    private func mark(at point: CGPoint) -> Int? {
-        guard let reacting, let center = barFrame?() else { return nil }
-        let top = center.y - barSize.height / 2, bottom = center.y + barSize.height / 2
-        guard point.y > top - 28, point.y < bottom + 36 else { return nil }
-        let count = ReactionBar.glyphs(mine: store.myReaction(to: reacting, in: crewID)).count
-        return ReactionBar.index(atX: point.x - (center.x - barSize.width / 2), count: count)
-    }
-
-    private func barCenter(over f: CGRect, gridW: CGFloat, gridH: CGFloat) -> CGPoint {
-        CGPoint(x: min(max(f.midX, barSize.width / 2), gridW - barSize.width / 2),
-                y: gridH - f.minY - f.height - 8 - barSize.height / 2)
-    }
-
-    private func closeSoon() {
-        dismissing?.cancel()
-        dismissing = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled, !pickingMore else { return }
-            closeReactions()
-        }
-    }
-
-    private func closeReactions() {
-        dismissing?.cancel()
-        hovered = nil
-        pickingMore = false
-        reacting = nil
-        heldAt = Date()
-    }
-
-    private func give(_ emoji: String, to id: UUID) {
-        if store.myReaction(to: id, in: crewID) != emoji {
-            let burst = Burst(block: id, emoji: emoji)
-            bursts.append(burst)
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1100))
-                bursts.removeAll { $0.id == burst.id }
-            }
-        }
-        HapticsEngine.success()
-        Task { await store.react(emoji, to: id, in: crewID) }
-        closeReactions()
-    }
-
-    @ViewBuilder
-    private func reactionsOver(_ id: UUID, mine: Bool) -> some View {
-        ReactionBar(mine: store.myReaction(to: id, in: crewID), hovered: hovered,
-                    picking: Binding(get: { pickingMore }, set: { open in
-                        pickingMore = open
-                        if open { dismissing?.cancel() } else if reacting != nil { closeSoon() }
-                    })) { emoji in
-            give(emoji, to: id)
-        }
-        // **Reply, on the hold itself** (the owner, 2026-10-14: "replying to
-        // wins is really hidden like you have to press on the win and then
-        // press the reaction button and then press reply ... when you are
-        // holding to react reply should pop up as an option and the chat
-        // should pop up"). Over the bar, as an overlay, so the bar's own
-        // measure (what a sliding finger is read against) is the marks
-        // alone. The chat rises with the win quoted and the keyboard up.
-        .overlay(alignment: .top) {
-            if store.canReply() {
-                Button {
-                    HapticsEngine.lightTap()
-                    closeReactions()
-                    answeringWin = id
-                    chatOpening = .writing
-                    showsChat = true
-                    // Already up, the chat goes to the whole height to write
-                    // (the review, 2026-10-15: Reply did nothing at reading).
-                    if native, chatDetent != .large {
-                        withAnimation(GridConstants.drawerMove) { chatDetent = .large }
-                    }
-                } label: {
-                    Label("Reply", systemImage: "arrowshape.turn.up.left")
-                        .font(Typography.headerSmall)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .padding(.horizontal, GridConstants.gapLabel)
-                        .frame(minHeight: 44)
-                        .glassCapsule(carriesType: true)
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.pressSurface)
-                .fixedSize()
-                // Its foot `gapTight` above the bar's top edge.
-                .offset(y: -(44 + GridConstants.gapTight))
-                .accessibilityHint("Opens the chat with this win quoted.")
-            }
+    /// Which of today's blocks take a reaction here: this crew's.
+    private func wireReactions() {
+        let crewID = crewID
+        reacts.crewOf = { id in
+            SocialStore.shared.today(in: crewID).contains { $0.winID == id } ? crewID : nil
         }
     }
 
@@ -1162,8 +1032,8 @@ struct CrewTowerView: View {
                         cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
                         reduceMotion: reduceMotion, colorScheme: colorScheme,
                         onTapExpandBlock: { id in
-                            if reacting != nil { closeReactions(); return }
-                            guard Date().timeIntervalSince(heldAt) > 0.6 else { return }
+                            if reacts.reacting != nil { reacts.close(); return }
+                            guard !reacts.justHeld else { return }
                             guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
                             // Every block opens the day's carousel at itself,
                             // photograph or not: who reacted and Report live
@@ -1171,8 +1041,8 @@ struct CrewTowerView: View {
                             viewing = win.winID.uuidString
                         },
                         liftedBlockID: nil,
-                        onDoubleTapBlock: { doubleTap($0) },
-                        onHoldBlock: { id, phase in hold(id, phase) })
+                        onDoubleTapBlock: { reacts.doubleTap($0) },
+                        onHoldBlock: { id, phase in reacts.hold(id, phase) })
                 }
                 // The next slot, as on Wins: tap for a win in this crew, draw
                 // it out for a bigger one, hold for the full Add Win.
@@ -1214,46 +1084,8 @@ struct CrewTowerView: View {
                     }
                 }
             }
-            // The hearts, over the block each one landed on. An OVERLAY, never
-            // a child of the stack: as a child, `.position` took the whole
-            // proposed size and the tower jumped 85pt for the length of the
-            // burst (filmed 2026-10-02).
-            .overlay(alignment: .topLeading) {
-                ForEach(bursts) { burst in
-                    if let block = tower.placedBlocks.first(where: { $0.id == burst.block }) {
-                        let f = block.frame(cellSize: colW)
-                        ReactionBurst(emoji: burst.emoji, size: min(f.width, f.height) * 0.62)
-                            .frame(width: f.width, height: f.height)
-                            .offset(x: f.minX, y: gridH - f.minY - f.height)
-                    }
-                }
-            }
-            // The reactions a hold opened, over the block that was held,
-            // and anywhere else on the tower closes them.
-            .overlay(alignment: .topLeading) {
-                if let id = reacting, let block = tower.placedBlocks.first(where: { $0.id == id }) {
-                    let f = block.frame(cellSize: colW)
-                    let mine = store.today(in: crewID).first { $0.winID == id }?.senderProfileID == store.me
-                    ZStack(alignment: .topLeading) {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { closeReactions() }
-                        // Centred over the block, kept inside the tower's
-                        // width, and 8pt clear of the block's top edge.
-                        reactionsOver(id, mine: mine)
-                            .fixedSize()
-                            .onGeometryChange(for: CGSize.self) { $0.size } action: { barSize = $0 }
-                            .position(barCenter(over: f, gridW: gridW, gridH: gridH))
-                            .onAppear { barFrame = { barCenter(over: f, gridW: gridW, gridH: gridH) } }
-                            .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
-                    }
-                    .frame(width: gridW, height: gridH, alignment: .topLeading)
-                }
-            }
-            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: reacting)
-            // Where a sliding finger is read (`HoldPhase.space`): the same
-            // top-leading origin the bar is positioned from.
-            .coordinateSpace(.named(HoldPhase.space))
+            .modifier(TowerReactionLayers(reactions: reacts, blocks: tower.placedBlocks,
+                                          colW: colW, gridW: gridW, gridH: gridH, reply: replyTo))
             .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
             .background(alignment: .bottom) {
                 TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: model.latticeRipple)
@@ -1269,7 +1101,7 @@ struct CrewTowerView: View {
         }
         .defaultScrollAnchor(.bottom)
         // A finger choosing a reaction must not scroll the tower under it.
-        .scrollDisabled(reacting != nil)
+        .scrollDisabled(reacts.reacting != nil)
         .softScrollEdge(.top)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(rows == 0 ? "No wins yet today" : "Today's crew tower, \(tower.placedBlocks.count) wins")

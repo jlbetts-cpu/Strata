@@ -1850,6 +1850,16 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-friend head \(head.exists) '\(head.label)'")
         if head.exists { head.tap() }
         wait(2.5); snap("friend-1-profile")
+        // Hold a block: the crew tower's own reactions, then one given.
+        let gym = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Gym'")).firstMatch
+        print("PLANNING-friend block \(gym.exists) '\(gym.exists ? gym.label : "")'")
+        if gym.exists { gym.press(forDuration: 0.9) }
+        wait(1); snap("friend-1b-held")
+        let fire = app.buttons["🔥"].firstMatch
+        print("PLANNING-friend fire \(fire.exists)")
+        if fire.exists { fire.tap() }
+        wait(1.5); snap("friend-1c-reacted")
+        if gym.exists { print("PLANNING-friend after '\(gym.label)'") }
         app.terminate()
         // Nobody has logged: the bare tower.
         let quiet = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",

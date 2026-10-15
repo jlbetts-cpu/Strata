@@ -12,7 +12,8 @@ import SwiftUI
 /// tower still with the lattice and everything no different than how it
 /// behaves"; "make sure the profile looks good even bare with the lattice").
 /// Today's wins they shared with you, and only those, built on the lattice
-/// with the blocks `CrewDayView` draws, a press opening the same viewer.
+/// with the blocks `CrewDayView` draws, a press opening the same viewer and
+/// a hold the same reactions (`TowerReactions`).
 /// Nothing shared yet is the bare lattice, as an empty tower is anywhere.
 struct FriendProfileSheet: View {
     let member: CrewMember
@@ -28,6 +29,8 @@ struct FriendProfileSheet: View {
     @State private var model = CrewTowerModel()
     @State private var viewing: String?
     @State private var reporting: SharedWin?
+    /// Hold to react and double-tap hearts, as on a crew's tower.
+    @State private var reacts = TowerReactions()
     private var store: SocialStore { SocialStore.shared }
     private let spacing = GridConstants.spacing
     private let columns = GridConstants.columnCount
@@ -80,15 +83,14 @@ struct FriendProfileSheet: View {
             }
         }
         .applying(pushed) { $0.glassBackButton() }
-        .task(id: today) {
-            let names = Dictionary(together.flatMap(\.members).map { ($0.profileID, $0.shortName) },
-                                   uniquingKeysWith: { first, _ in first })
-            model.rebuild(wins: today, me: store.me, names: names,
-                          reactions: { id in
-                              guard let crew = today.first(where: { $0.winID == id })?.crewID else { return [] }
-                              return store.reactions(to: id, in: crew)
-                          })
+        .onAppear {
+            let profile = self
+            reacts.crewOf = { id in profile.wins.first { $0.winID == id }?.crewID }
         }
+        .task(id: today) { rebuild(today) }
+        // A reaction given here, or by anyone, shows on its block as it does
+        // on the crew's tower (`CrewTowerView` watches the same map).
+        .onChange(of: together.map { store.reactionsByCrew[$0.id] }) { _, _ in rebuild(wins) }
         .fullScreenCover(item: Binding(get: { viewing.map(Viewed.init) }, set: { viewing = $0?.id })) { shown in
             let crew = today.first { $0.winID.uuidString == shown.id }?.crewID ?? crewID
             PhotoViewer(photos: CrewGallery.photos(today, crew: store.crew(crew), me: store.me), startAt: shown.id,
@@ -115,6 +117,16 @@ struct FriendProfileSheet: View {
 
     private struct Viewed: Identifiable { let id: String }
 
+    private func rebuild(_ today: [SharedWin]) {
+        let names = Dictionary(together.flatMap(\.members).map { ($0.profileID, $0.shortName) },
+                               uniquingKeysWith: { first, _ in first })
+        model.rebuild(wins: today, me: store.me, names: names,
+                      reactions: { id in
+                          guard let crew = today.first(where: { $0.winID == id })?.crewID else { return [] }
+                          return store.reactions(to: id, in: crew)
+                      })
+    }
+
     /// The top, then the tower standing on the foot of the page: the lattice
     /// is the floor whether a block is on it or not.
     private func page(today: [SharedWin], colW: CGFloat, viewport: CGFloat) -> some View {
@@ -140,10 +152,18 @@ struct FriendProfileSheet: View {
                             colW: colW, gridH: gridH,
                             cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
                             reduceMotion: reduceMotion, colorScheme: colorScheme,
-                            onTapExpandBlock: { viewing = $0.uuidString },
-                            liftedBlockID: nil)
+                            onTapExpandBlock: { id in
+                                if reacts.reacting != nil { reacts.close(); return }
+                                guard !reacts.justHeld else { return }
+                                viewing = id.uuidString
+                            },
+                            liftedBlockID: nil,
+                            onDoubleTapBlock: { reacts.doubleTap($0) },
+                            onHoldBlock: { id, phase in reacts.hold(id, phase) })
                     }
                 }
+                .modifier(TowerReactionLayers(reactions: reacts, blocks: tower.placedBlocks,
+                                              colW: colW, gridW: gridW, gridH: gridH))
                 .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
                 .background(alignment: .bottom) {
                     TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: nil)
@@ -157,6 +177,8 @@ struct FriendProfileSheet: View {
             }
             .frame(minHeight: viewport)
         }
+        // A finger choosing a reaction must not scroll the page under it.
+        .scrollDisabled(reacts.reacting != nil)
         .softScrollEdge(.top)
     }
 }
