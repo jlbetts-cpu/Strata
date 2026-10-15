@@ -138,6 +138,8 @@ private struct Face: View {
            let image = UIImage(contentsOfFile: directory.appendingPathComponent(file).path) {
             Image(uiImage: image)
                 .resizable()
+                // A face stays a face on a tinted or clear Home Screen.
+                .widgetAccentedRenderingMode(.fullColor)
                 .scaledToFit()
                 .frame(width: side, height: side)
         } else {

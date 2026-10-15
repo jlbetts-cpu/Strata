@@ -87,9 +87,16 @@ struct WarmBackground: View {
     /// opaque white capsule. `GlassRecipe.onPage` cancels that lift, and it is
     /// a value move, not a hue one — it holds on a white page exactly as it
     /// held on a warm one.
+    ///
+    /// **A sheet stands a step lighter in dark mode** (the second round of
+    /// research, 2026-10-15; the HIG's Dark Mode: elevated surfaces lighten).
+    /// A sheet drew the same 0.112 as the page under it, so the chat's resting
+    /// card and every sheet's edge was lost against the page in dark.
     static let top = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.112, green: 0.110, blue: 0.108, alpha: 1)
+            ? (traits.userInterfaceLevel == .elevated
+               ? UIColor(red: 0.150, green: 0.148, blue: 0.146, alpha: 1)
+               : UIColor(red: 0.112, green: 0.110, blue: 0.108, alpha: 1))
             : UIColor(red: 0.992, green: 0.992, blue: 0.991, alpha: 1)
     })
 

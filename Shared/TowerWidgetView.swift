@@ -47,6 +47,9 @@ struct TowerPhotoBackground: View {
             if let photo {
                 Image(uiImage: photo)
                     .resizable()
+                    // The photograph keeps its colour on a tinted or clear
+                    // Home Screen, where it went grey (WWDC25 278).
+                    .widgetAccentedRenderingMode(.fullColor)
                     .scaledToFill()
                 // The count sits ON the picture, so it needs a floor under it
                 // or a bright sky eats it. Bottom only, and gone by a third of
