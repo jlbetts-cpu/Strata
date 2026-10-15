@@ -171,6 +171,17 @@ struct CrewChatSheet: View {
                 if atRest {
                     Color.clear
                         .contentShape(Rectangle())
+                        // **News, at rest** (as the resting bar showed it):
+                        // the ink dot beside the newest line while the chat
+                        // has lines you have not read.
+                        .overlay(alignment: .bottomLeading) {
+                            if store.unreadChats.contains(crewID) {
+                                NewsDot()
+                                    .padding(.leading, GridConstants.spacing)
+                                    .padding(.bottom, GridConstants.gapItem + Self.faceSide / 2)
+                                    .transition(NewsDot.transition(reduceMotion: reduceMotion))
+                            }
+                        }
                         .onTapGesture { HapticsEngine.lightTap(); reopen?() }
                         .gesture(DragGesture(minimumDistance: 10).onEnded { drag in
                             if drag.translation.height < -20 || drag.predictedEndTranslation.height < -60 { reopen?() }

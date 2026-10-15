@@ -1718,6 +1718,16 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("edges-3-swiped")
     }
 
+    /// The custom drawer, behind its flag, for a side by side (2026-10-15).
+    func testDrawerFlag() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataDrawerChat", "1"])
+        wait(9); snap("drawerflag-0-rest")
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat'")).firstMatch
+        if line.exists { line.press(forDuration: 0.05) }
+        wait(2.5); snap("drawerflag-1-open")
+    }
+
     /// A new win sent to a crew says where it went (2026-10-15).
     func testSentToCrew() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
