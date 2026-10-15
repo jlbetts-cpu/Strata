@@ -517,6 +517,13 @@ struct PhotoViewer: View {
                     Button(role: .destructive) { withdrawing = true } label: {
                         Label("Remove Win from Crew", systemImage: "minus.circle")
                     }
+                    // **Your own win, deleted from here too** (the owner,
+                    // 2026-10-14: "you can remove a win from the crew but not
+                    // delete a win which feels weird"). The same delete as the
+                    // Edit sheet's, at once with Undo.
+                    Button(role: .destructive) { deleteWin(current) } label: {
+                        Label("Delete Win", systemImage: "trash")
+                    }
                 }
             } else {
                 Button(role: .destructive) {
@@ -723,6 +730,36 @@ struct PhotoViewer: View {
         } catch {
             NSLog("[strata-photo] could not find the win behind a photograph to edit: \(error)")
         }
+    }
+
+    /// Your own win, from a crew's viewer: the win itself, on your tower and
+    /// in every crew (`CrewSync` sees the rows go). Undo puts it back and
+    /// sends it to the crews that had it, which a plain undo would not.
+    private func deleteWin(_ shown: GalleryPhoto) {
+        guard let winID = UUID(uuidString: shown.id),
+              let log = try? modelContext.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == winID })).first,
+              let habit = log.habit else { return }
+        let crews = SocialStore.shared.crews(holding: winID)
+        let pending: WinDeletion.Pending
+        do {
+            pending = try WinDeletion.delete(habit, in: modelContext)
+        } catch {
+            NSLog("[strata-delete] could not delete the win from a crew's viewer: \(error)")
+            HapticsEngine.warning()
+            return
+        }
+        HapticsEngine.tick()
+        let context = modelContext
+        let changed = onWinChanged
+        UndoLine.shared.show("Win deleted", undo: {
+            pending.undo()
+            if let back = try? context.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == winID })).first {
+                CrewSync.post(back, to: crews)
+            }
+            changed()
+        }, expire: pending.finish)
+        onWinChanged()
+        onClose()
     }
 
     private func deleteCurrent() {

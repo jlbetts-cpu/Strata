@@ -30,7 +30,14 @@ struct CrewInfoSheet: View {
     @State private var removingMember: CrewMember?
     @State private var reportingCrew = false
     /// A report just went: say so.
-    @State private var thanked = false
+    @State private var thanked: Bool = {
+        #if DEBUG
+        // `-strataReportThanks`: the thanks after a report, for photographs.
+        DebugHarness.argument("-strataReportThanks") != nil
+        #else
+        false
+        #endif
+    }()
     /// A crew day playing, presented from the page rather than a List row.
     @State private var replay: Replay?
     @State private var showsCode = false

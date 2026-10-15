@@ -56,6 +56,15 @@ struct RestoreBackupView: View {
             // under it. See that `Spacer` for the measurement; the pattern is
             // `AddWinSheet`'s and the Plan sheet's `content`'s.
             GeometryReader { proxy in
+            // **A failure is a drawn moment** (`DrawnMoment`, the owner,
+            // 2026-10-14: "there needs to be consistency"): his cat in the
+            // middle, the words under it, Done at the foot.
+            Group { if let failed = failureMoment {
+                DrawnMoment(title: failed.title, line: failed.line,
+                            action: (title: "Done", run: { onClose() })) {
+                    ErrorCat(height: 140)
+                }
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: GridConstants.gapWide) {
                     switch stage {
@@ -91,6 +100,7 @@ struct RestoreBackupView: View {
             // otherwise be shorter, so a one-line stage still does not bounce
             // like a long page.
             .scrollBounceBehavior(.basedOnSize)
+            } }
             .background { WarmBackground().ignoresSafeArea() }
             .sheetTitle("Restore", drawn: false)
             .toolbar { closeButton }
@@ -268,11 +278,26 @@ struct RestoreBackupView: View {
 
     // MARK: - After
 
+    /// The restore's two failures, for `DrawnMoment`.
+    private var failureMoment: (title: String, line: String)? {
+        switch stage {
+        case .failed(let message): return ("This backup can't be read", message)
+        case .done(let report):
+            if let failure = report.failure { return ("Nothing was restored", failure) }
+            return nil
+        default: return nil
+        }
+    }
+
     @ViewBuilder
     private func outcome(_ report: BackupRestore.Report) -> some View {
         if let failure = report.failure {
             // His cat sliding down the wall: the app's drawing for an error.
             ErrorCat(height: 140)
+                // In the middle, over the words (the owner, 2026-10-14: "the
+                // cat and the thumb should be in the middle").
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, GridConstants.gapItem)
             // Red, as every error the app sets on the page is (2026-10-08).
             Text("Nothing was restored")
                 .font(Typography.screenTitle)
@@ -283,6 +308,8 @@ struct RestoreBackupView: View {
         } else {
             // His thumbs up, once: a backup put back is a one-off success.
             ThumbsUp()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, GridConstants.gapItem)
             VStack(alignment: .leading, spacing: GridConstants.spacing) {
                 Text(verbatim: StrataFont.digits(report.winsAdded))
                     .font(Typography.tally)
@@ -319,12 +346,16 @@ struct RestoreBackupView: View {
             note(problem)
         }
 
+        // At the foot, where every drawn moment keeps its one action (`DrawnMoment`).
+        Spacer(minLength: GridConstants.gapSection)
         primaryButton("Done") { onClose() }
     }
 
     @ViewBuilder
     private func failure(_ message: String) -> some View {
         ErrorCat(height: 140)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, GridConstants.gapItem)
         Text("This backup can't be read")
             .font(Typography.screenTitle)
             .foregroundStyle(AppColors.inkPrimary)

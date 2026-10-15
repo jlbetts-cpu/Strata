@@ -43,9 +43,10 @@ struct CrewsListView: View {
                 needsNewerOS
             } else if !age.opensCrews {
                 tooYoung
-            } else if CrewRouter.shared.justJoined {
+            } else if CrewRouter.shared.justJoined || Self.debugState == "joined" {
                 joinedState
-            } else if store.crews.isEmpty, CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil {
+            } else if Self.debugState == "joining"
+                        || (store.crews.isEmpty && (CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil)) {
                 joiningState
             } else if store.crews.isEmpty {
                 empty
@@ -117,23 +118,10 @@ struct CrewsListView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                // **The tower's lattice in the room under the crews** (the
-                // owner, 2026-10-14: "I would love to incorporate the lattice
-                // block design on the crews under in the empty space"): the
-                // same panes the towers stand on, grounded at the foot and
-                // fading up, behind the list.
-                // **The drawing hands the room to the lattice** (the owner,
-                // 2026-10-14: "have the lattice fade in when the doodle goes
-                // away make sure its clean and premium"). One thing there at
-                // a time: the drawing leaves on its own curve, then the
-                // lattice comes up slower, a beat behind it, so the two never
-                // cross. Every later launch the lattice simply fades in.
-                .background(alignment: .bottom) {
-                    if !showsArt {
-                        CrewsLattice(crewCount: store.crews.count)
-                            .transition(.opacity.animation(.easeInOut(duration: 0.9).delay(0.35)))
-                    }
-                }
+                // **No lattice under the crews** (the owner, 2026-10-14,
+                // having asked for it that morning: "lowkey thinking of
+                // removing the lattice"). On Wins it is the room the blocks
+                // fill; under a list of chats there is nothing to fill.
                 .task {
                     if !showsArt { return }
                     // Long enough to be seen and read, on the one launch.
@@ -410,24 +398,14 @@ struct CrewsListView: View {
 
     /// Arrived by an invitation: the crew is being opened.
     private var joiningState: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            Spacer()
-            // His cat in trousers, walking in place: the spinner's job,
-            // done by his drawing (the owner, 2026-10-14). Under Reduce
-            // Motion it stands still, so the spinner stays to say it works.
+        // His cat in trousers, walking in place: the spinner's job, done by
+        // his drawing (the owner, 2026-10-14). Under Reduce Motion it stands
+        // still, so the spinner stays to say it works. `DrawnMoment`.
+        DrawnMoment(title: "Joining your crew", line: "This takes a moment the first time.") {
             JoiningWalk()
-                .padding(.bottom, GridConstants.gapItem)
+        } extra: {
             if reduceMotion { ProgressView() }
-            Text("Joining your crew")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-            Text("This takes a moment the first time.")
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
-            Spacer()
-            Spacer()
         }
-        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 
@@ -435,13 +413,17 @@ struct CrewsListView: View {
     /// the crew opens (`CrewRouter.justJoined`). No words: the crew opening
     /// says the rest.
     private var joinedState: some View {
-        VStack {
-            Spacer()
-            ThumbsUp()
-            Spacer()
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        DrawnMoment(title: "Joining your crew") { ThumbsUp() }
+    }
+
+    /// `-strataCrewsState joining|joined`: the invite's moments, held, for
+    /// photographs. Nothing outside DEBUG.
+    private static var debugState: String? {
+        #if DEBUG
+        DebugHarness.argument("-strataCrewsState")
+        #else
+        nil
+        #endif
     }
 
     /// The one New Crew sheet, or why not at the cap.
@@ -486,26 +468,31 @@ struct CrewsListView: View {
         }
     }
 
+    @ViewBuilder
     private var empty: some View {
+        // **Signed out of iCloud, said first** (the 2026-10-03 audit). A crew
+        // lives in your iCloud, and the page offered New Crew and only failed
+        // once you had pressed it.
+        if signedOut {
+            // His cloud in sunglasses, tapping its foot (the owner,
+            // 2026-10-14: "the cloud screen for the no cloud").
+            // `DrawnMoment`, as every drawn moment is.
+            DrawnMoment(title: "Crews are shared through iCloud",
+                        line: "Sign in to iCloud in Settings to start one.",
+                        action: (title: "Open Settings", run: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        })) {
+                NoCloudFigure()
+            }
+        } else {
+            emptyFirstVisit
+        }
+    }
+
+    private var emptyFirstVisit: some View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer()
-            // **Signed out of iCloud, said first** (the 2026-10-03 audit). A
-            // crew lives in your iCloud, and the page offered New Crew and
-            // only failed once you had pressed it.
-            if signedOut {
-                // His cloud in sunglasses, tapping its foot (the owner,
-                // 2026-10-14: "the cloud screen for the no cloud").
-                NoCloudFigure()
-                Text("Crews are shared through iCloud. Sign in to iCloud in Settings to start one.")
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, GridConstants.gapSection)
-                PrimaryCapsule(title: "Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                }
-                .frame(maxWidth: 240)
-            } else {
+            Group {
                 // **The drawing, then what a crew is, then the one action**
                 // (the owner, 2026-10-08: "the drawing of the crew should be
                 // in the empty state"; "crews is confusing to understand for
@@ -925,34 +912,3 @@ enum CrewsArtFirstLaunch {
     }
 }
 
-/// The towers' lattice, at the Crews list's foot: two rows of panes on the
-/// ground and their fading overhang, at the towers' own cell, so the list
-/// stands on the same floor every tower does.
-private struct CrewsLattice: View {
-    var crewCount: Int
-
-    /// **Less of it the more crews there are** (the owner, 2026-10-14: "make
-    /// the lattice less and less depending on how many chats kinda like the
-    /// opposite of the wins"): a tower's lattice grows with what is on it;
-    /// this one gives way to the rows above it, four with one crew, none
-    /// with five.
-    static func rows(for crews: Int) -> Int { max(0, CrewCaps.crews - crews) }
-
-    var body: some View {
-        GeometryReader { geo in
-            let pad = GridConstants.horizontalPadding
-            let columns = CGFloat(GridConstants.columnCount)
-            let cell = floor((geo.size.width - pad * 2 - GridConstants.spacing * (columns - 1)) / columns)
-            let rows = CGFloat(Self.rows(for: crewCount))
-            if rows > 0 {
-                TowerLattice(cellSize: cell, contentHeight: rows * cell + (rows - 1) * GridConstants.spacing,
-                             rowsOver: 1)
-                .frame(width: geo.size.width - pad * 2)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .animation(.easeInOut(duration: 0.5), value: rows)
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}

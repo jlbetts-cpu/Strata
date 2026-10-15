@@ -413,14 +413,20 @@ struct OnboardingView: View {
     /// you every day.
     private var progress: some View {
         let index = shownSteps.firstIndex(of: step) ?? 0
-        return GoalRingStroke(wins: index + 1, goal: max(shownSteps.count, 1), line: Self.progressLine)
+        // **The crest's own ring on the crest's own glass** (the owner,
+        // 2026-10-14: "make it more like it is in the app the ring and liquid
+        // glass"). It was a bare 4pt ring; now the pen-weight ring inset on a
+        // glass disc, the way Wins draws the day's goal, the size of the back
+        // disc beside it.
+        return GoalRingStroke(wins: index + 1, goal: max(shownSteps.count, 1), line: GoalCrest.line)
+            .padding(GoalCrest.ringInset)
             .frame(width: Self.progressSide, height: Self.progressSide)
+            .stillGlassCircle()
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: step)
             .accessibilityHidden(true)
     }
 
-    private static let progressSide: CGFloat = 30
-    private static let progressLine: CGFloat = 4
+    private static let progressSide: CGFloat = GlassIconButton.defaultSide
 
     /// **Its room is held on page 0, where there is nothing to go back to**, so
     /// the rule below it never moves between pages. Held with `.opacity`, not by

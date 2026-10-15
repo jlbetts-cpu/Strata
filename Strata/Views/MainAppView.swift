@@ -1065,9 +1065,7 @@ struct MainAppView: View {
         // status bar or a sheet. The camera is dark inside its own view
         // (`StableCameraTab`) and the status bar steps aside over it.
         .statusBarHidden(selectedTab == .camera)
-        // White over the camera's black bands, in either appearance: in light
-        // mode the chosen Camera glyph was dark ink on a dark bar.
-        .tint(selectedTab == .camera && CameraBands.shared.black ? Color.white : .primary)
+        .tint(.primary)
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
@@ -2934,6 +2932,8 @@ struct MainAppView: View {
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .memories; profileOpensSettings = true; profileOrigin = .memories
         case "profile":  selectedTab = .memories; profileOrigin = .memories
+        // The tip ask, with `-strataTipThanked` its thanks (`TipAskSheet`).
+        case "tipask":   showsTipAsk = true
         case "add":      selectedTab = .tower; winDraft = WinDraft()
         // The booth, printing as at the goal (`-strataOpenSheet booth`), or
         // opened from Your day (`booth-open`).

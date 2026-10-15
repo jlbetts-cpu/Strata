@@ -601,7 +601,7 @@ struct SettingsView: View {
                     }
                 }
             } header: {
-                FormSectionLabel("Journal")
+                FormSectionLabel("Journal").id(Self.journalAnchor)
             }
 
             // MARK: - How Strata works
@@ -1105,6 +1105,7 @@ struct SettingsView: View {
     /// and neither has ever been in a capture.
     static let cameraAnchor = "camera-section"
     static let dataAnchor = "data-section"
+    static let journalAnchor = "journal-section"
 
     #if DEBUG
     /// `-strataScrollSettings camera|data`: opens Settings already scrolled, so
@@ -1126,6 +1127,7 @@ struct SettingsView: View {
         switch DebugHarness.scrollSettingsTo {
         case "camera": anchor = Self.cameraAnchor
         case "data":   anchor = Self.dataAnchor
+        case "journal": anchor = Self.journalAnchor
         default:       return
         }
         try? await Task.sleep(for: .seconds(1.5))

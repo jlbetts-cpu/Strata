@@ -860,9 +860,19 @@ struct MemoriesView: View {
         return min(Self.artHeight, max(150, room))
     }
 
+    /// `-strataMonthArt November`: another month's drawing, to photograph one
+    /// that has not come round yet. Nothing outside DEBUG.
+    private static var debugMonthArt: String? {
+        #if DEBUG
+        DebugHarness.argument("-strataMonthArt")
+        #else
+        nil
+        #endif
+    }
+
     @ViewBuilder
     private func monthArt(height: CGFloat) -> some View {
-        let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
+        let month = Self.debugMonthArt ?? vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         let key = MonthDrawingStore.key(for: vm.selectedMonth, calendar: MemoriesViewModel.mondayCalendar)
         Group {
             // **Some Wins' own card, when one is due** (`HouseCard`): in the

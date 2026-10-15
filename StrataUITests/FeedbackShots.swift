@@ -522,6 +522,52 @@ final class FeedbackShots: XCTestCase {
         app.swipeDown(velocity: .fast); wait(2.5); snap("put-4-after-plan")
     }
 
+    /// **Every drawing on its own screen, for the owner** (2026-10-14: "can
+    /// you send me the drawings on all the screens they are there"). Each
+    /// screen photographed mid-play and at rest.
+    func testDrawingsOnTheirScreens() {
+        func shoot(_ name: String, _ args: [String], at: [Double], before: ((XCUIApplication) -> Void)? = nil) {
+            let app = launch(args)
+            wait(at.first ?? 6)
+            before?(app)
+            for (i, t) in at.enumerated() {
+                if i > 0 { wait(t) }
+                snap("draw-\(name)-\(i)")
+            }
+            app.terminate()
+        }
+        // November's turkey, at the end of Memories.
+        shoot("november", ["-strataStartTab", "memories", "-strataSeedHistory", "30", "-strataSeedHistoryPerDay", "2",
+                           "-strataMonthArt", "November"], at: [8, 0.5, 2.5]) { app in
+            for _ in 0..<6 { app.swipeUp(velocity: .fast) }
+        }
+        // The store could not open: the cat.
+        shoot("store", ["-strataFailStore", "both"], at: [4, 0.5, 2])
+        // Restore failed (the cat) and done (the thumbs up).
+        for stage in ["failed", "done"] {
+            shoot("restore-\(stage)", ["-strataSeedBackup", "40", "-strataRestoreFrom", "strata-debug-backup.zip",
+                                       "-strataRestoreStage", stage, "-strataOpenSheet", "settings"], at: [9, 0.5, 2])
+        }
+        // Crews: joining (the walking cat), joined (the thumbs up), signed out (the cloud).
+        shoot("joining", ["-strataCrews", "1", "-strataStartTab", "crews", "-strataCrewsState", "joining"], at: [6, 0.5, 1.5])
+        shoot("joined", ["-strataCrews", "1", "-strataStartTab", "crews", "-strataCrewsState", "joined"], at: [6, 0.4, 1.5])
+        shoot("nocloud", ["-strataCrews", "1", "-strataStartTab", "crews"], at: [6, 0.8, 2])
+        // The head maker, no face found: the box head.
+        shoot("noface", ["-strataOpenHeadMaker", "failed"], at: [5, 0.6, 2])
+        // Onboarding, Lock Journal: the lock.
+        shoot("lock", ["-strataShowOnboarding", "1", "-strataOnboardingStep", "9"], at: [3, 0.5, 2])
+        // The tip thanks: the thumbs up.
+        shoot("tip", ["-strataStartTab", "tower", "-strataOpenSheet", "tipask", "-strataTipThanked"], at: [6, 0.4, 2])
+        // The report thanks: the thumbs up on its card.
+        shoot("report", ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewSheet", "info",
+                         "-strataReportThanks"], at: [9, 0.4, 2])
+        // Settings, Lock Journal switched on: the small thumbs up.
+        shoot("settings-lock", ["-strataOpenSheet", "settings", "-strataScrollSettings", "journal"], at: [7, 0.4, 1.2]) { app in
+            let toggle = app.switches["Lock Journal"].firstMatch
+            if toggle.waitForExistence(timeout: 5) { toggle.tap() }
+        }
+    }
+
     /// **Wins after coming back to the app** (the owner, 2026-10-14: the
     /// tower and the UI "randomly ... higher than they usually are", when
     /// "coming back to the app").

@@ -8,7 +8,7 @@ import StoreKit
 /// that cannot be bought.
 struct TipJarSection: View {
     @State private var jar = TipJar.shared
-    @State private var thanked = false
+    @State private var thanked = TipJarDebug.thanked
 
     var body: some View {
         // **Only with something to offer.** Before prices load (no agreement
@@ -75,7 +75,7 @@ struct TipJarSection: View {
 /// plain "Not Now". Whatever happens here, it is never shown again.
 struct TipAskSheet: View {
     @State private var jar = TipJar.shared
-    @State private var thanked = false
+    @State private var thanked = TipJarDebug.thanked
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -133,5 +133,16 @@ struct TipAskSheet: View {
             jar.markAsked()
             Analytics.shared.signal(.tipAsk, [.action(.shown)])
         }
+    }
+}
+
+/// `-strataTipThanked`: the thanks after a tip, held, for photographs.
+enum TipJarDebug {
+    static var thanked: Bool {
+        #if DEBUG
+        DebugHarness.argument("-strataTipThanked") != nil
+        #else
+        false
+        #endif
     }
 }
