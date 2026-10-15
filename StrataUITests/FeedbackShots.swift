@@ -1662,6 +1662,25 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("corners-memories")
     }
 
+    /// The bars at the foot of every writing page, side by side
+    /// (2026-10-15: "in the plan the bar doesnt use liquid glass").
+    func testBarsCompared() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataSeedPlan", "5",
+                          "-strataOpenSheet", "plan", "-strataDayTab", "plan"])
+        wait(6); snap("bars-1-plan")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4",
+                      "-strataOpenSheet", "plan", "-strataDayTab", "journal"])
+        wait(6); snap("bars-2-journal")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                      "-strataSeedWins", "3"])
+        wait(7)
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch
+        if row.exists { row.tap() }
+        wait(4); snap("bars-3-crew")
+    }
+
     /// **Memories as your profile** (2026-10-15): the header, Your Score,
     /// Edit Profile and Settings from the gear.
     func testProfileOnMemories() {

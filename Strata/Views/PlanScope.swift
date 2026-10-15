@@ -113,32 +113,17 @@ struct PlanScopeRow: View {
     private var days: [PlanScope] { choices.filter { $0 != .repeating } }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(days, id: \.self) { item in
-                            word(item).id(item)
-                        }
-                    }
-                    .padding(.horizontal, margin)
-                }
-                .edgeFade()
-                .moreToTheRight()
-                // **Opened on the chosen day.** A line set for Saturday
-                // opened its sheet with the row at Today and nothing on it
-                // in ink: the chosen word was off the right edge.
-                .onAppear { proxy.scrollTo(scope, anchor: .center) }
-                .onChange(of: scope) { _, now in
-                    withAnimation(GridConstants.motionSnappy) { proxy.scrollTo(now, anchor: .center) }
-                }
-            }
-            // **Repeating stands still at the end of the row** (the flows
-            // pass, 2026-10-11). It was the eighth word, off the right edge
-            // of a row that scrolls, so the way to make a plan repeat could
-            // not be seen without knowing to look for it.
+        // **On glass, as everything else on the sheet is** (2026-10-15,
+        // `GlassChoiceBar`). Repeating keeps its own disc at the end, standing
+        // still beside the days that scroll (the flows pass, 2026-10-11: the
+        // eighth word off the right edge could not be found).
+        HStack(spacing: GridConstants.gapTight) {
+            GlassChoiceBar(items: days, chosen: scope,
+                           title: { $0.title() }, spoken: { $0.spokenTitle() },
+                           dot: planned) { scope = $0 }
             if choices.contains(.repeating) { repeating }
         }
+        .padding(.horizontal, margin + GridConstants.gapTight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Which day")
     }
@@ -150,44 +135,16 @@ struct PlanScopeRow: View {
             HapticsEngine.tick()
             withAnimation(GridConstants.crossFade) { scope = .repeating }
         } label: {
-            Image(systemName: "repeat")
-                .font(Typography.headerSmall)
-                .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            GlassIconLabel(systemName: "repeat",
+                           tint: chosen ? AppColors.inkPrimary : AppColors.inkTertiary,
+                           onPage: true)
+                .overlay {
+                    if chosen { Circle().fill(AppColors.chosenFill).allowsHitTesting(false) }
+                }
         }
         .buttonStyle(.press)
-        .padding(.trailing, max(0, margin - GridConstants.gapTight))
         .accessibilityLabel("Repeating")
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
-    }
-
-    private func word(_ item: PlanScope) -> some View {
-        let chosen = item == scope
-        return Button {
-            guard item != scope else { return }
-            HapticsEngine.tick()
-            withAnimation(GridConstants.crossFade) { scope = item }
-        } label: {
-            VStack(spacing: 2) {
-                Text(item.title())
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
-                // Something is planned there: a dot, in the word's own ink.
-                Circle()
-                    .fill(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
-                    .frame(width: 4, height: 4)
-                    .opacity(planned(item) ? 1 : 0)
-            }
-            .padding(.horizontal, GridConstants.gapTight)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressWord)
-        .accessibilityLabel(item.spokenTitle())
-        .accessibilityValue(planned(item) ? "Has plans" : "")
-        .accessibilityAddTraits(chosen ? [.isSelected] : [])
-        .animation(GridConstants.crossFade, value: chosen)
     }
 }
 
@@ -314,14 +271,11 @@ struct WhenRow: View {
     var body: some View {
         Group {
             if open || when != nil {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(choices, id: \.self) { item in word(item) }
-                    }
-                    .padding(.trailing, GridConstants.gapWide)
+                GlassChoiceBar(items: choices, chosen: when, title: Self.title,
+                               spoken: { item in item.map { $0 == .day(0) ? "Later today" : $0.spokenTitle() } ?? "Now" }) { item in
+                    when = item
+                    if item == nil { open = false }
                 }
-                .edgeFade()
-                .moreToTheRight()
                 .transition(.opacity)
             } else {
                 Button {
@@ -354,30 +308,6 @@ struct WhenRow: View {
                 .transition(.opacity)
             }
         }
-        // The first word starts on the page's margin, as the name does.
-        .padding(.leading, open || when != nil ? -GridConstants.gapTight : 0)
-    }
-
-    private func word(_ item: PlanScope?) -> some View {
-        let chosen = item == when
-        return Button {
-            HapticsEngine.tick()
-            withAnimation(GridConstants.crossFade) {
-                when = item
-                if item == nil { open = false }
-            }
-        } label: {
-            Text(Self.title(item))
-                .font(Typography.headerSmall)
-                .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
-                .padding(.horizontal, GridConstants.gapTight)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressWord)
-        .accessibilityLabel(item.map { $0 == .day(0) ? "Later today" : $0.spokenTitle() } ?? "Now")
-        .accessibilityAddTraits(chosen ? [.isSelected] : [])
-        .animation(GridConstants.crossFade, value: chosen)
     }
 }
 
