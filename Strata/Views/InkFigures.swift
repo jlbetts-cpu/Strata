@@ -2,9 +2,22 @@ import SwiftUI
 
 // The owner's drawings that move in parts (`InkFigure`). Every number is in
 // his pixels: the drawing's 2048 canvas, cropped to the box its assets were
-// cut from (the cut scripts measured each joint). Small moves, calm easing,
-// and every joint turns about the place the parts meet, so the line stays
-// whole.
+// cut from (the cut scripts measured each joint).
+//
+// **Animated, the cartoon way** (the owner, 2026-10-14: "for the animations
+// make them more like animated"): a wind-up before each move, squash and
+// stretch, an overshoot that settles, loose parts (a tail, a flap, a dash)
+// arriving a beat behind, and a held beat on each key pose. Every joint
+// turns or leans about the place the parts meet, so his line stays whole.
+
+/// A target that steps and springs: each (time, change) moves the target by
+/// `change` at `time`, and the value follows it on a spring, overshooting and
+/// settling. The cartoon "whip to a pose and hold".
+private func springSteps(_ t: Double, _ steps: [(Double, Double)], frequency: Double = 2.4, damping: Double = 0.38) -> Double {
+    steps.reduce(0) { sum, step in
+        t < step.0 ? sum : sum + step.1 * (1 - Ink.spring(t - step.0, frequency: frequency, damping: damping))
+    }
+}
 
 // MARK: - The cat sliding down the wall (an error)
 
@@ -12,11 +25,11 @@ import SwiftUI
 /// down a wall we can use this for an error"). His two drawings: the cat
 /// clinging, eyes shut, then scared, eyes wide, its scratches above its claws.
 ///
-/// It clings, it startles (its eyes snap open, its mouth opens, its tail
-/// flicks up and over), and it slides down a short way: the arms reach as the
-/// claws drag, the scratches are drawn in behind each paw, the tail swishes,
-/// and the legs dangle a beat behind and swing as it stops. Then it holds.
-/// About 1.2s to the stop, the legs settling a moment after.
+/// It hangs, calm. It gathers (a squash, its eyes screwing up), then startles:
+/// it springs up stretched, its eyes pop open past round, its mouth gapes, its
+/// tail whips over. It slides, stretched long, the arms reaching as the claws
+/// drag and the scratches drawn in behind each paw; it lands in a squash, the
+/// legs and tail swinging on after it. About 1.1s to the stop, settled by 1.7.
 struct ErrorCat: View {
     var height: CGFloat = 150
     var body: some View { InkFigure(script: ErrorCatScript(), height: height) }
@@ -24,13 +37,17 @@ struct ErrorCat: View {
 
 struct ErrorCatScript: InkScript {
     let canvas = CGSize(width: 760, height: 1510)
-    let length: Double? = 1.6
+    let length: Double? = 1.7
 
     /// How far it slides: the length of his longest scratch above its paw.
     static let slide = 340.0
-    static let startle = 0.26, swap = 0.34, slideFrom = 0.36, slideFor = 0.72
+    static let gather = 0.14, swap = 0.3, slideFrom = 0.44, slideFor = 0.6
+    static var stop: Double { slideFrom + slideFor }
 
     // Joints, measured on his drawing.
+    /// Between the paws: it hangs from its claws, so it squashes and
+    /// stretches from there.
+    static let claws = CGPoint(x: 415, y: 340)
     static let shoulderLeft = CGPoint(x: 235, y: 647), pawLeftTop = 358.0
     static let shoulderRight = CGPoint(x: 595, y: 654), pawRightTop = 316.0
     static let scratchesLeftEnd = 382.0, scratchesRightEnd = 336.0, scratchesSplit = 450.0
@@ -45,62 +62,67 @@ struct ErrorCatScript: InkScript {
     func parts(at t: Double, stoppedAt: Double?) -> [InkPart] {
         typealias S = ErrorCatScript
         let scared = t >= S.swap
-        // The slide: slow off the mark, slowing as the claws catch.
+        // The beats: gather, leap, fall, land.
+        let gather = Ink.bump(t, S.gather, 0.27, S.swap + 0.01)
+        let leap = Ink.springOut(t - S.swap, frequency: 2.2, damping: 0.5)
+        let fall = Ink.bump(t, S.slideFrom, 0.72, S.stop)
+        let land = Ink.springOut(t - S.stop, frequency: 2.4, damping: 0.4)
+        let sy = 1 - 0.06 * gather + 0.14 * leap + 0.05 * fall - 0.1 * land
+        let sx = 1 + 0.03 * gather - 0.06 * leap - 0.02 * fall + 0.05 * land
         let off = -S.slide * (1 - Ink.smooth((t - S.slideFrom) / S.slideFor))
-        let jolt = -10 * Ink.bump(t, S.startle, 0.31, 0.46)
-        let cat = Ink.move(0, off + jolt)
+        let rise = -40 * leap
+        let cat = Ink.scale(sx, sy, about: S.claws).then(Ink.move(0, off + rise))
 
         // The arms reach as the claws drag: one, then the other.
-        let reachLeft = 0.07 * Ink.bump(t, S.slideFrom, 0.62, 1.02)
-        let reachRight = 0.07 * Ink.bump(t, 0.44, 0.74, 1.1)
+        let reachLeft = 0.12 * Ink.bump(t, S.slideFrom, 0.64, 0.98)
+        let reachRight = 0.12 * Ink.bump(t, 0.5, 0.76, 1.04)
         let armLeft = Ink.scale(1, 1 + reachLeft, about: S.shoulderLeft).then(cat)
         let armRight = Ink.scale(1, 1 + reachRight, about: S.shoulderRight).then(cat)
 
         // Drawn in behind each paw: down to where its claws are now.
-        let frontLeft = S.scratchesLeftEnd + off + jolt - (S.shoulderLeft.y - S.pawLeftTop) * reachLeft
-        let frontRight = S.scratchesRightEnd + off + jolt - (S.shoulderRight.y - S.pawRightTop) * reachRight
+        let frontLeft = S.scratchesLeftEnd + off + rise - (S.shoulderLeft.y - S.pawLeftTop) * reachLeft
+        let frontRight = S.scratchesRightEnd + off + rise - (S.shoulderRight.y - S.pawRightTop) * reachRight
         let scratches = [CGRect(x: 0, y: 0, width: S.scratchesSplit, height: frontLeft),
                          CGRect(x: S.scratchesSplit, y: 0, width: canvas.width - S.scratchesSplit, height: frontRight)]
 
-        // The head flinches back, then rides the slide.
-        let tilt = -2.5 * Ink.bump(t, S.startle, S.swap, 0.62) + 1.2 * Ink.bump(t, 0.55, 0.85, 1.2)
+        // The head ducks into the gather, flinches back, and nods on landing.
+        let tilt = 2 * gather - 6 * leap + 1.5 * Ink.bump(t, 0.55, 0.85, 1.1) + 4 * land
         let head = Ink.rotate(tilt, about: S.neck).then(cat)
 
-        // The eyes tighten, and open wide in the frame they change.
-        let squeeze = 1 - 0.4 * Ink.smooth((t - S.startle) / (S.swap - S.startle))
-        let open = 0.6 + 0.4 * Ink.backOut((t - S.swap) / 0.3)
-        let gape = 0.3 + 0.7 * Ink.backOut((t - S.swap - 0.02) / 0.32)
+        // The eyes screw shut, then pop open past round and settle.
+        let screw = 1 - 0.55 * gather
+        let pop = 1 - 0.5 * Ink.spring(t - S.swap, frequency: 3, damping: 0.32)
+        let gape = 1 - 0.75 * Ink.spring(t - S.swap - 0.03, frequency: 2.8, damping: 0.35)
 
-        // The tail flicks up, and the scared tail swings over and swishes.
-        let flick = 10 * Ink.smooth((t - S.startle) / (S.swap - S.startle))
-        let swish = -14 * Ink.spring(t - S.swap, frequency: 2.2, damping: 0.42)
-            + 5 * sin((t - 0.5) * .pi * 2 / 0.55) * Ink.bump(t, 0.5, 0.75, 1.2)
+        // The tail winds down, whips over, and swings on after the landing.
+        let wind = 14 * gather
+        let whip = -22 * Ink.spring(t - S.swap, frequency: 2.0, damping: 0.3)
+            + 6 * sin((t - 0.5) * .pi * 2 / 0.5) * Ink.bump(t, 0.5, 0.75, S.stop)
+            - 12 * Ink.springOut(t - S.stop - 0.05, frequency: 2.0, damping: 0.3)
 
-        // The legs hang a beat behind: drawn up as it drops, swinging long
-        // as it stops.
-        let stop = S.slideFrom + S.slideFor
-        let hang = 1 - 0.035 * Ink.bump(t, S.slideFrom, 0.55, 0.85)
-            + 0.05 * Ink.springOut(t - stop + 0.12, frequency: 2.0, damping: 0.35)
-        let swing = 0.04 * Ink.springOut(t - stop + 0.08, frequency: 1.6, damping: 0.3)
+        // The legs hang a beat behind: drawn up as it leaps and drops,
+        // swinging long after it stops.
+        let hang = 1 - 0.05 * leap - 0.05 * fall + 0.1 * Ink.springOut(t - S.stop + 0.04, frequency: 2.0, damping: 0.3)
+        let swing = 0.09 * Ink.springOut(t - S.stop, frequency: 1.6, damping: 0.28)
         let legs = Ink.scale(1, hang, about: CGPoint(x: 0, y: S.hips)).then(Ink.shearX(swing, aboutY: S.hips)).then(cat)
 
         return [
             InkPart(asset: "ErrorCatLines", opacity: t >= S.slideFrom ? 1 : 0, reveal: scratches),
             InkPart(asset: "ErrorCatTorso", transform: cat),
             InkPart(asset: "ErrorCatLegs", transform: legs),
-            InkPart(asset: "ErrorCatTail", transform: Ink.rotate(flick, about: S.tailRoot).then(cat), opacity: scared ? 0 : 1),
-            InkPart(asset: "ErrorCatTailUp", transform: Ink.rotate(swish, about: S.tailUpRoot).then(cat), opacity: scared ? 1 : 0),
+            InkPart(asset: "ErrorCatTail", transform: Ink.rotate(wind, about: S.tailRoot).then(cat), opacity: scared ? 0 : 1),
+            InkPart(asset: "ErrorCatTailUp", transform: Ink.rotate(whip, about: S.tailUpRoot).then(cat), opacity: scared ? 1 : 0),
             InkPart(asset: "ErrorCatArmLeft", transform: armLeft),
             InkPart(asset: "ErrorCatArmRight", transform: armRight),
             InkPart(asset: "ErrorCatHead", transform: head),
-            InkPart(asset: "ErrorCatEyeLeftShut", transform: Ink.scale(1, squeeze, about: S.eyeLeftShut).then(head), opacity: scared ? 0 : 1),
-            InkPart(asset: "ErrorCatEyeRightShut", transform: Ink.scale(1, squeeze, about: S.eyeRightShut).then(head), opacity: scared ? 0 : 1),
+            InkPart(asset: "ErrorCatEyeLeftShut", transform: Ink.scale(1 + 0.15 * gather, screw, about: S.eyeLeftShut).then(head), opacity: scared ? 0 : 1),
+            InkPart(asset: "ErrorCatEyeRightShut", transform: Ink.scale(1 + 0.15 * gather, screw, about: S.eyeRightShut).then(head), opacity: scared ? 0 : 1),
             InkPart(asset: "ErrorCatNose", transform: head, opacity: scared ? 0 : 1),
-            InkPart(asset: "ErrorCatMouth", transform: Ink.scale(squeeze, squeeze, about: S.mouth).then(head), opacity: scared ? 0 : 1),
-            InkPart(asset: "ErrorCatEyeLeftWide", transform: Ink.scale(open, open, about: S.eyeLeftWide).then(head), opacity: scared ? 1 : 0),
-            InkPart(asset: "ErrorCatEyeRightWide", transform: Ink.scale(open, open, about: S.eyeRightWide).then(head), opacity: scared ? 1 : 0),
-            InkPart(asset: "ErrorCatNoseWide", transform: head, opacity: scared ? 1 : 0),
-            InkPart(asset: "ErrorCatMouthWide", transform: Ink.scale(gape, gape, about: S.mouthWide).then(head), opacity: scared ? 1 : 0),
+            InkPart(asset: "ErrorCatMouth", transform: Ink.scale(screw, screw, about: S.mouth).then(head), opacity: scared ? 0 : 1),
+            InkPart(asset: "ErrorCatEyeLeftWide", transform: Ink.scale(pop, pop * (1 + 0.1 * leap), about: S.eyeLeftWide).then(head), opacity: scared ? 1 : 0),
+            InkPart(asset: "ErrorCatEyeRightWide", transform: Ink.scale(pop, pop * (1 + 0.1 * leap), about: S.eyeRightWide).then(head), opacity: scared ? 1 : 0),
+            InkPart(asset: "ErrorCatNoseWide", transform: Ink.scale(pop, pop, about: S.noseWide).then(head), opacity: scared ? 1 : 0),
+            InkPart(asset: "ErrorCatMouthWide", transform: Ink.scale(max(gape, 0.05), max(gape, 0.05), about: S.mouthWide).then(head), opacity: scared ? 1 : 0),
         ]
     }
 
@@ -118,9 +140,10 @@ struct ErrorCatScript: InkScript {
 /// that for a bunch of things"). His two drawings: a fist, and the thumb up
 /// with a little face on it.
 ///
-/// The fingers curl tighter, the thumb springs up out of the fist past
-/// upright and back, and its face blinks once and smiles wider. About 0.8s,
-/// then it holds.
+/// The fist winds up, straining as the fingers squeeze; the thumb shoots up
+/// out of it, stretched tall and thin, overshoots, and wobbles to a stop as
+/// the fingers spring back. Its face blinks (eyes widening first) and its
+/// smile grows past wide and settles. About 1s, then it holds.
 struct ThumbsUp: View {
     var height: CGFloat = 110
     var body: some View { InkFigure(script: ThumbsUpScript(), height: height) }
@@ -128,28 +151,37 @@ struct ThumbsUp: View {
 
 struct ThumbsUpScript: InkScript {
     let canvas = CGSize(width: 900, height: 670)
-    let length: Double? = 0.9
+    let length: Double? = 1.1
 
-    static let swap = 0.3
+    static let swap = 0.32
     /// Where the curled fingers meet the palm, and where the thumb stands.
     static let palm = CGPoint(x: 610, y: 490), thumbBase = CGPoint(x: 612, y: 265)
     static let eyeLeft = CGPoint(x: 618, y: 120), eyeRight = CGPoint(x: 667, y: 115)
-    static let smile = CGPoint(x: 660, y: 162)
+    static let nose = CGPoint(x: 646, y: 138), smile = CGPoint(x: 660, y: 162)
 
     func parts(at t: Double, stoppedAt: Double?) -> [InkPart] {
         typealias S = ThumbsUpScript
         let up = t >= S.swap
-        // The fingers tighten, then let go with a little give as the thumb comes up.
-        let curl = up ? 0.04 * Ink.spring(t - S.swap, frequency: 3, damping: 0.45)
-                      : 0.04 * Ink.smooth((t - 0.06) / 0.2)
-        let fist = Ink.scale(1 - curl, 1 - curl * 0.4, about: S.palm)
-        // The thumb springs up from half height, past upright, and back.
-        let rise = 1 - 0.5 * Ink.spring(t - S.swap, frequency: 2.4, damping: 0.42)
-        let wobble = 4 * Ink.springOut(t - S.swap, frequency: 2.4, damping: 0.42)
-        let thumb = Ink.scale(1, rise, about: S.thumbBase).then(Ink.rotate(wobble, about: S.thumbBase))
-        // One blink, then the smile widens.
-        let blink = 1 - 0.8 * Ink.bump(t, 0.6, 0.66, 0.74)
-        let grin = 1 + 0.2 * (1 - Ink.spring(t - 0.5, frequency: 3, damping: 0.5))
+        // The wind-up: the fingers squeeze, straining, then spring back past
+        // where they were as the thumb goes.
+        let strain = Ink.smooth((t - 0.08) / 0.2)
+        let squeeze = up ? 0.1 * Ink.spring(t - S.swap, frequency: 3.2, damping: 0.35)
+                         : 0.1 * strain + 0.008 * sin(t * 140) * strain
+        let fist = Ink.scale(1 - squeeze, 1, about: S.palm)
+        // The thumb shoots up from a stub, stretched thin, past upright, and
+        // wobbles to a stop.
+        let sy = 1 - 0.75 * Ink.spring(t - S.swap, frequency: 2.6, damping: 0.32)
+        let sx = min(max(1 - 0.3 * (sy - 1), 0.9), 1.12)
+        let wobble = 10 * Ink.springOut(t - S.swap, frequency: 2.6, damping: 0.32)
+        let thumb = Ink.scale(sx, sy, about: S.thumbBase).then(Ink.rotate(wobble, about: S.thumbBase))
+        // The blink: the eyes widen, shut, and open with a pop.
+        let blink: Double = {
+            if t < 0.72 { return 1 + 0.3 * Ink.smooth((t - 0.64) / 0.08) }
+            if t < 0.77 { return 1.3 - 1.2 * Ink.smooth((t - 0.72) / 0.05) }
+            if t < 0.82 { return 0.1 }
+            return 1 - 0.9 * Ink.spring(t - 0.82, frequency: 3.5, damping: 0.4)
+        }()
+        let grin = 1 + 0.25 * (1 - Ink.spring(t - 0.55, frequency: 3, damping: 0.4))
         return [
             InkPart(asset: "ThumbsUpArm"),
             InkPart(asset: "ThumbsUpFingers", transform: fist),
@@ -160,7 +192,7 @@ struct ThumbsUpScript: InkScript {
             InkPart(asset: "ThumbsUpFaceEyeLeft", transform: Ink.scale(1, blink, about: S.eyeLeft).then(thumb), opacity: up ? 1 : 0),
             InkPart(asset: "ThumbsUpFaceEyeRight", transform: Ink.scale(1, blink, about: S.eyeRight).then(thumb), opacity: up ? 1 : 0),
             InkPart(asset: "ThumbsUpFaceNose", transform: thumb, opacity: up ? 1 : 0),
-            InkPart(asset: "ThumbsUpFaceSmile", transform: Ink.scale(grin, grin * 0.5 + 0.5, about: S.smile).then(thumb), opacity: up ? 1 : 0),
+            InkPart(asset: "ThumbsUpFaceSmile", transform: Ink.scale(grin, 1 + (grin - 1) * 0.6, about: S.smile).then(thumb), opacity: up ? 1 : 0),
         ]
     }
 
@@ -178,11 +210,13 @@ struct ThumbsUpScript: InkScript {
 /// the hip and at the knee where his line kinks, the socks at the cuff.
 ///
 /// It walks in place while a crew is joining, which makes it the spinner:
-/// the legs swing toward each other and back, each knee bending and its foot
-/// lifting as the leg comes through, the body bobbing twice a stride and the
-/// head swaying with it. Now and then it blinks, and an ear twitches; the
-/// smile widens once and stays. It loops because it is the "working" sign;
-/// stopped, it eases back to his pose.
+/// each leg comes in from his stride and goes back out, half a stride behind
+/// the other, its knee bending, its shin trailing and its toe lifting as it
+/// comes through. The body bobs twice a stride, the head squashing as a foot
+/// lands and stretching at the top, swaying a beat behind; the ears flop
+/// after it. Now and then it blinks, and the smile widens once and keeps a
+/// little bounce. It loops because it is the "working" sign; stopped, it
+/// eases back to his pose with a last little bob.
 struct JoiningWalk: View {
     var height: CGFloat = 130
     var walking = true
@@ -194,10 +228,10 @@ struct JoiningWalkScript: InkScript {
     let length: Double? = nil
     let settle = 0.9
 
-    static let stride = 1.1
+    static let stride = 1.0
     static let hip = 635.0, knee = 840.0
     static let cuffLeft = CGPoint(x: 160, y: 1180), cuffRight = CGPoint(x: 1095, y: 1102)
-    static let waist = CGPoint(x: 470, y: 480)
+    static let waist = CGPoint(x: 470, y: 490)
     static let earLeft = CGPoint(x: 285, y: 148), earRight = CGPoint(x: 560, y: 120)
     static let eyeLeft = CGPoint(x: 379, y: 213), eyeRight = CGPoint(x: 524, y: 183)
     static let mouth = CGPoint(x: 485, y: 246)
@@ -210,34 +244,43 @@ struct JoiningWalkScript: InkScript {
         // Each leg comes in from his stride and goes back out, the two half a
         // stride apart, so one is always coming through as the other goes
         // back. Never wider than he drew it.
-        let inLeft = 0.16 * amount * (1 - cos(phase)) / 2
-        let inRight = 0.16 * amount * (1 + cos(phase)) / 2
+        let inLeft = 0.22 * amount * (1 - cos(phase)) / 2
+        let inRight = 0.22 * amount * (1 + cos(phase)) / 2
         // Each leg lifts as it comes in: the knee bends, the shin trails.
         let liftLeft = amount * max(0, sin(phase)), liftRight = amount * max(0, -sin(phase))
-        var bob = -12 * amount * pow(sin(phase), 2)
-        if let stoppedAt { bob += 6 * Ink.springOut(t - stoppedAt - 0.2, frequency: 2, damping: 0.4) }
+        var bob = -22 * amount * pow(sin(phase), 2)
+        if let stoppedAt { bob += 10 * Ink.springOut(t - stoppedAt - 0.2, frequency: 2, damping: 0.35) }
         let body = Ink.move(0, bob)
 
         func leg(thigh: Double, lift: Double, cuff: CGPoint, toe: Double) -> (CGAffineTransform, CGAffineTransform, CGAffineTransform) {
             let thighT = Ink.shearX(thigh, aboutY: S.hip)
             let atKnee = thigh * (S.knee - S.hip)
             // The shin trails the way the thigh came from.
-            let trail = thigh >= 0 ? -0.22 * lift : 0.22 * lift
-            let shinT = Ink.scale(1, 1 - 0.07 * lift, about: CGPoint(x: 0, y: S.knee))
+            let trail = thigh >= 0 ? -0.3 * lift : 0.3 * lift
+            let shinT = Ink.scale(1, 1 - 0.12 * lift, about: CGPoint(x: 0, y: S.knee))
                 .then(Ink.shearX(thigh + trail, aboutY: S.knee))
                 .then(Ink.move(atKnee, 0))
             let moved = cuff.applying(shinT)
             let sockT = Ink.rotate(toe * lift, about: cuff).then(Ink.move(moved.x - cuff.x, moved.y - cuff.y))
             return (thighT.then(body), shinT.then(body), sockT.then(body))
         }
-        let (thighL, shinL, sockL) = leg(thigh: inLeft, lift: liftLeft, cuff: S.cuffLeft, toe: 10)
-        let (thighR, shinR, sockR) = leg(thigh: -inRight, lift: liftRight, cuff: S.cuffRight, toe: -10)
+        let (thighL, shinL, sockL) = leg(thigh: inLeft, lift: liftLeft, cuff: S.cuffLeft, toe: 16)
+        let (thighR, shinR, sockR) = leg(thigh: -inRight, lift: liftRight, cuff: S.cuffRight, toe: -16)
 
-        let head = Ink.rotate(1.2 * amount * sin(phase), about: S.waist).then(body)
+        // The head squashes as a foot lands and stretches at the top of the
+        // bob, a beat behind; it sways the same beat behind.
+        let late = phase - 0.4
+        let squash = 1 + 0.045 * amount * (2 * pow(sin(late), 2) - 1)
+        let head = Ink.scale(1 / squash.squareRoot(), squash, about: S.waist)
+            .then(Ink.rotate(2.5 * amount * sin(late), about: S.waist)).then(body)
+        // The ears flop after the head, and twitch now and then.
         let twitch = t.truncatingRemainder(dividingBy: 2.2)
+        let flop = amount * sin(2 * phase - 1.3)
+        let earL = 6 * flop + 8 * Ink.bump(twitch, 1.25, 1.33, 1.5)
+        let earR = -7 * flop - 10 * Ink.bump(twitch, 1.2, 1.28, 1.45)
         let blinkAt = t.truncatingRemainder(dividingBy: 2.9)
         let blink = Ink.bump(blinkAt, 2.0, 2.06, 2.16)
-        let grin = 1 + 0.22 * Ink.smooth((t - 0.4) / 0.5)
+        let grin = 1 + 0.22 * Ink.smooth((t - 0.4) / 0.5) + 0.06 * amount * pow(sin(late), 2)
         return [
             InkPart(asset: "CrewsJoinHips", transform: body),
             InkPart(asset: "CrewsJoinThighLeft", transform: thighL),
@@ -247,10 +290,10 @@ struct JoiningWalkScript: InkScript {
             InkPart(asset: "CrewsJoinShinRight", transform: shinR),
             InkPart(asset: "CrewsJoinSockRight", transform: sockR),
             InkPart(asset: "CrewsJoinHead", transform: head),
-            InkPart(asset: "CrewsJoinEarLeft", transform: Ink.rotate(6 * Ink.bump(twitch, 1.25, 1.33, 1.5), about: S.earLeft).then(head)),
-            InkPart(asset: "CrewsJoinEarRight", transform: Ink.rotate(-8 * Ink.bump(twitch, 1.2, 1.28, 1.45), about: S.earRight).then(head)),
-            InkPart(asset: "CrewsJoinEyeLeft", transform: Ink.scale(1 - 0.15 * blink, 1 - 0.7 * blink, about: S.eyeLeft).then(head)),
-            InkPart(asset: "CrewsJoinEyeRight", transform: Ink.scale(1 - 0.15 * blink, 1 - 0.7 * blink, about: S.eyeRight).then(head)),
+            InkPart(asset: "CrewsJoinEarLeft", transform: Ink.rotate(earL, about: S.earLeft).then(head)),
+            InkPart(asset: "CrewsJoinEarRight", transform: Ink.rotate(earR, about: S.earRight).then(head)),
+            InkPart(asset: "CrewsJoinEyeLeft", transform: Ink.scale(1 - 0.15 * blink, 1 - 0.75 * blink, about: S.eyeLeft).then(head)),
+            InkPart(asset: "CrewsJoinEyeRight", transform: Ink.scale(1 - 0.15 * blink, 1 - 0.75 * blink, about: S.eyeRight).then(head)),
             InkPart(asset: "CrewsJoinNose", transform: head),
             InkPart(asset: "CrewsJoinMouth", transform: Ink.scale(grin, 1 + (grin - 1) * 0.4, about: S.mouth).then(head)),
         ]
@@ -269,9 +312,12 @@ struct JoiningWalkScript: InkScript {
 /// 2026-10-14: "here is the error finding face one"). The head maker's "no
 /// face found" slot.
 ///
-/// The box looks around, one way and then the other, its "?" bobbing and its
-/// flaps flapping as it turns; the arms swing a little behind the turn, and
-/// the weight shifts from one foot to the other under it. About 2.4s, once.
+/// The box looks one way and then the other: each look winds up the other
+/// way first, whips over past where it stops, and holds. The box leans from
+/// its bottom edge (so it stays on the shoulders) and squashes into each
+/// wind-up; the "?" hops and squashes as it lands; the flaps flop after each
+/// turn; the arms swing on behind it, and the weight shifts from one foot to
+/// the other. About 1.9s, once.
 struct NoFaceFigure: View {
     var height: CGFloat = 220
     var ink: Color = AppColors.onDarkStrong
@@ -280,35 +326,48 @@ struct NoFaceFigure: View {
 
 struct NoFaceScript: InkScript {
     let canvas = CGSize(width: 780, height: 1630)
-    let length: Double? = 2.45
+    let length: Double? = 1.9
 
-    static let neck = CGPoint(x: 470, y: 590)
-    static let mark = CGPoint(x: 455, y: 330)
+    /// The box's bottom edge, where it sits on the shoulders, and its top.
+    static let boxBottom = 590.0, boxTop = 29.0
+    static let mark = CGPoint(x: 455, y: 330), markFoot = CGPoint(x: 455, y: 446)
     static let flapLeftHinge = (CGPoint(x: 119, y: 494), CGPoint(x: 262, y: 569))
     static let flapRightHinge = (CGPoint(x: 675, y: 556), CGPoint(x: 662, y: 650))
     static let flapFrontHinge = 575.0
     static let shoulderLeft = CGPoint(x: 230, y: 625), shoulderRight = CGPoint(x: 575, y: 670)
     static let waist = 870.0, ankles = 1420.0
+    /// The turns: when each look whips over.
+    static let turns = [0.3, 0.95, 1.45]
 
-    static func look(_ t: Double) -> Double {
-        Ink.keys(t, [(0, 0), (0.55, -4), (0.9, -4), (1.5, 4), (1.85, 4), (2.35, 0)])
+    /// How far the box's top leans, in his pixels: a wind-up the other way,
+    /// a whip past the look, a hold.
+    static func lean(_ t: Double) -> Double {
+        springSteps(t, [(0.12, 20), (0.3, -120), (0.85, -18), (0.95, 218), (1.45, -100)])
     }
 
     func parts(at t: Double, stoppedAt: Double?) -> [InkPart] {
         typealias S = NoFaceScript
-        let tilt = S.look(t)
-        // The weight goes onto the foot away from where it looks.
-        let sway = -2.5 * tilt
+        let lean = S.lean(t)
+        // The weight goes onto the foot away from the look, a beat behind.
+        let sway = -0.18 * S.lean(t - 0.05)
         let upper = Ink.move(sway, 0)
-        let box = Ink.rotate(tilt, about: S.neck).then(upper)
-        // The "?" bobs as the box turns, a beat behind it.
-        let bob = -10 * Ink.bump(t, 0.05, 0.3, 0.65) - 10 * Ink.bump(t, 1.0, 1.25, 1.6) - 6 * Ink.bump(t, 1.9, 2.1, 2.4)
-        let mark = Ink.rotate(-0.6 * (tilt - S.look(t - 0.12)) * 4, about: S.mark).then(Ink.move(0, bob)).then(box)
-        let flapLeft = 1 - 0.25 * Ink.bump(t, 0.45, 0.6, 0.8) - 0.2 * Ink.bump(t, 1.6, 1.75, 1.95)
-        let flapRight = 1 - 0.3 * Ink.bump(t, 0.5, 0.65, 0.85) - 0.25 * Ink.bump(t, 1.65, 1.8, 2.0)
-        let flapFront = 1 - 0.12 * Ink.bump(t, 0.55, 0.7, 0.9) - 0.1 * Ink.bump(t, 1.7, 1.85, 2.05)
-        // The arms swing behind the turn.
-        let arm = -0.8 * S.look(t - 0.15)
+        let windUp = Ink.bump(t, 0.1, 0.22, 0.3) + Ink.bump(t, 0.83, 0.9, 0.96)
+        let whip = abs(Ink.springOut(t - 0.3, frequency: 2.4, damping: 0.38)) + abs(Ink.springOut(t - 0.95, frequency: 2.4, damping: 0.38))
+        let squash = 1 - 0.06 * windUp + 0.05 * whip
+        let box = Ink.scale(1 / squash.squareRoot(), squash, about: CGPoint(x: 470, y: S.boxBottom))
+            .then(Ink.shearX(lean / (S.boxTop - S.boxBottom), aboutY: S.boxBottom)).then(upper)
+        // The "?" hops at each turn and squashes as it lands, swinging behind.
+        let hop = Ink.bump(t, 0.3, 0.42, 0.56) + Ink.bump(t, 0.95, 1.07, 1.21) + 0.6 * Ink.bump(t, 1.45, 1.55, 1.68)
+        let landing = Ink.springOut(t - 0.56, frequency: 3, damping: 0.4) + Ink.springOut(t - 1.21, frequency: 3, damping: 0.4)
+        let markSquash = 1 + 0.12 * hop - 0.15 * landing
+        let markSwing = -0.12 * (S.lean(t) - S.lean(t - 0.1))
+        let mark = Ink.scale(1 / markSquash.squareRoot(), markSquash, about: S.markFoot)
+            .then(Ink.rotate(markSwing, about: S.mark)).then(Ink.move(0, -34 * hop)).then(box)
+        // The flaps flop after each turn.
+        let flop = S.turns.reduce(0.0) { $0 + Ink.springOut(t - $1 - 0.06, frequency: 3, damping: 0.3) }
+        let flapLeft = 1 - 0.4 * flop, flapRight = 1 + 0.45 * flop, flapFront = 1 - 0.18 * flop
+        // The arms swing on behind the turn.
+        let arm = 0.07 * S.lean(t - 0.14)
         // Legs lean from the ankles to carry the sway; the shoes stay put.
         let legs = Ink.shearX(sway / (S.waist - S.ankles), aboutY: S.ankles)
         return [
@@ -322,7 +381,7 @@ struct NoFaceScript: InkScript {
             InkPart(asset: "HeadMakerNoFaceFlapRight", transform: Ink.fold(flapRight, hinge: S.flapRightHinge.0, S.flapRightHinge.1).then(box)),
             InkPart(asset: "HeadMakerNoFaceFlapFront", transform: Ink.scale(1, flapFront, about: CGPoint(x: 0, y: S.flapFrontHinge)).then(box)),
             InkPart(asset: "HeadMakerNoFaceMark", transform: mark),
-            InkPart(asset: "HeadMakerNoFaceMarkDot", transform: mark),
+            InkPart(asset: "HeadMakerNoFaceMarkDot", transform: Ink.move(0, 10 * landing).then(mark)),
         ]
     }
 
@@ -338,13 +397,16 @@ struct NoFaceScript: InkScript {
 /// **The lock, locking** (the owner, 2026-10-14: "the animation being it
 /// locking with like little doodle lines coming out when it clocks and then
 /// the lock smiling"). His two drawings: the lock open with its keyhole, and
-/// shut with a face.
+/// shut with a face. (`LockingLock`, because `JournalLock` is the service
+/// that keeps the journal locked.)
 ///
-/// The shackle swings down and clicks shut, and at the click four short
-/// dashes in his pen spring out from where it went in and fade (the only
-/// ink here that is not cut from his drawings, which he asked for). The lock
-/// gives a little, the keyhole draws up into the round nose, the eyes open,
-/// the mouth curves into his smile, and it winks. About 1.5s, once.
+/// It waits open; the shackle winds up higher, then slams down and clicks
+/// shut. The lock squashes at the click and springs back, and four short
+/// dashes in his pen shoot out from where the shackle went in, trailing and
+/// fading (the only ink here not cut from his drawings, which he asked
+/// for). The keyhole squashes up into the round nose, the eyes pop open,
+/// the mouth curves into his smile past wide; a held beat; then a wink, the
+/// lock tipping toward it. About 1.8s, once.
 struct LockingLock: View {
     var height: CGFloat = 150
     var body: some View { InkFigure(script: JournalLockScript(), height: height) }
@@ -352,9 +414,9 @@ struct LockingLock: View {
 
 struct JournalLockScript: InkScript {
     let canvas = CGSize(width: 840, height: 1050)
-    let length: Double? = 1.6
+    let length: Double? = 1.85
 
-    static let click = 0.42, face = 0.62
+    static let click = 0.44, face = 0.6
     /// The shackle turns on its left legs, where they go into the lock.
     static let hinge = CGPoint(x: 88, y: 394)
     static let base = CGPoint(x: 390, y: 1040)
@@ -367,21 +429,36 @@ struct JournalLockScript: InkScript {
     func parts(at t: Double, stoppedAt: Double?) -> [InkPart] {
         typealias S = JournalLockScript
         let shut = t >= S.click
-        // Open, then falling shut, faster as it goes, as a dropped shackle does.
-        let swing = shut ? 0 : -16 * (1 - Ink.easeIn((t - 0.15) / (S.click - 0.15)))
-        // The lock gives a little at the click.
-        let give = Ink.springOut(t - S.click, frequency: 3, damping: 0.45)
-        let lock = Ink.scale(1 + 0.02 * give, 1 - 0.03 * give, about: S.base)
+        // Open; wound up higher; slammed down, faster as it goes.
+        let swing: Double = {
+            if t < 0.12 { return -16 }
+            if t < 0.3 { return -16 - 8 * Ink.smooth((t - 0.12) / 0.18) }
+            if t < S.click { let u = (t - 0.3) / (S.click - 0.3); return -24 * (1 - u * u * u) }
+            return 0
+        }()
+        // The click: a squash that springs back, and later a tip toward the wink.
+        let give = Ink.springOut(t - S.click, frequency: 3, damping: 0.35)
+        let wink = Ink.bump(t, 1.2, 1.32, 1.6)
+        let lock = Ink.scale(1 + 0.08 * give, 1 - 0.12 * give, about: S.base)
+            .then(Ink.rotate(4 * wink, about: S.base))
         let shackle = Ink.rotate(swing, about: S.hinge).then(lock)
-        // The keyhole draws up into the round of the nose.
-        let draw = 1 - 0.75 * Ink.smooth((t - 0.5) / (S.face - 0.5))
-        let nose = 0.85 + 0.15 * Ink.backOut((t - S.face) / 0.2)
-        let eyeLeft = Ink.backOut((t - 0.66) / 0.2), eyeRight = Ink.backOut((t - 0.7) / 0.2)
-        let curve = Ink.backOut((t - 0.76) / 0.26)
-        // The wink: one eye shuts and opens, the smile lifting on that side.
-        let wink = Ink.bump(t, 1.12, 1.2, 1.34)
-        let smile = Ink.scale(max(curve, 0.01), max(curve, 0.01), about: S.smileEnd)
-            .then(Ink.rotate(22 * (1 - Ink.clamp(curve)) - 6 * wink, about: S.smileEnd))
+        // The keyhole squashes up into the round of the nose, which pops.
+        let draw = 1 - 0.8 * Ink.smooth((t - 0.5) / (S.face - 0.5))
+        let nose = 1 - 0.35 * Ink.spring(t - S.face, frequency: 3.5, damping: 0.35)
+        // The eyes pop open past round; the mouth curves into his smile.
+        let eyeLeft = max(1 - Ink.spring(t - 0.64, frequency: 3.2, damping: 0.35), 0.01)
+        let eyeRightOpen = max(1 - Ink.spring(t - 0.68, frequency: 3.2, damping: 0.35), 0.01)
+        let curve = max(1 - Ink.spring(t - 0.74, frequency: 2.8, damping: 0.35), 0.01)
+        // The wink: the eye widens, shuts, holds, and pops back.
+        let shutEye: Double = {
+            if t < 1.18 { return 1 }
+            if t < 1.26 { return 1 + 0.25 * Ink.smooth((t - 1.18) / 0.08) }
+            if t < 1.32 { return 1.25 - 1.15 * Ink.smooth((t - 1.26) / 0.06) }
+            if t < 1.44 { return 0.1 }
+            return 1 - 0.9 * Ink.spring(t - 1.44, frequency: 3, damping: 0.4)
+        }()
+        let smile = Ink.scale(curve, curve, about: S.smileEnd)
+            .then(Ink.rotate(30 * (1 - Ink.clamp(curve)) - 8 * wink, about: S.smileEnd))
         let faceOn = t >= S.face
         return [
             InkPart(asset: "JournalLockBody", transform: lock),
@@ -390,26 +467,26 @@ struct JournalLockScript: InkScript {
             InkPart(asset: "JournalLockShackleShut", transform: shackle, opacity: shut ? 1 : 0),
             InkPart(asset: "JournalLockKeyhole", transform: Ink.scale(1, draw, about: S.keyhole).then(lock), opacity: faceOn ? 0 : 1),
             InkPart(asset: "JournalLockNose", transform: Ink.scale(nose, nose, about: S.nose).then(lock), opacity: faceOn ? 1 : 0),
-            InkPart(asset: "JournalLockEyeLeft", transform: Ink.scale(max(eyeLeft, 0.01), max(eyeLeft, 0.01), about: S.eyeLeft).then(lock), opacity: t >= 0.66 ? 1 : 0),
-            InkPart(asset: "JournalLockEyeRight", transform: Ink.scale(max(eyeRight, 0.01) * (1 - 0.1 * wink), max(eyeRight, 0.01) * (1 - 0.85 * wink), about: S.eyeRight).then(lock), opacity: t >= 0.7 ? 1 : 0),
-            InkPart(asset: "JournalLockSmile", transform: smile.then(lock), opacity: t >= 0.76 ? 1 : 0),
+            InkPart(asset: "JournalLockEyeLeft", transform: Ink.scale(eyeLeft, eyeLeft, about: S.eyeLeft).then(lock), opacity: t >= 0.64 ? 1 : 0),
+            InkPart(asset: "JournalLockEyeRight", transform: Ink.scale(eyeRightOpen, eyeRightOpen * shutEye, about: S.eyeRight).then(lock), opacity: t >= 0.68 ? 1 : 0),
+            InkPart(asset: "JournalLockSmile", transform: smile.then(lock), opacity: t >= 0.74 ? 1 : 0),
         ]
     }
 
-    /// The click: four short dashes out from where the shackle went in,
-    /// springing outward and fading.
+    /// The click: four short dashes shooting out from where the shackle went
+    /// in, each a moment after the last, shrinking as they fly and fading.
     func strokes(at t: Double) -> [InkStroke] {
         typealias S = JournalLockScript
-        let s = t - S.click
-        guard s > 0, s < 0.42 else { return [] }
-        let out = Ink.backOut(s / 0.16)
-        let fade = 1 - Ink.smooth((s - 0.2) / 0.22)
-        return [-115.0, -80, -45, -10].map { degrees in
+        return [-115.0, -80, -45, -10].enumerated().compactMap { index, degrees in
+            let s = t - S.click - Double(index) * 0.02
+            guard s > 0, s < 0.45 else { return nil }
             let a = degrees * .pi / 180
-            let r0 = 55 + 30 * out, r1 = r0 + 30 + 10 * out
+            let fly = 1 - pow(1 - Ink.clamp(s / 0.3), 3)
+            let r0 = 45 + 45 * fly
+            let r1 = r0 + 10 + 28 * (1 - Ink.smooth((s - 0.08) / 0.3))
             return InkStroke(from: CGPoint(x: S.catchPoint.x + r0 * cos(a), y: S.catchPoint.y + r0 * sin(a)),
                              to: CGPoint(x: S.catchPoint.x + r1 * cos(a), y: S.catchPoint.y + r1 * sin(a)),
-                             opacity: fade)
+                             opacity: 1 - Ink.smooth((s - 0.22) / 0.2))
         }
     }
 
