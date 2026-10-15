@@ -1826,7 +1826,7 @@ final class FeedbackShots: XCTestCase {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6"])
         wait(7); snap("profile-1-page")
-        let score = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Score'")).firstMatch
+        let score = app.buttons.matching(NSPredicate(format: "label CONTAINS ' score'")).firstMatch
         if score.exists { score.tap() }
         wait(2.5); snap("profile-2-score")
         app.swipeDown(velocity: .fast); wait(1.5)
@@ -1837,6 +1837,20 @@ final class FeedbackShots: XCTestCase {
         let gear = app.buttons["Settings"].firstMatch
         if gear.exists { gear.tap() }
         wait(2.5); snap("profile-4-settings")
+    }
+
+    /// **A friend's profile** (the owner, 2026-10-15: "you should be able to
+    /// see other people's profiles"): from the Today row, then from the
+    /// chat's face menu.
+    func testFriendProfile() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3", "-strataSeedCrewChat", "1"])
+        wait(8); snap("friend-0-list")
+        let head = app.buttons.matching(NSPredicate(format: "label CONTAINS 'today' AND NOT (label CONTAINS 'Invite')")).firstMatch
+        print("PLANNING-friend head \(head.exists) '\(head.label)'")
+        if head.exists { head.tap() }
+        wait(2.5); snap("friend-1-profile")
+        app.swipeUp(); wait(1); snap("friend-2-scrolled")
     }
 
     /// **Catch Up** (2026-10-15): back after days away.

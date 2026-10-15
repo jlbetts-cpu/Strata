@@ -95,6 +95,8 @@ struct CrewChatSheet: View {
     /// Where you left off: the first line you had not seen when the chat
     /// last opened, marked "New" above it until it next goes down.
     @State private var newFrom: UUID?
+    /// A friend's profile, from their face (`FriendProfileSheet`).
+    @State private var profileOf: CrewMember?
     /// The plus row (`ChatPlusRow`), and what its five things open.
     @State private var showsPlus = false
     @State private var planning = false
@@ -211,6 +213,12 @@ struct CrewChatSheet: View {
                     returnToChat = false
                     reopen?()
                 }
+            }
+            .sheet(item: $profileOf) { member in
+                NavigationStack {
+                    FriendProfileSheet(member: member, crewID: crewID)
+                }
+                .presentationBackground { WarmBackground().ignoresSafeArea() }
             }
             // **A win to answer while the chat is already up** (the review,
             // 2026-10-15): `visible` did not change, so the quote never came.
@@ -684,6 +692,8 @@ struct CrewChatSheet: View {
         let who = member.shortName.isEmpty ? "A friend" : member.shortName
         return Menu {
             Section(crew.isOwner(member.profileID) ? "\(who), started the crew" : who) {
+                // Their profile, as a press on their head in Crews opens it.
+                Button("Profile", systemImage: "person.crop.circle") { alone { profileOf = member } }
                 Button("Report", systemImage: "exclamationmark.bubble") { reportingPerson = member }
                 if !store.blocked.contains(member.profileID) {
                     Button("Block", systemImage: "nosign", role: .destructive) { blockingPerson = member.profileID }
@@ -1406,6 +1416,7 @@ struct CrewChatSheet: View {
     /// Something presented from the chat is up.
     private var presenting: Bool {
         addingWin || planning || showsStrip || doodling || choosingSticker || makingSticker || choosingMemory
+            || profileOf != nil
     }
 
     private func open(_ choice: ChatPlusRow.Choice) {

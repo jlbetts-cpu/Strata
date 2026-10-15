@@ -26,6 +26,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
 
     @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
 
     static var height: CGFloat { GlassIconButton.defaultSide }
     /// The chosen word's lens: white on the light page, a raised grey on the
@@ -108,7 +109,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
                         // pill read as a grey bar (the owner, 2026-10-15).
                         Capsule(style: .continuous)
                             .fill(Self.lens)
-                            .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 0.5))
+                            .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 1 / displayScale))
                             .matchedGeometryEffect(id: "pill", in: pill)
                     }
                 }

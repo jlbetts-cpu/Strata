@@ -11,6 +11,8 @@ import SwiftUI
 /// the app: the same people, the same rule.
 struct TodayHeads: View {
     private var store: SocialStore { SocialStore.shared }
+    /// The friend whose profile is open (`FriendProfileSheet`).
+    @State private var profile: Person?
 
     struct Person: Identifiable, Equatable {
         let member: CrewMember
@@ -74,6 +76,12 @@ struct TodayHeads: View {
                 }
                 .edgeFade()
             }
+            .sheet(item: $profile) { person in
+                NavigationStack {
+                    FriendProfileSheet(member: person.member, crewID: person.crew)
+                }
+                .presentationBackground { WarmBackground().ignoresSafeArea() }
+            }
         }
     }
 
@@ -111,9 +119,11 @@ struct TodayHeads: View {
         let logged = person.newest != nil
         let name = person.member.shortName.isEmpty ? "A friend" : person.member.shortName
         return Button {
+            // **Their profile** (the owner, 2026-10-15: "you should be able
+            // to see other people's profiles"), with their newest win first
+            // in it, a press away.
             HapticsEngine.lightTap()
-            if let win = person.newest { CrewRouter.shared.openWin = win.winID }
-            CrewRouter.shared.open = person.crew
+            profile = person
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
@@ -135,6 +145,6 @@ struct TodayHeads: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel(logged ? "\(name), \(person.wins == 1 ? "1 win" : "\(person.wins) wins") today" : "\(name), no wins yet today")
-        .accessibilityHint(logged ? "Opens their newest win." : "Opens your crew.")
+        .accessibilityHint("Opens their profile.")
     }
 }

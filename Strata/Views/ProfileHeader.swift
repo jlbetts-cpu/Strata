@@ -16,80 +16,113 @@ struct ProfileHeader: View {
     /// Every logged win, read live, so a delete lowers the score in the same
     /// moment the block leaves the tower (`WinsScore`).
     @Query(filter: #Predicate<HabitLog> { $0.completed }) private var logs: [HabitLog]
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var store: ProfileStore { .shared }
-    private static let headSide: CGFloat = GlassIconButton.defaultSide * 2
-
-    private var tally: WinsScore.Tally { WinsScore.tally(logs.compactMap { $0.habit?.blockSize }) }
-    private var streak: Int {
-        Streaks.current(among: logs.map(\.dateString), restsPerWeek: Streaks.Rest.profile)
-    }
 
     var body: some View {
         // Once a pass: each read faults every log's win (the review).
-        let tally = self.tally
-        let streak = self.streak
-        return VStack(spacing: GridConstants.gapTight) {
-            Button {
-                HapticsEngine.lightTap()
-                onEdit()
-            } label: {
+        let tally = WinsScore.tally(logs.compactMap { $0.habit?.blockSize })
+        let crews = CrewsFlag.isOn ? SocialStore.shared.crews.count : nil
+        ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name,
+                   figures: [ProfileTop.Figure(tally.score, "score"),
+                             ProfileTop.Figure(tally.wins, tally.wins == 1 ? "win" : "wins")]
+                       + (crews.map { [ProfileTop.Figure($0, $0 == 1 ? "crew" : "crews")] } ?? []),
+                   onPerson: onEdit, personHint: "Edit Profile",
+                   onFigures: onScore, figuresHint: "Shows how your score adds up.")
+    }
+}
+
+/// **The top of a profile, yours or a friend's** (the owner, 2026-10-15:
+/// "the score, wins, and crews area is way too big and doesn't feel
+/// researched and minimal ... you should be able to see other people's
+/// profiles so that needs to look clean and consistent").
+///
+/// The head, the name, and the figures as ONE quiet line under it, the way
+/// Threads and Apple's own account pages state counts: numbers in the ink,
+/// their words a step quieter, a dot between. Three big numerals in a row is
+/// Instagram's grid of 2014, and it made the counts the loudest thing on a
+/// page that is about the person and their days. One component, so a
+/// friend's profile cannot drift from yours.
+struct ProfileTop: View {
+    struct Figure: Hashable {
+        let value: Int
+        let word: String
+        init(_ value: Int, _ word: String) { self.value = value; self.word = word }
+    }
+
+    let person: HeadPerson
+    let name: String
+    let figures: [Figure]
+    var onPerson: (() -> Void)? = nil
+    var personHint: String = ""
+    var onFigures: (() -> Void)? = nil
+    var figuresHint: String = ""
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    static let headSide: CGFloat = 76
+
+    var body: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            pressable(onPerson, hint: personHint) {
                 VStack(spacing: GridConstants.gapTight) {
-                    PersonHead(person: .me, side: Self.headSide, life: .calm, setting: .disc(.chosen))
-                    Text(store.name.isEmpty ? "Your Name" : store.name)
+                    PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
+                    Text(name)
                         .font(Typography.headerMedium)
-                        .foregroundStyle(store.name.isEmpty ? AppColors.inkSecondary : AppColors.inkPrimary)
+                        .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.pressSurface)
-            .accessibilityLabel(store.name.isEmpty ? "Edit Profile" : "\(store.name), Edit Profile")
-
-            // **A profile's row of figures** (the owner, 2026-10-15: "an
-            // improved profile feeling more like a social media with a 'wins'
-            // score"): the score first, then how many wins it is made of,
-            // then the crews you are in. One press opens how it adds up.
-            Button {
-                HapticsEngine.lightTap()
-                onScore()
-            } label: {
-                HStack(alignment: .top, spacing: 0) {
-                    figure(tally.score, "Score")
-                    figure(tally.wins, tally.wins == 1 ? "Win" : "Wins")
-                    if CrewsFlag.isOn { figure(SocialStore.shared.crews.count, SocialStore.shared.crews.count == 1 ? "Crew" : "Crews") }
-                }
-                .frame(maxWidth: 320)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressSurface)
-            .accessibilityLabel("Score, \(tally.score). \(tally.wins) wins" + (streak > 0 ? ". \(streak) days in a row" : ""))
-            .accessibilityHint("Shows how it adds up.")
-            // A zero shows nothing: an invitation, not a verdict.
-            if streak > 0 {
-                Text(streak == 1 ? "1 day in a row" : "\(streak) days in a row")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkSecondary)
+            .accessibilityLabel(personHint.isEmpty ? name : "\(name), \(personHint)")
+            if !figures.isEmpty {
+                pressable(onFigures, hint: figuresHint) { line }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
             }
         }
-        .padding(.top, GridConstants.gapItem)
+        .padding(.top, GridConstants.gapTight)
         .frame(maxWidth: .infinity)
     }
 
-    /// One figure in the row: the number, rolling as it changes, over its word.
-    private func figure(_ value: Int, _ label: String) -> some View {
-        VStack(spacing: 0) {
-            Text(verbatim: StrataFont.digits(value))
-                .font(Typography.tally)
-                .foregroundStyle(AppColors.inkPrimary)
-                .contentTransition(.numericText(value: Double(value)))
-                .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: value)
-            Text(label)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
+    /// "11 score · 8 wins · 1 crew"
+    private var line: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
+                if index > 0 {
+                    Text(verbatim: "·").foregroundStyle(AppColors.inkTertiary)
+                }
+                HStack(spacing: 4) {
+                    Text(verbatim: "\(figure.value)")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(figure.value)))
+                        .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: figure.value)
+                    Text(figure.word)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 44)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(minHeight: 44)
+        .padding(.horizontal, GridConstants.gapItem)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func pressable<Label: View>(_ action: (() -> Void)?, hint: String,
+                                        @ViewBuilder label: () -> Label) -> some View {
+        if let action {
+            Button {
+                HapticsEngine.lightTap()
+                action()
+            } label: { label().contentShape(Rectangle()) }
+            .buttonStyle(.pressSurface)
+            .accessibilityHint(hint)
+        } else {
+            label()
+        }
     }
 }
 

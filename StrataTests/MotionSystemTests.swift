@@ -53,7 +53,10 @@ struct MotionSystemTests {
     @Test("the profile picture answers a press")
     func avatarPresses() throws {
         let text = try MorningSource.read("Views/ProfileHeader.swift")
-        #expect(text.contains("PersonHead(person: .me"))
+        // Your head now draws through ProfileTop, the top a friend's
+        // profile shares; the press is still the surface press.
+        #expect(text.contains("ProfileTop(person: .me"))
+        #expect(text.contains("PersonHead(person: person"))
         #expect(text.contains(".buttonStyle(.pressSurface)"))
         #expect(!text.contains(".buttonStyle(.plain)"))
     }

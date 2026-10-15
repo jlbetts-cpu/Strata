@@ -26,6 +26,8 @@ struct CrewInfoSheet: View {
     @FocusState private var editingName: Bool
     @State private var systemOff = false
     @State private var reportingMember: CrewMember?
+    /// A member's profile, pushed on this sheet's own stack.
+    @State private var profileMember: CrewMember?
     @State private var blockingMember: CrewMember?
     @State private var removingMember: CrewMember?
     @State private var reportingCrew = false
@@ -130,6 +132,7 @@ struct CrewInfoSheet: View {
                 // owner, 2026-10-13).
                 .softScrollEdge(.top)
                 .background(WarmBackground().ignoresSafeArea())
+                .modifier(MemberProfilePush(member: $profileMember, crewID: crewID))
                 .toolbar {
                     // **The invite as a code, in the sheet's own corner**
                     // (the owner, 2026-10-13: "the qr code can be in the top
@@ -423,6 +426,7 @@ struct CrewInfoSheet: View {
         .overlay {
             if !isMe {
                 Menu {
+                    Button("Profile", systemImage: "person.crop.circle") { profileMember = member }
                     Button("Report", systemImage: "exclamationmark.bubble") { reportingMember = member }
                     if !store.blocked.contains(member.profileID) {
                         Button("Block", systemImage: "nosign", role: .destructive) { blockingMember = member }
@@ -578,6 +582,22 @@ struct CrewInfoSheet: View {
             } catch {
                 problem = isOwner ? "The crew could not be ended. Try again in a moment."
                                   : "You could not leave just now. Try again in a moment."
+            }
+        }
+    }
+}
+
+/// A member's profile, pushed on the crew card's own stack (2026-10-15). A
+/// modifier: the card's body is at the type-checker's ceiling.
+private struct MemberProfilePush: ViewModifier {
+    @Binding var member: CrewMember?
+    let crewID: CrewID
+
+    func body(content: Content) -> some View {
+        content.navigationDestination(isPresented: Binding(get: { member != nil },
+                                                           set: { if !$0 { member = nil } })) {
+            if let member {
+                FriendProfileSheet(member: member, crewID: crewID, pushed: true)
             }
         }
     }
