@@ -92,6 +92,9 @@ struct CrewChatSheet: View {
     /// is not also a tap that opens the win.
     @State private var held: UUID?
     @State private var stickerRefused = false
+    /// Where you left off: the first line you had not seen when the chat
+    /// last opened, marked "New" above it until it next goes down.
+    @State private var newFrom: UUID?
     /// The plus row (`ChatPlusRow`), and what its five things open.
     @State private var showsPlus = false
     @State private var planning = false
@@ -284,6 +287,7 @@ struct CrewChatSheet: View {
         // live sync underneath (`refreshLive`, every 3 seconds).
         .onAppear {
             guard visible else { return }
+            newFrom = store.firstUnseenMessage(in: crewID)
             store.markChatSeen(crewID)
             if startsWriting { writing = true }
             if startsWithPlus { showsPlus = true }
@@ -294,6 +298,7 @@ struct CrewChatSheet: View {
         // was a jolt). Down: the keyboard and the row put away.
         .onChange(of: visible) { _, up in
             if up {
+                newFrom = store.firstUnseenMessage(in: crewID)
                 snapToNewest += 1
                 // Seen once the drawer has risen, not during: marking it
                 // redraws the bar's dot, the back button and the tab under
@@ -567,6 +572,18 @@ struct CrewChatSheet: View {
         let member = crew?.member(message.senderProfileID)
         let unsent = mine && store.isUnsent(message, now: clock)
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            // **Where you left off** (`newFrom`), with air, never a rule.
+            if message.messageID == newFrom, previous != nil {
+                Text("New")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .frame(height: 28)
+                    .background(Capsule(style: .continuous).fill(AppColors.quietFill))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, GridConstants.gapTight)
+                    .accessibilityLabel("New messages")
+            }
             if timed {
                 Text(ChatTimes.words(message.createdAt))
                     .font(Typography.screenSubtitle)

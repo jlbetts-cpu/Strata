@@ -1482,6 +1482,18 @@ final class SocialStore {
         if announces { CrewNotifications.chatOpened(crewID) }
     }
 
+    /// **The first line you have not seen** (the chat research, 2026-10-15,
+    /// item 7): a friend's, newer than what this phone last marked seen. Read
+    /// as the chat opens, before it marks them, so the thread can say where
+    /// you left off. Kept on this phone; nobody learns you read anything.
+    func firstUnseenMessage(in crewID: CrewID) -> UUID? {
+        let seen = Set(chatSeen[crewID.rawValue] ?? [])
+        guard !seen.isEmpty else { return nil }
+        return messages(in: crewID).first {
+            $0.senderProfileID != me && !seen.contains($0.messageID.uuidString)
+        }?.messageID
+    }
+
     private static let chatSeenKey = "crews.chatSeen"
     private var chatSeen: [String: [String]] {
         defaults.dictionary(forKey: Self.chatSeenKey) as? [String: [String]] ?? [:]
