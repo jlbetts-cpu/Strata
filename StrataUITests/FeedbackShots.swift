@@ -1850,7 +1850,15 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-friend head \(head.exists) '\(head.label)'")
         if head.exists { head.tap() }
         wait(2.5); snap("friend-1-profile")
-        app.swipeUp(); wait(1); snap("friend-2-scrolled")
+        app.terminate()
+        // Nobody has logged: the bare tower.
+        let quiet = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                            "-strataSeedCrewWins", "0"])
+        wait(8)
+        let bare = quiet.buttons.matching(NSPredicate(format: "label CONTAINS 'no wins yet today'")).firstMatch
+        print("PLANNING-friend bare \(bare.exists)")
+        if bare.exists { bare.tap() }
+        wait(2.5); snap("friend-2-bare")
     }
 
     /// **Catch Up** (2026-10-15): back after days away.

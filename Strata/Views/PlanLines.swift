@@ -230,7 +230,9 @@ struct PlanLines: View {
             .accessibilityLabel("Add a line")
             .accessibilityAddTraits(.isButton)
         }
-        .padding(.top, GridConstants.gapTight)
+        // Off the day bar by an item's gap: at 8 the section label sat
+        // against the bar's glass.
+        .padding(.top, GridConstants.gapItem)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -256,10 +258,11 @@ struct PlanLines: View {
                     threeRow(item, isDone: done.contains(item.id))
                 }
             }
-            // Space, not a rule, between them and the day's own lines: a
-            // section's gap, so the empty plan's ghost row under them reads
-            // as the plan and not as a fourth of three.
-            .padding(.bottom, GridConstants.gapSection)
+            // Space, not a rule, between them and the day's own lines, so
+            // the empty plan's ghost row under them reads as the plan and not
+            // as a fourth of three. `gapWide` now the rows carry their own
+            // 4pt: a section's 32 on top of that measured an 80pt hole.
+            .padding(.bottom, GridConstants.gapWide)
         }
     }
 
@@ -284,6 +287,10 @@ struct PlanLines: View {
             }
             .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
             .padding(.trailing, GridConstants.horizontalPadding)
+            // A plan line's own pitch (the owner, 2026-10-15: "some spacing
+            // issues in the plan screen"): without it the three stood 44pt
+            // apart and the lines under them 52.
+            .padding(.vertical, GridConstants.spacing)
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
