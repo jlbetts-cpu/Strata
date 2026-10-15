@@ -522,6 +522,32 @@ final class FeedbackShots: XCTestCase {
         app.swipeDown(velocity: .fast); wait(2.5); snap("put-4-after-plan")
     }
 
+    /// **Wins after coming back to the app** (the owner, 2026-10-14: the
+    /// tower and the UI "randomly ... higher than they usually are", when
+    /// "coming back to the app").
+    func testLayoutAfterReturning() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedWins", "4",
+                          "-strataStartTab", "tower"])
+        wait(8); snap("back-0-start")
+        XCUIDevice.shared.press(.home); wait(3)
+        app.activate(); wait(0.4); snap("back-1-at-once")
+        wait(2); snap("back-2-settled")
+        // From the camera tab, home, and back.
+        app.tabBars.buttons["Camera"].firstMatch.tap(); wait(3)
+        XCUIDevice.shared.press(.home); wait(3)
+        app.activate(); wait(2)
+        app.tabBars.buttons["Wins"].firstMatch.tap(); wait(2); snap("back-3-via-camera")
+        // With the plan open (a sheet and the keyboard), home, and back.
+        app.buttons["Plan"].firstMatch.tap(); wait(3)
+        XCUIDevice.shared.press(.home); wait(3)
+        app.activate(); wait(2)
+        app.swipeDown(velocity: .fast); wait(2.5); snap("back-4-via-plan")
+        // Locked and unlocked is not reachable here; a long background is.
+        XCUIDevice.shared.press(.home); wait(25)
+        app.activate(); wait(0.4); snap("back-5-long-at-once")
+        wait(2.5); snap("back-6-long-settled")
+    }
+
     /// **Every choice on the chat's +, opened** (the owner, 2026-10-14: "make
     /// sure the + button all the functions actually are useful and work
     /// properly").

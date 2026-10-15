@@ -49,20 +49,11 @@ struct ReportThanks: View {
                     }
                     .buttonStyle(.pressWord)
                 }
-                Button {
+                // The app's one primary button, not a private capsule.
+                PrimaryCapsule(title: "Done") {
                     HapticsEngine.lightTap()
                     done()
-                } label: {
-                    Text("Done")
-                        .font(Typography.headerSmall)
-                        .foregroundStyle(WarmBackground.top)
-                        .padding(.horizontal, GridConstants.gapWide)
-                        .frame(height: 34)
-                        .background(Capsule(style: .continuous).fill(AppColors.inkPrimary))
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressWord)
             }
         }
         .padding(GridConstants.gapWide)

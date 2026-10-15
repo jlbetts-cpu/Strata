@@ -115,7 +115,9 @@ struct QoLFixTests {
     @Test("Lock Journal comes off only for whoever can open it")
     func lockNeedsUnlockToTurnOff() throws {
         let settings = try code("Strata/Views/SettingsView.swift")
-        #expect(settings.contains("if !(await JournalLock.shared.mayTurnOff()) { locksJournal = true }"))
+        // `keptLocked` since 2026-10-14: a refusal puts the switch back on
+        // without playing the thumbs up that switching it on plays.
+        #expect(settings.contains("if !(await JournalLock.shared.mayTurnOff()) { keptLocked = true; locksJournal = true }"))
     }
 
     @MainActor
