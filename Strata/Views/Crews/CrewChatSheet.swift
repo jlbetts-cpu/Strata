@@ -487,7 +487,7 @@ struct CrewChatSheet: View {
                                     .padding(.bottom, GridConstants.gapItem)
                                 ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                                     row(message, after: index > 0 ? messages[index - 1] : nil,
-                                        reactions: reactions[message.messageID] ?? [], crew: crew)
+                                        reactions: shownReactions(message, lines: reactions), crew: crew)
                                         .id(message.id)
                                 }
                             }
@@ -825,7 +825,7 @@ struct CrewChatSheet: View {
     private func lineMenu(_ message: CrewMessage, mine: Bool) -> some View {
         let id = message.messageID
         let close = menuBinding(id)
-        ChatReactionBar(mine: store.myReaction(toMessage: id, in: crewID),
+        ChatReactionBar(mine: store.myReaction(toMessage: target(id), in: crewID),
                         pick: { emoji in
                             BlockMenuAfter.run(closing: close) { react(.emoji(emoji), to: id) }
                         },
@@ -921,7 +921,30 @@ struct CrewChatSheet: View {
     }
 
     private func isHearted(_ id: UUID) -> Bool {
-        store.myReaction(toMessage: id, in: crewID)?.emoji == Reaction.doubleTap
+        store.myReaction(toMessage: target(id), in: crewID)?.emoji == Reaction.doubleTap
+    }
+
+    /// **A win said in the chat is reacted to as the win** (the chat
+    /// research, 2026-10-15, item 2): a heart on "↪ Gym" in the chat is the
+    /// heart on Gym's block, on the tower and on its owner's phone, not a
+    /// second, separate heart on a line. A line that is not a win is itself.
+    private func target(_ lineID: UUID) -> UUID {
+        guard let line = store.messages(in: crewID).first(where: { $0.messageID == lineID }) else { return lineID }
+        return target(of: line)
+    }
+
+    private func target(of line: CrewMessage) -> UUID {
+        guard store.isWinLine(line), let win = line.quoteWinID else { return line.messageID }
+        return win
+    }
+
+    /// The reactions a line shows under it: the win's, for a win's line.
+    private func shownReactions(_ message: CrewMessage, lines: [UUID: [Reaction]]) -> [Reaction] {
+        let id = target(of: message)
+        guard id != message.messageID else { return lines[message.messageID] ?? [] }
+        return (store.reactionsByCrew[crewID] ?? [])
+            .filter { $0.winID == id && !store.blocked.contains($0.profileID) && !$0.isSticker }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
     }
 
     /// **Heart** gives ❤️, or takes yours back if it is already the heart;
@@ -931,6 +954,12 @@ struct CrewChatSheet: View {
     }
 
     private func react(_ pick: Reaction.Pick, to id: UUID) {
+        // An emoji on a win's line goes to the win; a sticker stays a line's.
+        if case .emoji(let emoji) = pick, target(id) != id {
+            let win = target(id)
+            Task { await store.react(emoji, to: win, in: crewID) }
+            return
+        }
         Task {
             if await store.react(pick, toMessage: id, in: crewID) == .refusedSketch { stickerRefused = true }
         }

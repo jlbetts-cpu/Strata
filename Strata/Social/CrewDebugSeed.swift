@@ -299,6 +299,11 @@ extension DebugHarness {
             await first.reply("so proud of you 🔥", to: mine.winID, in: crew.id)
         }
         await second.refresh()
+        // A friend's win said in the chat (`sendWinLine`), to react to as
+        // the win (2026-10-15).
+        if let theirs = second.today(in: crew.id).last(where: { $0.senderProfileID == second.me && !$0.title.isEmpty }) {
+            _ = await second.sendWinLine(theirs.winID, in: crew.id)
+        }
         await second.send("6 works", in: crew.id)
         // `-strataSeedCrewStrip`: a friend's photo strip in the chat
         // (`CrewStripShare`), drawn the way their phone would send it.

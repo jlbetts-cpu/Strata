@@ -1718,6 +1718,25 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("edges-3-swiped")
     }
 
+    /// A friend's win said in the chat, reacted to as the win (2026-10-15).
+    func testWinLineReaction() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.818))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)),
+                   withVelocity: XCUIGestureVelocity(900), thenHoldForDuration: 0)
+        wait(2); snap("winline-0-chat")
+        let line = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS ', a win, '")).firstMatch
+        print("PLANNING-winline: \(line.exists) \(line.label) \(line.frame)")
+        if line.exists { line.press(forDuration: 0.6) }
+        wait(1.5); snap("winline-1-menu")
+        let fire = app.buttons["🔥"].firstMatch
+        print("PLANNING-winline fire: \(fire.exists)")
+        if fire.exists { fire.tap() }
+        wait(2); snap("winline-2-reacted")
+    }
+
     /// The resting chat lifted by a drag on its line rather than its grabber.
     func testNativeChatDragOnLine() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
