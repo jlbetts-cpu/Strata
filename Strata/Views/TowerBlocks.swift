@@ -393,12 +393,19 @@ struct AnimatedBlockView: View, Equatable {
             // depth cue on its own, and the contact shade does that job
             // properly now.
             // Crown — white top edge on topmost blocks
-            .overlay(alignment: .top) {
+            // **Inside the block's own shape** (the fresh-eyes critique,
+            // 2026-10-15): clipped to a 1pt-tall rounded rectangle it was
+            // never clipped at all, and ran square past the corners as a
+            // light seam over the block in dark mode. Clipped to the whole
+            // block, it follows the corners and lies on the colour.
+            .overlay {
                 if isCrown {
                     Rectangle()
                         .fill(.white.opacity(0.15))
                         .frame(height: 1)
+                        .frame(maxHeight: .infinity, alignment: .top)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .allowsHitTesting(false)
                 }
             }
             .offset(y: dropOffset + animState.microBounceY)
