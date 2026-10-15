@@ -35,6 +35,44 @@ struct CrewsListView: View {
     @State private var planCrews: Set<CrewID> = []
     @State private var planDraft = ""
 
+    private var listHeader: some View {
+        ZStack {
+            GlassGroup {
+                HStack(spacing: 8) {
+                    // **Plan, top left** (the owner's pick, 2026-10-14, from
+                    // `docs/crews-list-corner-research-2026-10-14.md`): one or
+                    // two presses to plan with a crew. The same glyph and word
+                    // as Plan on Wins. Only for someone who can write in a
+                    // crew: a plan is a line in its chat.
+                    if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
+                        GlassIconButton(systemName: DayIcon.name, onPage: true, accessibilityLabel: "Plan") {
+                            HapticsEngine.lightTap()
+                            choosePlanCrew()
+                            planning = true
+                        }
+                        .accessibilityHint("Plan something with a crew.")
+                    }
+                    Spacer(minLength: 0)
+                    // **One way to a new crew: New Crew, top right** (the
+                    // owner, 2026-10-14, "Merge into one"). At the cap it still
+                    // answers, with why (the crews audit, 2026-10-08).
+                    if age.opensCrews, CrewsFlag.osSupportsCrews {
+                        GlassIconButton(systemName: "square.and.pencil", onPage: true,
+                                        accessibilityLabel: CrewLine.newCrew, action: newCrew)
+                    }
+                }
+            }
+            Text("Crews")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .frame(minHeight: 44)
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.top, GridConstants.gapItem)
+        .padding(.bottom, GridConstants.gapTight)
+    }
+
     var body: some View {
         Group {
             // **Below iOS 26, one sentence and nothing else** (2026-10-08):
@@ -132,45 +170,16 @@ struct CrewsListView: View {
             }
         }
         .background(WarmBackground().ignoresSafeArea())
-        .navigationTitle("Crews")
-        // Small and centred, as Messages titles its list (the owner,
-        // 2026-10-02: "it would look better in the middle like iMessages").
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .toolbar {
-            // **One way to a new crew: New Crew, top right** (the owner,
-            // 2026-10-14, his pick "Merge into one"). Invite a Friend in the
-            // left corner and Start a Crew in the right were two buttons for
-            // one thing; both made a crew and opened the share sheet. The
-            // compose glyph opens the one sheet, where the name and the photo
-            // are optional and Invite at its foot does what the left one did.
-            // **Plan, top left** (the owner's pick, 2026-10-14, from
-            // `docs/crews-list-corner-research-2026-10-14.md`): planning with
-            // a crew took four presses from here (the crew, +, Plan, Plan);
-            // now one or two. The same glyph and word as Plan on Wins. Only
-            // for someone who can write in a crew: a plan is a line in its chat.
-            if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
-                // **The app's own round glass, as Plan stands on Wins and
-                // the map on Memories** (the owner, 2026-10-14: "why are they
-                // so much bigger than the buttons on the other pages"). The
-                // system's toolbar plate drew them 48 by 36 with a bigger
-                // glyph; these are the 44 point disc every other tab uses.
-                BareToolbarItem(placement: .topBarLeading) {
-                    GlassIconButton(systemName: DayIcon.name, onPage: true, accessibilityLabel: "Plan") {
-                        HapticsEngine.lightTap()
-                        choosePlanCrew()
-                        planning = true
-                    }
-                    .accessibilityHint("Plan something with a crew.")
-                }
-            }
-            if age.opensCrews, CrewsFlag.osSupportsCrews { BareToolbarItem(placement: .topBarTrailing) {
-                // At the cap it still answers, with why (the crews audit,
-                // 2026-10-08: it went grey and said nothing).
-                GlassIconButton(systemName: "square.and.pencil", onPage: true,
-                                accessibilityLabel: CrewLine.newCrew, action: newCrew)
-            } }
-        }
+        // **The app's own header, as Wins and Memories stand theirs**
+        // (the owner, 2026-10-15: "icons in the crew page are still way
+        // bigger ... the plan and win page have the same button ... and they
+        // look completely different"). The system's navigation bar put these
+        // discs 4 points further in and 11 higher than on the other tabs,
+        // and gave their glyphs a third more size, so Plan jumped between
+        // Wins and Crews. Title small and centred, as Messages titles its
+        // list (the owner, 2026-10-02).
+        .toolbar(.hidden, for: .navigationBar)
+        .pinnedBar { listHeader }
         // Chosen before the press, so the sheet's title has its crew from
         // the first frame (it read "Plan with a Crew" while Run Club stood
         // ticked under it).

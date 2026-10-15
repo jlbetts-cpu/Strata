@@ -151,6 +151,12 @@ struct GlassIconLabel: View {
             // The glass disc behind it keeps its own 44pt frame, so a larger
             // glyph grows inside a fixed control rather than moving the layout.
             .iconSize(glyphSize, relativeTo: .body, weight: .medium)
+            // **The same glyph wherever the disc stands** (the owner,
+            // 2026-10-15: "the plan and win page have the same button ... and
+            // they look completely different"). A toolbar item is handed a
+            // large image scale, which drew this symbol about a third bigger
+            // on Crews than the identical button drawn in Wins' own header.
+            .imageScale(.medium)
     }
 }
 
