@@ -74,6 +74,27 @@ enum HeadSticker {
     }
 }
 
+extension HeadSticker {
+    /// **Your head as one of your stickers** (the chat research, 2026-10-15,
+    /// item 8), made from the head you have now, in its look, once per head:
+    /// a second press finds the one it made. A new head, or a new look, is a
+    /// new sticker.
+    @MainActor
+    static func current() -> String? {
+        let heads = HeadStore.shared
+        guard let rig = heads.headForCrews else { return nil }
+        let key = "headSticker.\(heads.activeEntry?.id.uuidString ?? "head").\(heads.look.rawValue)"
+        let store = StickerStore.shared
+        if let made = UserDefaults.standard.string(forKey: key), store.names.contains(made) { return made }
+        let renderer = ImageRenderer(content: HeadStill(rig: rig, side: 170))
+        renderer.scale = 3
+        renderer.isOpaque = false
+        guard let image = renderer.uiImage, let name = store.add(image) else { return nil }
+        UserDefaults.standard.set(name, forKey: key)
+        return name
+    }
+}
+
 /// Everything you can do to the photograph on the review, on one layer.
 ///
 /// **One layer, because the gestures have to see each other.** A finger on

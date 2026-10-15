@@ -1592,6 +1592,24 @@ struct CrewChatSheet: View {
                         }
                     }
                 }
+                // **Your head, as a sticker** (the chat research, 2026-10-15,
+                // item 8: BeReal's RealMoji without the camera). One press
+                // makes it from the head you have, once per head, and it
+                // goes as any sticker does. Only where photos may be sent,
+                // which is the only place this sheet is offered.
+                if HeadStore.shared.headForCrews != nil, store.photosAllowed() {
+                    BlockMenuRow("Your Head", "face.smiling") {
+                        guard let name = HeadSticker.current() else { return }
+                        let symbol = StickerStore.symbol(for: name)
+                        choosingSticker = false
+                        if let line = stickerFor {
+                            stickerFor = nil
+                            reactSticker(symbol, to: line)
+                        } else {
+                            sendSticker(symbol)
+                        }
+                    }
+                }
                 // A sticker just lifted stands chosen: one look, then a tap.
                 StickerPicker(current: newSticker, purpose: .drawing, onPick: { symbol in
                     choosingSticker = false

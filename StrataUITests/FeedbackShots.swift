@@ -1718,6 +1718,22 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("edges-3-swiped")
     }
 
+    /// Your head, as a sticker in the chat (2026-10-15).
+    func testHeadSticker() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataSeedHead", "1"])
+        wait(9)
+        app.buttons["More to send"].firstMatch.press(forDuration: 0.08)
+        wait(2.5)
+        let sticker = app.buttons.matching(NSPredicate(format: "label == %@", "Send a sticker or a doodle")).allElementsBoundByIndex.last { $0.isHittable }
+        sticker?.press(forDuration: 0.08)
+        wait(3); snap("headsticker-1-sheet")
+        let head = app.buttons["Your Head"].firstMatch
+        print("PLANNING-headsticker: \(head.exists)")
+        if head.exists { head.tap() }
+        wait(4); snap("headsticker-2-sent")
+    }
+
     /// A friend's win said in the chat, reacted to as the win (2026-10-15).
     func testWinLineReaction() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
