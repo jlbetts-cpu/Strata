@@ -166,7 +166,8 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         // notification lands on its subject now (`NotificationRoute`).
         UNUserNotificationCenter.current().delegate = self
         // The reminder's Quick, Regular and Deep (`DailyReminder`).
-        UNUserNotificationCenter.current().setNotificationCategories([DailyReminder.notificationCategory])
+        UNUserNotificationCenter.current().setNotificationCategories(
+            CrewNoteAnswers.categories.union([DailyReminder.notificationCategory]))
         // Below iOS 26 crews do not open, so nothing of them registers.
         guard CrewsFlag.isUsable else { return true }
         // The silent push that says a crew changed. Without the Push
@@ -200,6 +201,12 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
                 Logger(subsystem: "JaydenBetts.Strata", category: "Reminder")
                     .error("logging from the reminder failed: \(error)")
             }
+            return
+        }
+        // A reaction or a reply, from the notification itself: done where it
+        // is, and nothing opens (`CrewNoteAnswers`).
+        if CrewNoteAnswers.handles(response.actionIdentifier) {
+            await CrewNoteAnswers.answer(response)
             return
         }
         guard let route = NotificationRoute.of(identifier: request.identifier,

@@ -49,11 +49,15 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
         if kind == .message {
             content.userInfo["chat"] = "1"
             content.userInfo["message"] = winID
+            content.categoryIdentifier = CrewNoteActions.chatCategory
         } else if kind == .win || kind == .reaction {
             content.userInfo["win"] = winID
             // A friend's win, as against a reaction to yours: what the fold
             // below looks for.
-            if kind == .win { content.userInfo["news"] = "win" }
+            if kind == .win {
+                content.userInfo["news"] = "win"
+                content.categoryIdentifier = CrewNoteActions.winCategory
+            }
         }
         let request = request.identifier
         // **A busy chat rings once** (`CrewChatPending`): asked here, once

@@ -260,3 +260,20 @@ nonisolated enum CrewChatPending {
         defaults?.set(rang, forKey: key)
     }
 }
+
+/// **A friend's news, answered from the notification** (the social research,
+/// 2026-10-15, item 3): a press and hold on a friend's win offers two
+/// reactions and Reply, and on a chat line, Reply, as Messages answers from a
+/// banner. The app and the extension agree on the names here; the app
+/// registers the actions and does them (`StrataAppDelegate`), through the
+/// same sends the crew screen uses, so the words check and the day's cap
+/// still hold.
+nonisolated enum CrewNoteActions {
+    static let winCategory = "crew.win"
+    static let chatCategory = "crew.chat"
+    static let fire = "crew.react.fire"
+    static let heart = "crew.react.heart"
+    static let reply = "crew.reply"
+
+    static let reactions: [String: String] = [fire: "🔥", heart: "❤️"]
+}
