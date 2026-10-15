@@ -1531,8 +1531,11 @@ struct CrewChatSheet: View {
             .background { WarmBackground().ignoresSafeArea() }
             .sheetTitle("Stickers", drawn: false)
             .toolbar {
-                BareToolbarItem(placement: .topBarLeading) {
-                    Button { choosingSticker = false } label: { Text("Cancel").sheetAction(.cancel) }
+                // **Done, top right**, as every sheet where a press does the
+                // thing (the consistency pass, 2026-10-15): a sticker sends
+                // on its tap, so there is nothing here to cancel.
+                BareToolbarItem(placement: .topBarTrailing) {
+                    Button { choosingSticker = false } label: { Text("Done").sheetAction() }
                         .buttonStyle(.pressWord)
                 }
             }
