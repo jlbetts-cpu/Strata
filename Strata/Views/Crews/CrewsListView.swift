@@ -90,6 +90,14 @@ struct CrewsListView: View {
                 empty
             } else {
                 List {
+                    // **Who is winning today, across every crew**
+                    // (`TodayHeads`, 2026-10-15), above the crews.
+                    TodayHeads()
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: GridConstants.gapTight, leading: 0,
+                                                  bottom: GridConstants.gapItem, trailing: 0))
+                        .selectionDisabled()
                     // **Newest first, as Messages** (the owner's pick,
                     // 2026-10-13): the crew with the latest win, line or
                     // reaction on top, so the one you came for leads.
