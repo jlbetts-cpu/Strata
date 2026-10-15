@@ -239,6 +239,8 @@ struct CameraView: View {
 
     /// Whether the arrival dissolve has finished. See the overlay on the body.
     @State private var hasArrived = false
+    /// The bands have gone from the page to black (see the background).
+    @State private var blackened = false
 
     var body: some View {
         #if DEBUG
@@ -330,15 +332,14 @@ struct CameraView: View {
             // stops short of one — the shape the Figma draws, and one that
             // only makes sense because something is behind it. Full screen, it
             // rounds nothing.
-            // **Up to the top edge, rounded at the foot, on a band below**
-            // (the owner, 2026-10-14). A band above as well, Snapchat's frame,
-            // was tried the same day and taken out on sight ("i dont think i
-            // like the look maybe lets remove the top bar again"). The picture
-            // runs under the status bar and stops above the tab bar's band,
-            // on the page in the phone's own appearance. A camera over a
-            // sheet is framed the same.
-            .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: cornerRadius,
-                                              bottomTrailingRadius: cornerRadius, style: .continuous))
+            // **A card between a black band above and a black band below**
+            // (the owner, 2026-10-14, the last of a day of tries: "the top
+            // should also have a black top I think just so we can get the
+            // photos at a nice scale and orientation"). The picture starts
+            // under the status bar's band, round at every corner, and stops
+            // above the tab bar's. The bands go black once you are here
+            // (`blackened`). A camera over a sheet is framed the same.
+            .clipShape(CameraCard(top: topInset, radius: cornerRadius))
             .offset(y: -topInset)
         }
         // No `.ignoresSafeArea` on the GeometryReader: it reports ZERO insets
@@ -350,7 +351,19 @@ struct CameraView: View {
         // appearance** (the owner, 2026-10-14: "making it light for light
         // mode dark for dark mode"): the tab bar stands on it as it does on
         // every other tab.
-        .background { WarmBackground().environment(\.colorScheme, reviewScheme).ignoresSafeArea() }
+        // **The bands arrive as the page and go black** (the owner,
+        // 2026-10-14: "when going to the camera it should be light but
+        // transition into black I think the same as dark mode like going
+        // from dark mode to black"). The page you came from, light or dark,
+        // fades to black once the camera is yours, so nothing jolts on
+        // arrival and the photograph still sits in a dark room.
+        .background {
+            ZStack {
+                WarmBackground().environment(\.colorScheme, reviewScheme)
+                Color.black.opacity(blackened ? 1 : 0)
+            }
+            .ignoresSafeArea()
+        }
         // **THE SCREEN DISSOLVES IN INSTEAD OF CUTTING.**
         //
         // The owner, 2026-09-30: "the transitions of the screens are still a bit
@@ -421,6 +434,14 @@ struct CameraView: View {
             withAnimation(reduceMotion ? nil : GridConstants.mapFade) {
                 hasArrived = true
             }
+            // The bands, after the viewfinder has come up: the page, then
+            // black, slowly enough to read as the lights going down.
+            withAnimation(reduceMotion ? nil : GridConstants.filmHandoff.delay(0.25)) {
+                blackened = true
+            }
+            // The tab bar's chosen glyph turns white with the bands: dark ink
+            // on the bar's glass over black was nearly invisible.
+            CameraBands.shared.black = true
             await camera.start()
             // **After `start`, never beside it.** A session that is not
             // configured cannot take an output, and mutating one underneath a
@@ -488,6 +509,10 @@ struct CameraView: View {
             LocationService.shared.start()
         }
         .onDisappear {
+            // The page again next time, so the fade to black plays on every
+            // arrival.
+            blackened = false
+            CameraBands.shared.black = false
             // Not a tracker: it runs while the camera is open and not a
             // moment longer.
             LocationService.shared.stop()
@@ -2295,3 +2320,24 @@ enum RingBrightness {
     }
 }
 
+/// The viewfinder's card: the whole frame below `top`, round at every
+/// corner, continuous as the system's own.
+private struct CameraCard: Shape {
+    var top: CGFloat
+    var radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(roundedRect: CGRect(x: rect.minX, y: rect.minY + top, width: rect.width,
+                                 height: max(0, rect.height - top)),
+             cornerRadius: radius, style: .continuous)
+    }
+}
+
+/// Whether the camera's bands have gone black, for the tab bar's chosen
+/// glyph, which sits on them (`MainAppView`'s tint).
+@MainActor
+@Observable
+final class CameraBands {
+    static let shared = CameraBands()
+    var black = false
+}

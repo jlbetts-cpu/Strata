@@ -1065,7 +1065,9 @@ struct MainAppView: View {
         // status bar or a sheet. The camera is dark inside its own view
         // (`StableCameraTab`) and the status bar steps aside over it.
         .statusBarHidden(selectedTab == .camera)
-        .tint(.primary)
+        // White over the camera's black bands, in either appearance: in light
+        // mode the chosen Camera glyph was dark ink on a dark bar.
+        .tint(selectedTab == .camera && CameraBands.shared.black ? Color.white : .primary)
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
         .modifier(GoalRingMomentWatch(wins: blocksToday, goal: todaysGoal, isClear: ringIsClear))
