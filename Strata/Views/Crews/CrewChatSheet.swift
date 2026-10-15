@@ -63,6 +63,8 @@ struct CrewChatSheet: View {
     @State private var replyingToWin: UUID?
     /// The line "+" is choosing an emoji for, with the keyboard up.
     @State private var emojiFor: UUID?
+    /// The chat went down for a sheet and comes back up when it goes.
+    @State private var returnToChat = false
     /// A quoted line tapped: the thread goes to it, and it lights a moment.
     @State private var goingTo: UUID?
     @State private var lit: UUID?
@@ -165,6 +167,17 @@ struct CrewChatSheet: View {
             // The emoji keyboard for "+" on a held line, as a win's "+" opens
             // it. Here, not on `body`, which is at the type-checker's ceiling.
             .background { emojiPicker }
+            // The chat back up once the sheet it went down for has gone, and
+            // stayed gone (a sticker's maker follows its grid).
+            .onChange(of: presenting) { _, up in
+                guard !up, returnToChat else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    guard !presenting, returnToChat else { return }
+                    returnToChat = false
+                    reopen?()
+                }
+            }
             // Escape closes an open menu first, then the chat.
             .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { leave() } }
     }
@@ -203,10 +216,12 @@ struct CrewChatSheet: View {
     /// The win the chat rises to answer, when Reply under the hold's bar
     /// raised it.
     var answeringWin: UUID? = nil
+    /// Raises the drawer again, after a sheet the chat went down for.
+    var reopen: (() -> Void)? = nil
 
     init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false, visible: Bool = true,
          answeringWin: UUID? = nil,
-         close: (() -> Void)? = nil,
+         close: (() -> Void)? = nil, reopen: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.close = close
@@ -214,6 +229,7 @@ struct CrewChatSheet: View {
         self.startsWithPlus = startsWithPlus
         self.visible = visible
         self.answeringWin = answeringWin
+        self.reopen = reopen
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
         _draft = State(initialValue: CrewDrafts.chat(crewID))
@@ -294,6 +310,15 @@ struct CrewChatSheet: View {
         .onChange(of: writing) { _, now in
             // On the keys' curve: the row folds as they rise (fix 6).
             if now, showsPlus { withAnimation(GridConstants.keyboard) { showsPlus = false } }
+            drawerWriting(now)
+            // The newest line on the field once the keys have landed, never
+            // tucked under it.
+            if now {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(380))
+                    snapToNewest += 1
+                }
+            }
         }
         // The clock a stuck line is read against, and the one warning when
         // a line of yours is first said not to have gone (M1).
@@ -465,9 +490,15 @@ struct CrewChatSheet: View {
                 }
                 .onChange(of: snapToNewest) { _, _ in
                     guard let last = messages.last?.id else { return }
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { proxy.scrollTo(last, anchor: .bottom) }
+                    // Still while the drawer is down; on the keys' pace once
+                    // it is up and the person is watching.
+                    if visible {
+                        withAnimation(GridConstants.keyboard) { proxy.scrollTo(last, anchor: .bottom) }
+                    } else {
+                        var still = Transaction()
+                        still.disablesAnimations = true
+                        withTransaction(still) { proxy.scrollTo(last, anchor: .bottom) }
+                    }
                 }
                 .onChange(of: toNewest) { _, _ in
                     guard let last = messages.last?.id else { return }
@@ -742,7 +773,7 @@ struct CrewChatSheet: View {
                         sticker: store.photosAllowed() ? {
                             BlockMenuAfter.run(closing: close) {
                                 stickerFor = id
-                                choosingSticker = true
+                                alone { choosingSticker = true }
                             }
                         } : nil)
             .padding(.horizontal, GridConstants.horizontalPadding - ReactionBar.inset - GridConstants.gapTight)
@@ -770,6 +801,8 @@ struct CrewChatSheet: View {
             }
         }
     }
+
+    @Environment(\.chatDrawerWriting) private var drawerWriting
 
     /// The emoji keyboard "+" raises for a held line, from a field nobody sees.
     private var emojiPicker: some View {
@@ -1167,6 +1200,29 @@ struct CrewChatSheet: View {
 
     private func choose(_ choice: ChatPlusRow.Choice) {
         withAnimation(GridConstants.motionSnappy) { showsPlus = false }
+        alone { open(choice) }
+    }
+
+    /// **Never a sheet over the chat** (the owner, 2026-10-14: "a sheet
+    /// opening on top of a sheet I dont like that"). In the drawer, the chat
+    /// goes down first and the sheet opens on its own; once it has gone, the
+    /// chat comes back up, where what was sent has landed.
+    private func alone(_ present: @escaping () -> Void) {
+        guard close != nil else { present(); return }
+        returnToChat = true
+        leave()
+        Task { @MainActor in
+            try? await Task.sleep(for: GridConstants.drawerLands)
+            present()
+        }
+    }
+
+    /// Something presented from the chat is up.
+    private var presenting: Bool {
+        addingWin || planning || showsStrip || doodling || choosingSticker || makingSticker || choosingMemory
+    }
+
+    private func open(_ choice: ChatPlusRow.Choice) {
         switch choice {
         // Over the chat, which stays open: the win lands here as a line.
         case .win: addingWin = true

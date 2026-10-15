@@ -445,10 +445,14 @@ enum GridConstants {
     /// so the release spring takes over its speed (WWDC24, "Enhance your UI
     /// animations").
     static let drawerFollow = Animation.interactiveSpring(response: 0.14, dampingFraction: 0.86)
-    /// **The keyboard's own curve**, measured by others as an overdamped
-    /// spring (mass 3, stiffness 1000, damping 500): what rides on the keys
-    /// moves with them, never on a curve of its own (fix 5).
-    static let keyboard = Animation.interpolatingSpring(mass: 3, stiffness: 1000, damping: 500)
+    /// **The keyboard's own pace**: what rides on the keys moves with them,
+    /// never on a curve of its own (fix 5). It was the spring others measured
+    /// (mass 3, stiffness 1000, damping 500), which is overdamped to a half
+    /// second time constant: about two seconds to settle against the keys'
+    /// third of one, so every bar and drawer riding on them trailed behind,
+    /// the owner's "when the keyboard comes up or goes away the screen gets
+    /// really glitchy" (measured frame by frame, 2026-10-14).
+    static let keyboard = Animation.smooth(duration: 0.35)
     /// **A system sheet has landed** (fix 7): the one wait before a field in
     /// a sheet takes the keyboard, so the sheet and the keys never rise at
     /// once. It was 380, 450 and 500 in three places for one job. A sheet

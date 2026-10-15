@@ -233,6 +233,12 @@ struct ChatDrawer<Content: View>: View {
     /// Whether it was whole before the keyboard took it there, so the keys
     /// going put it back where it was.
     @State private var fullBeforeKeys: Bool?
+    /// How far the keys stand over the foot of the screen. The drawer does
+    /// not shrink for them (it ignores the keyboard); the chat inside is
+    /// lifted by this, on the keys' pace, so the field rides on top of them.
+    /// Shrinking the whole drawer with the room left the chat drawn below
+    /// where it was laid out, the field under the keys (filmed, 2026-10-14).
+    @State private var keysOver: CGFloat = 0
     /// How far the finger has the edge from where it rests: down is
     /// positive and 1:1, up is held back by `rubber`.
     @State private var pull: CGFloat = 0
@@ -244,6 +250,19 @@ struct ChatDrawer<Content: View>: View {
     /// The ground runs on this far under the panel, past the safe area,
     /// where the field sinks toward the home indicator.
     private static var groundBelow: CGFloat { 160 }
+
+    /// The chat's field took or left the keyboard.
+    private func writing(_ now: Bool) {
+        if now {
+            guard isOpen, fullBeforeKeys == nil else { return }
+            fullBeforeKeys = full
+            withAnimation(GridConstants.keyboard) { full = true }
+        } else {
+            guard let was = fullBeforeKeys else { return }
+            fullBeforeKeys = nil
+            if isOpen { withAnimation(GridConstants.keyboard) { full = was } }
+        }
+    }
 
     /// A pull past where it can go, given less and less: never a wall.
     static func rubber(_ distance: CGFloat, limit: CGFloat = 70) -> CGFloat {
@@ -270,7 +289,12 @@ struct ChatDrawer<Content: View>: View {
             let edge = isOpen ? open : rest
             let shown = max(rest * 0.5, edge - (pull > 0 ? pull : -Self.rubber(-pull)))
             DrawerPanel(shown: shown, open: open, groundBelow: Self.groundBelow,
-                        content: { content().environment(\.chatDrawerFull, full) }) {
+                        content: {
+                            content()
+                                .environment(\.chatDrawerFull, full)
+                                .environment(\.chatDrawerWriting, ChatDrawerWriting(writing))
+                                .padding(.bottom, max(0, keysOver - geo.safeAreaInsets.bottom))
+                        }) {
                 // The grabber rides the top edge.
                 Capsule()
                     .fill(AppColors.inkTertiary.opacity(0.5))
@@ -283,8 +307,22 @@ struct ChatDrawer<Content: View>: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { withAnimation(GridConstants.drawerMove) { full.toggle() } }
             }
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            // **Exactly the room, never more.** With `maxHeight: .infinity` a
+            // panel taller than the room (the whole height plus the ground
+            // run on below it) grew the frame and was pushed down by that
+            // ground, 160 points, the field under the keys (measured,
+            // 2026-10-14).
+            .frame(width: geo.size.width, height: room, alignment: .bottom)
             .opacity(covering ? 1 : 0)
+        }
+        .ignoresSafeArea(.keyboard)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let end = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let screen = UIScreen.main.bounds.height
+            withAnimation(GridConstants.keyboard) { keysOver = max(0, screen - end.minY) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(GridConstants.keyboard) { keysOver = 0 }
         }
         .allowsHitTesting(isOpen)
         .accessibilityHidden(!isOpen)
@@ -294,16 +332,9 @@ struct ChatDrawer<Content: View>: View {
         // okay for the main chat to go full screen and then the name appear
         // ... if its becoming too cramped"). Part way up with the keys under
         // it, the thread was a sliver; the keys going put it back.
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            guard isOpen, fullBeforeKeys == nil else { return }
-            fullBeforeKeys = full
-            withAnimation(GridConstants.keyboard) { full = true }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            guard let was = fullBeforeKeys else { return }
-            fullBeforeKeys = nil
-            if isOpen { withAnimation(GridConstants.keyboard) { full = was } }
-        }
+        // From the chat's own field only (`chatDrawerWriting`): a sheet over
+        // the chat raising its keyboard took the chat behind it to the whole
+        // height too (walked, 2026-10-14).
         .onChange(of: isOpen) { _, open in
             if open {
                 // Over the bar before the first frame of the rise.
@@ -359,14 +390,17 @@ struct ChatDrawer<Content: View>: View {
 /// 463, 518, 549 and 560 points over the rise.
 private struct DrawerPanel<Content: View, Grabber: View>: View, Animatable {
     var shown: CGFloat
-    let open: CGFloat
+    /// The chat's own height, animated with the edge: when the keyboard
+    /// changed the room, the edge glided and the chat jumped, and with the
+    /// keys up the open chat came apart (filmed, 2026-10-14).
+    var open: CGFloat
     let groundBelow: CGFloat
     @ViewBuilder let content: () -> Content
     @ViewBuilder let grabber: () -> Grabber
 
-    var animatableData: CGFloat {
-        get { shown }
-        set { shown = newValue }
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(shown, open) }
+        set { shown = newValue.first; open = newValue.second }
     }
 
     var body: some View {
@@ -411,5 +445,23 @@ extension EnvironmentValues {
     var chatDrawerFull: Bool {
         get { self[ChatDrawerFullKey.self] }
         set { self[ChatDrawerFullKey.self] = newValue }
+    }
+}
+
+/// The chat telling its drawer that its own field took or left the keyboard.
+struct ChatDrawerWriting {
+    let call: (Bool) -> Void
+    init(_ call: @escaping (Bool) -> Void) { self.call = call }
+    func callAsFunction(_ now: Bool) { call(now) }
+}
+
+private struct ChatDrawerWritingKey: EnvironmentKey {
+    static let defaultValue = ChatDrawerWriting { _ in }
+}
+
+extension EnvironmentValues {
+    var chatDrawerWriting: ChatDrawerWriting {
+        get { self[ChatDrawerWritingKey.self] }
+        set { self[ChatDrawerWritingKey.self] = newValue }
     }
 }

@@ -345,6 +345,11 @@ struct CrewTowerView: View {
                               startsWithPlus: chatOpening == .plus, visible: showsChat,
                               answeringWin: answeringWin,
                               close: { withAnimation(GridConstants.drawerMove) { showsChat = false } },
+                              reopen: {
+                                  chatOpening = .reading
+                                  chatCovering = true
+                                  withAnimation(GridConstants.drawerMove) { showsChat = true }
+                              },
                               onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
             }
         }

@@ -480,6 +480,27 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("sheet-camera")
     }
 
+    /// **Every choice on the chat's +, opened** (the owner, 2026-10-14: "make
+    /// sure the + button all the functions actually are useful and work
+    /// properly").
+    func testChatPlusChoices() {
+        for word in ["Add a win to this crew", "Plan something with this crew", "Send a sticker or a doodle",
+                     "Send today's photo strip"] {
+            let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                              "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataSeedWins", "3",
+                              "-strataSeedRealPhotos", "demo"])
+            wait(9)
+            app.buttons["More to send"].firstMatch.press(forDuration: 0.08)
+            wait(2.5)
+            let choice = app.buttons.matching(NSPredicate(format: "label == %@", word)).allElementsBoundByIndex
+                .last { $0.isHittable }
+            print("PLANNING-plus \(word): \(choice != nil)")
+            choice?.press(forDuration: 0.08)
+            wait(3); snap("plus-\(word.split(separator: " ")[1])")
+            app.terminate()
+        }
+    }
+
     /// **A held chat line's reactions beside a held win's** (the owner,
     /// 2026-10-14: "reactions to chat dont seem to work the same ... and the
     /// look is different").
