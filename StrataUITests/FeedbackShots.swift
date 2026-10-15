@@ -1662,6 +1662,56 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("corners-memories")
     }
 
+    /// **The native chat** (2026-10-15): resting, dragged to reading, the
+    /// whole height to write, a block opened under it, and back to the list.
+    func testNativeChat() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9); snap("native-0-rest")
+        func drag(_ from: CGFloat, _ to: CGFloat, speed: CGFloat = 900) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)),
+                       withVelocity: XCUIGestureVelocity(speed), thenHoldForDuration: 0)
+        }
+        // From the grabber, and then from the field's row, as thumbs do.
+        drag(0.818, 0.5)
+        wait(1.5); snap("native-1-reading")
+        let grabbers = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] 'grabber' OR identifier CONTAINS[c] 'grabber'")).allElementsBoundByIndex
+        for g in grabbers { print("PLANNING-native: grabber '\(g.label)' \(g.frame)") }
+        drag(0.5, 0.82)
+        wait(1.5)
+        let field = app.textFields["Message"].firstMatch.exists ? app.textFields["Message"].firstMatch : app.textViews["Message"].firstMatch
+        print("PLANNING-native: field \(field.exists) \(field.frame)")
+        if field.exists { field.tap() }
+        wait(2); snap("native-2-writing")
+        app.typeText("on my way")
+        wait(1)
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+        wait(2); snap("native-3-rested")
+        let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Morning run'")).firstMatch
+        print("PLANNING-native: block \(block.exists) \(block.isHittable)")
+        if block.exists { block.tap() }
+        wait(2.5); snap("native-4-viewer")
+        let close = app.buttons["Close photo"].firstMatch
+        if close.exists { close.tap() }
+        wait(2); snap("native-5-back")
+        let back = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch
+        if back.exists { back.tap() }
+        wait(2); snap("native-6-list")
+    }
+
+    /// The resting chat lifted by a drag on its line rather than its grabber.
+    func testNativeChatDragOnLine() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.875))
+            .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.45)),
+                   withVelocity: XCUIGestureVelocity(600), thenHoldForDuration: 0.1)
+        wait(1.5); snap("lineDrag-1")
+    }
+
     /// The bars at the foot of every writing page, side by side
     /// (2026-10-15: "in the plan the bar doesnt use liquid glass").
     func testBarsCompared() {

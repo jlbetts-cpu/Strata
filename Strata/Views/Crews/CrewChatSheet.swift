@@ -158,11 +158,29 @@ struct CrewChatSheet: View {
     /// The thread with its cards above and its composer below.
     private func chatPage(_ messages: [CrewMessage], reactions: [UUID: [Reaction]], crew: Crew?) -> some View {
         thread(messages, reactions: reactions, crew: crew)
+            // **At rest, the line is a way up** (the native sheet,
+            // 2026-10-15): a tap on it, or a drag up from it, raises the
+            // chat to read, as the resting bar's line did. The field and +
+            // below keep their own jobs.
+            .overlay {
+                if atRest {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { HapticsEngine.lightTap(); reopen?() }
+                        .gesture(DragGesture(minimumDistance: 10).onEnded { drag in
+                            if drag.translation.height < -20 || drag.predictedEndTranslation.height < -60 { reopen?() }
+                        })
+                        .accessibilityElement()
+                        .accessibilityLabel("Chat")
+                        .accessibilityHint("Opens today's chat.")
+                        .accessibilityAddTraits(.isButton)
+                }
+            }
             // Over the thread and above the message field (found by
             // review, 2026-10-13): hung on the whole sheet, "In your
             // plan · Undo" lay on the field for five seconds.
             .undoLine()
-            .safeAreaInset(edge: .top, spacing: 0) { topCards(messages) }
+            .safeAreaInset(edge: .top, spacing: 0) { if !atRest { topCards(messages) } }
             .safeAreaInset(edge: .bottom, spacing: 0) { composer }
             // The emoji keyboard for "+" on a held line, as a win's "+" opens
             // it. Here, not on `body`, which is at the type-checker's ceiling.
@@ -190,7 +208,9 @@ struct CrewChatSheet: View {
     private func framed(_ page: some View, name: String) -> some View {
         if close != nil {
             VStack(spacing: 0) {
-                ChatDrawerTitle(name: name, done: { leave() })
+                // At rest the native sheet is the newest line and the field:
+                // its title and Done come with the first lift.
+                if !atRest { ChatDrawerTitle(name: name, done: { leave() }) }
                 page
             }
         } else {
@@ -219,8 +239,12 @@ struct CrewChatSheet: View {
     /// Raises the drawer again, after a sheet the chat went down for.
     var reopen: (() -> Void)? = nil
 
+    /// **In the crew's persistent native sheet** (2026-10-15): the crew sets
+    /// its heights and keeps it up; this view brings only its content.
+    var native = false
+
     init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false, visible: Bool = true,
-         answeringWin: UUID? = nil,
+         answeringWin: UUID? = nil, native: Bool = false,
          close: (() -> Void)? = nil, reopen: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
@@ -229,6 +253,7 @@ struct CrewChatSheet: View {
         self.startsWithPlus = startsWithPlus
         self.visible = visible
         self.answeringWin = answeringWin
+        self.native = native
         self.reopen = reopen
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
@@ -249,12 +274,9 @@ struct CrewChatSheet: View {
         let reactions = store.messageReactions(in: crewID)
         framed(chatPage(messages, reactions: reactions, crew: crew),
                name: crew?.displayName(excluding: store.me) ?? "")
-        .presentationDetents([Self.drawerHeight, .large], selection: $detent)
-        // The tower above stays the tower: a tap on it lands while the chat
-        // is part way up, as Maps' card leaves the map.
-        .presentationBackgroundInteraction(.enabled(upThrough: Self.drawerHeight))
-        .presentationDragIndicator(.visible)
-        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        // As a sheet of its own; in the crew's native sheet the crew sets
+        // the heights (`CrewTowerView.nativeChat`).
+        .modifier(OwnChatDetents(on: !native, detent: $detent))
         // Open is seen: the dot goes, and the hour's held alert with it. And
         // again as lines arrive while it is open, from the crew screen's
         // live sync underneath (`refreshLive`, every 3 seconds).
@@ -278,7 +300,9 @@ struct CrewChatSheet: View {
                     try? await Task.sleep(for: GridConstants.drawerLands)
                     if visible { store.markChatSeen(crewID) }
                 }
-                showsPlus = startsWithPlus
+                // Opened with the row out, it is out; a row already opened by
+                // + on the resting card stays out as the chat rises.
+                if startsWithPlus { showsPlus = true }
                 if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
                 guard startsWriting else { return }
                 Task { @MainActor in
@@ -803,6 +827,7 @@ struct CrewChatSheet: View {
     }
 
     @Environment(\.chatDrawerWriting) private var drawerWriting
+    @Environment(\.chatAtRest) private var atRest
 
     /// The emoji keyboard "+" raises for a held line, from a field nobody sees.
     private var emojiPicker: some View {
@@ -1057,6 +1082,8 @@ struct CrewChatSheet: View {
                 GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,
                                 accessibilityLabel: showsPlus ? "Close" : "More to send") {
                     writing = false
+                    // At rest the row has no room: the chat rises with it out.
+                    if atRest { reopen?() }
                     withAnimation(GridConstants.motionSnappy) { showsPlus.toggle() }
                 }
                 TextField("Message", text: draftField, axis: .vertical)
@@ -1627,4 +1654,24 @@ final class ChatLineFrames {
     var thread: CGRect = .zero
     /// How far the newest line is below the screen's foot (M7).
     var fromFoot: CGFloat = 0
+}
+
+/// The chat's own heights, when it is a sheet of its own.
+private struct OwnChatDetents: ViewModifier {
+    let on: Bool
+    @Binding var detent: PresentationDetent
+
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .presentationDetents([CrewChatSheet.drawerHeight, .large], selection: $detent)
+                // The tower above stays the tower: a tap on it lands while the
+                // chat is part way up, as Maps' card leaves the map.
+                .presentationBackgroundInteraction(.enabled(upThrough: CrewChatSheet.drawerHeight))
+                .presentationDragIndicator(.visible)
+                .presentationBackground { WarmBackground().ignoresSafeArea() }
+        } else {
+            content
+        }
+    }
 }

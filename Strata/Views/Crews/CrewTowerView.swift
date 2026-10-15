@@ -22,6 +22,9 @@ struct CrewTowerView: View {
     /// A crew plan's box, pressed: the camera, the library and the sheets
     /// are the Wins page's (`PlannedAction`).
     var onPlanned: (PlanItem, PlannedAction) -> Void = { _, _ in }
+    /// The app root's own, as handed in, before the chat steps aside for them.
+    private let rootAddWin: () -> Void
+    private let rootPlanned: (PlanItem, PlannedAction) -> Void
     /// The rows the crew's planned boxes need (`CrewPlannedLayer`), and a
     /// count that has them read again.
     @State private var plannedRows = 0
@@ -49,6 +52,13 @@ struct CrewTowerView: View {
     @State private var chatOpening: ChatRestBar.Opening = .reading
     /// The win Reply under the hold's bar is answering, for the chat.
     @State private var answeringWin: UUID?
+    /// **The native chat** (`NativeChat`): up while the crew is on screen,
+    /// at the height in `chatDetent`, and stepping aside for the app root's
+    /// sheets (`chatAside`).
+    @State private var chatUp = false
+    @State private var chatDetent: PresentationDetent = NativeChat.rest
+    @State private var chatAside = ChatAside()
+    private var native: Bool { NativeChat.isOn }
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
     /// The crew's week, offered from Sunday evening (`CrewWeekReplay`).
@@ -94,6 +104,8 @@ struct CrewTowerView: View {
         self.onAddWin = onAddWin
         self.onLogWin = onLogWin
         self.onPlanned = onPlanned
+        self.rootAddWin = onAddWin
+        self.rootPlanned = onPlanned
         _parking = State(initialValue: CrewParking(crewID: crewID))
     }
 
@@ -143,6 +155,18 @@ struct CrewTowerView: View {
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
             if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil }
+            // The native sheet follows: raised to read (or to the whole
+            // height to write), lowered to rest. A height the person dragged
+            // to is left alone.
+            if native {
+                if open, chatDetent == NativeChat.rest {
+                    withAnimation(GridConstants.drawerMove) {
+                        chatDetent = chatOpening == .writing ? .large : NativeChat.reading
+                    }
+                } else if !open, chatDetent != NativeChat.rest {
+                    withAnimation(GridConstants.drawerMove) { chatDetent = NativeChat.rest }
+                }
+            }
             Task { @MainActor in
                 try? await Task.sleep(for: GridConstants.drawerLands)
                 if showsChat == open { chatSettled = open }
@@ -161,6 +185,16 @@ struct CrewTowerView: View {
         // **Today's chat, resting under the tower** (`ChatRestBar`). An
         // inset, so the tower's base stands above it rather than behind it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
+            if native {
+                // The room the resting sheet stands in, always the same: the
+                // chat covers the tower's foot as it rises, never pushes it.
+                Color.clear
+                    .frame(height: NativeChat.restHeight - GridConstants.gapItem)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                        parking.controls["chat"] = $0
+                        restTop = $0.minY
+                    }
+            } else {
             ChatRestBar(crewID: crewID) { how in
                 chatOpening = how
                 // An explicit transaction: the drawer's own implicit one was
@@ -177,6 +211,7 @@ struct CrewTowerView: View {
                 parking.controls["chat"] = $0
                 restTop = $0.minY
             }
+            }
         }
         // **No tab bar inside a crew**, as Messages and WhatsApp have none
         // inside a conversation: the drawer is the foot of the screen, and
@@ -188,7 +223,18 @@ struct CrewTowerView: View {
         // folds it back.
         .overlay { fanOverlay }
         .toolbar(.hidden, for: .navigationBar)
-        .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
+        .onDisappear {
+            if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil }
+            chatAside.cancel()
+            chatUp = false
+        }
+        // The native chat rises once the push has landed, as Maps' card
+        // comes up under a place.
+        .task {
+            guard native else { return }
+            try? await Task.sleep(for: .milliseconds(380))
+            chatUp = true
+        }
         // **The crew's midnight, while you are looking.** Today's tower is the
         // crew's day; when it ends the tower empties and starts again, as the
         // Wins tab does at yours.
@@ -206,7 +252,7 @@ struct CrewTowerView: View {
         .onChange(of: store.crew(crewID) == nil) { _, gone in
             guard gone else { return }
             CrewRouter.shared.joinProblem = "This crew has ended."
-            onBack()
+            leave()
         }
         .onAppear {
             CrewNotifications.visibleCrew = crewID
@@ -294,9 +340,6 @@ struct CrewTowerView: View {
         }
         .task { await considerAloneTip() }
         .task { await considerWeekCard() }
-        .fullScreenCover(item: $playingWeek) { shown in
-            ReplayView(replay: shown) { playingWeek = nil }
-        }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays live: this crew's changes
         // (`refreshLive`, one small request when nothing moved), since a
@@ -332,23 +375,13 @@ struct CrewTowerView: View {
                 pace.asked(changed: await store.refreshLive(crewID), byPush: byPush)
             }
         }
-        .sheet(isPresented: $showsInfo) {
-            // **Straight to the crew** (the owner, 2026-10-10, on the Draw
-            // tab this sheet used to share: "there is no way to delete
-            // drawings or move them and honestly dont understand the point of
-            // the feature"). Draw and the drawings it threw onto the tower
-            // are gone; the middle opens the crew, as it first did.
-            if let crew {
-                CrewInfoSheet(crewID: crew.id, onLeft: onBack)
-                    .presentationBackground { WarmBackground().ignoresSafeArea() }
-            }
-        }
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
         // **The chat rises from its bar as part of this page** (`ChatDrawer`,
         // 2026-10-14), not as a sheet: flush with the foot of the screen,
         // the tower above it.
         .overlay(alignment: .bottom) {
+            if !native {
             ChatDrawer(isOpen: $showsChat, restTop: restTop, covering: $chatCovering) {
                 CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
                               startsWithPlus: chatOpening == .plus, visible: showsChat,
@@ -361,18 +394,113 @@ struct CrewTowerView: View {
                               },
                               onOpenWin: openQuotedWin, onAddWin: { onAddWin() })
             }
+            }
         }
-        .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
-        // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
-        // told. Hung on a point at the foot of the screen, never on the whole
-        // tower: iOS 26 draws a dialog from the view it hangs on, and from a
-        // full-screen one it never appeared (End Crew did the same).
-        .overlay(alignment: .bottom) { reportAnchor }
+        // The crew's own presentations hang here with the drawer; with the
+        // native chat they hang on the chat's sheet, the one thing that can
+        // present while it is up (`nativeChatSheet`).
+        .applying(!native) { presenting($0) }
+        // **The native chat** (`NativeChat`).
+        .sheet(isPresented: Binding(get: { native && chatUp && !chatAside.away },
+                                    set: { if !$0 { chatUp = false } })) {
+            nativeChatSheet
+        }
+        .onChange(of: chatDetent) { _, now in
+            let open = now != NativeChat.rest
+            if showsChat != open { showsChat = open }
+        }
         // "Sam added you to a win", once per win, never over another screen.
-        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil || reacting != nil)
+        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil || reacting != nil || (native && chatUp))
         // Escape closes the reaction bar first, the way a tap outside it does,
         // rather than leaving the crew with the bar still open.
-        .accessibilityAction(.escape) { if reacting != nil { closeReactions() } else { onBack() } }
+        .accessibilityAction(.escape) { if reacting != nil { closeReactions() } else { leave() } }
+    }
+
+    /// The crew's own covers and sheets: the week's replay, the crew's card,
+    /// the photo viewer and Report. On the tower with the drawer; on the
+    /// chat's sheet with the native chat (see the call sites).
+    private func presenting<Host: View>(_ host: Host) -> some View {
+        host
+            .fullScreenCover(item: $playingWeek) { shown in
+                ReplayView(replay: shown) { playingWeek = nil }
+            }
+            .sheet(isPresented: $showsInfo) {
+                // **Straight to the crew** (the owner, 2026-10-10, on the Draw
+                // tab this sheet used to share: "there is no way to delete
+                // drawings or move them and honestly dont understand the point
+                // of the feature"). Draw and the drawings it threw onto the
+                // tower are gone; the middle opens the crew, as it first did.
+                if let crew {
+                    CrewInfoSheet(crewID: crew.id, onLeft: { leave() })
+                        .presentationBackground { WarmBackground().ignoresSafeArea() }
+                }
+            }
+            .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
+            // Report, from the viewer's ⋯: the reasons, and nobody in the
+            // crew is told. Hung on a point at the foot of the screen.
+            .overlay(alignment: .bottom) { reportAnchor }
+    }
+
+    /// **The chat, as the crew's persistent native sheet.**
+    private var nativeChatSheet: some View {
+        presenting(
+            CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
+                          startsWithPlus: chatOpening == .plus, visible: chatDetent != NativeChat.rest,
+                          answeringWin: answeringWin, native: true,
+                          close: { withAnimation(GridConstants.drawerMove) { chatDetent = NativeChat.rest } },
+                          reopen: {
+                              chatOpening = .reading
+                              withAnimation(GridConstants.drawerMove) { chatDetent = NativeChat.reading }
+                          },
+                          onOpenWin: openQuotedWin, onAddWin: { addWin() })
+        )
+        .environment(\.chatDrawerFull, chatDetent == .large)
+        .environment(\.chatAtRest, chatDetent == NativeChat.rest)
+        // Writing takes the whole height, with the crew's name on top (the
+        // owner, 2026-10-14); leaving the keyboard leaves the height alone.
+        .environment(\.chatDrawerWriting, ChatDrawerWriting { now in
+            guard now, chatDetent != .large else { return }
+            withAnimation(GridConstants.drawerMove) { chatDetent = .large }
+        })
+        .presentationDetents(NativeChat.detents, selection: $chatDetent)
+        // The tower stays the tower under the resting and reading chat: a
+        // tap on a block lands, as Maps' card leaves the map.
+        .presentationBackgroundInteraction(.enabled(upThrough: NativeChat.reading))
+        .interactiveDismissDisabled()
+        .presentationDragIndicator(.visible)
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        // At rest a drag anywhere on the card lifts it, as Maps' does; once
+        // up, a drag on the thread scrolls it until it reaches its end.
+        .presentationContentInteraction(chatDetent == NativeChat.rest ? .resizes : .automatic)
+    }
+
+    /// Out of the crew: the chat's sheet goes first, at once, so the pop is
+    /// the only thing that moves.
+    private func leave() {
+        guard native, chatUp else { onBack(); return }
+        chatAside.cancel()
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet) { chatUp = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            onBack()
+        }
+    }
+
+    /// Add a Win comes from the app root: the chat steps aside for it.
+    private func addWin() {
+        if native, chatUp { chatAside.run(rootAddWin) } else { rootAddWin() }
+    }
+
+    /// A planned box's camera, library or edit comes from the app root too.
+    private func planned(_ item: PlanItem, _ action: PlannedAction) {
+        let presents = [PlannedAction.camera, .library, .edit].contains(action)
+        if presents, native, chatUp {
+            chatAside.run { rootPlanned(item, action) }
+        } else {
+            rootPlanned(item, action)
+        }
     }
 
     private struct ViewedPhoto: Identifiable { let id: String }
@@ -742,7 +870,7 @@ struct CrewTowerView: View {
     private var header: some View {
         ZStack(alignment: .top) {
             HStack(alignment: .top) {
-                BackToCrews(count: elsewhere) { onBack() }
+                BackToCrews(count: elsewhere) { leave() }
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
                 // **No "+" here any more** (the owner, 2026-10-05: "kinda
@@ -936,7 +1064,7 @@ struct CrewTowerView: View {
                                            withAnimation(GridConstants.slotSnap) { drawingSize = .small }
                                        }
                                    },
-                                   onOpenMenu: onAddWin)
+                                   onOpenMenu: addWin)
                         .frame(width: f.width, height: f.height)
                         .offset(x: f.minX, y: gridH - f.minY - f.height)
                 }
@@ -947,7 +1075,7 @@ struct CrewTowerView: View {
                     CrewPlannedLayer(crewID: crewID, grid: tower.currentGrid, slot: slot, slotSize: drawingSize,
                                      cellSize: colW, gridHeight: gridH, cornerRadius: GridConstants.cornerRadius,
                                      nudge: plannedNudge, rowsNeeded: $plannedRows) { item, action in
-                        onPlanned(item, action)
+                        planned(item, action)
                         // Not Today is kept beside the model, where no query
                         // sees it.
                         if action == .notToday { plannedNudge += 1 }

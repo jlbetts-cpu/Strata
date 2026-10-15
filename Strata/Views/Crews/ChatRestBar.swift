@@ -465,3 +465,17 @@ extension EnvironmentValues {
         set { self[ChatDrawerWritingKey.self] = newValue }
     }
 }
+
+/// **The native chat, resting** (`CrewChatSheet` in the crew's own sheet,
+/// 2026-10-15): at its smallest height it is the newest line and the
+/// composer, nothing above them.
+private struct ChatAtRestKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var chatAtRest: Bool {
+        get { self[ChatAtRestKey.self] }
+        set { self[ChatAtRestKey.self] = newValue }
+    }
+}
