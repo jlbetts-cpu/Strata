@@ -195,10 +195,14 @@ struct GroupPlanSheet: View {
                 }
             }
         }
-        // **Its own height, not half the screen** (the owner, 2026-10-14:
-        // "it does like a jitter when opening and opens too high"): the
-        // days, the crews and the bar, with the keys under them.
-        .presentationDetents([.height((crews == nil ? 236 : 292) + (scope == .repeating ? 52 : 0))])
+        // **Your Plan's height** (the owner, 2026-10-15: "the plan and the
+        // plan menu i notice is different one pops up more"; his pick "Full
+        // height"). A short sheet floats as iOS's own glass card and flattens
+        // the glass inside it: the send and repeat circles drew as bare
+        // glyphs and the day bar sat flat, where your Plan's stand out. At
+        // full height they are the same glass. The jitter of 2026-10-14 stays
+        // fixed by the keyboard waiting for the sheet to land, below.
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         .animation(GridConstants.motionSnappy, value: scope == .repeating)
