@@ -74,10 +74,9 @@ struct HeadMakerView: View {
     /// same block rather than a brighter 1x1. See `pips` for the measurement
     /// that ruled the brighter one out.
     private static let pipCurrentSide: CGFloat = pipSide * 2
-    /// The name of the drawing `docs/illustrations.md` asks for on the state
-    /// where no face was found: a figure holding a frame up to its own face,
-    /// white because this screen is dark. Nothing ships under this name yet;
-    /// `illustrationSlot` holds its room open and draws nothing until it does.
+    /// The drawing on the state where no face was found: his figure with a
+    /// box over its head (2026-10-14), white because this screen is dark,
+    /// shipped in parts as `HeadMakerNoFace*` and drawn by `NoFaceFigure`.
     private static let noFaceDrawing = "HeadMakerNoFace"
     /// The Camera section's own drawing, white: a figure with a hand over the
     /// lens. Shared rather than drawn again: see `illustrationSlot` for why
@@ -373,7 +372,11 @@ struct HeadMakerView: View {
         Color.clear
             .frame(width: hole.width, height: hole.width)
             .overlay {
-                if let asset = drawing, let art = UIImage(named: asset) {
+                if drawing == Self.noFaceDrawing {
+                    // His box over a head, looking round for the face
+                    // (2026-10-14): drawn in parts, so it moves.
+                    NoFaceFigure(height: hole.width)
+                } else if let asset = drawing, let art = UIImage(named: asset) {
                     Image(uiImage: art)
                         .renderingMode(.template)
                         .resizable()

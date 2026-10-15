@@ -44,6 +44,10 @@ struct StoreUnavailableView: View {
     /// on centring.
     var body: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapWide) {
+            // His cat sliding down the wall, the app's drawing for an error
+            // (the owner, 2026-10-14). Above the words, on the page's margin.
+            ErrorCat()
+
             Text(StoreUnavailableCopy.title)
                 .font(Typography.screenTitle)
                 .foregroundStyle(AppColors.inkPrimary)

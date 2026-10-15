@@ -635,13 +635,11 @@ struct OnboardingView: View {
             .accessibilityLabel("Your name")
     }
 
-    /// The lock in the crest's glass, as the goal page holds its ring.
+    /// His lock, locking (the owner, 2026-10-14): it clicks shut and smiles.
+    /// On the page itself, no glass circle; it plays when the page comes
+    /// into view.
     private var lockPage: some View {
-        Image(systemName: "lock")
-            .iconSize(44, relativeTo: .largeTitle, weight: .medium)
-            .foregroundStyle(AppColors.inkPrimary)
-            .frame(width: 128, height: 128)
-            .stillGlassCircle()
+        LockingLock()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityHidden(true)
     }

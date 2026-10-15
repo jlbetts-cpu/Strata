@@ -410,7 +410,12 @@ struct CrewsListView: View {
     private var joiningState: some View {
         VStack(spacing: GridConstants.gapItem) {
             Spacer()
-            ProgressView()
+            // His cat in trousers, walking in place: the spinner's job,
+            // done by his drawing (the owner, 2026-10-14). Under Reduce
+            // Motion it stands still, so the spinner stays to say it works.
+            JoiningWalk()
+                .padding(.bottom, GridConstants.gapItem)
+            if reduceMotion { ProgressView() }
             Text("Joining your crew")
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)

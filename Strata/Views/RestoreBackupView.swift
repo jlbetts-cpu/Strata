@@ -271,6 +271,8 @@ struct RestoreBackupView: View {
     @ViewBuilder
     private func outcome(_ report: BackupRestore.Report) -> some View {
         if let failure = report.failure {
+            // His cat sliding down the wall: the app's drawing for an error.
+            ErrorCat(height: 140)
             // Red, as every error the app sets on the page is (2026-10-08).
             Text("Nothing was restored")
                 .font(Typography.screenTitle)
@@ -279,6 +281,8 @@ struct RestoreBackupView: View {
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
         } else {
+            // His thumbs up, once: a backup put back is a one-off success.
+            ThumbsUp()
             VStack(alignment: .leading, spacing: GridConstants.spacing) {
                 Text(verbatim: StrataFont.digits(report.winsAdded))
                     .font(Typography.tally)
@@ -320,6 +324,7 @@ struct RestoreBackupView: View {
 
     @ViewBuilder
     private func failure(_ message: String) -> some View {
+        ErrorCat(height: 140)
         Text("This backup can't be read")
             .font(Typography.screenTitle)
             .foregroundStyle(AppColors.inkPrimary)
