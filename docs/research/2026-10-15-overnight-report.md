@@ -84,6 +84,31 @@ A drag or a tap on the resting line lifts it. The + at rest rises with its row o
 - The widget is privacy-sensitive on a locked phone.
 - The privacy policy now describes the widget.
 
+**Also built tonight:**
+
+- **Catch Up:** back in a crew after a day or more away, a card plays the days you missed. It counts friends' wins, never the days you were gone.
+- **Do It Too in the chat:** a friend's win line offers Do It Too in its hold menu.
+- **Increase Contrast:** the app now responds to the setting; the greys and the glass step up.
+- **A dark-mode seam is gone:** the light edge on the top of the tower now stays inside the block.
+- **Small fixes:** the Journal's empty line now matches the chat's, and two buttons no longer tick twice.
+
+**Two code reviews, every finding fixed:**
+
+- The tagged-win question shows again.
+- What opens from under the chat steps the chat aside: a crew plan box's menu, the plan card's strip, your blank head's maker, and the list's alerts.
+- Opening a crew from a notification no longer races the old crew's chat.
+- Reply works when the chat is already up.
+- Answers from a notification read the crew first and never lose a typed reply in silence.
+- **Crew names:** they're kept as typed and filtered only where they're shown. Before, a new crew photo could save a blanked name for everyone.
+- Names are checked by whole words and endings, so "Kyson" passes and plurals of slurs don't.
+- The glass size bar is accessible again. The UI tests caught it.
+
+**Checked:**
+
+- The unit suite passes: 1596 tests.
+- The tower, touch-target and launch UI tests pass.
+- Every screen was photographed in light and dark.
+
 ## Left for you (decisions, not done)
 
 1. **The resting chat is a floating card.** On iOS 26 a native sheet below full height floats with rounded bottom corners, and nothing can turn that off. It's the curve you rejected on 2026-10-14. On the simulator it reads clean. Look at it on your phone. If it's still a no, `-strataDrawerChat 1` shows the drawer for comparison.
@@ -102,4 +127,13 @@ A drag or a tap on the resting line lifts it. The + at rest rises with its row o
    - Numbered monthly photo-strip papers.
    - A notification content extension.
    - A Messages sticker pack of your head.
-8. **The invited first run:** someone who arrives by a link goes straight to the friend's tower and sends their first win there. Research ranks it first, but it means reworking onboarding.
+8. **From the fresh-eyes critique** (`2026-10-15-fresh-eyes-critique.md`), these touch things you have settled:
+   - **The crest past the goal** reads like a date ("14/3").
+   - **The Journal's `text.alignleft` icon** looks like a hamburger menu.
+   - **Truncation:** one-cell blocks cut titles to one line.
+   - **The crew back button** reads "‹ 1".
+   - **Dark-mode switches:** the on track is close to off.
+   - **New Crew's glyph** looks like "new message".
+   - **Memories:** it is titled "October" above your profile.
+   - **The replay's falling blocks** cover its header.
+9. **The invited first run:** someone who arrives by a link goes straight to the friend's tower and sends their first win there. Research ranks it first, but it means reworking onboarding.
