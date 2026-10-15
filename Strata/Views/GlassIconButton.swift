@@ -340,12 +340,25 @@ enum GlassRecipe {
     /// 240 page and is the surface the rest of the app's chrome is already made
     /// of. Five levels, which is enough to find and not enough to shout.
     static let pageInk: Double = 0.035
-    static var onPage: Glass { .regular.tint(.black.opacity(pageInk)).interactive() }
+    /// **In dark mode, a breath of white** (2026-10-15). A black tint on the
+    /// dark page added nothing, so the chat's field, its + and Send, and
+    /// every corner disc stood invisible on it. The dark page needs its glass
+    /// lifted the other way, as the system's own dark controls are, a few
+    /// levels above the ground and never white (the owner's "dark on dark").
+    static let darkPageLift: Double = 0.07
+    static var pageTint: Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(darkPageLift)
+                : UIColor.black.withAlphaComponent(pageInk)
+        })
+    }
+    static var onPage: Glass { .regular.tint(pageTint).interactive() }
     /// The same glass without the system's press response, for a control that
     /// answers the press itself and holds something that must stay visible
     /// through it: the tower head's bubble, where the interactive glow washed
     /// the parked head out for the length of the press (filmed, 2026-10-02).
-    static var onPageStill: Glass { .regular.tint(.black.opacity(pageInk)) }
+    static var onPageStill: Glass { .regular.tint(pageTint) }
 
     /// 0.16 cancels `.clear`'s lift. See the table above before changing it —
     /// the number is the output of a measurement, and moving it moves the

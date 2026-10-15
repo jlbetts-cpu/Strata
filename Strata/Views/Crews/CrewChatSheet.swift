@@ -976,11 +976,11 @@ struct CrewChatSheet: View {
     private func lineFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {
         // Yours in ink, with the page's own colour as its type, as the
         // filled `PrimaryCapsule` is; a friend's on a quiet fill in ink.
-        let ink = mine ? WarmBackground.top : AppColors.inkPrimary
+        let ink = mine ? AppColors.myLineInk : AppColors.inkPrimary
         // The quote steps down a rung on a friend's line (`inkTertiary`); on
         // yours it keeps the page's colour, since no ink token inverts onto
         // ink, and the arrow and the smaller size already make it the quote.
-        let quoteInk = mine ? WarmBackground.top : AppColors.inkTertiary
+        let quoteInk = mine ? AppColors.myLineInk : AppColors.inkTertiary
         // A win said in the chat with no photo: its title, once, behind the
         // quote's mark. Drawn as a reply it read "↪ Gym / Gym".
         let saysWin = quote != nil && store.isWinLine(message)
@@ -1020,7 +1020,7 @@ struct CrewChatSheet: View {
         .background {
             if !big {
                 RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                    .fill(mine ? AppColors.inkPrimary : AppColors.quietFill)
+                    .fill(mine ? AppColors.myLine : AppColors.quietFill)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))

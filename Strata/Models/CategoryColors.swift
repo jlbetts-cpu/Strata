@@ -274,6 +274,21 @@ enum AppColors {
     /// (rule 7 of `docs/ten.md`, 2026-10-11).
     static let chosenFill = inkPrimary.opacity(0.16)
 
+    /// **Your own line in the chat** (2026-10-15): ink in light mode, and in
+    /// dark a raised grey, never the white it was (the owner's dark on dark:
+    /// only the primary button is white in dark mode).
+    static let myLine = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.22)
+            : UIColor(white: 0, alpha: 0.85)
+    })
+    /// The words on `myLine`: the page's light in light mode, white in dark.
+    static let myLineInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.white
+            : UIColor(red: 0.992, green: 0.992, blue: 0.991, alpha: 1)
+    })
+
     static let quietFill = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(white: 1, alpha: 0.06)

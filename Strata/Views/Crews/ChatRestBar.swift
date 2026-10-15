@@ -159,13 +159,13 @@ struct ChatRestBar: View {
                 }
                 Text(Self.says(last) ?? latestLine)
                     .font(Typography.bodyLarge)
-                    .foregroundStyle(mine ? WarmBackground.top : AppColors.inkPrimary)
+                    .foregroundStyle(mine ? AppColors.myLineInk : AppColors.inkPrimary)
                     .lineLimit(1)
                     .padding(.horizontal, GridConstants.gapItem)
                     .padding(.vertical, GridConstants.spacing + 2)
                     .background {
                         RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                            .fill(mine ? AppColors.inkPrimary : AppColors.quietFill)
+                            .fill(mine ? AppColors.myLine : AppColors.quietFill)
                     }
                 if !mine { Spacer(minLength: GridConstants.gapWide) }
             }
