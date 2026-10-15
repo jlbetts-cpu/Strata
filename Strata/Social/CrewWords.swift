@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// **The filter on a reply's words** (App Review 1.2: an app with free text
 /// between people needs "a method for filtering objectionable material", with
@@ -42,11 +43,22 @@ nonisolated enum CrewWords {
     /// "Kyson" and refused "Mango diet". A refused term here has to be a
     /// word of the name, or a phrase of whole words in it.
     static func isAcceptableName(_ text: String) -> Bool {
+        if let known = nameVerdicts.withLock({ $0[text] }) { return known }
+        let verdict = judgeName(text)
+        nameVerdicts.withLock { kept in
+            if kept.count > 4_000 { kept.removeAll(keepingCapacity: true) }
+            kept[text] = verdict
+        }
+        return verdict
+    }
+
+    private static let nameVerdicts = Mutex<[String: Bool]>([:])
+
+    private static func judgeName(_ text: String) -> Bool {
         let words = fold(text).split(separator: " ").map(String.init).filter { !innocent.contains($0) }
         let padded = " " + words.joined(separator: " ") + " "
         let joined = words.joined()
-        for term in refused {
-            let t = fold(term)
+        for t in foldedRefused {
             if padded.contains(" " + t + " ") || joined == t.replacingOccurrences(of: " ", with: "") { return false }
             // A refused word with an ending is the same word (the second
             // review: "sluts" and "retarded" passed as names).
@@ -57,12 +69,28 @@ nonisolated enum CrewWords {
         return true
     }
 
+    /// **Each line judged once** (2026-10-15: every chat row re-read every
+    /// line through this on every draw, folding the whole refused list each
+    /// time). A line's words never change, so its verdict is kept.
     static func isAcceptable(_ text: String) -> Bool {
+        if let known = verdicts.withLock({ $0[text] }) { return known }
+        let verdict = judge(text)
+        verdicts.withLock { kept in
+            if kept.count > 4_000 { kept.removeAll(keepingCapacity: true) }
+            kept[text] = verdict
+        }
+        return verdict
+    }
+
+    private static let verdicts = Mutex<[String: Bool]>([:])
+    /// The refused list, folded once rather than on every line.
+    private static let foldedRefused: [String] = refused.map(fold)
+
+    private static func judge(_ text: String) -> Bool {
         let folded = fold(text)
         let words = folded.split(separator: " ").map(String.init).filter { !innocent.contains($0) }
         let joined = words.joined()
-        for term in refused {
-            let t = fold(term)
+        for t in foldedRefused {
             if t.contains(" ") {
                 if folded.contains(t) { return false }
             } else if words.contains(where: { $0.hasPrefix(t) }) || joined == t {
@@ -73,8 +101,9 @@ nonisolated enum CrewWords {
     }
 
     /// Lowercased, look-alikes undone, anything not a letter a space.
+    private static let swaps: [Character: Character] = ["0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"]
+
     static func fold(_ text: String) -> String {
-        let swaps: [Character: Character] = ["0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"]
         let mapped = text.lowercased().folding(options: .diacriticInsensitive, locale: nil)
             .map { swaps[$0] ?? $0 }
             .map { $0.isLetter ? $0 : " " }

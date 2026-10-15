@@ -1907,6 +1907,38 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("entry-5-back")
     }
 
+    /// **Bar, then sheet** (the owner, 2026-10-15: the resting card "looks
+    /// like a glitch on the bottom"; his pick): the flush bar at rest, a tap
+    /// on its line to read, a drag down back to the bar, the field to write,
+    /// and a drag up from the bar.
+    func testChatBarThenSheet() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataPerfProbe"])
+        wait(8); snap("bar-0-rest")
+        let line = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat,'")).firstMatch
+        print("PLANNING-bar line \(line.exists)")
+        line.tap(); wait(1.5); snap("bar-1-reading")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)),
+                   withVelocity: XCUIGestureVelocity(1500), thenHoldForDuration: 0)
+        wait(1.5); snap("bar-2-closed")
+        let field = app.buttons["Write a message"].firstMatch.exists ? app.buttons["Write a message"].firstMatch
+                                                                      : app.otherElements["Write a message"].firstMatch
+        print("PLANNING-bar field \(field.exists)")
+        if field.exists { field.tap() }
+        wait(2); snap("bar-3-writing")
+        app.typeText("on my way")
+        wait(1); snap("bar-4-typed")
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+        wait(2); snap("bar-5-after-done")
+        app.swipeDown(velocity: .fast); wait(1.5); snap("bar-6-down")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.86))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)),
+                   withVelocity: XCUIGestureVelocity(600), thenHoldForDuration: 0)
+        wait(1.5); snap("bar-7-dragged-up")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

@@ -5,10 +5,15 @@ import UIKit
 /// its custom but it is not feeling responsive and clean i think we should
 /// use a native pull up since that will have the amazing polish").
 ///
-/// One persistent sheet for as long as the crew is on screen, the shape of
-/// Maps' and Find My's: never dismissed by a drag, the tower alive under it
-/// up to the reading height, and three heights. The research and its
-/// pitfalls are `docs/research/2026-10-15-native-chat-sheet.md`.
+/// **A sheet only while the chat is open** (the owner, later the same day:
+/// the persistent sheet's resting card "looks like a glitch on the bottom
+/// doesnt look sleek", and the chat was "super laggy"; his pick "Bar, then
+/// sheet"). An iOS 26 sheet below full height always floats as an inset
+/// card, so at rest the crew stands on `ChatRestBar`, flush with the foot of
+/// the screen, and the sheet rises from it to read or to write and goes back
+/// into it on a drag down. Nothing is presented over the tower while the
+/// chat is shut. The research and its pitfalls are
+/// `docs/research/2026-10-15-native-chat-sheet.md`.
 ///
 /// `-strataDrawerChat 1` brings back the custom drawer (`ChatDrawer`) for a
 /// side by side.
@@ -20,25 +25,12 @@ enum NativeChat {
         return true
     }
 
-    /// At rest: the newest line over the composer, and the grabber.
-    static let rest = PresentationDetent.custom(ChatRestDetent.self)
     /// Part way: the thread, the tower still showing above (the owner,
     /// 2026-10-14: "popping up enough to see the chat").
     static let reading = CrewChatSheet.drawerHeight
-    static let detents: Set<PresentationDetent> = [rest, reading, .large]
-
-    /// The resting card's height, and the room the tower keeps for it.
-    static let restHeight: CGFloat = 128
-}
-
-/// The resting height as its own type, so its identity never changes while
-/// its number can: a detent built from a measured value is a new detent
-/// whenever the value moves, and a selected detent dropping out of the set
-/// switches with no animation (FB19252983).
-struct ChatRestDetent: CustomPresentationDetent {
-    static func height(in context: Context) -> CGFloat? {
-        min(NativeChat.restHeight, context.maxDetentValue * 0.3)
-    }
+    /// Open only: at rest the crew stands on `ChatRestBar`, not on a
+    /// floating card (2026-10-15).
+    static let detents: Set<PresentationDetent> = [reading, .large]
 }
 
 /// **The chat steps aside for what the app itself presents.** Add a Win and

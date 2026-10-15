@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import SensitiveContentAnalysis
+import UIKit
 import os
 
 /// What App Store guideline 1.2 asks of an app where people share words and
@@ -146,10 +147,32 @@ enum CrewSafety {
     /// `SocialStore.photoIsShown`).
     enum Incoming: Equatable { case show, check, hide }
 
+    /// **Asked once, not on every draw** (2026-10-15, the owner: the chat
+    /// was "super laggy"). Every chat row and every block asks whether a
+    /// photo may show, and each ask built an analyzer and read its policy:
+    /// a sample of the chat opening put this under 147 of its main thread's
+    /// busiest milliseconds. The answer only changes in Settings or with a
+    /// new age, so it is kept until the app comes back to the front, or the
+    /// age is saved (`CrewAge.save`).
     static var incoming: Incoming {
-        if SCSensitivityAnalyzer().analysisPolicy != .disabled { return .check }
-        return CrewAge.current.seesPhotosUnchecked ? .show : .hide
+        if let keptIncoming { return keptIncoming }
+        let now: Incoming = SCSensitivityAnalyzer().analysisPolicy != .disabled ? .check
+            : (CrewAge.current.seesPhotosUnchecked ? .show : .hide)
+        keptIncoming = now
+        if !watchingIncoming {
+            watchingIncoming = true
+            NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                   object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { keptIncoming = nil }
+            }
+        }
+        return now
     }
+    private static var keptIncoming: Incoming?
+    private static var watchingIncoming = false
+
+    /// The age changed: ask again.
+    static func forgetIncoming() { keptIncoming = nil }
 
     /// **The photo check** (guideline 1.2's filter). Apple's on-device
     /// analysis, the one behind Sensitive Content Warning, runs on a photo

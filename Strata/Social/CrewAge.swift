@@ -42,6 +42,8 @@ nonisolated enum CrewAge: String, Sendable {
         // stop and the install id is forgotten. The only thing the app sends
         // its maker, stopped for the one person it must not come from.
         if age == .under13 { Task { @MainActor in Analytics.shared.stopSharing() } }
+        // What a friend's photo may show turns on the age (`CrewSafety.incoming`).
+        Task { @MainActor in CrewSafety.forgetIncoming() }
     }
 
     static let askedKey = "crews.ageAskedAt"

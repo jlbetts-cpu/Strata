@@ -325,6 +325,13 @@ extension DebugHarness {
         if argument("-strataChatReact") != nil {
             await seedChatReactions(first: first, second: second, me: me, crew: crew.id)
         }
+        // `-strataChatTail <kind>`: the chat's last lines a chosen way, for
+        // the resting bar (the owner, 2026-10-15: "test the collapsed view
+        // for when you text multiple times vs them texting multiple times
+        // and various variations").
+        if let tail = argument("-strataChatTail") {
+            await seedChatTail(tail, first: first, second: second, me: me, crew: crew.id)
+        }
         // `-strataSeedCrewPlan`: a friend plans something for today, another
         // friend does it (so the card can name who did), a sticker, and a
         // photo brought back with its line (`GroupPlan`, `ChatPlus`).
@@ -345,6 +352,45 @@ extension DebugHarness {
             }
             await me.refresh()
         }
+    }
+
+    @MainActor
+    private static func seedChatTail(_ kind: String, first: SocialStore, second: SocialStore, me: SocialStore,
+                                     crew: CrewID) async {
+        func say(_ who: SocialStore, _ words: String) async {
+            await who.refresh()
+            await who.send(words, in: crew)
+            try? await Task.sleep(for: .milliseconds(30))
+        }
+        switch kind {
+        case "mine3":
+            await say(me, "on my way"); await say(me, "5 min"); await say(me, "actually 10, sorry")
+        case "theirs3":
+            await say(first, "where are you"); await say(first, "we're here"); await say(first, "by the door")
+        case "mixed":
+            await say(me, "running late"); await say(first, "all good"); await say(second, "same tbh"); await say(first, "take your time")
+        case "long":
+            await say(first, "okay so I finally finished the whole thing and honestly it took way longer than I thought it would but it's done")
+        case "emoji":
+            await say(first, "🔥🔥🔥")
+        case "mineemoji":
+            await say(me, "🙌")
+        case "photo":
+            if let photo = UIImage(named: "DemoPhoto7")?.jpegData(compressionQuality: 0.8) {
+                await first.refresh(); _ = await first.sendPicture(photo, caption: "", in: crew)
+            }
+        case "minephoto":
+            if let photo = UIImage(named: "DemoPhoto7")?.jpegData(compressionQuality: 0.8) {
+                await me.refresh(); _ = await me.sendPicture(photo, caption: "view from the top", in: crew)
+            }
+        case "sticker":
+            if let png = StickerMaker.sample()?.pngData() { await first.refresh(); _ = await first.sendSticker(png, in: crew) }
+        case "plan":
+            await second.refresh()
+            _ = await second.sendPlan(title: "Evening walk", when: .day(CrewDay.string(for: Date(), in: me.crew(crew)?.timeZone ?? .current)), in: crew)
+        default: break
+        }
+        await me.refresh()
     }
 
     /// Reactions on the seeded chat (2026-10-06): ❤️ from a friend and from

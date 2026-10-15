@@ -249,11 +249,14 @@ struct CrewChatSheet: View {
     @ViewBuilder
     private func framed(_ page: some View, name: String) -> some View {
         if close != nil {
-            VStack(spacing: 0) {
-                // At rest the native sheet is the newest line and the field:
-                // its title and Done come with the first lift.
+            // **As a bar, so lines leave under it softly** (2026-10-15): in a
+            // plain stack the thread was clipped flat at the header's foot,
+            // and the bottom of a bubble showed as a hard dark sliver under
+            // Done. `pinnedBar` is the bar iOS draws its scroll edge under.
+            page.pinnedBar {
+                // At rest the drawer is the newest line and the field: its
+                // title and Done come with the first lift.
                 if !atRest { ChatDrawerTitle(name: name, done: { leave() }) }
-                page
             }
         } else {
             NavigationStack {
@@ -324,6 +327,11 @@ struct CrewChatSheet: View {
         // live sync underneath (`refreshLive`, every 3 seconds).
         .onAppear {
             guard visible else { return }
+            // **In the crew's native sheet it appears already open**, so it
+            // rises as the drawer did: seen and the keyboard once it has
+            // landed, never during (2026-10-15: both fired mid-rise and held
+            // its frames for 400ms).
+            if native { risen(); return }
             newFrom = store.firstUnseenMessage(in: crewID)
             store.markChatSeen(crewID)
             if startsWriting { writing = true }
@@ -335,24 +343,7 @@ struct CrewChatSheet: View {
         // was a jolt). Down: the keyboard and the row put away.
         .onChange(of: visible) { _, up in
             if up {
-                newFrom = store.firstUnseenMessage(in: crewID)
-                snapToNewest += 1
-                // Seen once the drawer has risen, not during: marking it
-                // redraws the bar's dot, the back button and the tab under
-                // the rise (the probe, 2026-10-14).
-                Task { @MainActor in
-                    try? await Task.sleep(for: GridConstants.drawerLands)
-                    if visible { store.markChatSeen(crewID) }
-                }
-                // Opened with the row out, it is out; a row already opened by
-                // + on the resting card stays out as the chat rises.
-                if startsWithPlus { showsPlus = true }
-                if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
-                guard startsWriting else { return }
-                Task { @MainActor in
-                    try? await Task.sleep(for: GridConstants.drawerLands)
-                    if visible { writing = true }
-                }
+                risen()
             } else {
                 writing = false
                 showsPlus = false
@@ -404,6 +395,8 @@ struct CrewChatSheet: View {
             }
         }
         .task {
+            // After the rise, not under it.
+            if native { try? await Task.sleep(for: GridConstants.drawerLands) }
             GroupPlanBook.reconcile(context: modelContext)
             planTick += 1
             lookBack = CrewLookBack.find(for: crewID, context: modelContext)
@@ -476,6 +469,34 @@ struct CrewChatSheet: View {
             menuOn = (lines.dropFirst().first ?? lines.first)?.messageID
         }
         #endif
+    }
+
+    /// Up: seen, and the plus row or the keyboard as it was asked for, the
+    /// keyboard only once the chat has landed (both rising at once was a
+    /// jolt).
+    private func risen() {
+        newFrom = store.firstUnseenMessage(in: crewID)
+        // Seen once the drawer has risen, not during: marking it
+        // redraws the bar's dot, the back button and the tab under
+        // the rise (the probe, 2026-10-14). **And to the newest line
+        // then too**: asked for as the native sheet appeared, it
+        // scrolled against a thread not yet its final height and left
+        // the last lines under the field (walked, 2026-10-15).
+        Task { @MainActor in
+            try? await Task.sleep(for: GridConstants.drawerLands)
+            guard visible else { return }
+            store.markChatSeen(crewID)
+            snapToNewest += 1
+        }
+        // Opened with the row out, it is out; a row already opened by
+        // + on the resting card stays out as the chat rises.
+        if startsWithPlus { showsPlus = true }
+        if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
+        guard startsWriting else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: GridConstants.drawerLands)
+            if visible { writing = true }
+        }
     }
 
     // MARK: - The thread
