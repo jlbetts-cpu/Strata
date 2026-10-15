@@ -858,6 +858,26 @@ struct CrewChatSheet: View {
                 }
             }
         } else {
+            // **Do It Too, from a friend's win in the chat** (the chat
+            // research, 2026-10-15, item 9): the viewer's own action, where
+            // the win is said. On your plan for today; nothing is sent.
+            if store.isWinLine(message), let id = message.quoteWinID,
+               let win = store.wins(in: crewID).first(where: { $0.winID == id }) {
+                BlockMenuRow("Do It Too", "checklist") {
+                    BlockMenuAfter.run(closing: close) {
+                        let context = modelContext
+                        let before = DayComposing.onPlan(win.title, in: (try? context.fetch(FetchDescriptor<PlanItem>())) ?? [])
+                        guard let line = DayComposing.doItToo(win.title, colour: win.colour, size: win.blockSize,
+                                                              context: context) else { return }
+                        HapticsEngine.success()
+                        UndoLine.shared.show("On your plan for today", undo: {
+                            // Only a line this press made goes again.
+                            guard before == nil, !line.isDeleted else { return }
+                            PlanItem.remove(line, context: context)
+                        })
+                    }
+                }
+            }
             // **Out of your sight, for you** (the compliance audit,
             // 2026-10-15, §3.2): a win could be hidden and a line could not.
             BlockMenuRow("Hide for Me", "eye.slash") {
