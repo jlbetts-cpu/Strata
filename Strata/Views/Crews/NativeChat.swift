@@ -90,3 +90,39 @@ extension View {
         if condition { transform(self) } else { self }
     }
 }
+
+/// **Something on the crew screen opening over it** (the review, 2026-10-15):
+/// while the native chat is up, nothing under it can present, so a crew plan
+/// box's menu, the plan card's strip and your blank head's maker did nothing.
+/// They ask through this: on the crew screen the chat steps aside, the thing
+/// opens, and the chat comes back when it closes; everywhere else, and inside
+/// the chat itself, it simply runs.
+struct PresentAside {
+    let run: (@escaping () -> Void) -> Void
+    func callAsFunction(_ action: @escaping () -> Void) { run(action) }
+    static let direct = PresentAside { $0() }
+}
+
+private struct PresentAsideKey: EnvironmentKey {
+    static let defaultValue = PresentAside.direct
+}
+
+extension EnvironmentValues {
+    var presentAside: PresentAside {
+        get { self[PresentAsideKey.self] }
+        set { self[PresentAsideKey.self] = newValue }
+    }
+}
+
+/// **Whether the native chat's sheet is up**, for the Crews list's own
+/// alerts (the review, 2026-10-15): the list cannot present while the chat
+/// is up, so its alerts stand down and the crew screen shows the same ones
+/// from the chat (`CrewTowerView.presenting`). The moment the chat goes, the
+/// list's alerts are its own again, which is how "This crew has ended."
+/// reaches you after the crew closes.
+@MainActor
+@Observable
+final class NativeChatPresence {
+    static let shared = NativeChatPresence()
+    var up = false
+}

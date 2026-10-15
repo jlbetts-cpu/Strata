@@ -33,7 +33,23 @@ nonisolated enum CrewWords {
     /// a crew name now leaves the app on the home screen too. A refused one
     /// is shown as nothing, as an unnamed one already is.
     static func kept(_ text: String) -> String {
-        isAcceptable(text) ? text : ""
+        isAcceptableName(text) ? text : ""
+    }
+
+    /// **For a name or a title: whole words only** (the review, 2026-10-15).
+    /// The chat's check matches the start of a word and runs phrases across
+    /// words, which is right for a sentence and wrong for a name: it blanked
+    /// "Kyson" and refused "Mango diet". A refused term here has to be a
+    /// word of the name, or a phrase of whole words in it.
+    static func isAcceptableName(_ text: String) -> Bool {
+        let words = fold(text).split(separator: " ").map(String.init).filter { !innocent.contains($0) }
+        let padded = " " + words.joined(separator: " ") + " "
+        let joined = words.joined()
+        for term in refused {
+            let t = fold(term)
+            if padded.contains(" " + t + " ") || joined == t.replacingOccurrences(of: " ", with: "") { return false }
+        }
+        return true
     }
 
     static func isAcceptable(_ text: String) -> Bool {

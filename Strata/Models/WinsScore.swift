@@ -33,6 +33,7 @@ enum WinsScore {
     static func tally(in context: ModelContext) -> Tally {
         let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed })
         guard let logs = try? context.fetch(descriptor) else { return Tally() }
-        return tally(logs.map { $0.habit?.blockSize ?? .small })
+        // A log whose win has gone counts nothing, as the profile reads it.
+        return tally(logs.compactMap { $0.habit?.blockSize })
     }
 }

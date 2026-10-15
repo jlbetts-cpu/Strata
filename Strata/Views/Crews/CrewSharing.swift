@@ -38,7 +38,7 @@ enum CrewSharing {
             // Only a name somebody typed. An unnamed crew is shown by its
             // people, so a pair's invite read "Join Sam on Some Wins" and a
             // new one "Join New Crew on Some Wins".
-            let name = store.crew(crewID)?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let name = CrewWords.kept(store.crew(crewID)?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let title = name.isEmpty ? message : "Join \(name) on Some Wins"
             let sheet = UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
                                                  applicationActivities: nil)

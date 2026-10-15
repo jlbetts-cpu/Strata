@@ -27,7 +27,10 @@ struct ProfileHeader: View {
     }
 
     var body: some View {
-        VStack(spacing: GridConstants.gapTight) {
+        // Once a pass: each read faults every log's win (the review).
+        let tally = self.tally
+        let streak = self.streak
+        return VStack(spacing: GridConstants.gapTight) {
             Button {
                 HapticsEngine.lightTap()
                 onEdit()

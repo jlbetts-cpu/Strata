@@ -161,7 +161,7 @@ struct CrewTowerView: View {
         })
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
-            if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil }
+            if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil; chatOpening = .reading }
             // The native sheet follows: raised to read (or to the whole
             // height to write), lowered to rest. A height the person dragged
             // to is left alone.
@@ -234,12 +234,22 @@ struct CrewTowerView: View {
             if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil }
             chatAside.cancel()
             chatUp = false
+            NativeChatPresence.shared.up = false
         }
         // The native chat rises once the push has landed, as Maps' card
         // comes up under a place.
         .task {
             guard native else { return }
             try? await Task.sleep(for: .milliseconds(380))
+            // **Not while another crew's chat is still leaving** (the review,
+            // 2026-10-15): a notification that opens crew B over crew A
+            // asked for B's sheet while A's was going, and it was dropped.
+            var waited = 0
+            while ChatAside.rootIsPresenting(), waited < 30, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            guard !Task.isCancelled else { return }
             chatUp = true
         }
         // **The crew's midnight, while you are looking.** Today's tower is the
@@ -409,17 +419,21 @@ struct CrewTowerView: View {
         // native chat they hang on the chat's sheet, the one thing that can
         // present while it is up (`nativeChatSheet`).
         .applying(!native) { presenting($0) }
+        .environment(\.presentAside, PresentAside { action in
+            if native, chatUp { chatAside.run(action) } else { action() }
+        })
         // **The native chat** (`NativeChat`).
         .sheet(isPresented: Binding(get: { native && chatUp && !chatAside.away },
                                     set: { if !$0 { chatUp = false } })) {
             nativeChatSheet
         }
+        .onChange(of: native && chatUp && !chatAside.away, initial: true) { _, up in
+            NativeChatPresence.shared.up = up
+        }
         .onChange(of: chatDetent) { _, now in
             let open = now != NativeChat.rest
             if showsChat != open { showsChat = open }
         }
-        // "Sam added you to a win", once per win, never over another screen.
-        .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil || reacting != nil || (native && chatUp))
         // Escape closes the reaction bar first, the way a tap outside it does,
         // rather than leaving the crew with the bar still open.
         .accessibilityAction(.escape) { if reacting != nil { closeReactions() } else { leave() } }
@@ -448,6 +462,26 @@ struct CrewTowerView: View {
             // Report, from the viewer's ⋯: the reasons, and nobody in the
             // crew is told. Hung on a point at the foot of the screen.
             .overlay(alignment: .bottom) { reportAnchor }
+            // "Sam added you to a win", once per win, never over another
+            // screen: with the native chat, from the chat's sheet, and only
+            // while it rests (the review, 2026-10-15: it never showed).
+            .keepTaggedWin(in: crewID, isBusy: viewing != nil || showsInfo || showsChat || reporting != nil
+                           || reacting != nil || playingWeek != nil)
+            // The list's two alerts, from here while the chat is up
+            // (`NativeChatPresence`).
+            .alert("This photo stays with you", isPresented: Binding(
+                get: { NativeChatPresence.shared.up && SocialStore.shared.heldBackPhoto != nil },
+                set: { if !$0 { SocialStore.shared.clearHeldBackPhoto() } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("It looked like something Some Wins doesn't send to crews. Your win was still sent, without it.")
+            }
+            .alert("Crews", isPresented: Binding(get: { NativeChatPresence.shared.up && CrewRouter.shared.joinProblem != nil },
+                                                 set: { if !$0 { CrewRouter.shared.joinProblem = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(CrewRouter.shared.joinProblem ?? "")
+            }
     }
 
     /// **The chat, as the crew's persistent native sheet.**
@@ -463,6 +497,8 @@ struct CrewTowerView: View {
                           },
                           onOpenWin: openQuotedWin, onAddWin: { addWin() })
         )
+        // Inside the chat, a sheet opens from the chat itself.
+        .environment(\.presentAside, .direct)
         .environment(\.chatDrawerFull, chatDetent == .large)
         .environment(\.chatAtRest, chatDetent == NativeChat.rest)
         // Writing takes the whole height, with the crew's name on top (the
@@ -481,6 +517,26 @@ struct CrewTowerView: View {
         // At rest a drag anywhere on the card lifts it, as Maps' does; once
         // up, a drag on the thread scrolls it until it reaches its end.
         .presentationContentInteraction(chatDetent == NativeChat.rest ? .resizes : .automatic)
+        // VoiceOver's escape: the chat down first, then out of the crew (the
+        // sheet cannot be swiped away, so this is the way out).
+        .accessibilityAction(.escape) {
+            if chatDetent != NativeChat.rest {
+                withAnimation(GridConstants.drawerMove) { chatDetent = NativeChat.rest }
+            } else { leave() }
+        }
+    }
+
+    /// **With the native chat, the viewer opens from the chat's sheet**, so a
+    /// win asked for as the crew opens waits for the sheet to be up (at most
+    /// three seconds). With the drawer it opens at once.
+    private func untilChatIsUp() async {
+        guard native else { return }
+        var waited = 0
+        while !(chatUp && ChatAside.rootIsPresenting() && !chatAside.away), waited < 30 {
+            try? await Task.sleep(for: .milliseconds(100))
+            waited += 1
+        }
+        try? await Task.sleep(for: .milliseconds(150))
     }
 
     /// Out of the crew: the chat's sheet goes first, at once, so the pop is
@@ -550,6 +606,7 @@ struct CrewTowerView: View {
         let today = CrewDay.string(for: Date(), in: crew.timeZone)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
+            await untilChatIsUp()
             viewingDay = win.crewDay == today ? nil : win.crewDay
             viewing = id.uuidString
         }
@@ -767,6 +824,11 @@ struct CrewTowerView: View {
                     answeringWin = id
                     chatOpening = .writing
                     showsChat = true
+                    // Already up, the chat goes to the whole height to write
+                    // (the review, 2026-10-15: Reply did nothing at reading).
+                    if native, chatDetent != .large {
+                        withAnimation(GridConstants.drawerMove) { chatDetent = .large }
+                    }
                 } label: {
                     Label("Reply", systemImage: "arrowshape.turn.up.left")
                         .font(Typography.headerSmall)
@@ -855,7 +917,9 @@ struct CrewTowerView: View {
 
     /// "While you were away.": the days you missed, never how many.
     private func catchUpTip(_ replay: Replay) -> some View {
-        let wins = replay.blocks.count
+        // Friends' wins only: the card is about them.
+        let wins = replay.period.days.flatMap { store.wins(in: crewID, on: $0) }
+            .filter { $0.senderProfileID != store.me }.count
         return TipCard(title: "While you were away.",
                        message: wins == 1 ? "1 win from your crew." : "\(wins) wins from your crew.",
                        actionTitle: "Catch Up",

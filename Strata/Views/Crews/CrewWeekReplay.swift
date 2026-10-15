@@ -50,10 +50,15 @@ enum CrewWeekReplay {
     /// there, not how long you were not. At most the last seven, and only
     /// days the crew still holds.
     static func missed(in crewID: CrewID, store: SocialStore = .shared) -> Replay? {
-        guard let crew = store.crew(crewID),
-              let last = UserDefaults.standard.string(forKey: openedKey(crewID)) else { return nil }
+        guard let crew = store.crew(crewID) else { return nil }
         let zone = crew.timeZone
         let today = CrewDay.string(for: store.now(), in: zone)
+        var opened = UserDefaults.standard.string(forKey: openedKey(crewID))
+        #if DEBUG
+        // `-strataCatchUp 1`: last opened four days ago, for screenshots.
+        if DebugHarness.argument("-strataCatchUp") != nil { opened = CrewDay.day(today, offsetBy: -4, in: zone) }
+        #endif
+        guard let last = opened else { return nil }
         var days: [String] = []
         var day = CrewDay.day(today, offsetBy: -1, in: zone)
         while let d = day, d > last, days.count < 7 {
@@ -62,7 +67,9 @@ enum CrewWeekReplay {
         }
         guard let first = days.first, let start = CrewDay.start(of: first, in: zone) else { return nil }
         let wins = wins(on: days, in: crewID, store: store)
-        guard !wins.isEmpty else { return nil }
+        // About your friends: a crew where only you logged has nothing to
+        // catch up on (the review, 2026-10-15).
+        guard days.flatMap({ store.wins(in: crewID, on: $0) }).contains(where: { $0.senderProfileID != store.me }) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = zone
         let period = ReplayPeriod(kind: .week, days: days, firstDay: start, calendar: calendar,

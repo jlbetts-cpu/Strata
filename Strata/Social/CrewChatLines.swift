@@ -101,9 +101,13 @@ nonisolated enum ChatEmoji {
 /// preview card fetched for them, so nothing about a line is ever asked of
 /// a website.
 nonisolated enum ChatLinks {
+    /// Built once: a detector compiles its patterns, and the chat draws
+    /// every line again on each refresh (the review, 2026-10-15).
+    private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
     static func attributed(_ text: String) -> AttributedString {
         var out = AttributedString(text)
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return out }
+        guard let detector else { return out }
         let ns = text as NSString
         for match in detector.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             guard let url = match.url, url.scheme == "https" || url.scheme == "http",

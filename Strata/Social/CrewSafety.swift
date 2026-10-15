@@ -10,9 +10,9 @@ enum CrewSafety {
     private static let log = Logger(subsystem: "Strata", category: "crews.safety")
 
     enum Reason: String, CaseIterable, Identifiable {
-        /// `child` first in the list a reporter sees, and first in
-        /// `reports.sh`: a report about a child carries a legal clock (the
-        /// compliance audit, 2026-10-15, §2 and §3.4).
+        /// `child` first in the list a reporter sees: a report about a child
+        /// carries a legal clock (the compliance audit, 2026-10-15, §2 and
+        /// §3.4). `reports.sh` lists by date; read the reason column for it.
         case child, inappropriate, harassment, spam, other
         var id: String { rawValue }
         var words: String {

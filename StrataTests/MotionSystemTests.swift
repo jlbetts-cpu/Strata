@@ -47,11 +47,15 @@ struct MotionSystemTests {
         #expect(inline.firstMatch(in: bad, range: NSRange(bad.startIndex..., in: bad)) != nil)
     }
 
-    @Test("the profile picture answers a press when it is not on glass")
+    /// The corner's profile button went on 2026-10-15: Memories is the
+    /// profile, and your picture is the header's own button. It answers a
+    /// press, as every surface does.
+    @Test("the profile picture answers a press")
     func avatarPresses() throws {
-        let text = try MorningSource.read("Views/ProfileAvatar.swift")
-        #expect(text.contains(".buttonStyle(isGlass ? PressResponse(scale: 1, dim: 1) : .pressSurface)"))
-        #expect(!text.contains("        .buttonStyle(.plain)\n        .accessibilityLabel(\"Profile\")"))
+        let text = try MorningSource.read("Views/ProfileHeader.swift")
+        #expect(text.contains("PersonHead(person: .me"))
+        #expect(text.contains(".buttonStyle(.pressSurface)"))
+        #expect(!text.contains(".buttonStyle(.plain)"))
     }
 
     @Test("Reduce Motion is read at launch and kept current")

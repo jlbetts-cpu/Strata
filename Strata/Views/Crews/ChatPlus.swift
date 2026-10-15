@@ -331,6 +331,7 @@ struct CrewPlanCards: View {
     @State private var tick = 0
     @State private var closed: Set<String> = []
     @State private var strip: GroupPlan?
+    @Environment(\.presentAside) private var presentAside
 
     private var store: SocialStore { SocialStore.shared }
 
@@ -375,7 +376,7 @@ struct CrewPlanCards: View {
                 GroupPlanCard(plan: plan, today: today, isIn: false, done: state.names,
                               canStrip: state.canStrip,
                               join: { GroupPlanActions.join(plan, context: modelContext) { tick += 1; onChanged() } },
-                              strip: { strip = plan },
+                              strip: { presentAside { strip = plan } },
                               close: {
                                   Self.closeHere(plan.bookKey, today: today)
                                   withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {

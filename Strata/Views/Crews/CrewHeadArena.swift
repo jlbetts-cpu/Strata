@@ -354,6 +354,7 @@ private struct CrewHeadRunner: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.headsAwake) private var headsAwake
+    @Environment(\.presentAside) private var presentAside
     @State private var life: CrewHeadLife
     @State private var take: HeadTake.Played?
     @State private var deck = HeadTakeDeck()
@@ -482,7 +483,7 @@ private struct CrewHeadRunner: View {
         guard let rig else {
             if isMe {
                 HapticsEngine.lightTap()
-                making = true
+                presentAside { making = true }
             } else {
                 HapticsEngine.tick()
             }

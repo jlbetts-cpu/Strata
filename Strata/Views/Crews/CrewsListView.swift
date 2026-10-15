@@ -809,13 +809,13 @@ struct CrewDestinations: ViewModifier {
                 #endif
             }
             .alert("This photo stays with you", isPresented: Binding(
-                get: { SocialStore.shared.heldBackPhoto != nil },
+                get: { SocialStore.shared.heldBackPhoto != nil && !NativeChatPresence.shared.up },
                 set: { if !$0 { SocialStore.shared.clearHeldBackPhoto() } })) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("It looked like something Some Wins doesn't send to crews. Your win was still sent, without it.")
             }
-            .alert("Crews", isPresented: Binding(get: { router.joinProblem != nil },
+            .alert("Crews", isPresented: Binding(get: { router.joinProblem != nil && !NativeChatPresence.shared.up },
                                                  set: { if !$0 { router.joinProblem = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {

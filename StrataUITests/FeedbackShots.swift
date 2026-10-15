@@ -1767,6 +1767,16 @@ final class FeedbackShots: XCTestCase {
         wait(2.5); snap("profile-4-settings")
     }
 
+    /// **Catch Up** (2026-10-15): back after days away.
+    func testCatchUp() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",
+                          "-strataSeedCrewHistory", "6", "-strataCatchUp", "1", "-strataCrewFaces", "none"])
+        wait(9); snap("catchup-1-card")
+        let play = app.buttons["Catch Up"].firstMatch
+        if play.exists { play.tap() }
+        wait(4); snap("catchup-2-playing")
+    }
+
     /// **The crew's week, offered on its tower** (2026-10-14), and played.
     func testCrewWeekCard() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",

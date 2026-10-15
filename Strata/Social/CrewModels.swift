@@ -129,7 +129,8 @@ nonisolated struct Crew: Identifiable, Codable, Equatable, Sendable {
     /// The crew's name, or, unnamed, its people as Messages names a group:
     /// "Sam", "Sam & Ana", "Sam, Ana & Leo", "Sam, Ana & 3 more".
     func displayName(excluding me: UUID) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A name the words check refuses is shown as an unnamed crew is.
+        let trimmed = CrewWords.kept(name).trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
         let names = others(than: me).map(\.shortName).filter { !$0.isEmpty }
         switch names.count {

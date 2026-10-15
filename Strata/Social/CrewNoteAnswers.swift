@@ -38,8 +38,18 @@ enum CrewNoteAnswers {
         let store = SocialStore.shared
         if store.crew(crew) == nil { await store.refresh() }
         guard store.crew(crew) != nil, store.canReply() else { return }
+        let win = (info["win"] as? String).flatMap(UUID.init(uuidString:))
+        // **The win the alert was about is usually newer than this launch's
+        // copy of the crew** (the review, 2026-10-15): read the crew's
+        // changes first, or the reaction and the reply found nothing to land on.
+        if let win, !store.wins(in: crew).contains(where: { $0.winID == win }) {
+            _ = await store.refreshLive(crew)
+        }
         if let emoji = CrewNoteActions.reactions[response.actionIdentifier] {
-            guard let win = (info["win"] as? String).flatMap(UUID.init(uuidString:)) else { return }
+            guard let win else { return }
+            // A reaction toggles; the same one again from a banner is not a
+            // take-back.
+            guard store.myReaction(to: win, in: crew) != emoji else { return }
             await store.react(emoji, to: win, in: crew)
             return
         }
@@ -51,6 +61,30 @@ enum CrewNoteAnswers {
         } else {
             outcome = await store.send(typed, in: crew)
         }
-        if outcome != .sent { log.notice("an answer from a notification did not go: \(String(describing: outcome))") }
+        if outcome != .sent {
+            log.notice("an answer from a notification did not go: \(String(describing: outcome))")
+            await tellNotSent(crew: crew)
+        }
+    }
+
+    /// The words did not go: said once, quietly, so a reply is never lost
+    /// without a word (the review, 2026-10-15).
+    private static func tellNotSent(crew: CrewID) async {
+        let content = UNMutableNotificationContent()
+        content.body = "Your reply didn't go. Open the crew to send it again."
+        content.userInfo = ["crew": crew.rawValue]
+        content.threadIdentifier = crew.rawValue
+        let request = UNNotificationRequest(identifier: "crew.reply.failed.\(UUID().uuidString)", content: content, trigger: nil)
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+
+    /// **Only where answering is allowed** (the review, 2026-10-15): a phone
+    /// that may not write in a crew showed Reply and the reactions on every
+    /// alert, and they did nothing. Registered again as the app comes forward.
+    @MainActor
+    static func register() {
+        var set: Set<UNNotificationCategory> = [DailyReminder.notificationCategory]
+        if CrewsFlag.isOn, SocialStore.shared.canReply() { set.formUnion(categories) }
+        UNUserNotificationCenter.current().setNotificationCategories(set)
     }
 }

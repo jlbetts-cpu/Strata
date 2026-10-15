@@ -561,7 +561,9 @@ struct CrewInfoSheet: View {
     private func commitName() {
         guard let crew, name.trimmingCharacters(in: .whitespacesAndNewlines) != crew.name else { return }
         Task {
-            do { try await store.rename(crewID, to: name) } catch { problem = "The name could not be saved." }
+            do { try await store.rename(crewID, to: name) } catch CrewError.wordsRefused {
+                problem = CrewErrorWords.words(for: CrewError.wordsRefused, while: .starting)
+            } catch { problem = "The name could not be saved." }
         }
     }
 

@@ -244,7 +244,11 @@ nonisolated enum CrewRecords {
     static func crew(_ fields: RecordFields, id: CrewID, members: [CrewMember]) -> Crew? {
         guard let owner = fields["ownerProfileID"]?.uuid else { return nil }
         return Crew(id: id,
-                    name: CrewWords.kept(fields["name"]?.string ?? ""),
+                    // Raw: a crew's record is written back whole (a new
+                    // photo, a rename), so a name blanked here would be saved
+                    // blank for everyone. It is checked where it is shown
+                    // (`Crew.displayName`).
+                    name: fields["name"]?.string ?? "",
                     ownerProfileID: owner,
                     timeZoneIdentifier: fields["timeZoneIdentifier"]?.string ?? TimeZone.current.identifier,
                     createdAt: fields["createdAt"]?.date ?? .distantPast,

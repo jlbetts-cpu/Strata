@@ -40,3 +40,34 @@ struct ReplyStarterTests {
         #expect(ReplyStarters.lines(title: "Gym", mine: true).isEmpty)
     }
 }
+
+@Suite("Names are checked by whole words")
+struct NameWordsTests {
+    @Test("ordinary names that only begin with or run into a refused term pass")
+    func innocentNames() {
+        #expect(CrewWords.isAcceptableName("Kyson"))
+        #expect(CrewWords.isAcceptableName("Mango diet"))
+        #expect(CrewWords.isAcceptableName("Go Diego"))
+        #expect(CrewWords.isAcceptableName("Spicy noodles"))
+        #expect(CrewWords.kept("Kyson") == "Kyson")
+    }
+
+    @Test("a refused word or phrase in a name is caught")
+    func refusedNames() {
+        #expect(!CrewWords.isAcceptableName("kys"))
+        #expect(!CrewWords.isAcceptableName("Go die now"))
+        #expect(!CrewWords.isAcceptableName("k y s"))
+        #expect(CrewWords.kept("go die") == "")
+    }
+
+    @Test("a refused crew name is shown as an unnamed crew, and kept raw")
+    func crewName() {
+        let me = UUID()
+        let crew = Crew(id: CrewID(rawValue: "c"), name: "go die", ownerProfileID: me, timeZoneIdentifier: "UTC",
+                        createdAt: .distantPast, photo: nil,
+                        members: [CrewMember(profileID: me, firstName: "Me", joinedAt: .distantPast),
+                                  CrewMember(profileID: UUID(), firstName: "Sam", joinedAt: .distantPast)])
+        #expect(crew.displayName(excluding: me) == "Sam")
+        #expect(crew.name == "go die")
+    }
+}

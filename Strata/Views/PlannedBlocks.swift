@@ -140,6 +140,7 @@ struct PlannedOutline: View {
 
 /// The queue of them, laid in the tower's grid.
 struct PlannedOutlines: View {
+    @Environment(\.presentAside) private var presentAside
     let items: [PlanItem]
     let cells: [(column: Int, row: Int)]
     let cellSize: CGFloat
@@ -186,7 +187,7 @@ struct PlannedOutlines: View {
         // records as swallowing taps.)
         Button {
             HapticsEngine.lightTap()
-            choosing = item
+            presentAside { choosing = item }
         } label: {
             PlannedOutline(title: PlanTime.title(item.text), time: PlanTime.label(for: item.text),
                            cornerRadius: cornerRadius, side: frame.width)

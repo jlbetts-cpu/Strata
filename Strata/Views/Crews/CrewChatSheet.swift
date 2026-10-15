@@ -201,6 +201,24 @@ struct CrewChatSheet: View {
                     reopen?()
                 }
             }
+            // **A win to answer while the chat is already up** (the review,
+            // 2026-10-15): `visible` did not change, so the quote never came.
+            .onChange(of: answeringWin) { _, id in
+                guard let id, visible else { return }
+                replyingTo = nil
+                replyingToWin = id
+                writing = true
+            }
+            // **The quote and its starters push the thread up, not over it**
+            // (filmed, 2026-10-15: the starters stood on the newest line).
+            // Once they have landed, the newest line goes back above them.
+            .onChange(of: replyingToWin) { _, id in
+                guard id != nil else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    snapToNewest += 1
+                }
+            }
             // Escape closes an open menu first, then the chat.
             .accessibilityAction(.escape) { if menuOn != nil { menuOn = nil } else { leave() } }
     }
