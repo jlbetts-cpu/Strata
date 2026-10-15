@@ -496,3 +496,102 @@ struct JournalLockScript: InkScript {
          "JournalLockEyeLeft", "JournalLockEyeRight", "JournalLockSmile"].map { InkPart(asset: $0) }
     }
 }
+
+// MARK: - The cloud in sunglasses (signed out of iCloud)
+
+/// **The cloud screen for the no cloud** (the owner, 2026-10-14: "Here is the
+/// cloud screen for the no cloud"). His cloud in dark glasses, a small frown,
+/// standing on two thin legs in big sneakers. Crews when the person is signed
+/// out of iCloud.
+///
+/// It waits, put out: the side-on sneaker taps twice, toe up and down, its
+/// laces bouncing a beat behind; a held beat; then a sigh: the cloud draws
+/// up tall and lets it out in a squash, its knees giving, its glasses sliding
+/// down a touch and the frown wobbling; the glasses are pushed back up past
+/// where they sit and settle; another held beat. It loops gently, 2.6s a
+/// round, while the screen is up.
+struct NoCloudFigure: View {
+    var height: CGFloat = 150
+    var body: some View { InkFigure(script: NoCloudScript(), height: height) }
+}
+
+struct NoCloudScript: InkScript {
+    let canvas = CGSize(width: 980, height: 1370)
+    let length: Double? = nil
+
+    static let round = 2.6
+    static let cloudFoot = CGPoint(x: 470, y: 650)
+    static let glasses = CGPoint(x: 575, y: 420), frown = CGPoint(x: 615, y: 535)
+    // The legs: where each meets the cloud, its knee, and its foot.
+    static let legLeft = (top: 658.0, knee: 770.0, foot: 902.0, x: 390.0)
+    static let legRight = (top: 645.0, knee: 760.0, foot: 878.0, x: 560.0)
+    static let heel = CGPoint(x: 505, y: 1160), ankle = CGPoint(x: 545, y: 878)
+    static let lacesRight = CGPoint(x: 645, y: 1000), lacesLeft = CGPoint(x: 375, y: 965)
+
+    /// The two taps: toe up and down, twice, quickly.
+    static func tap(_ c: Double) -> Double {
+        c > 0 && c < 0.56 ? max(0, sin(.pi * c / 0.28)) : 0
+    }
+
+    func parts(at t: Double, stoppedAt: Double?) -> [InkPart] {
+        typealias S = NoCloudScript
+        let c = t.truncatingRemainder(dividingBy: S.round)
+        // The sigh: drawn up tall, let out in a squash, settling.
+        let inhale = Ink.bump(c, 0.9, 1.2, 1.32)
+        let exhale = Ink.bump(c, 1.2, 1.36, 1.8)
+        let settle = Ink.springOut(c - 1.36, frequency: 2.6, damping: 0.35) * Ink.smooth((2.4 - c) / 0.3)
+        let sy = 1 + 0.07 * inhale - 0.08 * exhale + 0.03 * settle
+        let sx = 1 - 0.03 * inhale + 0.05 * exhale - 0.02 * settle
+        let dy = -14 * inhale + 18 * exhale
+        let cloud = Ink.scale(sx, sy, about: S.cloudFoot).then(Ink.move(0, dy))
+        // The glasses slide down a touch on the sigh and are pushed back up
+        // past where they sit.
+        let slide = 10 * Ink.bump(c, 1.25, 1.42, 1.8) - 4 * Ink.bump(c, 1.8, 1.9, 2.1)
+        let glasses = Ink.move(0, slide).then(cloud)
+        // The frown wobbles as the breath goes out.
+        let wobble = Ink.springOut(c - 1.24, frequency: 3, damping: 0.3)
+        let frown = Ink.scale(1 + 0.2 * wobble, 1 - 0.15 * wobble, about: S.frown)
+            .then(Ink.rotate(6 * wobble, about: S.frown)).then(cloud)
+
+        // The sneaker taps, turning on its heel, and the laces follow it a
+        // beat late and keep going a little after.
+        let toe = -12 * S.tap(c)
+        let shoe = Ink.rotate(toe, about: S.heel)
+        let lag = -6 * (S.tap(c - 0.06) - S.tap(c)) - 5 * Ink.springOut(c - 0.56, frequency: 3, damping: 0.35)
+        let lacesRight = Ink.rotate(lag, about: S.lacesRight).then(shoe)
+        let lacesLeft = Ink.scale(1, 1 + 0.08 * wobble, about: S.lacesLeft)
+        let ankle = S.ankle.applying(shoe)
+
+        // The legs: their tops ride the cloud, their knees give on the sigh,
+        // the tapping one's foot goes where the shoe takes it.
+        func leg(_ l: (top: Double, knee: Double, foot: Double, x: Double), out: Double, foot: CGPoint) -> (CGAffineTransform, CGAffineTransform) {
+            let top = l.top + dy, topDx = (sx - 1) * (l.x - S.cloudFoot.x)
+            let footY = l.foot + foot.y, share = (l.knee - l.top) / (l.foot - l.top)
+            let knee = top + (footY - top) * share
+            let kneeDx = topDx + (foot.x - topDx) * share + out * exhale
+            return (Ink.segment(l.top, to: top, dx0: topDx, l.knee, to: knee, dx1: kneeDx),
+                    Ink.segment(l.knee, to: knee, dx0: kneeDx, l.foot, to: footY, dx1: foot.x))
+        }
+        let (thighL, shinL) = leg(S.legLeft, out: -24, foot: .zero)
+        let (thighR, shinR) = leg(S.legRight, out: 24, foot: CGPoint(x: ankle.x - S.ankle.x, y: ankle.y - S.ankle.y))
+        return [
+            InkPart(asset: "NoCloudShoeLeft"),
+            InkPart(asset: "NoCloudLacesLeft", transform: lacesLeft),
+            InkPart(asset: "NoCloudShoeRight", transform: shoe),
+            InkPart(asset: "NoCloudLacesRight", transform: lacesRight),
+            InkPart(asset: "NoCloudThighLeft", transform: thighL),
+            InkPart(asset: "NoCloudShinLeft", transform: shinL),
+            InkPart(asset: "NoCloudThighRight", transform: thighR),
+            InkPart(asset: "NoCloudShinRight", transform: shinR),
+            InkPart(asset: "NoCloudBody", transform: cloud),
+            InkPart(asset: "NoCloudGlasses", transform: glasses),
+            InkPart(asset: "NoCloudFrown", transform: frown),
+        ]
+    }
+
+    var still: [InkPart] {
+        ["NoCloudShoeLeft", "NoCloudLacesLeft", "NoCloudShoeRight", "NoCloudLacesRight", "NoCloudThighLeft",
+         "NoCloudShinLeft", "NoCloudThighRight", "NoCloudShinRight", "NoCloudBody", "NoCloudGlasses", "NoCloudFrown"]
+            .map { InkPart(asset: $0) }
+    }
+}

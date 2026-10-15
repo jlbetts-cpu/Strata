@@ -493,6 +493,9 @@ struct CrewsListView: View {
             // crew lives in your iCloud, and the page offered New Crew and
             // only failed once you had pressed it.
             if signedOut {
+                // His cloud in sunglasses, tapping its foot (the owner,
+                // 2026-10-14: "the cloud screen for the no cloud").
+                NoCloudFigure()
                 Text("Crews are shared through iCloud. Sign in to iCloud in Settings to start one.")
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)

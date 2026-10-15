@@ -198,6 +198,15 @@ enum Ink {
         CGAffineTransform(a: 1, b: 0, c: k, d: 1, tx: -k * y, ty: 0)
     }
 
+    /// A piece between two level cuts, its ends moved: the cut at `y0` goes
+    /// to `to0` and `dx0` along, the one at `y1` to `to1` and `dx1` along,
+    /// and everything between follows. A thigh and a shin that share the
+    /// knee's cut stay joined however the knee moves.
+    static func segment(_ y0: Double, to to0: Double, dx0: Double, _ y1: Double, to to1: Double, dx1: Double) -> CGAffineTransform {
+        let s = (to1 - to0) / (y1 - y0), k = (dx1 - dx0) / (y1 - y0)
+        return CGAffineTransform(a: 1, b: 0, c: k, d: s, tx: dx0 - k * y0, ty: to0 - s * y0)
+    }
+
     /// A flap folding on its hinge, seen face on: squashed across the hinge
     /// line from `a` to `b`, which does not move.
     static func fold(_ amount: Double, hinge a: CGPoint, _ b: CGPoint) -> CGAffineTransform {
