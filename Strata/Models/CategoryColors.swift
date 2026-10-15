@@ -291,8 +291,8 @@ enum AppColors {
 
     static let quietFill = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.06)
-            : UIColor(white: 0, alpha: 0.06)
+            ? UIColor(white: 1, alpha: traits.accessibilityContrast == .high ? 0.14 : 0.06)
+            : UIColor(white: 0, alpha: traits.accessibilityContrast == .high ? 0.12 : 0.06)
     })
 
     /// Headings, labels, and anything that names a run of content.
@@ -314,7 +314,12 @@ enum AppColors {
     /// that picks up whatever is under it; these are the warm grey wherever
     /// they stand, the same grey as an idle tab.
     static let inkSecondary = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
+        // **Increase Contrast** (the second round of research, 2026-10-15:
+        // nothing in the app read the setting): every grey moves a step
+        // toward the primary ink, and stays a grey.
+        traits.accessibilityContrast == .high
+            ? (traits.userInterfaceStyle == .dark ? UIColor(white: 0.84, alpha: 1) : UIColor(white: 0.22, alpha: 1))
+            : traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.698, green: 0.682, blue: 0.663, alpha: 1)  // #B2AEA9
             : UIColor(red: 0.361, green: 0.345, blue: 0.325, alpha: 1)  // #5C5853
     })
@@ -331,7 +336,9 @@ enum AppColors {
 
     /// Captions: a count under a card, a subtitle, a unit.
     static let inkTertiary = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
+        traits.accessibilityContrast == .high
+            ? (traits.userInterfaceStyle == .dark ? UIColor(white: 0.76, alpha: 1) : UIColor(white: 0.30, alpha: 1))
+            : traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.580, green: 0.565, blue: 0.545, alpha: 1)  // #94908B
             : UIColor(red: 0.455, green: 0.439, blue: 0.420, alpha: 1)  // #74706B
     })
@@ -358,7 +365,9 @@ enum AppColors {
     /// was behaving exactly as documented; the callers had read "quiet" as a
     /// volume rather than as a category.
     static let inkQuiet = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
+        traits.accessibilityContrast == .high
+            ? (traits.userInterfaceStyle == .dark ? UIColor(white: 0.68, alpha: 1) : UIColor(white: 0.36, alpha: 1))
+            : traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.486, green: 0.471, blue: 0.451, alpha: 1)  // #7C7873
             : UIColor(red: 0.557, green: 0.541, blue: 0.522, alpha: 1)  // #8E8A85
     })

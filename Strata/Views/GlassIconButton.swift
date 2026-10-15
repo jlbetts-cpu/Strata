@@ -348,9 +348,11 @@ enum GlassRecipe {
     static let darkPageLift: Double = 0.07
     static var pageTint: Color {
         Color(UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor.white.withAlphaComponent(darkPageLift)
-                : UIColor.black.withAlphaComponent(pageInk)
+            // Twice as present under Increase Contrast.
+            let lift = traits.accessibilityContrast == .high ? 2.0 : 1.0
+            return traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(darkPageLift * lift)
+                : UIColor.black.withAlphaComponent(pageInk * lift)
         })
     }
     static var onPage: Glass { .regular.tint(pageTint).interactive() }
