@@ -46,7 +46,7 @@ struct CrewsListView: View {
                     // crew: a plan is a line in its chat.
                     if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
                         GlassIconButton(systemName: DayIcon.name, onPage: true, accessibilityLabel: "Plan") {
-                            HapticsEngine.lightTap()
+                            // The button ticks itself (`GlassIconButton`).
                             choosePlanCrew()
                             planning = true
                         }

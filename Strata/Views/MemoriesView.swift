@@ -782,7 +782,6 @@ struct MemoriesView: View {
                 // big one under this bar, and the corner keeps the settings.
                 GlassIconButton(systemName: "gearshape", onPage: true,
                                 accessibilityLabel: "Settings") {
-                    HapticsEngine.lightTap()
                     path.append(.settings)
                 }
             }
