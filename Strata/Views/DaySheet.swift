@@ -608,9 +608,12 @@ struct DaySheet: View {
             // a question or a sketch, and never in the way of a tap.
             .overlay {
                 if isEmpty && question == nil && sketchName == nil && !winNotesShown {
+                    // The chat's own empty line, in its type and ink (the
+                    // consistency pass, 2026-10-15): it was the one empty
+                    // page that spoke a size down and two greys quieter.
                     Text("Nothing written. Yet.")
-                        .font(Typography.bodyLarge)
-                        .foregroundStyle(AppColors.inkTertiary)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(AppColors.inkPrimary)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
