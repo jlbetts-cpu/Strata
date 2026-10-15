@@ -57,6 +57,10 @@ struct NameWordsTests {
         #expect(!CrewWords.isAcceptableName("kys"))
         #expect(!CrewWords.isAcceptableName("Go die now"))
         #expect(!CrewWords.isAcceptableName("k y s"))
+        // A refused word with an ending is the same word.
+        #expect(!CrewWords.isAcceptableName("the sluts"))
+        #expect(!CrewWords.isAcceptableName("Retarded crew"))
+        #expect(CrewWords.isAcceptableName("Spicing it up"))
         #expect(CrewWords.kept("go die") == "")
     }
 

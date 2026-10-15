@@ -61,8 +61,13 @@ final class ChatAside {
             guard !Task.isCancelled else { return }
             action()
             try? await Task.sleep(for: .milliseconds(900))
-            while !Task.isCancelled, Self.rootIsPresenting() {
+            // Clear twice, half a second apart: a menu that closes and then
+            // opens the camera leaves a moment with nothing up between them,
+            // and the chat must not rise into it (the second review).
+            var clear = 0
+            while !Task.isCancelled, clear < 2 {
                 try? await Task.sleep(for: .milliseconds(250))
+                clear = Self.rootIsPresenting() ? 0 : clear + 1
             }
             guard !Task.isCancelled else { return }
             away = false

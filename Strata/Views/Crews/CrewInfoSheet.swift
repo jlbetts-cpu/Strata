@@ -162,7 +162,7 @@ struct CrewInfoSheet: View {
                 } message: {
                     Text(problem ?? "")
                 }
-                .onAppear { name = crew.name }
+                .onAppear { name = CrewWords.kept(crew.name) }
                 // Saved however the page is left, a swipe down included: only
                 // Done and Return saved it, so a swipe threw the edit away.
                 .onDisappear { commitName() }
@@ -559,7 +559,9 @@ struct CrewInfoSheet: View {
     }
 
     private func commitName() {
-        guard let crew, name.trimmingCharacters(in: .whitespacesAndNewlines) != crew.name else { return }
+        // Against the name as it was shown: a refused name was shown empty,
+        // and leaving it empty is not a rename (the second review).
+        guard let crew, name.trimmingCharacters(in: .whitespacesAndNewlines) != CrewWords.kept(crew.name) else { return }
         Task {
             do { try await store.rename(crewID, to: name) } catch CrewError.wordsRefused {
                 problem = CrewErrorWords.words(for: CrewError.wordsRefused, while: .starting)

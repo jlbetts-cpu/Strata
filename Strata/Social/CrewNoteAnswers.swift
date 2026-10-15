@@ -37,7 +37,13 @@ enum CrewNoteAnswers {
         let crew = CrewID(rawValue: raw)
         let store = SocialStore.shared
         if store.crew(crew) == nil { await store.refresh() }
-        guard store.crew(crew) != nil, store.canReply() else { return }
+        let typed = (response as? UNTextInputNotificationResponse)?.userText
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard store.crew(crew) != nil, store.canReply() else {
+            // Words typed and nowhere to put them yet: never lost in silence.
+            if !typed.isEmpty { await tellNotSent(crew: crew) }
+            return
+        }
         let win = (info["win"] as? String).flatMap(UUID.init(uuidString:))
         // **The win the alert was about is usually newer than this launch's
         // copy of the crew** (the review, 2026-10-15): read the crew's
@@ -53,8 +59,7 @@ enum CrewNoteAnswers {
             await store.react(emoji, to: win, in: crew)
             return
         }
-        guard let typed = (response as? UNTextInputNotificationResponse)?.userText
-            .trimmingCharacters(in: .whitespacesAndNewlines), !typed.isEmpty else { return }
+        guard !typed.isEmpty else { return }
         let outcome: SocialStore.ReplyOutcome
         if let win = (info["win"] as? String).flatMap(UUID.init(uuidString:)) {
             outcome = await store.reply(typed, to: win, in: crew)

@@ -82,6 +82,7 @@ struct WinTrendSection: View {
                                    title: { WinTrend.Unit(rawValue: $0)?.title ?? $0 },
                                    spoken: { WinTrend.Unit(rawValue: $0)?.title ?? $0 },
                                    choose: { unitRaw = $0 }, fills: true)
+                    .accessibilityElement(children: .contain)
                     .accessibilityLabel("Wins per")
                 }
 

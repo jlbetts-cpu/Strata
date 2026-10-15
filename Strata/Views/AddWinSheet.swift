@@ -1850,6 +1850,9 @@ struct AddWinSheet: View {
                        choose: { chosen in
                            withAnimation(GridConstants.slotSnap) { size = chosen }
                        }, fills: true)
+        // A group named Size, each word still its own button: a label on
+        // the bar alone renamed all three "Size" (found by the UI tests).
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Size")
     }
 

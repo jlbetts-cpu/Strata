@@ -166,8 +166,9 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         // notification lands on its subject now (`NotificationRoute`).
         UNUserNotificationCenter.current().delegate = self
         // The reminder's Quick, Regular and Deep (`DailyReminder`).
-        UNUserNotificationCenter.current().setNotificationCategories(
-            CrewNoteAnswers.categories.union([DailyReminder.notificationCategory]))
+        // The reminder's sizes, and the crews' answers only where answering
+        // is allowed: a silent push launches the app in the background too.
+        CrewNoteAnswers.register()
         // Below iOS 26 crews do not open, so nothing of them registers.
         guard CrewsFlag.isUsable else { return true }
         // The silent push that says a crew changed. Without the Push

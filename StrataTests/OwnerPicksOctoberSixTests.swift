@@ -51,9 +51,12 @@ struct OwnerPicksOctoberSixTests {
         let reminder = try code("Strata/Services/DailyReminder.swift")
         #expect(reminder.contains("content.categoryIdentifier = category"))
         let delegate = try code("Strata/Social/StrataAppDelegate.swift")
-        // Registered beside the crews' own answers since 2026-10-15
-        // (`CrewNoteAnswers`): one call, so neither set replaces the other.
-        #expect(delegate.contains("CrewNoteAnswers.categories.union([DailyReminder.notificationCategory])"))
+        // Registered beside the crews' own answers since 2026-10-15, in one
+        // call so neither set replaces the other (`CrewNoteAnswers.register`,
+        // which always keeps the reminder's).
+        #expect(delegate.contains("CrewNoteAnswers.register()"))
+        let answers = try code("Strata/Social/CrewNoteAnswers.swift")
+        #expect(answers.contains("var set: Set<UNNotificationCategory> = [DailyReminder.notificationCategory]"))
         #expect(delegate.contains("DailyReminder.actions[response.actionIdentifier]"))
     }
 

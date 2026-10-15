@@ -268,8 +268,9 @@ struct CrewTowerView: View {
         // Ended by whoever started it, or you were removed: say so, and go.
         .onChange(of: store.crew(crewID) == nil) { _, gone in
             guard gone else { return }
-            CrewRouter.shared.joinProblem = "This crew has ended."
             leave()
+            // Said by the list, once the crew and its chat have gone.
+            CrewRouter.shared.joinProblem = "This crew has ended."
         }
         .onAppear {
             CrewNotifications.visibleCrew = crewID
@@ -536,7 +537,8 @@ struct CrewTowerView: View {
             try? await Task.sleep(for: .milliseconds(100))
             waited += 1
         }
-        try? await Task.sleep(for: .milliseconds(150))
+        // And risen: a cover asked for mid-presentation is dropped.
+        try? await Task.sleep(for: GridConstants.drawerLands)
     }
 
     /// Out of the crew: the chat's sheet goes first, at once, so the pop is
@@ -544,6 +546,8 @@ struct CrewTowerView: View {
     private func leave() {
         guard native, chatUp else { onBack(); return }
         chatAside.cancel()
+        // The list's alerts are its own again before the sheet goes.
+        NativeChatPresence.shared.up = false
         var quiet = Transaction()
         quiet.disablesAnimations = true
         withTransaction(quiet) { chatUp = false }

@@ -48,6 +48,11 @@ nonisolated enum CrewWords {
         for term in refused {
             let t = fold(term)
             if padded.contains(" " + t + " ") || joined == t.replacingOccurrences(of: " ", with: "") { return false }
+            // A refused word with an ending is the same word (the second
+            // review: "sluts" and "retarded" passed as names).
+            if !t.contains(" "), words.contains(where: { $0 == t + "s" || $0 == t + "es" || $0 == t + "ed" || $0 == t + "ing" }) {
+                return false
+            }
         }
         return true
     }
