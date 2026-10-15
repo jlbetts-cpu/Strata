@@ -234,6 +234,11 @@ extension View {
     func glassField() -> some View {
         if #available(iOS 26.0, *) {
             self.glassEffect(GlassRecipe.onPageStill, in: .rect(cornerRadius: GlassField.radius, style: .continuous))
+                // **A hairline edge** (2026-10-15): lifted white on a white
+                // page, a field inside a sheet lost its edge and with it the
+                // look of a place to write. Chrome separates with hairlines.
+                .overlay(RoundedRectangle(cornerRadius: GlassField.radius, style: .continuous)
+                    .strokeBorder(AppColors.quietFill, lineWidth: 1))
         } else {
             let shape = RoundedRectangle(cornerRadius: GlassField.radius, style: .continuous)
             self.background(.ultraThinMaterial, in: shape)
@@ -346,13 +351,26 @@ enum GlassRecipe {
     /// lifted the other way, as the system's own dark controls are, a few
     /// levels above the ground and never white (the owner's "dark on dark").
     static let darkPageLift: Double = 0.07
+    /// On the light page, a wash of white: regular glass with nothing behind
+    /// it to bend draws a shade under a white page, a grey well; lifted, it
+    /// is a pane of glass on the page (2026-10-15).
+    static let lightPageLift: Double = 0.55
     static var pageTint: Color {
         Color(UIColor { traits in
             // Twice as present under Increase Contrast.
             let lift = traits.accessibilityContrast == .high ? 2.0 : 1.0
+            // **No ink on the light page any more** (the owner, 2026-10-15:
+            // "a lot of the liquid glass came out just like grey"). The 3.5%
+            // was measured against the old warm 240 page; on today's
+            // near-white one it made every field and bar a shade darker than
+            // the page, a flat grey with nothing glassy left. Untinted, the
+            // glass is the page's own white with its rim and its light.
+            // Increase Contrast keeps a little ink, so the edge still reads.
             return traits.userInterfaceStyle == .dark
                 ? UIColor.white.withAlphaComponent(darkPageLift * lift)
-                : UIColor.black.withAlphaComponent(pageInk * lift)
+                : traits.accessibilityContrast == .high
+                ? UIColor.black.withAlphaComponent(pageInk)
+                : UIColor.white.withAlphaComponent(lightPageLift)
         })
     }
     static var onPage: Glass { .regular.tint(pageTint).interactive() }

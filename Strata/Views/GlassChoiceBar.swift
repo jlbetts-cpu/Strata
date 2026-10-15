@@ -28,6 +28,13 @@ struct GlassChoiceBar<Item: Hashable>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static var height: CGFloat { GlassIconButton.defaultSide }
+    /// The chosen word's lens: white on the light page, a raised grey on the
+    /// dark one (dark on dark: never white there).
+    static var lens: Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 1, alpha: 0.95)
+        })
+    }
     private static var inset: CGFloat { 4 }
 
     var body: some View {
@@ -41,6 +48,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
             .frame(height: Self.height)
             .clipShape(Capsule(style: .continuous))
             .glassCapsule(onPage: true, interactive: false)
+            .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 1))
         } else {
             scrolling
         }
@@ -68,6 +76,8 @@ struct GlassChoiceBar<Item: Hashable>: View {
         // Holds buttons rather than being one: not interactive glass, which
         // would take their taps (`glassCapsule`).
         .glassCapsule(onPage: true, interactive: false)
+        // The same hairline the writing fields have (`glassField`).
+        .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 1))
     }
 
     private func word(_ item: Item) -> some View {
@@ -93,8 +103,12 @@ struct GlassChoiceBar<Item: Hashable>: View {
                 }
                 .background {
                     if on {
+                        // The chosen word on a bright lens, as iOS's own
+                        // segmented thumb sits on its glass track: a grey
+                        // pill read as a grey bar (the owner, 2026-10-15).
                         Capsule(style: .continuous)
-                            .fill(AppColors.chosenFill)
+                            .fill(Self.lens)
+                            .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 0.5))
                             .matchedGeometryEffect(id: "pill", in: pill)
                     }
                 }
