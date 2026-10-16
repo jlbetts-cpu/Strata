@@ -1,6 +1,6 @@
 # The evening of 2026-10-15: what changed, and what is yours
 
-Builds 147, 148 and 149 went to TestFlight for you (148 at 10:13pm with Tonight's Story, 149 at 10:30pm with its 8pm cue). Neither is with Friends.
+Builds 147, 148 and 149 went to TestFlight for you (148 at 10:13pm with Tonight's Story, 149 at 10:30pm with its 8pm cue). None is with Friends.
 
 ## Left for you
 
