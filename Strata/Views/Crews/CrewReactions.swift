@@ -338,6 +338,9 @@ struct CrewReactionsPanel: View {
     let crewID: CrewID
     let mine: Bool
     var onDark = false
+    /// Told whenever the bar, Reply, a doodle or a sticker opens or closes:
+    /// a story waits while someone answers it (Tonight's Story, R10).
+    var onBusy: ((Bool) -> Void)? = nil
 
     @State private var open = false
     @State private var replying = false
@@ -366,6 +369,7 @@ struct CrewReactionsPanel: View {
     /// Whoever posted the win, by name, for the reply's words.
     private var owner: String {
         let id = store.winsByCrew[crewID]?.first { $0.winID == winID }?.senderProfileID
+            ?? store.storyWin(winID, in: crewID)?.senderProfileID
         return id.map { CrewReactionsPanel.name($0, crewID: crewID) } ?? "them"
     }
 
@@ -443,6 +447,7 @@ struct CrewReactionsPanel: View {
         }
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
+        .onChange(of: open || replying || doodling || choosingSticker || makingSticker) { _, busy in onBusy?(busy) }
         .alert(mine ? "About Your Win" : "Reply to \(owner)", isPresented: $replying) {
             TextField("Message", text: Binding(get: { draft }, set: {
                 draft = $0

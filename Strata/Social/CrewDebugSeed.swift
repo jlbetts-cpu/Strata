@@ -220,6 +220,26 @@ extension DebugHarness {
                 }
             }
         }
+        // `-strataSeedStories <n>`: n friends on tonight's story, the first
+        // with two wins (photos on every other); `-strataSeedMyStory 1` puts
+        // one of yours on it too, `-strataStorySeen 1` has the last of them
+        // watched. With `-strataStoryHour 21` they are open; without it,
+        // before 8pm, they wait.
+        if let n = argument("-strataSeedStories").flatMap(Int.init) {
+            for (k, friend) in friends.prefix(n).enumerated() {
+                await friend.refresh()
+                for j in 0..<(k == 0 ? 2 : 1) {
+                    await friend.postStory(win(1 + k * 3 + j * 3, minutesAgo: 150 - k * 25 - j * 10))
+                }
+            }
+            await store.refresh()
+            if argument("-strataSeedMyStory") != nil { await store.postStory(win(7, minutesAgo: 40)) }
+            if argument("-strataStorySeen") != nil, let last = friends.prefix(n).last {
+                for story in store.storiesByCrew.values.flatMap({ $0 }) where story.sender == last.me {
+                    store.markStorySeen(story.id)
+                }
+            }
+        }
         // `-strataCrewDoodle seed`: two friends doodle on your newest win, so
         // a doodle in the chat can be photographed (doodles are chat lines
         // since 2026-10-05).

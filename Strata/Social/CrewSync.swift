@@ -75,6 +75,21 @@ enum CrewSync {
         Task { await store().setCrews(for: win, to: chosen) }
     }
 
+    /// **Tonight's Story, on or off** (R1, R3), from Add a Win's evening
+    /// row and from Edit. On writes it to every crew; off takes it from
+    /// every crew at once.
+    static func setStory(_ entry: HabitLog, on: Bool) {
+        guard CrewsFlag.isOn else { return }
+        let store = store()
+        if on {
+            guard let win = ownWin(entry) else { return }
+            Task { await store.postStory(win) }
+        } else if store.isOnStory(entry.id) {
+            let id = entry.id
+            Task { await store.withdrawStory(winID: id) }
+        }
+    }
+
     private static func saw(_ context: ModelContext) {
         // **Not a save that only links a photograph's iCloud copy**
         // (2026-10-08). That changes the win's row and nothing about the win;
@@ -85,17 +100,18 @@ enum CrewSync {
         var changed: [UUID: HabitLog] = [:]
         for model in context.changedModelsArray {
             switch model {
-            case let entry as HabitLog where !store.crews(holding: entry.id).isEmpty:
+            // A win on tonight's story is kept current there too, crews or none.
+            case let entry as HabitLog where !store.crews(holding: entry.id).isEmpty || store.isOnStory(entry.id):
                 changed[entry.id] = entry
             case let habit as Habit:
-                for entry in habit.logs ?? [] where !store.crews(holding: entry.id).isEmpty {
+                for entry in habit.logs ?? [] where !store.crews(holding: entry.id).isEmpty || store.isOnStory(entry.id) {
                     changed[entry.id] = entry
                 }
             default: break
             }
         }
         let deleted = context.deletedModelsArray.compactMap { ($0 as? HabitLog)?.id }
-            .filter { !store.crews(holding: $0).isEmpty }
+            .filter { !store.crews(holding: $0).isEmpty || store.isOnStory($0) }
         guard !changed.isEmpty || !deleted.isEmpty else { return }
         if !deleted.isEmpty {
             Task { for id in deleted { await store.deleteEverywhere(winID: id) } }

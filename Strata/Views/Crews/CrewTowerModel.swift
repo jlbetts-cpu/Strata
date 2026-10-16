@@ -78,6 +78,7 @@ final class CrewTowerModel {
     /// seen while the tower is open counts, so opening a finished day does
     /// not dance again.
     func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String], everyoneIn: Bool = false,
+                 onStory: Set<UUID> = [],
                  reactions: (UUID) -> [Reaction] = { _ in [] }) {
         let ordered = wins.sorted { $0.createdAt < $1.createdAt }
         var entries: [TowerViewModel.TowerEntry] = []
@@ -87,6 +88,7 @@ final class CrewTowerModel {
             // Set, not inferred from the line: "You with Sam" is still yours.
             look.isMine = win.senderProfileID == me
             look.isTagged = line?.contains(" with ") == true
+            look.onStory = onStory.contains(win.winID)
             entries.append(TowerViewModel.TowerEntry(id: win.winID, look: look))
         }
         let hadBuilt = tower.hasBuiltOnce

@@ -71,14 +71,24 @@ struct FriendProfileSheet: View {
     /// its own clock (`store.today`, which also reads the test clock), once
     /// each, without anything you hid. Static, so the reactions' lookup can
     /// hold an id rather than this view.
+    ///
+    /// **With tonight's story, after 8pm** (R13): a story win that went to no
+    /// crew stands on their tower too, and every story win is edged in the
+    /// evening colour (`onStory`).
     static func today(of friend: UUID, store: SocialStore) -> [SharedWin] {
         var seen: Set<UUID> = []
-        return store.crews.compactMap { store.visible($0.id) }
+        let crewWins = store.crews.compactMap { store.visible($0.id) }
             .filter { crew in crew.members.contains { $0.profileID == friend } }
             .flatMap { store.today(in: $0.id) }
+        return (crewWins + story(of: friend, store: store).map(\.win))
             .filter { $0.senderProfileID == friend && !store.hiddenWins.contains($0.winID) }
             .sorted { $0.createdAt < $1.createdAt }
             .filter { seen.insert($0.winID).inserted }
+    }
+
+    /// Their story, while it is open to you.
+    static func story(of friend: UUID, store: SocialStore) -> [CrewStory] {
+        store.storyPeople().first { $0.profileID == friend && $0.phase == .open }?.stories ?? []
     }
 
     private var name: String { member.shortName.isEmpty ? "A friend" : member.firstName }
@@ -170,6 +180,7 @@ struct FriendProfileSheet: View {
         let names = Dictionary(together.flatMap(\.members).map { ($0.profileID, $0.shortName) },
                                uniquingKeysWith: { first, _ in first })
         model.rebuild(wins: today, me: store.me, names: names,
+                      onStory: Set(Self.story(of: member.profileID, store: store).map(\.id)),
                       reactions: { id in
                           guard let crew = today.first(where: { $0.winID == id })?.crewID else { return [] }
                           return store.reactions(to: id, in: crew)

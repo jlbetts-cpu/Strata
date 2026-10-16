@@ -66,6 +66,9 @@ struct PlacedBlock: Identifiable, Equatable {
         /// Yours, among them: drawn first, on a brighter chip, so a block
         /// you reacted to says so at a glance (the owner, 2026-10-02).
         var myReaction: String? = nil
+        /// On tonight's story: edged in the evening colour on a friend's
+        /// profile after 8pm (Tonight's Story, R13).
+        var onStory = false
 
         var hasPhoto: Bool { imageFileName != nil || sharedPhoto != nil }
         var hasDoodle: Bool { doodleFileName != nil }
@@ -81,7 +84,7 @@ struct PlacedBlock: Identifiable, Equatable {
         /// its own corner (`ReactionBadge`), and folded into a run there is
         /// no corner of its own to sit in. The block rejoins the run if the
         /// reactions are taken back.
-        var standsAlone: Bool { hasPhoto || hasDoodle || reactionCount > 0 }
+        var standsAlone: Bool { hasPhoto || hasDoodle || reactionCount > 0 || onStory }
 
         init(habit: Habit, log: HabitLog) {
             title = habit.title

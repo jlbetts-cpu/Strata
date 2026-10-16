@@ -259,6 +259,8 @@ enum ConsistencySweep {
         "Strata/Views/HeadSticker.swift": 1,
         // The viewer's close, which is a `GlassIconButton`.
         "Strata/Views/PhotoViewer.swift": 1,
+        // The story viewer's close and ⋯, glass as the photo viewer's (2026-10-15).
+        "Strata/Views/Crews/StoryViewer.swift": 1,
         // The crew photo's reaction face/pill, `glassCapsule()`: a scaling
         // press on interactive glass cancelled the tap on a real phone (the
         // owner, 2026-10-05: "the reaction picker ... never shows up"), so it

@@ -205,6 +205,16 @@ struct FlippableBlockView: View {
                         .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
                 }
             }
+            // Tonight's story, on a friend's profile: an edge in the evening
+            // colour, the ring their head wears in the row (R13).
+            .overlay {
+                if block.look.onStory {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(AppColors.evening, lineWidth: 2.5)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop,
                        value: block.look.reactionEmoji)
             .modifier(CrewBlockSpeech(look: block.look, isCrew: onDoubleTap != nil,

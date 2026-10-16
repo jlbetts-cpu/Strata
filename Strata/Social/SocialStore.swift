@@ -1389,7 +1389,7 @@ final class SocialStore {
     /// friend. A line about your own win is a line in the crew's chat that
     /// quotes it, as any line is.
     func reply(_ line: String, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return .notAllowed }
+        guard holdsWinOrStory(winID, in: crewID) else { return .notAllowed }
         return await send(line, in: crewID, quoting: winID)
     }
 
@@ -1398,7 +1398,7 @@ final class SocialStore {
     @discardableResult
     func doodle(_ png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
         // On your own win too, as a reply is.
-        guard winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return .notAllowed }
+        guard holdsWinOrStory(winID, in: crewID) else { return .notAllowed }
         return await sendDoodle(png, in: crewID, quoting: winID)
     }
 
@@ -3161,6 +3161,12 @@ extension SocialStore {
     func holdsWinOrStory(_ winID: UUID, in crewID: CrewID) -> Bool {
         winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true
             || storiesByCrew[crewID]?.contains(where: { $0.id == winID }) == true
+    }
+
+    /// A story the crew holds, by its win, while it has not ended: what a
+    /// reply to it quotes in the chat.
+    func storyWin(_ winID: UUID, in crewID: CrewID) -> SharedWin? {
+        storiesByCrew[crewID]?.first { $0.id == winID && now() < $0.endsAt }?.win
     }
 
     /// Whether this win of yours is on a story that has not ended.

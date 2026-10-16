@@ -1728,6 +1728,75 @@ final class FeedbackShots: XCTestCase {
         wait(2.5); snap("drawerflag-1-open")
     }
 
+    /// **Tonight's Story** (2026-10-15): the row before 8pm and after, the
+    /// viewer paging, a reaction, a swipe down, your own story, and the row
+    /// on Add a Win, on and off.
+    func testTonightsStory() {
+        let night = ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                     "-strataSeedStories", "3", "-strataSeedMyStory", "1", "-strataStoryHour", "21"]
+        var app = launch(night + ["-strataStorySeen", "1"])
+        wait(9); snap("story-0-row-night")
+        let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
+        print("PLANNING-story head \(story.exists) '\(story.exists ? story.label : "")'")
+        if story.exists { story.tap() }
+        wait(1.5); snap("story-1-viewer")
+        let card = app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, 1 of'")).firstMatch
+        print("PLANNING-story card \(card.exists) '\(card.exists ? card.label : "")'")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45)).tap()
+        wait(1); snap("story-2-next-page")
+        // Left alone, it goes on to the next friend.
+        wait(6); snap("story-3-next-friend")
+        let react = app.buttons["React"].firstMatch
+        print("PLANNING-story react \(react.exists)")
+        if react.exists { react.tap() }
+        wait(1); snap("story-4-bar")
+        let fire = app.buttons["🔥"].firstMatch
+        if fire.exists { fire.tap() }
+        wait(1.5); snap("story-5-reacted")
+        app.swipeDown(velocity: .fast)
+        wait(2); snap("story-6-closed")
+        let yours = app.buttons["Your Story"].firstMatch
+        print("PLANNING-story yours \(yours.exists)")
+        if yours.exists { yours.tap() }
+        wait(1.5); snap("story-7-yours")
+        app.swipeDown(velocity: .fast); wait(1.5)
+        // A friend's profile at night: their story wins edged in the evening.
+        let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sam'")).firstMatch
+        if sam.exists { sam.press(forDuration: 0.8) }
+        wait(1)
+        let profile = app.buttons["View Profile"].firstMatch
+        print("PLANNING-story profile \(profile.exists)")
+        if profile.exists { profile.tap() }
+        wait(2.5); snap("story-7b-profile")
+        app.terminate()
+        // Before 8pm: unlit rings, and nothing to open.
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                      "-strataSeedStories", "2", "-strataStoryHour", "15"])
+        wait(9); snap("story-8-row-afternoon")
+        app.terminate()
+        // Add a Win: the evening row under the block, off, then on.
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
+                      "-strataSeedWins", "2", "-strataOpenSheet", "add"])
+        wait(7)
+        app.typeText("Sunset walk")
+        // Up the page, so the foot of it shows over the keyboard.
+        // Up the page to its foot, over the keyboard.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.34))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.08)),
+                   withVelocity: XCUIGestureVelocity(600), thenHoldForDuration: 0.2)
+        wait(1); snap("story-9-add-off")
+        let row = app.buttons["Tonight's Story"].firstMatch
+        print("PLANNING-story row \(row.exists)")
+        if row.exists { row.tap() }
+        wait(1); snap("story-10-add-on")
+        // Added: it is on your story, first in the row.
+        app.buttons["Add"].firstMatch.tap()
+        wait(3)
+        app.buttons["Crews"].firstMatch.tap()
+        wait(3); snap("story-11-posted")
+        print("PLANNING-story posted \(app.buttons["Your Story"].firstMatch.exists)")
+    }
+
     /// A new win sent to a crew says where it went (2026-10-15).
     func testSentToCrew() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",

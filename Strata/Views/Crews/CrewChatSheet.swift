@@ -1221,9 +1221,18 @@ struct CrewChatSheet: View {
     /// The win a line quotes, by its title, while it is still in the crew and
     /// still yours to see. A win taken back leaves the line with no quote.
     private func quoted(_ message: CrewMessage) -> (title: String, winID: UUID)? {
-        guard let id = message.quoteWinID,
-              let win = store.wins(in: crewID).first(where: { $0.winID == id }),
-              store.wins(in: crewID, on: win.crewDay).contains(where: { $0.winID == id }) else { return nil }
+        guard let id = message.quoteWinID else { return nil }
+        // A reply to a story quotes it while the story is on (Tonight's
+        // Story, R10); after, the reply stands with its words alone.
+        let win: SharedWin
+        if let crewWin = store.wins(in: crewID).first(where: { $0.winID == id }),
+           store.wins(in: crewID, on: crewWin.crewDay).contains(where: { $0.winID == id }) {
+            win = crewWin
+        } else if let story = store.storyWin(id, in: crewID) {
+            win = story
+        } else {
+            return nil
+        }
         let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return (title.isEmpty ? "A win" : title, id)
     }

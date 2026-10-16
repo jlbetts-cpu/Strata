@@ -180,6 +180,10 @@ struct AddWinSheet: View {
     /// an Edit opened before crews had loaded saw no ticks, and saving it
     /// withdrew the win from every crew).
     @State private var crewChoiceTouched = false
+    /// **On Tonight's Story** (`TonightsStoryRow`): off for every new win,
+    /// and as it is for a win being edited.
+    @State private var onStory = false
+    @State private var storyTouched = false
     /// Wins logged today that the crew this sheet came from has not got.
     @State private var earlierToday: [HabitLog] = []
     /// Why a crew plan did not go, in the chat's own words.
@@ -251,6 +255,14 @@ struct AddWinSheet: View {
     }
 
     private var isEditing: Bool { editing != nil }
+
+    /// Tonight's Story takes only today's wins, and only with a friend to
+    /// see it.
+    private var storyCanTakeIt: Bool {
+        guard CrewsFlag.isOn, !SocialStore.shared.crews.isEmpty, !isPlanning else { return false }
+        guard let log = editingLog else { return true }
+        return Calendar.current.isDateInToday(log.createdAt)
+    }
     /// A name is optional.
     ///
     /// Naming a win is the slowest part of logging one, and the app already
@@ -492,6 +504,14 @@ struct AddWinSheet: View {
                             subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                                 .padding(.top, GridConstants.gapSection)
                         }
+                        // **Under the block, at the foot**: the last decision
+                        // on the page, in the evening colour (the spec, 2).
+                        if storyCanTakeIt {
+                            TonightsStoryRow(isOn: Binding(get: { onStory },
+                                                           set: { onStory = $0; storyTouched = true }),
+                                             hasPhoto: photo != nil)
+                                .padding(.top, GridConstants.gapSection)
+                        }
                     }
                     // **The app's page margin, not a private one.** This was
                     // 20 while every other screen is `horizontalPadding` (16),
@@ -514,6 +534,12 @@ struct AddWinSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
+                // **A drag on the page lowers the keyboard**, as Notes and
+                // Messages do: with the name typed, the foot of the page
+                // (Tonight's Story, under the block) sat under the keys with
+                // no way to it but a tap somewhere harmless (measured: the
+                // page at the end of its scroll, the row behind the keyboard).
+                .scrollDismissesKeyboard(.immediately)
             }
             .sheetTitle(isEditing ? "Edit" : isPlanning ? planTitle : "Add a win", drawn: true)
             .toolbar {
@@ -1994,6 +2020,7 @@ struct AddWinSheet: View {
             crewChoice = editingLog.map { log in
                 CrewHold.isHeld(log.id) ? CrewChoice.load() : SocialStore.shared.crews(holding: log.id)
             } ?? initialCrews ?? CrewChoice.load()
+            onStory = editingLog.map { SocialStore.shared.isOnStory($0.id) } ?? false
             // **A plan made with a crew goes to that crew** (`GroupPlan`):
             // finishing it is the proof the crew sees. Ticked here, where it
             // can be unticked, and only while you are still in that crew.
@@ -2107,6 +2134,9 @@ struct AddWinSheet: View {
                 CrewSync.setCrews(for: log, to: crewChoice, with: editingLog == nil ? withPeople : [])
                 CrewHold.release(log.id)
             }
+            if let log = editingLog ?? savedLog, storyTouched || (editingLog == nil && onStory) {
+                CrewSync.setStory(log, on: onStory)
+            }
             finish(habit)
             return
         }
@@ -2175,6 +2205,7 @@ struct AddWinSheet: View {
             // The crew a group plan ticked is this win's, not your usual.
             if initialCrews == nil { CrewChoice.save(groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice) }
             CrewSync.post(log, to: crewChoice, with: withPeople)
+            if onStory { CrewSync.setStory(log, on: true) }
             sayWhereItWent(log.id)
         }
         finish(win.habit)

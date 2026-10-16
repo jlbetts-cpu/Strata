@@ -188,9 +188,9 @@ struct CrewSyncHardeningTests {
         let before = cloud.calls
         #expect(await a.refreshLive(one.id))
         #expect(a.wins(in: one.id).contains { $0.title == "Run" })
-        // The crew list once, then this crew's wins, reactions and chat:
-        // never the other crew's.
-        #expect(cloud.calls - before == 4)
+        // The crew list once, then this crew's wins, reactions, chat and
+        // stories (Tonight's Story, 2026-10-15): never the other crew's.
+        #expect(cloud.calls - before == 5)
     }
 
     @Test func aQuietCrewIsAskedLessOftenUntilSomethingMoves() {

@@ -346,6 +346,7 @@ struct MemoriesConsistencyTests {
             "GlassIconButton.swift": "Liquid Glass is `.interactive()` and responds by itself",
             "ProfileAvatar.swift": "its label is a `GlassIconButton`",
             "PhotoViewer.swift": "its label is a glass overlay",
+            "StoryViewer.swift": "the close is a `GlassIconButton` and the ⋯ a `GlassIconLabel`, as `PhotoViewer`'s are (2026-10-15)",
             "ReplayView.swift": "both labels are `glassCapsule()`",
             "HeadMakerView.swift": "the shutter hand-rolls its own press, measured, because a disabled plain button is dimmed by the environment and the block came out at 128 of 255",
             "CameraView.swift": "the shutter, the same reason",
