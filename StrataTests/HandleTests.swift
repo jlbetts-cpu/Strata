@@ -1,3 +1,4 @@
+import PencilKit
 import Foundation
 import Testing
 @testable import Strata
@@ -197,5 +198,29 @@ struct StoryWordsTests {
         let back = CrewRecords.story(CrewRecords.fields(story), crew: CrewID(rawValue: "c"))
         #expect(back?.low == "Low")
         #expect(back?.buffalo?.count == StoryLine.limit)
+    }
+
+    @Test("the page's photo and picture ride on the story record; a page with nothing on it makes no picture")
+    @MainActor
+    func page() throws {
+        let win = SharedWin(winID: UUID(), crewID: CrewID(rawValue: "c"), senderProfileID: UUID(), crewDay: "2026-10-16",
+                            title: "Run", colour: .health, icon: .health, blockSize: .small, photo: nil, cropX: nil, cropY: nil,
+                            createdAt: .now, updatedAt: .now)
+        let art = FileManager.default.temporaryDirectory.appending(path: "page-art-test.png")
+        try Data([1, 2, 3]).write(to: art)
+        let behind = UUID()
+        let story = CrewStory(win: win, endsAt: .now, line: "High", wordsPhoto: behind, wordsArt: art)
+        let fields = CrewRecords.fields(story)
+        #expect(fields["sketch"]?.asset != nil)
+        let back = CrewRecords.story(fields, crew: CrewID(rawValue: "c"))
+        #expect(back?.wordsPhoto == behind)
+        #expect(back?.wordsArt != nil)
+        #expect(StoryPageFiles.art(drawing: PKDrawing(), stickers: [], canvas: CGSize(width: 360, height: 640)) == nil)
+        let drawn = StoryPageFiles.art(drawing: InkSamples.sunOverHill(in: CGSize(width: 360, height: 300)), stickers: [],
+                                       canvas: CGSize(width: 360, height: 640))
+        let image = try #require(drawn.flatMap(UIImage.init(data:)))
+        // The page's shape, at most the longest edge.
+        #expect(abs(image.size.width * image.scale / (image.size.height * image.scale) - 9.0 / 16) < 0.01)
+        #expect(max(image.size.width, image.size.height) * image.scale <= StoryPageFiles.longestEdge + 1)
     }
 }

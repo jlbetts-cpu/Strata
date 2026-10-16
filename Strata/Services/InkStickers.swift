@@ -89,7 +89,10 @@ struct InkDoodle {
 /// Stickers into a picture: the shared drawing code for every export.
 enum InkStickers {
     /// The phone's sticker for a name, or nil when the file is not here.
-    static func image(_ name: String) -> UIImage? { StickerStore.shared.image(name) }
+    /// A page-only sticker (the story page's strip) is the page's own file.
+    static func image(_ name: String) -> UIImage? {
+        name.hasPrefix(StoryPageFiles.prefix) ? StoryPageFiles.image(name) : StickerStore.shared.image(name)
+    }
 
     /// Draws `stickers` into the current UIKit context, `origin` being the
     /// canvas point at the context's top left. A sticker whose file is

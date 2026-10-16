@@ -195,21 +195,24 @@ struct CrewBubble: View {
         let size = circle * spot.size
         // A head, or the blank head at a head's size: one shape in the
         // bubble, whoever has made one (2026-10-14, `PersonHead`).
-        PersonHead(person: .member(member, crew: crew.id, me: me), side: size,
-                   life: .calm, setting: .free)
+        // A head is pressed, tipped and fidgets; a photograph chosen
+        // instead sits still and square (`HeadIdentity.isAlive`).
+        let person = HeadPerson.member(member, crew: crew.id, me: me)
+        let alive = HeadIdentity.isAlive(person) && !reduceMotion
+        PersonHead(person: person, side: size, life: .calm, setting: .free)
         // Squashed toward the middle: pressed by the others.
-        .scaleEffect(x: count > 1 ? 0.9 : 1, y: count > 1 ? 1.04 : 1)
-        .rotationEffect(.degrees(count > 1 ? spot.tilt : 0))
+        .scaleEffect(x: count > 1 && alive ? 0.9 : 1, y: count > 1 && alive ? 1.04 : 1)
+        .rotationEffect(.degrees(count > 1 && alive ? spot.tilt : 0))
         .offset(x: circle * spot.x, y: circle * spot.y)
         // Everyone shuffles up when someone new squeezes in.
         .phaseAnimator([false, true], trigger: parking.landed) { content, shove in
-            content.offset(x: shove && !reduceMotion ? spot.x * 6 : 0, y: shove && !reduceMotion ? spot.y * 6 : 0)
+            content.offset(x: shove && alive ? spot.x * 6 : 0, y: shove && alive ? spot.y * 6 : 0)
         } animation: { shove in
             shove ? GridConstants.tapSquashSpring : GridConstants.elasticPop
         }
         // Alive in there: each head bobs on its own slow beat, never in
         // step with its neighbours, so the crowd fidgets rather than pulses.
-        .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, up in
+        .phaseAnimator(alive ? [false, true] : [false]) { content, up in
             content.offset(y: up ? -1.5 : 0.5)
         } animation: { _ in
             .easeInOut(duration: 1.5 + Double((index * 3) % 5) * 0.21)
@@ -383,7 +386,12 @@ private struct CrewHeadRunner: View {
         let hidden = parking.isParked(id)
         let flying = parking.arriving[id] != nil
         let carried = parking.dragging == id
-        let paused = (reduceMotion && !carried && !flying) || !headsAwake || scenePhase != .active
+        // **Only a drawn head wanders** (the owner, 2026-10-16: "the pfp
+        // shouldn't move, it's the head that is animated"). A photograph, or
+        // the blank circle of someone with no head yet, rests where it is and
+        // moves only while a finger carries it or it flies to the bubble.
+        let alive = HeadIdentity.isAlive(.member(member, crew: crewID, me: me))
+        let paused = ((reduceMotion || !alive) && !carried && !flying) || !headsAwake || scenePhase != .active
             || (hidden && !flying)
         // **The Wins head's size, exactly** (the owner, 2026-10-03: "the head
         // should be the same size on the crew and normal"). It was 0.86 of
@@ -404,10 +412,10 @@ private struct CrewHeadRunner: View {
         TimelineView(.animation(paused: paused)) { context in
             let flight = step(to: context.date, paused: paused, side: side)
             if !hidden {
-                let emerge = emergence(at: context.date)
+                let emerge = alive ? emergence(at: context.date) : .zero
                 head
                     .scaleEffect(flight)
-                    .rotationEffect(.degrees(life.tilt))
+                    .rotationEffect(.degrees(alive ? life.tilt : 0))
                     .offset(x: life.position.x - side / 2 + emerge.width,
                             y: life.position.y - side / 2 + emerge.height)
                     .gesture(drag(side: side))

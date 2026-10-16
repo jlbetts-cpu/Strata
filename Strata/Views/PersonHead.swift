@@ -36,12 +36,21 @@ enum HeadIdentity {
         }
     }
 
+    /// **Whether this person may move.** A drawn head is alive: it hops,
+    /// bobs and pulls faces. A photograph chosen instead, and the blank
+    /// circle of someone with no head yet, never move (the owner,
+    /// 2026-10-16: "the pfp shouldn't move, it's the head that is animated,
+    /// not the pfp"). Every wrapper that moves a person asks this.
+    static func isAlive(_ person: HeadPerson) -> Bool { rig(for: person) != nil }
+
     /// **Their chosen photograph, when they use one instead of a head**:
     /// yours from this phone; a friend's as received, only once the photo
     /// check lets it show (`SocialStore.photoIsShown`).
     static func photo(of person: HeadPerson) -> UIImage? {
         switch person {
         case .me:
+            return ProfileStore.shared.usesPhoto ? ProfileStore.shared.photoImage : nil
+        case let .member(member, _, me) where member.profileID == me:
             return ProfileStore.shared.usesPhoto ? ProfileStore.shared.photoImage : nil
         case let .member(member, _, _):
             guard let url = member.photo, SocialStore.shared.photoIsShown(url) else { return nil }

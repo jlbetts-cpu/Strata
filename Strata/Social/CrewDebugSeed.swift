@@ -250,6 +250,16 @@ extension DebugHarness {
                 for j in 0..<(k == 0 ? 2 : 1) {
                     await friend.postStory(win(1 + k * 3 + j * 3, minutesAgo: 150 - k * 25 - j * 10))
                 }
+                // The first friend's words page made theirs: a photograph
+                // behind it and their head on it (2026-10-16).
+                if k == 0, let shot = friend.myStory.first(where: { $0.win.photo != nil }) {
+                    let page = CGSize(width: 360, height: 640)
+                    let art = StoryPageFiles.keepArt(drawing: InkSamples.sunOverHill(in: CGSize(width: 360, height: 300), width: 6),
+                                                     stickers: [], canvas: page)
+                    await friend.setStoryWords(StoryWords(high: lines[0], low: lows[0], buffalo: facts[0],
+                                                          photo: shot.id, art: art),
+                                               on: CrewDay.string(for: Date(), in: .current))
+                }
             }
             await store.refresh()
             if argument("-strataSeedMyStory") != nil { await store.postStory(win(7, minutesAgo: 40)) }

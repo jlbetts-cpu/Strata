@@ -468,8 +468,11 @@ final class HeadStore {
         UserDefaults.standard.set(on, forKey: Key.tower)
     }
 
-    /// The head on your Wins tower: a head exists AND the switch is on.
-    var headForTower: HeadRig? { showsOnTower ? head : nil }
+    /// The head on your Wins tower: a head exists AND the switch is on, and
+    /// you have not chosen a photograph instead. With one, the crest shows
+    /// your photo and nothing walks out of it (the owner, 2026-10-16: "the
+    /// pfp shouldn't move, it's the head that is animated").
+    var headForTower: HeadRig? { showsOnTower && !ProfileStore.shared.usesPhoto ? head : nil }
     /// **The head your crews see: yours, whenever you have one** (the owner,
     /// 2026-10-14: "the head should just be the default"). There is no
     /// putting it away any more; Delete is how a head leaves. Under 16 it

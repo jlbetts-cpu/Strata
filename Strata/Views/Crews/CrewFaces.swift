@@ -22,7 +22,9 @@ final class CrewHeads {
     /// screen.
     /// Starts the load the first time it is asked for.
     func rig(for member: CrewMember, in crew: CrewID, me: UUID) -> HeadRig? {
-        if member.profileID == me { return HeadStore.shared.headForCrews }
+        // Yours as your crews get it: your photograph when you chose one,
+        // so this phone shows the you your friends see (2026-10-16).
+        if member.profileID == me { return ProfileStore.shared.usesPhoto ? nil : HeadStore.shared.headForCrews }
         // Held to the photo rule on this phone (`SocialStore.photoIsShown`,
         // 2026-10-08): a head not yet checked, or flagged, is the initial.
         if let pack = member.head, !SocialStore.shared.photoIsShown(pack) { return nil }

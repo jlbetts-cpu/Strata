@@ -386,6 +386,16 @@ final class SocialStore {
                 changed = true
             }
         }
+        // Their story page's drawing and stickers, as a doodle is.
+        for stories in storiesByCrew.values {
+            for story in stories where story.sender != me {
+                guard let art = story.wordsArt, photoVerdicts[art.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: art),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[art.lastPathComponent] = verdict
+                changed = true
+            }
+        }
         // A friend's doodle is checked on this phone too, as their photo is
         // (spec section 3: "the receiving phone checks it again"). Doodles
         // are chat messages now; an old one on a reaction is never shown,
@@ -3315,7 +3325,8 @@ extension SocialStore {
             let words = storyWords(on: day)
             let story = CrewStory(win: shared, endsAt: ends, line: storyLine(on: day),
                                   low: words.low.isEmpty ? nil : words.low,
-                                  buffalo: words.buffalo.isEmpty ? nil : words.buffalo)
+                                  buffalo: words.buffalo.isEmpty ? nil : words.buffalo,
+                                  wordsPhoto: words.photo, wordsArt: storyArt(words))
             let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
             var held = storiesByCrew[crew.id] ?? []
             held.removeAll { $0.id == story.id }
@@ -3414,9 +3425,11 @@ extension SocialStore {
     func storyPeople(at moment: Date? = nil, in zone: TimeZone = .current) -> [StoryPerson] {
         let checked = storiesByCrew.mapValues { stories in
             stories.map { story -> CrewStory in
-                guard story.sender != me, let photo = story.win.photo, !photoIsShown(photo) else { return story }
+                guard story.sender != me else { return story }
                 var shown = story
-                shown.win.photo = nil
+                if let photo = story.win.photo, !photoIsShown(photo) { shown.win.photo = nil }
+                // The page's drawing and stickers, as their doodle is.
+                if let art = story.wordsArt, !photoIsShown(art) { shown.wordsArt = nil }
                 return shown
             }
         }
@@ -3942,11 +3955,25 @@ extension SocialStore {
     /// that is up; each checked as every word a crew sees is, and cut to one
     /// line. Empty takes one off.
     @discardableResult
+    /// The page's picture as a file, if it is there and photos may go.
+    func storyArt(_ words: StoryWords) -> URL? {
+        guard let name = words.art, photosAllowed() else { return nil }
+        let url = StoryPageFiles.directory.appending(path: name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     func setStoryWords(_ raw: StoryWords, on day: String) async -> ReplyOutcome {
         func clean(_ s: String) -> String { String(s.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
-        let words = StoryWords(high: clean(raw.high), low: clean(raw.low), buffalo: clean(raw.buffalo))
+        let words = StoryWords(high: clean(raw.high), low: clean(raw.low), buffalo: clean(raw.buffalo),
+                               photo: raw.photo, art: raw.art)
         for text in [words.low, words.buffalo] where !text.isEmpty && !CrewWords.isAcceptable(text) {
             return .refusedWords
+        }
+        // The page's picture is checked as a doodle is before it leaves, and
+        // goes only where photos may (it can carry the photo strip).
+        if let url = storyArt(words) {
+            guard photosAllowed() else { return .notAllowed }
+            guard let png = try? Data(contentsOf: url), await photoCheck(png) else { return .refusedSketch }
         }
         var all = (defaults.data(forKey: Self.storyWordsKey)).flatMap { try? JSONDecoder().decode([String: StoryWords].self, from: $0) } ?? [:]
         all[day] = words
@@ -3961,6 +3988,8 @@ extension SocialStore {
                 var changed = story
                 changed.low = words.low.isEmpty ? nil : words.low
                 changed.buffalo = words.buffalo.isEmpty ? nil : words.buffalo
+                changed.wordsPhoto = words.photo
+                changed.wordsArt = storyArt(words)
                 storiesByCrew[crewID]?.removeAll { $0.id == story.id }
                 storiesByCrew[crewID]?.append(changed)
                 enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(changed)))

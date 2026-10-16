@@ -1853,8 +1853,9 @@ final class FeedbackShots: XCTestCase {
     /// opening line and its end card.
     func testPostMyDay() {
         var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
-                          "-strataSeedWins", "4", "-strataSeedStories", "2", "-strataStoryHour", "21"])
-        wait(9); snap("post-0-row")
+                          "-strataSeedHistory", "2", "-strataSeedTodayPhotos", "all", "-strataSeedHead", "1",
+                          "-strataSeedStories", "2", "-strataStoryHour", "21"])
+        wait(12); snap("post-0-row")
         let add = app.buttons["Add to Tonight's Story"].firstMatch
         print("PLANNING-post add \(add.exists)")
         if add.exists { add.tap() }
@@ -1864,6 +1865,27 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-post field \(fieldView.exists)")
         if fieldView.exists { fieldView.tap(); app.typeText("Got the internship call back") }
         wait(1); snap("post-2-written")
+        // Your page, full screen (2026-10-16): draw, your head, the strip,
+        // a photograph behind.
+        app.swipeUp(); wait(1); snap("post-2b-card")
+        let edit = app.buttons["editPage"].firstMatch
+        print("PLANNING-post edit \(edit.exists)")
+        if edit.exists { edit.tap() }
+        wait(1.5); snap("post-2c-editor")
+        let canvas = app.otherElements["Drawing"].firstMatch.exists ? app.otherElements["Drawing"].firstMatch : app.windows.firstMatch
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.2))
+            .press(forDuration: 0.05, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.28)))
+        wait(0.6)
+        for name in ["Add your head", "Add your photo strip", "Photo behind"] {
+            let b = app.buttons[name].firstMatch
+            print("PLANNING-post tool \(name) \(b.exists)")
+            if b.exists { b.tap(); wait(1.2) }
+        }
+        print("PLANNING-post behind value '\(app.buttons["Photo behind"].firstMatch.value ?? "")'")
+        snap("post-2d-made")
+        let done = app.buttons["Done"].firstMatch
+        if done.exists { done.tap() }
+        wait(1.5); snap("post-2e-back")
         let post = app.buttons["Post"].firstMatch
         print("PLANNING-post post \(post.exists)")
         if post.exists { post.tap() }
@@ -1876,7 +1898,11 @@ final class FeedbackShots: XCTestCase {
         let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
         if story.exists { story.tap() }
         wait(1.2); snap("post-4-line")
-        for _ in 0..<4 { app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45)).tap(); wait(0.8) }
+        for k in 0..<5 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45)).tap(); wait(0.5); snap("post-4-\(k)")
+            // Sam's page made his: a photograph behind it, his head on it.
+            if k == 1 { app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.45)).tap(); wait(0.6); snap("post-4-sam-words") }
+        }
         wait(1); snap("post-5-end")
         print("PLANNING-post end \(app.staticTexts["That's everyone tonight."].exists)")
     }

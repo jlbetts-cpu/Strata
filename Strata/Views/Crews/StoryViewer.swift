@@ -345,7 +345,16 @@ private struct StoryPage: View {
             let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
             Group {
                 if isWords {
-                    StoryWordsPage(high: person.line, low: person.low, buffalo: person.buffalo)
+                    StoryWordsPage(high: person.line, low: person.low, buffalo: person.buffalo,
+                                   hasPicture: person.wordsPicture != nil) { size in
+                        if let url = person.wordsPicture {
+                            CrewPhotoView(url: url, width: size.width, height: size.height, crop: .zero)
+                        }
+                    } art: { _ in
+                        if let art = person.wordsArt {
+                            StoryArtImage(url: art)
+                        }
+                    }
                 } else if let url = story.win.photo {
                     CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height,
                                   crop: CGPoint(x: story.win.cropX ?? 0, y: story.win.cropY ?? 0))
@@ -665,8 +674,8 @@ private struct StoryReplyBar: View {
     }
 }
 
-/// **The end of tonight's stories**: one line and a way out. No count, no
-/// list of who posted, nothing more to see.
+/// **The end of tonight's stories**: one line, and a tap anywhere closes it.
+/// No count, no list of who posted, nothing more to see.
 private struct StoryEnd: View {
     let close: () -> Void
 
@@ -685,12 +694,18 @@ private struct StoryEnd: View {
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
             Spacer()
-            PrimaryCapsule(title: "Done", action: close)
-                .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.bottom, GridConstants.gapItem)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { WarmBackground().ignoresSafeArea() }
+        // **A tap closes it, as a story's last page does** (the owner,
+        // 2026-10-16: "doesn't need a done button, just make it like the
+        // story and tap to close").
+        .contentShape(Rectangle())
+        .onTapGesture(perform: close)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Closes the stories.")
+        .accessibilityAction(.escape, close)
     }
 }
 
@@ -813,7 +828,7 @@ private struct StoryOpening: View {
                 HStack(alignment: .top, spacing: GridConstants.gapWide) {
                     ForEach(rows[r], id: \.element.id) { index, person in
                         BouncingHead(person: person, side: side, index: index, landed: index < landed,
-                                     still: reduceMotion, name: name(person)) { head(person, live: index < 6) }
+                                     still: reduceMotion || !alive(person), name: name(person)) { head(person, live: index < 6) }
                     }
                     if r == rows.count - 1, rest > 0 {
                         Text(verbatim: "+\(rest)")
@@ -840,6 +855,13 @@ private struct StoryOpening: View {
         guard let crew = person.stories.first?.win.crewID,
               let member = store.crew(crew)?.member(person.profileID) else { return "A friend" }
         return member.shortName.isEmpty ? "A friend" : member.shortName
+    }
+
+    /// Only a drawn head hops; a photograph stays put (`HeadIdentity.isAlive`).
+    private func alive(_ person: StoryPerson) -> Bool {
+        guard let crew = person.stories.first?.win.crewID,
+              let member = store.crew(crew)?.member(person.profileID) else { return false }
+        return HeadIdentity.isAlive(.member(member, crew: crew, me: store.me))
     }
 
     @ViewBuilder
@@ -942,23 +964,48 @@ struct StoryGlyph: View {
 /// a photograph, so it sits among them as one of them. A reply from here is
 /// a reply to their day, which is how a close friend's evening starts a
 /// conversation.
-private struct StoryWordsPage: View {
+///
+/// **Made yours** (the owner, 2026-10-16: "like Instagram, where you can
+/// easily doodle, add stickers, in a full screen editing format"): one of
+/// tonight's photographs behind it, dimmed so the words read, and the
+/// page's ink and stickers over it as one picture (`StoryPageEditor`). One
+/// view, so the page you make is the page your friends see.
+struct StoryWordsPage<Picture: View, Art: View>: View {
     let high: String?
     let low: String?
     let buffalo: String?
+    var hasPicture = false
+    @ViewBuilder var picture: (CGSize) -> Picture
+    @ViewBuilder var art: (CGSize) -> Art
+
+    /// The page's shape, the story card's: the editor draws at it, so the
+    /// ink lands where it was put on any phone.
+    static var aspect: CGFloat { 9 / 16 }
 
     var body: some View {
-        ZStack {
-            Color(white: 0.09)
-            VStack(alignment: .leading, spacing: GridConstants.gapSection) {
-                Spacer(minLength: 0)
-                if let high { row(StoryLine.high, high) }
-                if let low { row(StoryLine.low, low) }
-                if let buffalo { row(StoryLine.buffalo, buffalo) }
-                Spacer(minLength: 0)
+        GeometryReader { geo in
+            ZStack {
+                Color(white: 0.09)
+                if hasPicture {
+                    picture(geo.size)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                    Color.black.opacity(0.45)
+                }
+                VStack(alignment: .leading, spacing: GridConstants.gapSection) {
+                    Spacer(minLength: 0)
+                    if let high { row(StoryLine.high, high) }
+                    if let low { row(StoryLine.low, low) }
+                    if let buffalo { row(StoryLine.buffalo, buffalo) }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, GridConstants.gapWide + 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                art(geo.size)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, GridConstants.gapWide + 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -966,11 +1013,40 @@ private struct StoryWordsPage: View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             Text(name)
                 .font(Typography.headerSmall)
-                .foregroundStyle(Color.white.opacity(0.55))
+                .foregroundStyle(Color.white.opacity(0.6))
             Text(text)
                 .font(Typography.headerMedium)
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+extension StoryWordsPage where Art == EmptyView {
+    init(high: String?, low: String?, buffalo: String?, hasPicture: Bool = false,
+         @ViewBuilder picture: @escaping (CGSize) -> Picture) {
+        self.init(high: high, low: low, buffalo: buffalo, hasPicture: hasPicture, picture: picture) { _ in EmptyView() }
+    }
+}
+
+/// A page's picture from a file on this phone: the art over the words.
+struct StoryArtImage: View {
+    let url: URL?
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            image = await Task.detached(priority: .userInitiated) {
+                (try? Data(contentsOf: url)).flatMap(UIImage.init(data:))
+            }.value
         }
     }
 }

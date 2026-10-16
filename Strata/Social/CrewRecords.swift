@@ -99,7 +99,7 @@ nonisolated enum CrewRecords {
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
     /// A shared win's, and the sealed end. Its `crewDay` is the poster's
     /// date, the night it belongs to (`CrewStory`).
-    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt", "line", "low", "buffalo"])
+    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt", "line", "low", "buffalo", "wordsPhoto", "sketch"])
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -185,6 +185,10 @@ nonisolated enum CrewRecords {
         if let line = story.line, !line.isEmpty { fields["line"] = .string(line) }
         if let low = story.low, !low.isEmpty { fields["low"] = .string(low) }
         if let buffalo = story.buffalo, !buffalo.isEmpty { fields["buffalo"] = .string(buffalo) }
+        if let photo = story.wordsPhoto { fields["wordsPhoto"] = .uuid(photo) }
+        // The page's drawing and stickers, one picture over the words, as a
+        // doodle in the chat is (`StoryPageEditor`).
+        if let art = story.wordsArt { fields["sketch"] = .asset(art) }
         return fields
     }
 
@@ -196,7 +200,8 @@ nonisolated enum CrewRecords {
             let text = fields[key]?.string.map { String(CrewWords.kept($0).trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
             return text?.isEmpty == true ? nil : text
         }
-        return CrewStory(win: win, endsAt: ends, line: words("line"), low: words("low"), buffalo: words("buffalo"))
+        return CrewStory(win: win, endsAt: ends, line: words("line"), low: words("low"), buffalo: words("buffalo"),
+                         wordsPhoto: fields["wordsPhoto"]?.uuid, wordsArt: fields["sketch"]?.asset)
     }
 
     // MARK: Reaction

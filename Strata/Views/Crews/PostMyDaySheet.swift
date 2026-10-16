@@ -20,6 +20,11 @@ struct PostMyDaySheet: View {
     @State private var line = ""
     @State private var low = ""
     @State private var buffalo = ""
+    /// The words page, made yours (`StoryPageEditor`): a photograph behind
+    /// it, and its ink and stickers as one picture.
+    @State private var photo: UUID?
+    @State private var art: String?
+    @State private var editing = false
     @FocusState private var field: Field?
     enum Field { case high, low, buffalo }
     @State private var posting = false
@@ -67,7 +72,12 @@ struct PostMyDaySheet: View {
                                 .padding(.top, GridConstants.gapTight)
                         }
                     }
+                    if hasWords {
+                        card { yourPage }
+                            .transition(.opacity)
+                    }
                 }
+                .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: hasWords)
                 .padding(.horizontal, hPad)
                 .padding(.top, GridConstants.gapItem)
                 .padding(.bottom, GridConstants.gapPage)
@@ -132,6 +142,83 @@ struct PostMyDaySheet: View {
                 .frame(minHeight: 32, alignment: .leading)
                 .accessibilityLabel(name == StoryLine.high ? StoryLine.prompt : "\(name), \(prompt)")
         }
+    }
+
+    // MARK: Your page
+
+    private var hasWords: Bool {
+        !(line + low + buffalo).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Tonight's photographs that can go behind the words: the picked ones,
+    /// since those are the pictures your friends' phones will have.
+    private var photoWins: [HabitLog] {
+        picked.compactMap { id in wins.first { $0.id == id && $0.imageFileName != nil } }
+    }
+
+    private var chosenPhoto: HabitLog? { photo.flatMap { id in photoWins.first { $0.id == id } } }
+
+    /// **The words page, made yours** (the owner, 2026-10-16: "like
+    /// Instagram, where you can easily doodle, add stickers in a full screen
+    /// editing format, add a photo strip"). The page small, as your friends
+    /// will see it; a tap opens it full screen to draw on.
+    private var yourPage: some View {
+        Button {
+            HapticsEngine.tick()
+            field = nil
+            editing = true
+        } label: {
+            HStack(spacing: GridConstants.gapLabel) {
+                preview
+                VStack(alignment: .leading, spacing: GridConstants.spacing) {
+                    Text(art == nil ? "Make it yours" : "Your page")
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkPrimary)
+                    Text("Draw on it, add stickers, your head or tonight's strip.")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkTertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(art == nil ? "Make your page yours" : "Edit your page")
+        .accessibilityIdentifier("editPage")
+        .fullScreenCover(isPresented: $editing) {
+            StoryPageEditor(high: line, low: low, buffalo: buffalo, day: today, photos: photoWins,
+                            photo: chosenPhoto?.id) { chosen, made in
+                photo = chosen
+                art = made
+            }
+        }
+    }
+
+    private static let page = CGSize(width: 360, height: 640)
+    private static let small: CGFloat = 72
+
+    /// Drawn at a phone's page size and shrunk, so the words sit as they will.
+    private var preview: some View {
+        let k = Self.small / Self.page.width
+        return StoryWordsPage(high: line.isEmpty ? nil : line, low: low.isEmpty ? nil : low,
+                              buffalo: buffalo.isEmpty ? nil : buffalo,
+                              hasPicture: chosenPhoto != nil) { box in
+            if let name = chosenPhoto?.imageFileName {
+                CachedImageView(fileName: name, width: box.width, height: box.height, cornerRadius: 0)
+            }
+        } art: { _ in
+            if let art { StoryArtImage(url: StoryPageFiles.directory.appending(path: art)) }
+        }
+        .environment(\.colorScheme, .dark)
+        .frame(width: Self.page.width, height: Self.page.height)
+        .scaleEffect(k, anchor: .topLeading)
+        .frame(width: Self.small, height: Self.page.height * k, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        .accessibilityHidden(true)
     }
 
     // MARK: The cards
@@ -223,6 +310,8 @@ struct PostMyDaySheet: View {
         line = words.high
         low = words.low
         buffalo = words.buffalo
+        photo = words.photo
+        art = words.art
         // What is on the story already; else a guess: the photographs,
         // newest first, or the latest win.
         let on = wins.filter { store.isOnStory($0.id) }.map(\.id)
@@ -248,7 +337,7 @@ struct PostMyDaySheet: View {
     private func post() async {
         posting = true
         defer { posting = false }
-        let words = StoryWords(high: line, low: low, buffalo: buffalo)
+        let words = StoryWords(high: line, low: low, buffalo: buffalo, photo: chosenPhoto?.id, art: art)
         let outcome = await store.setStoryWords(words, on: today)
         guard outcome != .refusedWords else { refused = true; return }
         keepInJournal(words)

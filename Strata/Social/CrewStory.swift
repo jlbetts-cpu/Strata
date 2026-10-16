@@ -28,6 +28,13 @@ nonisolated struct CrewStory: Identifiable, Codable, Equatable, Sendable {
     /// high; these are the low of the day and a random fact, each optional.
     var low: String? = nil
     var buffalo: String? = nil
+    /// **The words page, made yours** (the owner, 2026-10-16: "like
+    /// Instagram, where you can easily doodle, add stickers, in a full screen
+    /// editing format, add a photo strip"): one of tonight's photographed
+    /// wins behind the words, and the page's ink and stickers as one
+    /// picture over them (`StoryPageEditor`).
+    var wordsPhoto: UUID? = nil
+    var wordsArt: URL? = nil
 
     var id: UUID { win.winID }
     var sender: UUID { win.senderProfileID }
@@ -122,7 +129,13 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
     var low: String? { stories.lazy.compactMap(\.low).first { !$0.isEmpty } }
     var buffalo: String? { stories.lazy.compactMap(\.buffalo).first { !$0.isEmpty } }
     /// Anything said in words tonight.
-    var hasWords: Bool { line != nil || low != nil || buffalo != nil }
+    var hasWords: Bool { line != nil || low != nil || buffalo != nil || wordsArt != nil }
+    /// The words page's photograph: a story of theirs tonight, with one.
+    var wordsPicture: URL? {
+        guard let id = stories.lazy.compactMap(\.wordsPhoto).first else { return nil }
+        return stories.first { $0.id == id }?.win.photo
+    }
+    var wordsArt: URL? { stories.lazy.compactMap(\.wordsArt).first }
     /// The first photograph, the picture the head becomes at 8pm.
     var cover: CrewStory? { stories.first { $0.win.photo != nil } ?? stories.first }
 
@@ -183,6 +196,10 @@ nonisolated struct StoryWords: Codable, Equatable, Sendable {
     var high: String = ""
     var low: String = ""
     var buffalo: String = ""
+    /// Behind them, one of tonight's wins; over them, the page's drawing and
+    /// stickers, a file in `StoryPageFiles`.
+    var photo: UUID? = nil
+    var art: String? = nil
 }
 
 
