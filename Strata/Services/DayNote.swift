@@ -162,13 +162,14 @@ nonisolated enum EmptyTower {
     /// Days without a win before a return is a return.
     static let quietAfter = 3
 
+    /// **Nothing, once the slot is known** (the owner, 2026-10-16: "nothing
+    /// logged yet, just the start of the day, is a cute message but it looks
+    /// bad on the screen for the wins, it doesn't interact well with the other
+    /// blocks and doesn't fit any of the empty states"). The empty slot is the
+    /// morning's whole say; the teaching line stays for anyone new. `start`
+    /// and `quiet` are kept as words, said nowhere.
     static func line(total: Int, lastWinDay: String?, today: String, calendar: Calendar = DateUtils.keyCalendar()) -> String {
-        guard total >= knownAfter else { return teach }
-        if let last = lastWinDay, let then = DateUtils.date(from: last), let now = DateUtils.date(from: today),
-           (calendar.dateComponents([.day], from: then, to: now).day ?? 0) >= quietAfter {
-            return quiet
-        }
-        return start
+        total >= knownAfter ? "" : teach
     }
 
     static let keptKey = "tower.emptyLine"

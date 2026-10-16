@@ -78,6 +78,9 @@ struct TodayHeads: View {
     }
 
     static let side: CGFloat = 56
+    /// The picture inside a story's crest: the crest is the head and its
+    /// breathing room, and the ring and glass take the rest.
+    static var storyFace: CGFloat { StoryCrestSize.face(in: side + inset * 2) }
     /// The breathing room around a head, so Invite and the heads line up.
     private static let inset: CGFloat = 5
 
@@ -158,9 +161,6 @@ struct TodayHeads: View {
                         .padding(.horizontal, Self.inset)
                         .padding(.top, Self.inset)
                 }
-                Text("Invite")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkSecondary)
             }
             .contentShape(Rectangle())
         }
@@ -184,28 +184,32 @@ struct TodayHeads: View {
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 Group {
-                    if showing, let story {
-                        StoryBubble(story: story, side: Self.side)
+                    if let story {
+                        // **A story wears the Wins goal ring** (the owner,
+                        // 2026-10-16: "treat the story icons as the liquid
+                        // glass ring in wins, with the pic in the middle and
+                        // the number of notches the number of win stories").
+                        StoryCrest(story: story, side: Self.side + Self.inset * 2, seen: store.storiesSeen) {
+                            if showing {
+                                StoryBubble(story: story, side: Self.storyFace)
+                            } else {
+                                PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.storyFace)
+                            }
+                        }
                     } else {
                         PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
+                            .padding(.horizontal, Self.inset)
+                            .padding(.top, Self.inset)
                     }
                 }
-                    .overlay {
-                        if let story { StoryRing(phase: story.phase, watched: story.watched, side: Self.side + Self.inset * 2 - 1) }
-                    }
                     // **Dimmed until they log today** (the owner, 2026-10-16:
                     // "the person should be dimmed when they haven't logged that
                     // day"). The green dot came out: it read as "online", and
                     // the app never says who has it open.
                     .opacity(logged || showing ? 1 : 0.45)
                     .animation(GridConstants.motionSnappy, value: logged)
-                    .padding(.horizontal, Self.inset)
-                    .padding(.top, Self.inset)
-                Text(name)
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(logged ? AppColors.inkPrimary : AppColors.inkTertiary)
-                    .lineLimit(1)
-                    .frame(maxWidth: Self.side + Self.inset * 2)
+                // No name under it (the owner, 2026-10-16: "remove the names
+                // under the icons, keep the icons clean"); VoiceOver still says it.
             }
             .contentShape(Rectangle())
         }
@@ -230,17 +234,9 @@ struct TodayHeads: View {
             watching = Watching(people: [me], start: me.profileID)
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                StoryBubble(story: me, side: Self.side)
-                    .overlay { StoryRing(phase: .open, watched: false, side: Self.side + Self.inset * 2 - 1) }
-                    .padding(.horizontal, Self.inset)
-                    .padding(.top, Self.inset)
-                // Whole, never "Your St...": the one name in the row that is
-                // two words, so its column is as wide as the words.
-                Text("Your Story")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .lineLimit(1)
-                    .fixedSize()
+                StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: []) {
+                    StoryBubble(story: me, side: Self.storyFace)
+                }
             }
             .contentShape(Rectangle())
         }
@@ -250,43 +246,42 @@ struct TodayHeads: View {
     }
 }
 
-/// **The ring round a head with a story**: drawn, in ink, as his pen draws
-/// (the owner, 2026-10-16: "why isn't the outline just a doodle black
-/// outline"). The goal ring's own hand (`DoodleRing`), so every ring in the
-/// app is the same mark. Before 8pm, faint: something is coming tonight,
-/// and no count. From 8pm, the full line. Opened, a clean thin grey circle.
-struct StoryRing: View {
-    let phase: StoryClock.Phase
-    let watched: Bool
+/// **A head with a story, in the goal ring's glass** (the owner,
+/// 2026-10-16). The Wins crest's own parts: `GoalRingStroke`, a segment a
+/// story, on `stillGlassCircle`, with the picture in the middle. A segment is
+/// ink until that story has been opened; before 8pm every segment is the
+/// faint track, something coming tonight with no count said. So a glance
+/// says how many, and how many are new.
+enum StoryCrestSize {
+    /// The Wins crest's own proportion (`GoalCrest.faceInset`), a touch
+    /// tighter so the face stays near a plain head's size in the row.
+    static func face(in side: CGFloat) -> CGFloat { side - 2 * (GoalCrest.faceInset - 2) }
+}
+
+struct StoryCrest<Face: View>: View {
+    let story: StoryPerson
+    /// The whole crest, ring and glass: the row's head and its breathing room.
     let side: CGFloat
+    let seen: Set<UUID>
+    @ViewBuilder let face: () -> Face
+
+    private var lit: Int {
+        story.phase == .open ? story.stories.filter { !seen.contains($0.id) }.count : 0
+    }
 
     var body: some View {
-        Group {
-            // Opened: a clean line, a true circle (the owner, 2026-10-16:
-            // "the watched should be a clean line"). New or waiting: drawn.
-            if phase == .open && watched {
-                Circle().stroke(colour, lineWidth: width)
-            } else {
-                DoodleRing().stroke(colour, style: StrokeStyle(lineWidth: width, lineCap: .round))
-            }
+        ZStack {
+            GoalRingStroke(wins: lit, goal: story.stories.count, line: GoalCrest.line)
+                .padding(GoalCrest.ringInset - 1)
+            face()
+                .frame(width: StoryCrestSize.face(in: side), height: StoryCrestSize.face(in: side))
+                .clipShape(Circle())
         }
-            .padding(width / 2)
-            .frame(width: side, height: side)
-            .animation(GridConstants.crossFade, value: watched)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        .frame(width: side, height: side)
+        .stillGlassCircle()
+        .animation(GridConstants.crossFade, value: lit)
+        .accessibilityHidden(true)
     }
-
-    private var colour: Color {
-        switch phase {
-        case .waiting: AppColors.drawingInk.opacity(0.28)
-        case .open: watched ? AppColors.inkTertiary : AppColors.drawingInk
-        case .gone: .clear
-        }
-    }
-
-    /// His pen's line (~2.6pt) when there is something new; a hairline else.
-    private var width: CGFloat { phase == .open && !watched ? 2.6 : 1.5 }
 }
 
 /// **The head become a preview** (the owner, 2026-10-15: "the friend's

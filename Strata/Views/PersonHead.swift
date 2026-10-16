@@ -112,7 +112,8 @@ struct PersonHead: View {
     enum Ground {
         /// `AppColors.quietFill`, the well a contact photo sits in.
         case quiet
-        /// Your Background Colour from Profile, the well when none is chosen.
+        /// Profile's own well: the quiet grey since 2026-10-16, when the
+        /// chosen background colour came out.
         case chosen
         /// Nothing: the caller's own glass or colour shows through.
         case clear

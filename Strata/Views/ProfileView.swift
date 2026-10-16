@@ -179,12 +179,6 @@ struct ProfileView: View {
         Section {
             VStack(spacing: GridConstants.gapItem) {
                 pictureControl
-                // Only when asked for, from a press on the picture (owner:
-                // the colours "should not be visible at all times").
-                if showsSwatches {
-                    backgroundSwatches
-                        .transition(.opacity)
-                }
                 nameField
             }
             .frame(maxWidth: .infinity)
@@ -283,124 +277,25 @@ struct ProfileView: View {
     /// opens the colour behind it. Choose Photo, Remove Photo and Use Photo
     /// or Initials went with the photograph, which left a menu of one item,
     /// so it is a press now and not a menu.
+    /// With no head, a press makes one. With a head, the picture is only the
+    /// picture: its background colour was chosen here until 2026-10-16 (the
+    /// owner: "it should just stay the default grey"), so there is nothing to
+    /// press.
+    @ViewBuilder
     private var pictureControl: some View {
-        Button {
-            HapticsEngine.lightTap()
-            if heads.head == nil {
+        if heads.head == nil {
+            Button {
+                HapticsEngine.lightTap()
                 showsMaker = true
-            } else {
-                withAnimation(GridConstants.motionSnappy) { showsSwatches.toggle() }
+            } label: {
+                ProfileAvatar(side: Self.pictureSide)
+                    .contentShape(Circle())
             }
-        } label: {
+            .buttonStyle(.press)
+            .accessibilityLabel("Make Your Head")
+        } else {
             ProfileAvatar(side: Self.pictureSide)
-                .contentShape(Circle())
-        }
-        // `.press`, not `.plain`. `PressResponse`'s own doc is the instruction
-        // ("Use this rather than `.plain` on anything that is not already Liquid
-        // Glass") and `docs/motion-audit.md` §5.1 counted thirty-one buttons
-        // with no answer to a finger at all. This is the page's own subject and
-        // was one of them. `.press` rather than `.pressSurface`: a 96pt circle
-        // with a face in it is nearer a glyph than a card, and a scale alone is
-        // invisible on something that round.
-        .buttonStyle(.press)
-        .accessibilityLabel(heads.head == nil ? "Make Your Head" : "Background Colour")
-    }
-
-    // MARK: - Background colour
-
-    /// The colours a block can be, and none. The same palette as the tower,
-    /// so a picture's colour belongs to the app rather than being a new one.
-    private var backgroundSwatches: some View {
-        HStack(spacing: 0) {
-            swatch(nil)
-            ForEach(HabitCategory.selectable, id: \.self) { colour in
-                swatch(colour)
-            }
-        }
-    }
-
-    /// Big enough to see, inside a full 44pt target.
-    private static let swatchSide: CGFloat = 26
-
-    @State private var showsSwatches = false
-    /// The latest pick, so a quick second pick is not closed by the first.
-    @State private var swatchPick = 0
-
-    private func swatch(_ colour: HabitCategory?) -> some View {
-        let selected = store.background == colour
-        return Button {
-            HapticsEngine.tick()
-            withAnimation(GridConstants.motionSnappy) { store.setBackground(colour) }
-            // Put away once chosen, after a beat long enough to see the ring
-            // land on it.
-            swatchPick += 1
-            let pick = swatchPick
-            Task {
-                try? await Task.sleep(for: .milliseconds(650))
-                guard pick == swatchPick else { return }
-                withAnimation(GridConstants.motionSnappy) { showsSwatches = false }
-            }
-        } label: {
-            Circle()
-                // **`AppColors`, not `.quaternary`.** A system hierarchical grey
-                // is neither in the palette nor measured against this page, and
-                // section 8 of `docs/design-system-future.md` refuses a colour
-                // that is neither in `AppColors` nor taken from content.
-                // `quietFill` is the token for a shape that is only there to be
-                // a shape.
-                // Lit like a block when it IS a colour; a plain well when it
-                // is the absence of one. See `ColourSwatch`.
-                .fill(colour.map { AnyShapeStyle(EtherealFill.fill($0.style.baseColor)) }
-                        ?? AnyShapeStyle(AppColors.quietFill))
-                .frame(width: Self.swatchSide, height: Self.swatchSide)
-                // **"No colour" still has to read as a choice.** `quietFill` is
-                // 6% ink, so on its own it all but vanishes beside six
-                // saturated circles. The app's own word for an empty slot is a
-                // faint outline, at the weight `AddWinSheet`'s empty photo well
-                // already uses, borrowed rather than invented.
-                .overlay {
-                    if colour == nil {
-                        Circle().strokeBorder(AppColors.slotInk.opacity(0.26),
-                                              lineWidth: GridConstants.strokeThin)
-                    }
-                }
-                .padding(GridConstants.spacing)
-                .overlay {
-                    // The ring was `.primary.opacity(0.85)`, which is
-                    // `AppColors.inkPrimary` written the way CLAUDE.md forbids.
-                    //
-                    // **0.55, not full strength.** `AddWinSheet` settled this on
-                    // 2026-10-01 and its comment says "Profile's own swatch ring
-                    // now wears it too", which was not true: this one was still
-                    // at 1.0, so the app had two answers to "which colour is
-                    // chosen" one sheet apart. Full ink on a row of pastels made
-                    // the chosen colour look stickered rather than chosen, and
-                    // the argument is the same here. Selection has to be
-                    // obvious; it does not have to shout.
-                    Circle().strokeBorder(AppColors.inkPrimary.opacity(selected ? 0.55 : 0),
-                                          lineWidth: GridConstants.strokeMedium)
-                }
-                .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
-                .contentShape(Rectangle())
-        }
-        // `.press`, not `.plain`: a 26pt circle inside a 44pt target is a glyph
-        // by `PressResponse`'s own reckoning, and the ring that lands on it is a
-        // state change rather than a press answer. See the note on
-        // `pictureControl`.
-        .buttonStyle(.press)
-        .accessibilityLabel(Self.colourName(colour))
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    private static func colourName(_ colour: HabitCategory?) -> String {
-        switch colour {
-        case .health?:      return "Green"
-        case .work?:        return "Blue"
-        case .creativity?:  return "Purple"
-        case .focus?:       return "Amber"
-        case .social?:      return "Coral"
-        case .mindfulness?: return "Pink"
-        default:            return "No colour"
+                .accessibilityLabel("Your head")
         }
     }
 

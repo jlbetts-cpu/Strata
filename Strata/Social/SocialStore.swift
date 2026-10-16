@@ -3288,6 +3288,30 @@ extension SocialStore {
                                   now: moment ?? StoryClock.now(now(), in: zone), zone: zone)
     }
 
+    /// **A reply to a friend's story** (the owner, 2026-10-16: "reply to
+    /// stories and it go to your personal chat"). Into your one-to-one
+    /// crew with them when there is one (`personalCrew(with:)`), quoting the
+    /// story; until there is, into the crew the story came from, as before.
+    func replyToStory(_ text: String, story: CrewStory) async -> ReplyOutcome {
+        if let personal = personalCrew(with: story.sender) {
+            return await send(text, in: personal.id, quoting: story.id)
+        }
+        return await reply(text, to: story.id, in: story.win.crewID)
+    }
+
+    /// A quick reaction from a story's reply bar: on the story itself, so it
+    /// lands on the poster's block as a tower reaction does.
+    func reactToStory(_ emoji: String, story: CrewStory) async {
+        await react(emoji, to: story.id, in: story.win.crewID)
+    }
+
+    /// The crew that is just you and them, if you have one.
+    func personalCrew(with friend: UUID) -> Crew? {
+        crews.first { crew in
+            crew.members.count == 2 && crew.member(friend) != nil && crew.member(me) != nil && visible(crew.id) != nil
+        }
+    }
+
     /// A story opened on this phone: its ring goes grey.
     func markStorySeen(_ id: UUID) {
         guard storiesSeen.insert(id).inserted else { return }

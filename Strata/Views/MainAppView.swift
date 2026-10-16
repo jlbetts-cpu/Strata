@@ -4107,6 +4107,7 @@ struct MainAppView: View {
     ///
     /// What is left points at the slot — the only thing on the screen — and
     /// says what pressing it is for, once, quietly.
+    @ViewBuilder
     private var towerEmptyStateMessage: some View {
         // Leading, on the page's own margin, because every other thing on
         // this screen is: the date, the grid and the slot all start at
@@ -4149,10 +4150,13 @@ struct MainAppView: View {
         // a few days. No rush."). Newer than the cut above, and his words.
         // The line that teaches the slot is said until the slot plainly
         // needs no teaching (`EmptyTower`), and to anyone new.
-        Text(emptyTowerLine)
-            .font(Typography.headerMedium)
-            .foregroundStyle(AppColors.inkPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+        // Said only to someone new (`EmptyTower.line`); empty otherwise.
+        if !emptyTowerLine.isEmpty {
+            Text(emptyTowerLine)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     // MARK: - Tower Block Views (Extracted for observation isolation)

@@ -145,12 +145,11 @@ private struct StoryPage: View {
         VStack(spacing: 0) {
             card
                 .overlay(alignment: .top) { top }
-            VStack(spacing: GridConstants.gapItem) {
-                label
-                foot
-            }
-            .padding(.horizontal, hPad)
-            .padding(.vertical, GridConstants.gapItem)
+                .overlay(alignment: .bottomLeading) { label }
+            foot
+                .padding(.horizontal, hPad)
+                .padding(.top, GridConstants.gapTight)
+                .padding(.bottom, GridConstants.gapTight)
         }
         .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: story.win.crewID) }
         .confirmationDialog("Block \(name)?", isPresented: $blocking, titleVisibility: .visible) {
@@ -212,17 +211,13 @@ private struct StoryPage: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                // The same glass circles as the bar at the foot, the chat's +
+                // and every viewer's close (the owner, 2026-10-16: "the
+                // reactions and buttons should feel the same").
                 actions
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressWord)
-                .accessibilityLabel("Close story")
+                GlassIconButton(systemName: "xmark", accessibilityLabel: "Close story", action: close)
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapWide)
@@ -261,11 +256,7 @@ private struct StoryPage: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            GlassIconLabel(systemName: "ellipsis", tint: .primary)
         }
         .accessibilityLabel("Story actions")
     }
@@ -323,31 +314,42 @@ private struct StoryPage: View {
     private var spoken: String {
         var parts = ["\(mine ? "Your story" : "\(name)'s story"), \(page + 1) of \(person.stories.count)"]
         if !story.win.title.isEmpty { parts.append(story.win.title) }
-        parts.append(story.win.blockSize.effortLabel)
         parts.append(story.win.photo == nil ? "a block" : "a photo")
         return parts.joined(separator: ", ")
     }
 
     // MARK: The label and the reactions
 
-    /// The block's own label: its colour, its name, and how big a win it was.
+    /// **The win's name, on the picture's foot**, in white on a short shade
+    /// of it, as the name sits at its top. Nothing else (the owner,
+    /// 2026-10-16: no colour dot, "the dot showing the category color isn't
+    /// relevant", and no size, "the deep, quick isn't important for the
+    /// story, that's personal").
+    @ViewBuilder
     private var label: some View {
-        HStack(spacing: GridConstants.gapTight) {
-            Circle()
-                .fill(story.win.colour.style.baseColor)
-                .frame(width: 10, height: 10)
-            if !story.win.title.isEmpty {
-                Text(story.win.title)
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .lineLimit(1)
-            }
-            Text(story.win.blockSize.effortLabel)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
+        if !story.win.title.isEmpty {
+            labelText
+        }
+    }
+
+    private var labelText: some View {
+        HStack {
+            Text(story.win.title)
+                .font(Typography.headerMedium)
+                .lineLimit(2)
             Spacer(minLength: 0)
         }
-        .frame(minHeight: 24)
+        .foregroundStyle(.white)
+        .padding(.horizontal, GridConstants.gapWide)
+        .padding(.top, GridConstants.gapWide * 2)
+        .padding(.bottom, GridConstants.gapWide)
+        .background {
+            LinearGradient(colors: [.clear, .black.opacity(0.38)], startPoint: .top, endPoint: .bottom)
+                .allowsHitTesting(false)
+        }
+        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: GridConstants.radiusSurface,
+                                          bottomTrailingRadius: GridConstants.radiusSurface, style: .continuous))
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
@@ -360,11 +362,9 @@ private struct StoryPage: View {
         if mine {
             MyStoryReactions(reactions: store.reactionsToMyWins()[story.id] ?? [])
                 .frame(maxWidth: .infinity, minHeight: 44)
-        } else {
-            CrewReactionsPanel(winID: story.id, crewID: story.win.crewID, mine: false,
-                               onDark: scheme == .dark, onBusy: { busy = $0 })
+        } else if store.canReply() {
+            StoryReplyBar(story: story, name: name, busy: { busy = $0 })
                 .id(story.id)
-                .frame(maxWidth: .infinity)
         }
     }
 }
@@ -448,6 +448,123 @@ private struct MyStoryReactions: View {
             .glassCapsule(onPage: true)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Reactions: " + zip(names, ordered).map { "\($0) \($1.emoji)" }.joined(separator: ", "))
+        }
+    }
+}
+
+/// **The foot of a friend's story: the crew chat's own composer** (the owner,
+/// 2026-10-16: "the bottom should be kind of like the crew chats with the
+/// message and plus button and it saying reply"). The chat's +, its glass
+/// field and its send arrow, one row. A tap on the field brings the quick
+/// reactions up over it, as Instagram's story reply does, and the story
+/// waits while you answer. What is sent goes to `SocialStore.replyToStory`.
+private struct StoryReplyBar: View {
+    let story: CrewStory
+    let name: String
+    let busy: (Bool) -> Void
+
+    @State private var text = ""
+    @FocusState private var writing: Bool
+    @State private var doodling = false
+    @State private var choosingSticker = false
+    @State private var makingSticker = false
+    /// "Sent", for a moment, where the words were.
+    @State private var said: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var store: SocialStore { SocialStore.shared }
+    private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy }
+    private var open: Bool { writing || doodling || choosingSticker || makingSticker }
+
+    var body: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            if writing {
+                ReactionBar(mine: store.myReaction(to: story.id, in: story.win.crewID)) { emoji in
+                    Task { await store.reactToStory(emoji, story: story) }
+                    done("Sent")
+                }
+                .transition(.opacity)
+            }
+            HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
+                PlusMenu {
+                    if store.photosAllowed() {
+                        Button { choosingSticker = true } label: { Label("Send a Sticker", systemImage: "face.smiling") }
+                    }
+                    Button { doodling = true } label: { Label("Send a Doodle", systemImage: "scribble") }
+                }
+                TextField("Reply", text: $text,
+                          prompt: Text(said ?? "Reply to \(name)").foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .lineLimit(1...4)
+                    .focused($writing)
+                    .submitLabel(.send)
+                    .onSubmit(send)
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    .padding(.vertical, GridConstants.gapTight)
+                    .frame(minHeight: GlassIconButton.defaultSide)
+                    .glassField()
+                    .accessibilityLabel("Reply to \(name)")
+                GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send", action: send)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .animation(motion, value: writing)
+        .onChange(of: open) { _, now in busy(now) }
+        .onDisappear { busy(false) }
+        .sheet(isPresented: $choosingSticker) {
+            StickerPicker(current: nil, purpose: .drawing, onPick: { symbol in
+                choosingSticker = false
+                guard let png = StickerStore.name(in: symbol).flatMap({ StickerStore.shared.image($0)?.pngData() }) else { return }
+                Task { _ = await store.react(sticker: png, to: story.id, in: story.win.crewID) }
+                done("Sent")
+            }, onNewSticker: {
+                choosingSticker = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    makingSticker = true
+                }
+            })
+            .padding(GridConstants.horizontalPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+            .presentationBackground { WarmBackground().ignoresSafeArea() }
+        }
+        .stickerMaking(isPresented: $makingSticker) { symbol in
+            guard let png = StickerStore.name(in: symbol).flatMap({ StickerStore.shared.image($0)?.pngData() }) else { return }
+            Task { _ = await store.react(sticker: png, to: story.id, in: story.win.crewID) }
+            done("Sent")
+        }
+        .sheet(isPresented: $doodling) {
+            DoodleSheet(owner: name) { drawing in
+                guard let png = InkExport.doodlePNG(drawing) else { return }
+                Task { _ = await store.doodle(png, to: story.id, in: story.win.crewID) }
+                done("Sent")
+            }
+        }
+    }
+
+    private func send() {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return }
+        HapticsEngine.lightTap()
+        text = ""
+        Task {
+            let outcome = await store.replyToStory(words, story: story)
+            if outcome != .sent { text = words }
+            done(outcome == .sent ? "Sent" : outcome == .refusedWords ? "Try other words" : "Didn't send. Try again.")
+        }
+    }
+
+    /// Says what happened in the field's own place, for a moment, and lets
+    /// the story go on.
+    private func done(_ words: String) {
+        writing = false
+        withAnimation(motion) { said = words }
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            withAnimation(motion) { said = nil }
         }
     }
 }

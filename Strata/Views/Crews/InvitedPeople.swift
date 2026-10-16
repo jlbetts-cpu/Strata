@@ -177,11 +177,6 @@ struct InvitedHead: View {
             }
             .padding(.horizontal, inset)
             .padding(.top, inset)
-            Text(person.firstName)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkTertiary)
-                .lineLimit(1)
-                .frame(maxWidth: side + inset * 2)
         }
         .contextMenu {
             Button(role: .destructive) { InvitedPeople.shared.remove(person.id) } label: {

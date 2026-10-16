@@ -105,8 +105,12 @@ final class ProfileStore {
         // points below this one already refused it in a comment; the default
         // underneath them both did not. It is the avatar's ground, so it is
         // what the drawing in `docs/illustrations.md` will land on.
-        background.map { AnyShapeStyle(EtherealFill.fill($0.style.baseColor)) }
-            ?? AnyShapeStyle(AppColors.quietFill)
+        //
+        // **Always the grey now** (the owner, 2026-10-16: "remove the option to
+        // change the color of the circle background, it should just stay the
+        // default grey, looks better"). A colour chosen before stays stored
+        // and is never drawn.
+        AnyShapeStyle(AppColors.quietFill)
     }
 
     /// **The profile photograph an older build saved, deleted** (the owner's

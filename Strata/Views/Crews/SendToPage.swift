@@ -28,7 +28,10 @@ struct SendToPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: GridConstants.gapSection) {
+            // **Simpler** (the owner, 2026-10-16: "on the send to screen the
+            // text gets cut off and make it look simpler"): one list, a name
+            // and a tick a row, no headings and no second lines.
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
                 if storyAllowed { story }
                 crewList
                 if !crews.isEmpty, !store.taggable(in: crews).isEmpty { with }
@@ -51,7 +54,7 @@ struct SendToPage: View {
     private var story: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             row(on: onStory, label: "Tonight's Story",
-                detail: TonightsStoryRow.lesson, hint: onStory ? "Takes the win off tonight's story." : "Your friends see it from 8pm.") {
+                hint: onStory ? "Takes the win off tonight's story." : TonightsStoryRow.lesson) {
                 // The story's own mark: the drawn ring a story wears in the row.
                 DoodleRing()
                     .stroke(AppColors.drawingInk, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
@@ -65,11 +68,16 @@ struct SendToPage: View {
             } toggle: {
                 onStory.toggle()
             }
-            if onStory, hasPhoto, !CrewAge.current.sendsPhotos {
-                Text(TonightsStoryRow.teenLine)
+            // The one line that is the whole lesson, while it is on: wrapped,
+            // never cut.
+            if onStory {
+                Text(hasPhoto && !CrewAge.current.sendsPhotos
+                     ? "\(TonightsStoryRow.lesson) \(TonightsStoryRow.teenLine)" : TonightsStoryRow.lesson)
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, 56 + GridConstants.gapItem)
+                    .padding(.bottom, GridConstants.gapTight)
                     .transition(.opacity)
             }
         }
@@ -79,19 +87,10 @@ struct SendToPage: View {
 
     private var crewList: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            HStack {
-                Text("Crews")
-                    .font(Typography.sectionLabel)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                if store.crews.count > 1 { everyCrew }
-            }
+            if store.crews.count > 1 { everyCrew }
             ForEach(store.crews) { crew in
-                let names = crew.members.filter { $0.profileID != store.me }.map(\.firstName).filter { !$0.isEmpty }
                 row(on: crews.contains(crew.id),
                     label: crew.displayName(excluding: store.me),
-                    detail: names.isEmpty ? "Just you so far" : names.formatted(.list(type: .and)),
                     hint: "") {
                     CrewFaces(crew: crew, me: store.me, side: 56)
                 } toggle: {
@@ -104,31 +103,24 @@ struct SendToPage: View {
     private var everyCrew: some View {
         let all = Set(store.crews.map(\.id))
         let on = all.isSubset(of: crews)
-        return Button {
-            HapticsEngine.tick()
-            withAnimation(motion) { crews = on ? crews.subtracting(all) : crews.union(all) }
-        } label: {
-            Text(on ? "None" : CrewPicker.everyCrewWord)
-                .font(Typography.headerSmall)
-                .foregroundStyle(AppColors.inkPrimary)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+        return row(on: on, label: CrewPicker.everyCrewWord,
+                   hint: on ? "Takes the win off every crew." : "Sends the win to every crew.") {
+            Image(systemName: "person.3.fill")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(AppColors.quietFill))
+        } toggle: {
+            crews = on ? crews.subtracting(all) : crews.union(all)
         }
-        .buttonStyle(.pressWord)
-        .accessibilityHint(on ? "Takes the win off every crew." : "Sends the win to every crew.")
     }
 
     // MARK: Who was there
 
     private var with: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            Text("Who Was There")
-                .font(Typography.sectionLabel)
-                .foregroundStyle(AppColors.inkSecondary)
-                .accessibilityAddTraits(.isHeader)
-            CrewWithRow(crews: crews, selection: $withPeople, stacked: false)
-        }
-        .transition(.opacity)
+        CrewWithRow(crews: crews, selection: $withPeople, stacked: false)
+            .padding(.top, GridConstants.gapItem)
+            .transition(.opacity)
     }
 
     // MARK: The bar
@@ -142,43 +134,32 @@ struct SendToPage: View {
     }
 
     private var sendBar: some View {
-        HStack(spacing: GridConstants.gapItem) {
-            Text(summary)
-                .font(Typography.headerSmall)
-                .foregroundStyle(AppColors.inkSecondary)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentTransition(.opacity)
-            Button {
-                HapticsEngine.lightTap()
-                send()
-            } label: {
-                HStack(spacing: GridConstants.gapTight) {
-                    Text(crews.isEmpty && !onStory ? "Add" : "Send")
-                    Image(systemName: "arrow.up")
-                }
-                .font(Typography.headerSmall)
-                .foregroundStyle(WarmBackground.top)
-                .padding(.horizontal, GridConstants.gapWide)
-                .frame(minHeight: 44)
-                .background(Capsule().fill(AppColors.inkPrimary))
-                .contentShape(Capsule())
+        Button {
+            HapticsEngine.lightTap()
+            send()
+        } label: {
+            HStack(spacing: GridConstants.gapTight) {
+                Text(crews.isEmpty && !onStory ? "Add" : "Send")
+                Image(systemName: "arrow.up")
             }
-            .buttonStyle(.press)
-            .disabled(sending)
-            .accessibilityHint(summary)
+            .font(Typography.headerMedium)
+            .foregroundStyle(WarmBackground.top)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Capsule().fill(AppColors.inkPrimary))
+            .contentShape(Capsule())
         }
+        .buttonStyle(.press)
+        .disabled(sending)
+        .accessibilityHint(summary)
         .padding(.horizontal, hPad)
         .padding(.vertical, GridConstants.gapItem)
-        .background(.bar)
-        .animation(motion, value: summary)
     }
 
     // MARK: One row, every choice
 
     /// **A recipient**: its picture, its name and who is in it, and a tick.
     /// The whole row is the button, 56pt tall.
-    private func row<Leading: View>(on: Bool, label: String, detail: String, hint: String,
+    private func row<Leading: View>(on: Bool, label: String, hint: String,
                                     @ViewBuilder leading: () -> Leading, toggle: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
@@ -186,17 +167,10 @@ struct SendToPage: View {
         } label: {
             HStack(spacing: GridConstants.gapItem) {
                 leading()
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .lineLimit(1)
-                    Text(detail)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(label)
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: GridConstants.gapTight)
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
@@ -208,7 +182,7 @@ struct SendToPage: View {
         }
         .buttonStyle(.pressWord)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label), \(detail)")
+        .accessibilityLabel(label)
         .accessibilityHint(hint)
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }

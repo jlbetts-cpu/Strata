@@ -110,9 +110,12 @@ struct LaunchPackGapTests {
     func emptyTower() {
         #expect(EmptyTower.line(total: 0, lastWinDay: nil, today: "2026-10-13") == EmptyTower.teach)
         #expect(EmptyTower.line(total: 4, lastWinDay: "2026-10-01", today: "2026-10-13") == EmptyTower.teach)
-        #expect(EmptyTower.line(total: 5, lastWinDay: "2026-10-12", today: "2026-10-13") == "Nothing logged yet. Just the start of the day.")
-        #expect(EmptyTower.line(total: 40, lastWinDay: "2026-10-11", today: "2026-10-13") == EmptyTower.start)
-        #expect(EmptyTower.line(total: 40, lastWinDay: "2026-10-10", today: "2026-10-13") == "You've been quiet a few days. No rush.")
+        // Once the slot is known the empty tower says nothing (the owner,
+        // 2026-10-16: the morning line "looks bad on the screen for the wins"
+        // and fits none of the empty states). It was `start`, then `quiet`.
+        #expect(EmptyTower.line(total: 5, lastWinDay: "2026-10-12", today: "2026-10-13") == "")
+        #expect(EmptyTower.line(total: 40, lastWinDay: "2026-10-11", today: "2026-10-13") == "")
+        #expect(EmptyTower.line(total: 40, lastWinDay: "2026-10-10", today: "2026-10-13") == "")
         // The return's line holds no number.
         #expect(EmptyTower.quiet.rangeOfCharacter(from: .decimalDigits) == nil)
         let main = SourceSweep.code((try? SourceSweep.read("Strata/Views/MainAppView.swift")) ?? "")

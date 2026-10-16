@@ -8,7 +8,7 @@ import SwiftUI
 /// on a colour and a glyph, by a switch; there is one answer now, and it is
 /// the one every crew shows of you.
 ///
-/// No rim and no shadow. The disc is your Background Colour, or the quiet
+/// No rim and no shadow. The disc is the quiet
 /// well when none is chosen.
 struct ProfileAvatar: View {
     let side: CGFloat

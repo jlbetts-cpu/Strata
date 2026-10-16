@@ -204,6 +204,11 @@ struct MemoriesView: View {
                     // owner, 2026-10-15). Your head, your name and your
                     // score, then your months.
                     ProfileHeader(onEdit: { openProfile?() }, onScore: { showsScore = true })
+                        // **Hung on what is pressed** (the owner, 2026-10-16:
+                        // "pressing the chevron in the stats doesn't do
+                        // anything"). It hung on the month's illustration,
+                        // which only some months have and a scroll unloads.
+                        .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet() } }
                         .padding(.horizontal, GridConstants.horizontalPadding)
                     if !pageIsUndecided || pageIsEmpty {
                         monthTower
@@ -951,7 +956,6 @@ struct MemoriesView: View {
         .layoutPriority(1)
         .transition(.opacity)
         .sheet(isPresented: $showsTipAsk) { TipAskSheet() }
-        .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet() } }
         .fullScreenCover(item: $drawingMonth) { which in
             MonthDrawingEditor(month: which.id, monthName: MonthName.of(which.id))
         }

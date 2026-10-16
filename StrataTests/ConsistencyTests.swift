@@ -43,14 +43,10 @@ struct ConsistencyTests {
             .filter { $0.path != "Strata/Views/ColourSwatch.swift" }
             .filter { SourceSweep.code($0.text).contains("ForEach(HabitCategory.selectable") }
             .map(\.path)
-        // **Profile's background chooser is the written exemption**, and it is a
-        // different question rather than a third copy: its row offers "no colour"
-        // as a seventh option, which `HabitCategory` has no case for, and it names
-        // colours ("Green", "Blue") where this names categories. It already wears
-        // the same 0.55 ink ring, which is the part that had to agree. Moving it
-        // onto the component means the component grows an optional colour and a
-        // second naming scheme, which is a bigger change than the drift.
-        #expect(offenders == ["Strata/Views/ProfileView.swift"],
+        // Profile's background chooser was the one written exemption; it came
+        // out on 2026-10-16 (the owner: the head's circle "should just stay
+        // the default grey"), so there is none.
+        #expect(offenders.isEmpty,
                 "a category picker was rebuilt outside ColourSwatchRow: \(offenders)")
     }
 
