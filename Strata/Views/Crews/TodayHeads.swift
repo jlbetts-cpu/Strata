@@ -4,13 +4,13 @@ import SwiftUI
 /// also pretty empty other than the chats", and "I want the app to feel
 /// addicting to win and show your friends").
 ///
-/// Every friend in every crew, once, as their head, **standing on today's
-/// blocks** (the owner, 2026-10-15: "I don't like the ring at all tbh the
-/// color isn't important find a different thing that feels more like Some
-/// Wins"). Your head stands on your tower; theirs stands on a small one, a
-/// block a win, so the row says how far each friend's day has got without a
-/// legend. Someone who has not logged stands on one empty lattice cell,
-/// faded. A press opens their profile.
+/// Every friend in every crew, once, as their head, **with a dot when they
+/// have a win today**, where an online dot sits (the owner, 2026-10-15: "im
+/// not a big fan of the blocks under ... maybe the indicator can just be
+/// like an online indicator instead"). The ring and then a stand of blocks
+/// came first and went. The dot says only what the crews already share, a
+/// win today, never whether someone has the app open. A press opens their
+/// profile.
 struct TodayHeads: View {
     private var store: SocialStore { SocialStore.shared }
     /// The friend whose profile is open (`FriendProfileSheet`).
@@ -22,8 +22,6 @@ struct TodayHeads: View {
         /// Their newest win today, in any crew you share.
         let newest: SharedWin?
         let wins: Int
-        /// Today's wins, oldest first, once each: the blocks they stand on.
-        var today: [SharedWin] = []
         var id: UUID { member.profileID }
     }
 
@@ -31,13 +29,13 @@ struct TodayHeads: View {
     /// once, from the crew of their newest win.
     static func people(store: SocialStore) -> [Person] {
         var seen: [UUID: Person] = [:]
-        var counted: [UUID: [UUID: SharedWin]] = [:]
+        var counted: [UUID: Set<UUID>] = [:]
         for crew in store.crews {
             guard let shown = store.visible(crew.id) else { continue }
             let today = store.today(in: crew.id)
             for member in shown.members where member.profileID != store.me {
                 let theirs = today.filter { $0.senderProfileID == member.profileID }
-                for win in theirs { counted[member.profileID, default: [:]][win.winID] = win }
+                counted[member.profileID, default: []].formUnion(theirs.map(\.winID))
                 let newest = theirs.max { $0.createdAt < $1.createdAt }
                 let previous = seen[member.profileID]
                 if previous == nil || (newest?.createdAt ?? .distantPast) > (previous?.newest?.createdAt ?? .distantPast) {
@@ -46,8 +44,7 @@ struct TodayHeads: View {
             }
         }
         let all = seen.values.map {
-            Person(member: $0.member, crew: $0.crew, newest: $0.newest, wins: counted[$0.id]?.count ?? 0,
-                   today: (counted[$0.id]?.values).map { $0.sorted { $0.createdAt < $1.createdAt } } ?? [])
+            Person(member: $0.member, crew: $0.crew, newest: $0.newest, wins: counted[$0.id]?.count ?? 0)
         }
         return all.sorted { a, b in
             switch (a.newest, b.newest) {
@@ -60,12 +57,11 @@ struct TodayHeads: View {
     }
 
     static let side: CGFloat = 56
-    /// The breathing room the ring used to take, kept so Invite and the
-    /// heads still line up.
+    /// The breathing room around a head, so Invite and the heads line up.
     private static let inset: CGFloat = 5
-    /// The little tower: a block a win, up to four across the head's width.
-    private static let block: CGFloat = 10
-    private static let blocksShown = 4
+    /// The dot, and the page-coloured rim that sets it off the head.
+    private static let dot: CGFloat = 14
+    private static let dotRim: CGFloat = 2.5
 
     var body: some View {
         let people = Self.people(store: store)
@@ -105,7 +101,7 @@ struct TodayHeads: View {
             if let crew { Task { await CrewSharing.invite(crew.id) } }
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                VStack(spacing: GridConstants.spacing / 2) {
+                VStack(spacing: 0) {
                     Circle()
                         .strokeBorder(AppColors.inkTertiary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                         .frame(width: Self.side, height: Self.side)
@@ -116,7 +112,6 @@ struct TodayHeads: View {
                         }
                         .padding(.horizontal, Self.inset)
                         .padding(.top, Self.inset)
-                    Color.clear.frame(height: Self.block)
                 }
                 Text("Invite")
                     .font(Typography.screenSubtitle)
@@ -140,14 +135,21 @@ struct TodayHeads: View {
             profile = person
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                VStack(spacing: GridConstants.spacing / 2) {
-                    PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
-                        .opacity(logged ? 1 : 0.45)
-                        .grayscale(logged ? 0 : 1)
-                    stand(person.today)
-                }
-                .padding(.horizontal, Self.inset)
-                .padding(.top, Self.inset)
+                PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
+                    .overlay(alignment: .bottomTrailing) {
+                        if logged {
+                            Circle()
+                                .fill(HabitCategory.health.style.baseColor)
+                                .frame(width: Self.dot, height: Self.dot)
+                                .padding(Self.dotRim)
+                                .background(Circle().fill(WarmBackground.top))
+                                .offset(x: 1, y: 1)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .animation(GridConstants.motionSnappy, value: logged)
+                    .padding(.horizontal, Self.inset)
+                    .padding(.top, Self.inset)
                 Text(name)
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(logged ? AppColors.inkPrimary : AppColors.inkTertiary)
@@ -159,28 +161,5 @@ struct TodayHeads: View {
         .buttonStyle(.press)
         .accessibilityLabel(logged ? "\(name), \(person.wins == 1 ? "1 win" : "\(person.wins) wins") today" : "\(name), no wins yet today")
         .accessibilityHint("Opens their profile.")
-    }
-
-    /// What a head stands on: today's blocks side by side, in the tower's own
-    /// corner and gutter at a small size, newest on the right. Before the
-    /// first win, one empty cell of the lattice, as a bare tower shows.
-    private func stand(_ wins: [SharedWin]) -> some View {
-        let shown = wins.suffix(Self.blocksShown)
-        let shape = RoundedRectangle(cornerRadius: Self.block / 4, style: .continuous)
-        return HStack(spacing: GridConstants.spacing / 2) {
-            if shown.isEmpty {
-                shape.fill(AppColors.quietFill)
-                    .frame(width: Self.block, height: Self.block)
-            } else {
-                ForEach(Array(shown), id: \.winID) { win in
-                    shape.fill(win.colour.style.baseColor)
-                        .frame(width: Self.block, height: Self.block)
-                        .transition(.scale(scale: 0.4, anchor: .bottom).combined(with: .opacity))
-                }
-            }
-        }
-        .frame(height: Self.block)
-        .animation(GridConstants.motionSnappy, value: wins.count)
-        .accessibilityHidden(true)
     }
 }
