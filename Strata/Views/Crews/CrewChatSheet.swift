@@ -801,7 +801,10 @@ struct CrewChatSheet: View {
         let id = message.messageID
         let quote = quoted(message)
         let answered = quotedLine(message)
-        let face = bubbleFace(message, mine: mine, quote: quote?.title ?? answered?.words)
+        // A story reply says so, in the poster's words for it (Snapchat's
+        // "Replied to your story").
+        let storyLine = message.storyQuote.map { mine ? "You replied to their story: \($0)" : "Replied to your story: \($0)" }
+        let face = bubbleFace(message, mine: mine, quote: quote?.title ?? answered?.words ?? storyLine)
         // **Two taps heart it** (M3; the owner, 2026-10-13: "double tap a
         // message to heart it"), yours or a friend's, and two more take the
         // heart back. Checked before the single tap, so on a bubble a tap

@@ -57,6 +57,12 @@ protocol CrewCloud: AnyObject {
     /// Every story still in a crew's zone, its end passed or not: the clock
     /// is the reader's to apply (`StoryClock`).
     func fetchStories(in crew: CrewID) async throws -> [CrewStory]
+    /// Personal-chat invitations left in a crew's zone (`CrewPersonal`).
+    func fetchPersonals(in crew: CrewID) async throws -> [PersonalInvite]
+    /// A member's published public key, for sealing to them alone.
+    func memberPublicKey(_ profileID: UUID, in crew: CrewID) -> String?
+    /// Opens something sealed to this phone's own key.
+    func openSealed(_ data: Data, info: Data) -> Data?
     /// Writes a record whole: a key that is absent is cleared.
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws
     func delete(type: CrewRecordType, name: String, in crew: CrewID) async throws

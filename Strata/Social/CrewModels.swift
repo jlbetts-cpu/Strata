@@ -117,8 +117,12 @@ nonisolated struct Crew: Identifiable, Codable, Equatable, Sendable {
     /// The crew's picture, cached on this phone. Nil draws the members' faces.
     var photo: URL?
     var members: [CrewMember]
+    /// **A personal chat** (`CrewPersonal`): two people, made from a story
+    /// reply. Optional so a crew saved by an older build still reads.
+    var personal: Bool? = nil
 
     var timeZone: TimeZone { TimeZone(identifier: timeZoneIdentifier) ?? .current }
+    var isPersonal: Bool { personal == true }
 
     func isOwner(_ profileID: UUID) -> Bool { ownerProfileID == profileID }
 
@@ -234,6 +238,11 @@ nonisolated struct CrewMessage: Identifiable, Codable, Equatable, Sendable {
     /// A doodle, cached on this phone.
     var sketch: URL? = nil
     let createdAt: Date
+    /// **A reply to a story**: the story's title, carried on the line so the
+    /// personal chat it lands in (which never held the story) can say what
+    /// it answers, "Replied to your story: Morning run". Stays after the
+    /// story has gone, as the words of an Instagram story reply do.
+    var storyQuote: String? = nil
 
     var id: UUID { messageID }
 

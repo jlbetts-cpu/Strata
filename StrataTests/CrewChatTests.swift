@@ -54,12 +54,13 @@ struct CrewChatTests {
     @Test func theMessageKeysAreExactly() {
         #expect(CrewRecordType.message.rawValue == "CrewMessage")
         #expect(CrewRecordType.allCases.contains(.message))
+        // `storyQuote` since 2026-10-16: a story reply says what it answers.
         #expect(CrewRecords.messageKeys == ["messageID", "senderProfileID", "crewDay", "text",
-                                            "quoteWinID", "sketch", "createdAt"])
+                                            "quoteWinID", "sketch", "createdAt", "storyQuote"])
         #expect(CrewRecords.keys(of: .message) == CrewRecords.messageKeys)
         let full = CrewMessage(messageID: UUID(), crewID: CrewID(rawValue: "c"), senderProfileID: sam,
                                crewDay: "2026-10-05", text: "nice", quoteWinID: UUID(),
-                               sketch: URL(fileURLWithPath: "/tmp/m.png"), createdAt: .now)
+                               sketch: URL(fileURLWithPath: "/tmp/m.png"), createdAt: .now, storyQuote: "Morning run")
         #expect(Set(CrewRecords.fields(full).keys) == CrewRecords.messageKeys)
         #expect(CrewRecords.message(CrewRecords.fields(full), crew: full.crewID) == full)
         // A plain line carries no quote and no sketch: absent, not empty.

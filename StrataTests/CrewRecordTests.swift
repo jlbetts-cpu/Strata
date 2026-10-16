@@ -45,7 +45,10 @@ struct CrewRecordTests {
         #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt"])
         // Your score on its own record since 2026-10-15, not on this one.
         #expect(CrewRecords.scoreKeys == ["profileID", "score", "wins"])
-        #expect(CrewRecords.crewKeys == ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"])
+        // `personal` since 2026-10-16: a chat of two, made from a story reply.
+        #expect(CrewRecords.crewKeys == ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo", "personal"])
+        // A personal chat's invitation: who to whom, and the link sealed to one.
+        #expect(CrewRecords.personalKeys == ["from", "to", "sealed", "createdAt"])
     }
 
     @Test func aWinRoundTrips() {

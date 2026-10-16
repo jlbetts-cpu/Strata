@@ -51,7 +51,7 @@ From `docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`, sections
 | R7 | Yes | `order`, `onceAcrossCrews`; walk 0 and 6 (watched go grey and move after) |
 | R8 | Yes | Walk 0 and 11 (posted from Add a Win, first in the row) |
 | R9 | Yes | Walk 1 to 3: segments, tap on, auto-advance to the next friend, swipe down |
-| R10 | Mostly | Bar, +, sticker, doodle and Reply into the crew chat with the win quoted. **No double-tap heart**: a double tap delays every tap-forward by the double-tap wait, and the hold is the pause; the heart is one tap in the bar. Reply goes to the crew it was read from until personal crews exist (slice 1) |
+| R10 | Yes | Bar, +, sticker, doodle and Reply into the crew chat with the win quoted. **No double-tap heart, his call (2026-10-16)**: taps stay instant; the heart is one tap in the bar. Reply goes to the crew it was read from until personal crews exist (slice 1) |
 | R11 | Yes | ⋯: Hide Their Story, Report, Block; nothing about who watched |
 | R12 | Yes | `reactionStays`: Sam's reaction stays on the block after the story and Sam's record are gone |
 | R13 | Yes | Walk 7b: the story block edged in the evening colour on the friend's profile |
@@ -67,5 +67,4 @@ From `docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`, sections
 **Not built, and why:**
 - The row on the camera's review: **not needed, met by Add a Win.** The review's own crews row came out on 2026-10-06 (`CameraView`: "the camera asked who sees it twice"), and every shot goes on to Add a Win, which has the story row. A second row on the camera would bring back the doubling he removed.
 - @names and personal crews (spec slice 1): a new `Handle` record type needs a CloudKit Console deploy, which is his.
-- The double-tap heart (R10): left for his call; it would slow every tap forward.
 - The Locket-style widget preview: later, as the spec says.

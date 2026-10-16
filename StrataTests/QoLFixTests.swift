@@ -24,7 +24,7 @@ struct QoLFixTests {
         let store = try code("Strata/Social/SocialStore.swift")
         // `.score` since 2026-10-15: a score is not news either; nor a story,
         // which its friends learn of from the row at 8pm, never from a ping.
-        #expect(store.contains("case .crew, .member, .message, .score, .story:\n            return"),
+        #expect(store.contains("case .crew, .member, .message, .score, .story, .personal:\n            return"),
                 "the chat leaves a ping now; the gate above can be reconsidered")
     }
 

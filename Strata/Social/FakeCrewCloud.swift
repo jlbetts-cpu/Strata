@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Every crew zone in a pretend iCloud, shared by any number of pretend
@@ -15,6 +16,8 @@ final class FakeCrewWorld {
     var zones: [CrewID: Zone] = [:]
     /// Pings in the pretend public database, by record name.
     var pings: [String: [String: String]] = [:]
+    /// Each phone's own key, as a member record publishes its public half.
+    var agreements: [UUID: Curve25519.KeyAgreement.PrivateKey] = [:]
 
     func records(of type: CrewRecordType, in crew: CrewID) -> [String: RecordFields] {
         var out: [String: RecordFields] = [:]
@@ -45,6 +48,22 @@ final class FakeCrewCloud: CrewCloud {
     init(world: FakeCrewWorld? = nil, me: UUID = UUID()) {
         self.world = world ?? FakeCrewWorld()
         self.myProfileID = me
+        if self.world.agreements[me] == nil { self.world.agreements[me] = Curve25519.KeyAgreement.PrivateKey() }
+    }
+
+    func fetchPersonals(in crew: CrewID) async throws -> [PersonalInvite] {
+        try touch()
+        guard world.zones[crew]?.participants.contains(myProfileID) == true else { throw CrewError.unknownCrew }
+        return world.records(of: .personal, in: crew).values.compactMap { CrewRecords.personal($0) }
+    }
+
+    func memberPublicKey(_ profileID: UUID, in crew: CrewID) -> String? {
+        guard world.zones[crew]?.participants.contains(profileID) == true else { return nil }
+        return world.agreements[profileID]?.publicKey.rawRepresentation.base64EncodedString()
+    }
+
+    func openSealed(_ data: Data, info: Data) -> Data? {
+        world.agreements[myProfileID].flatMap { CrewSealedNote.open(data, with: $0, info: info) }
     }
 
     func prepare() async {}

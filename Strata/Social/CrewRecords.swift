@@ -71,6 +71,8 @@ nonisolated enum CrewRecordType: String, Codable, Sendable, CaseIterable {
     /// crew copy is, but its own kind, so the two never meet: a win can be
     /// both in the crew and on the story. A build before it reads past it.
     case story = "Story"
+    /// **A personal chat's invitation, sealed to one member** (`CrewPersonal`).
+    case personal = "Personal"
 }
 
 /// The kinds of record a crew zone holds, and EXACTLY what goes in them.
@@ -88,7 +90,9 @@ nonisolated enum CrewRecords {
         "blockSize", "photo", "cropX", "cropY", "createdAt", "updatedAt",
         "withPeople",
     ]
-    static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
+    static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo", "personal"]
+    /// Who it is from and to, and the invitation sealed to `to` alone.
+    static let personalKeys: Set<String> = ["from", "to", "sealed", "createdAt"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
     /// Sealed in the item's box like every record (`CrewItemBox`), so the
     /// server's schema does not change.
@@ -99,7 +103,7 @@ nonisolated enum CrewRecords {
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
-                                           "quoteWinID", "sketch", "createdAt"]
+                                           "quoteWinID", "sketch", "createdAt", "storyQuote"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
@@ -110,6 +114,7 @@ nonisolated enum CrewRecords {
         case .message: messageKeys
         case .score: scoreKeys
         case .story: storyKeys
+        case .personal: personalKeys
         }
     }
 
@@ -239,6 +244,7 @@ nonisolated enum CrewRecords {
         // written whole, so absent is empty.
         if let quote = message.quoteWinID { fields["quoteWinID"] = .uuid(quote) }
         if let sketch = message.sketch { fields["sketch"] = .asset(sketch) }
+        if let story = message.storyQuote { fields["storyQuote"] = .string(story) }
         return fields
     }
 
@@ -256,8 +262,10 @@ nonisolated enum CrewRecords {
         let sketch = fields["sketch"]?.asset
         guard !text.isEmpty || sketch != nil else { return nil }
         guard text.isEmpty || CrewWords.isAcceptable(text) else { return nil }
+        let story = fields["storyQuote"]?.string.map { String(CrewWords.kept($0).prefix(80)) }
         return CrewMessage(messageID: id, crewID: crew, senderProfileID: sender, crewDay: day, text: text,
-                           quoteWinID: fields["quoteWinID"]?.uuid, sketch: sketch, createdAt: created)
+                           quoteWinID: fields["quoteWinID"]?.uuid, sketch: sketch, createdAt: created,
+                           storyQuote: story)
     }
 
     // MARK: Crew
@@ -270,6 +278,7 @@ nonisolated enum CrewRecords {
             "createdAt": .date(crew.createdAt),
         ]
         if let photo = crew.photo { fields["photo"] = .asset(photo) }
+        if crew.isPersonal { fields["personal"] = .int(1) }
         return fields
     }
 
@@ -285,7 +294,22 @@ nonisolated enum CrewRecords {
                     timeZoneIdentifier: fields["timeZoneIdentifier"]?.string ?? TimeZone.current.identifier,
                     createdAt: fields["createdAt"]?.date ?? .distantPast,
                     photo: fields["photo"]?.asset,
-                    members: members)
+                    members: members,
+                    personal: fields["personal"]?.int == 1 ? true : nil)
+    }
+
+    // MARK: Personal
+
+    static func fields(_ invite: PersonalInvite) -> RecordFields {
+        ["from": .uuid(invite.from), "to": .uuid(invite.to),
+         "sealed": .string(invite.sealed.base64EncodedString()), "createdAt": .date(invite.createdAt)]
+    }
+
+    static func personal(_ fields: RecordFields) -> PersonalInvite? {
+        guard let from = fields["from"]?.uuid, let to = fields["to"]?.uuid, from != to,
+              let sealed = fields["sealed"]?.string.flatMap({ Data(base64Encoded: $0) }),
+              sealed.count <= CrewSealedNote.largest else { return nil }
+        return PersonalInvite(from: from, to: to, sealed: sealed, createdAt: fields["createdAt"]?.date ?? .distantPast)
     }
 
     // MARK: Member

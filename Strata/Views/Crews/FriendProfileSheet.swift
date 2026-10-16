@@ -177,13 +177,12 @@ struct FriendProfileSheet: View {
 
     /// Score and wins when their phone has sent them, as yours reads; their
     /// wins today otherwise.
+    /// **Their score, and nothing else** (the owner, 2026-10-16: "wins aren't
+    /// important, the score is the only thing that should show on other
+    /// people's profiles"). Nothing at all from a phone too old to send one.
     private func figures(today: Int, shared: Int) -> [ProfileTop.Figure] {
         let live = store.crew(crewID)?.member(member.profileID) ?? member
-        let together = ProfileTop.Figure(shared, shared == 1 ? "crew together" : "crews together")
-        guard let score = live.score, let wins = live.wins else {
-            return [ProfileTop.Figure(today, today == 1 ? "win today" : "wins today"), together]
-        }
-        return [ProfileTop.Figure(score, "score"), ProfileTop.Figure(wins, wins == 1 ? "win" : "wins"), together]
+        return live.score.map { [ProfileTop.Figure($0, "score")] } ?? []
     }
 
     private func rebuild(_ today: [SharedWin]) {
@@ -246,7 +245,10 @@ struct FriendProfileSheet: View {
                 .accessibilityLabel(rows > 0 ? "\(name)'s tower today, \(tower.placedBlocks.count) wins"
                                              : "\(name)'s tower today, nothing shared yet")
             }
-            .frame(minHeight: viewport)
+            // Their recent photos start below the first screen, found by a
+            // scroll (the owner, 2026-10-16: they "shouldn't be visible
+            // unless you scroll").
+            .frame(minHeight: viewport + GridConstants.gapPage)
             photos(width: colW * CGFloat(columns) + spacing * CGFloat(columns - 1))
         }
         // A finger choosing a reaction must not scroll the page under it.

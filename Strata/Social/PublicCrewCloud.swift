@@ -657,6 +657,23 @@ final class PublicCrewCloud: CrewCloud {
         }
     }
 
+    func fetchPersonals(in crew: CrewID) async throws -> [PersonalInvite] {
+        records(.personal, in: crew).compactMap { fields in
+            CrewRecords.personal(fields).flatMap { keep(fields, from: $0.from, in: crew) ? $0 : nil }
+        }
+    }
+
+    func memberPublicKey(_ profileID: UUID, in crew: CrewID) -> String? {
+        guard !isRemoved(profileID, from: crew),
+              let text = cache[crew]?["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"]?[CrewAgreement.field]?.string,
+              CrewRekey.isKey(text) else { return nil }
+        return text
+    }
+
+    func openSealed(_ data: Data, info: Data) -> Data? {
+        CrewAgreement.existing().flatMap { CrewSealedNote.open(data, with: $0, info: info) }
+    }
+
     func fetchStories(in crew: CrewID) async throws -> [CrewStory] {
         records(.story, in: crew).compactMap { fields in
             CrewRecords.story(fields, crew: crew).flatMap { keep(fields, from: $0.sender, in: crew) ? $0 : nil }
