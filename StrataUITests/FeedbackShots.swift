@@ -1734,7 +1734,7 @@ final class FeedbackShots: XCTestCase {
     func testTonightsStory() {
         let night = ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
                      "-strataSeedStories", "3", "-strataSeedMyStory", "1", "-strataStoryHour", "21"]
-        var app = launch(night + ["-strataStorySeen", "1", "-strataSeedInvited", "1"])
+        var app = launch(night + ["-strataStorySeen", "1", "-strataSeedInvited", "1", "-strataReplayOpening", "1"])
         wait(9); snap("story-0-row-night")
         let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
         print("PLANNING-story head \(story.exists) '\(story.exists ? story.label : "")'")
@@ -1744,6 +1744,12 @@ final class FeedbackShots: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
         wait(1)
         if story.exists { story.tap() }
+        // The night's opening comes first, once a night; Open begins it.
+        wait(0.4); snap("story-1a-opening-start")
+        wait(1.6); snap("story-1b-opening")
+        let open = app.buttons["Open"].firstMatch
+        print("PLANNING-story opening \(open.exists)")
+        if open.exists { open.tap() }
         wait(1.5); snap("story-1-viewer")
         let card = app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, 1 of'")).firstMatch
         print("PLANNING-story card \(card.exists) '\(card.exists ? card.label : "")'")

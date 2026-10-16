@@ -20,6 +20,12 @@ struct StoryViewer: View {
 
     @State private var current: UUID?
     @State private var drop: CGFloat = 0
+    /// **The night's opening, once a night** (the owner, 2026-10-16: "it
+    /// should feel like opening presents on Christmas ... like a Spotify
+    /// Wrapped"): a title card before the first friend, their rings closing
+    /// one by one, then a tap opens it. Held while it shows.
+    @AppStorage("crews.storyOpenedNight") private var openedNight = ""
+    @State private var opening = false
     /// The page after everyone: "That's everyone tonight."
     private static let endID = UUID(uuidString: "00000000-0000-0000-0000-00000000E0D0")!
     /// Whether this is friends' stories (an end card) or only your own.
@@ -50,7 +56,7 @@ struct StoryViewer: View {
         let people = live
         TabView(selection: Binding(get: { shown }, set: { current = $0 })) {
             ForEach(people) { person in
-                StoryPage(person: person, isCurrent: shown == person.id, dragging: drop > 0,
+                StoryPage(person: person, isCurrent: shown == person.id && !opening, dragging: drop > 0,
                           next: { step(from: person.id, by: 1) },
                           back: { step(from: person.id, by: -1) },
                           close: onClose)
@@ -89,11 +95,31 @@ struct StoryViewer: View {
             }
         }))
         .statusBarHidden()
+        .overlay {
+            if opening {
+                StoryOpening(people: people.filter { $0.profileID != store.me }) {
+                    openedNight = Self.night(of: people) ?? ""
+                    withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.5)) { opening = false }
+                }
+                .transition(.opacity)
+            }
+        }
+        .onAppear {
+            #if DEBUG
+            if DebugHarness.argument("-strataReplayOpening") != nil { openedNight = "" }
+            #endif
+            if hasEnd, let night = Self.night(of: people), openedNight != night { opening = true }
+        }
         // Nobody left to show (all blocked, hidden or past 9am): close.
         .onChange(of: people.isEmpty) { _, empty in if empty { onClose() } }
         .onChange(of: people.map(\.id)) { _, ids in
             if shown != Self.endID, !ids.contains(shown), let first = ids.first { current = first }
         }
+    }
+
+    /// The night these stories belong to.
+    static func night(of people: [StoryPerson]) -> String? {
+        people.first { $0.profileID != SocialStore.shared.me }?.stories.first?.day
     }
 
     /// The next friend, or the one before; past the last, the viewer closes.
@@ -618,5 +644,89 @@ private struct StoryEnd: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { WarmBackground().ignoresSafeArea() }
+    }
+}
+
+/// **The night's opening** (2026-10-16): the date, "Tonight", every friend's
+/// crest with its ring closing in turn as the row's does at 8pm, how many
+/// shared the best of today, and Open. A ritual you take part in makes what
+/// follows better (Vohs et al. 2013), so it waits for your tap.
+private struct StoryOpening: View {
+    let people: [StoryPerson]
+    let begin: () -> Void
+    @State private var held = true
+    private var store: SocialStore { SocialStore.shared }
+    private static let side: CGFloat = 80
+    private static let most = 4
+
+    /// The stories' own night, not the clock's: after midnight it is still
+    /// the evening they were from.
+    private var weekday: String {
+        let date = people.first?.stories.first.flatMap { DateUtils.date(from: $0.day) } ?? Date()
+        return date.formatted(.dateTime.weekday(.wide))
+    }
+
+    private func name(_ person: StoryPerson) -> String {
+        guard let crew = person.stories.first?.win.crewID,
+              let member = store.crew(crew)?.member(person.profileID) else { return "A friend" }
+        return member.shortName.isEmpty ? "A friend" : member.shortName
+    }
+
+    var body: some View {
+        VStack(spacing: GridConstants.gapSection) {
+            Spacer()
+            VStack(spacing: GridConstants.gapTight) {
+                Text(weekday + " night")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                Text("Tonight")
+                    .font(Typography.screenTitle)
+                    .foregroundStyle(AppColors.inkPrimary)
+            }
+            // Names under the heads, as in the row.
+            HStack(alignment: .top, spacing: GridConstants.gapItem) {
+                ForEach(Array(people.prefix(Self.most).enumerated()), id: \.element.id) { index, person in
+                    VStack(spacing: GridConstants.gapTight) {
+                        StoryCrest(story: person, side: Self.side, seen: [], held: held, order: index) {
+                            head(person)
+                        } picture: {
+                            StoryBubble(story: person, side: StoryCrestSize.face(in: Self.side))
+                        }
+                        Text(name(person))
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: Self.side)
+                    }
+                }
+            }
+            .padding(.vertical, GridConstants.gapItem)
+            Text(people.count == 1 ? "1 friend shared the best of today" : "\(people.count) friends shared the best of today")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .multilineTextAlignment(.center)
+            Spacer()
+            PrimaryCapsule(title: "Open", action: begin)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.bottom, GridConstants.gapItem)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { WarmBackground().ignoresSafeArea() }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: held)
+        .task {
+            try? await Task.sleep(for: .milliseconds(500))
+            held = false
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func head(_ person: StoryPerson) -> some View {
+        let crew = person.stories.first?.win.crewID
+        if let crew, let member = store.crew(crew)?.member(person.profileID) {
+            PersonHead(person: .member(member, crew: crew, me: store.me), side: StoryCrestSize.face(in: 76))
+        } else {
+            Color.clear
+        }
     }
 }
