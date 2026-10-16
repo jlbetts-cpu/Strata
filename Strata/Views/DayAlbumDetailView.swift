@@ -97,14 +97,16 @@ struct DayAlbumDetailView: View {
                         // and the level counts both ways, is on
                         // `PhotoCollectionView.emptyLine`, which is the other
                         // page off this shelf and had the identical line.
+                        // **In the middle of the page** (the owner,
+                        // 2026-10-15: "it should be centered"). The title is
+                        // in the bar now, so nothing under it to hang from.
+                        Spacer(minLength: GridConstants.gapWide)
                         Text("Nothing logged this day.")
                             .font(Typography.headerMedium)
                             .foregroundStyle(AppColors.inkPrimary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
                             .padding(.horizontal, GridConstants.horizontalPadding)
-                            // 28 was a fifth value on a ladder of 8 · 12 · 16 ·
-                            // 24 · 32, and it is the same gap the tower takes
-                            // below, so it should be the same number.
-                            .padding(.top, GridConstants.gapWide)
                         Spacer(minLength: GridConstants.gapWide)
                     } else {
                         Spacer(minLength: GridConstants.gapWide)

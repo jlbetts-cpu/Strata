@@ -28,7 +28,7 @@ struct ProfileHeader: View {
                              ProfileTop.Figure(tally.wins, tally.wins == 1 ? "win" : "wins")]
                        + (crews.map { [ProfileTop.Figure($0, $0 == 1 ? "crew" : "crews")] } ?? []),
                    onPerson: onEdit, personHint: "Edit Profile",
-                   onFigures: onScore, figuresHint: "Shows how your score adds up.")
+                   onFigures: onScore, figuresHint: "Opens your stats.")
     }
 }
 
@@ -105,6 +105,15 @@ struct ProfileTop: View {
                         .foregroundStyle(AppColors.inkSecondary)
                 }
             }
+            // **Where your stats are** (the owner, 2026-10-15: "how to get to
+            // that screen doesnt really make sense"): a chevron, as a row that
+            // opens something says so. Only on yours.
+            if onFigures != nil {
+                Image(systemName: "chevron.right")
+                    .iconSize(GridConstants.iconMedium, relativeTo: .subheadline, weight: .semibold)
+                    .foregroundStyle(AppColors.inkTertiary)
+                    .accessibilityHidden(true)
+            }
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
@@ -129,9 +138,13 @@ struct ProfileTop: View {
     }
 }
 
-/// **Your Score**: how the number adds up, then the streak and the trend that
-/// used to stand on Profile (`docs/research/2026-10-15-profile.md` §3.3, the
-/// Fitness pattern: the figure on the page, the detail a press away).
+/// **Your Stats** (the owner, 2026-10-15: "the your score when you scroll
+/// down I feel like how its scored isnt useful ... it can show more info ...
+/// information that you want to read like the stats and stuff"). It was the
+/// score's arithmetic, a row per size; it is what people look up about their
+/// own record, the way Fitness and Screen Time summarise: this week against
+/// last, the streak, and the record so far. How the score is counted is one
+/// quiet line under it. Opened from the figures line under your name.
 struct YourScoreSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -139,51 +152,80 @@ struct YourScoreSheet: View {
     @State private var vm = ProfileViewModel()
     @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
 
-    private var sizes: [BlockSize] { logs.compactMap { $0.habit?.blockSize } }
+    private var stats: ProfileStats {
+        ProfileStats.make(logs.compactMap { log in
+            guard let habit = log.habit else { return nil }
+            return ProfileStats.Win(dateString: log.dateString, category: habit.category,
+                                    size: habit.blockSize, hasPhoto: log.imageFileName != nil)
+        })
+    }
 
     var body: some View {
+        let stats = stats
         Form {
             Section {
                 VStack(spacing: 0) {
-                    Text(verbatim: StrataFont.digits(WinsScore.tally(sizes).score))
+                    Text(verbatim: StrataFont.digits(stats.score))
                         .font(Typography.tally)
                         .foregroundStyle(AppColors.inkPrimary)
-                    Text("Score")
+                        .contentTransition(.numericText(value: Double(stats.score)))
+                    Text("score")
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
+            } footer: {
+                Text(stats.wins == 0 ? "Your first win starts it." : "Quick is 1, Regular 2, Deep 3.")
+                    .formFooter()
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
             }
             .listRowBackground(Color.clear)
 
             Section {
-                // Deepest first, as the photographs are split.
-                ForEach([BlockSize.hard, .medium, .small], id: \.self) { size in
-                    let count = sizes.filter { $0 == size }.count
-                    LabeledContent(size.effortLabel) {
-                        Text(verbatim: "\(count) × \(WinsScore.points(size)) = \(count * WinsScore.points(size))")
-                            .monospacedDigit()
+                LabeledContent("Wins") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(verbatim: "\(stats.thisWeek)").monospacedDigit()
+                        if stats.thisWeek + stats.lastWeek > 0 {
+                            Text(stats.weekCompared)
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkTertiary)
+                        }
                     }
                 }
+                LabeledContent("Streak") {
+                    Text(verbatim: vm.currentStreak == 1 ? "1 day" : "\(vm.currentStreak) days").monospacedDigit()
+                }
+            } header: {
+                FormSectionLabel("This Week")
             } footer: {
-                Text(sizes.isEmpty ? "Your first win starts it."
-                     : "Quick is 1, Regular 2, Deep 3. Delete a win and it comes off.")
+                Text(vm.currentStreak == 0 ? "Log a win to start one." : "A day off a week won't break it.")
                     .formFooter()
             }
 
             Section {
-                HStack(alignment: .top, spacing: GridConstants.gapWide) {
-                    StreakFigure(value: vm.currentStreak, label: "Current")
-                    StreakFigure(value: vm.bestStreak, label: "Best")
+                LabeledContent("Wins") { Text(verbatim: "\(stats.wins)").monospacedDigit() }
+                LabeledContent("Photos") { Text(verbatim: "\(stats.photos)").monospacedDigit() }
+                LabeledContent("Best Streak") {
+                    Text(verbatim: vm.bestStreak == 1 ? "1 day" : "\(vm.bestStreak) days").monospacedDigit()
                 }
-                .padding(.vertical, GridConstants.gapTight)
+                if let colour = stats.topColour {
+                    LabeledContent("Top Colour") {
+                        HStack(spacing: GridConstants.gapTight) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(colour.style.baseColor)
+                                .frame(width: 14, height: 14)
+                            Text(colour.rawValue.capitalized)
+                        }
+                    }
+                }
+                if let day = stats.bestDay {
+                    LabeledContent("Best Day") { Text(day) }
+                }
             } header: {
-                FormSectionLabel("Streak")
-            } footer: {
-                Text(vm.currentStreak == 0 ? "Log a win to start one." : "A day off a week won't break it.")
-                    .formFooter()
+                FormSectionLabel("All Time")
             }
 
             WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)
@@ -191,7 +233,7 @@ struct YourScoreSheet: View {
         .listSectionSpacing(GridConstants.gapPage)
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
-        .sheetTitle("Your Score", drawn: true)
+        .sheetTitle("Your Stats", drawn: true)
         .toolbar {
             BareToolbarItem(placement: .confirmationAction) {
                 Button {
