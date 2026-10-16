@@ -80,8 +80,11 @@ struct ProfileBanner: View {
             ForEach(0..<rows, id: \.self) { _ in
                 HStack(spacing: gap) {
                     ForEach(0..<columns, id: \.self) { _ in
+                        // The lattice's shape in the quiet grey: on the
+                        // profile card, the lattice's white panes were white
+                        // on white.
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .fill(TowerLattice.pane)
+                            .fill(AppColors.quietFill)
                             .frame(width: cell, height: cell)
                     }
                 }

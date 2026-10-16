@@ -21,6 +21,10 @@ struct InfoCard: View {
     /// On its own card, where it is not already a form's row: the surface a
     /// form's rows sit on, and the hairline round it.
     var contained = false
+    /// **Quiet**: a line of facts under a name, with no card (the owner,
+    /// 2026-10-16, of the carded version: "still a bit not tasteful"). The
+    /// smaller words, a lighter stroke on the icons, centred when they fit.
+    var quiet = false
 
     private static let line: CGFloat = 52
     private static let iconWidth: CGFloat = 24
@@ -40,7 +44,15 @@ struct InfoCard: View {
 
     private var content: some View {
         VStack(spacing: 0) {
-            if !chips.isEmpty {
+            if !chips.isEmpty, quiet {
+                // All of them when they fit, else the first two: a quiet line
+                // is never cut at the edge.
+                ViewThatFits(in: .horizontal) {
+                    chipRow(chips)
+                    chipRow(Array(chips.prefix(2)))
+                    chipRow(Array(chips.prefix(1)))
+                }
+            } else if !chips.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
                         ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
@@ -63,6 +75,9 @@ struct InfoCard: View {
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                // Soft where it runs off (the owner, 2026-10-16: "a blur at the
+                // end when it scrolls, for that premium look").
+                .edgeFade()
                 if !rows.isEmpty { divider }
             }
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
@@ -77,6 +92,32 @@ struct InfoCard: View {
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .frame(minHeight: Self.line)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// The quiet row: smaller, lighter, centred.
+    private func chipRow(_ chips: [Fact]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
+                if index > 0 {
+                    Rectangle().fill(hairline)
+                        .frame(width: GridConstants.strokeThin, height: 16)
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: chip.icon)
+                        .font(Typography.headerSmall.weight(.light))
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .accessibilityHidden(true)
+                    Text(chip.text)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .monospacedDigit()
+                        .fixedSize()
+                }
+                .padding(.horizontal, GridConstants.gapItem)
+                .frame(minHeight: 36)
                 .accessibilityElement(children: .combine)
             }
         }

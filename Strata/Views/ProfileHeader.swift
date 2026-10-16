@@ -110,40 +110,38 @@ struct ProfileTop: View {
     /// **The banner, the head over its foot, the name and a line** (the
     /// owner's sketch, 2026-10-16): the head stands across the banner's
     /// lower edge on a ring of the page, so it reads as in front of it.
+    /// **One card: the banner, the head over its foot, the name and the
+    /// facts** (the owner, 2026-10-16: "maybe combining the banner, pfp and
+    /// the profile stats into one clean container"). The card is a form row's
+    /// surface with the hairline; the photographs sit inside it at the same
+    /// distance from every edge, their corners concentric with the card's.
+    /// The whole card opens your profile.
     private func bannered(_ banner: [BannerPicture]) -> some View {
-        VStack(spacing: GridConstants.gapTight) {
-            pressable(onPerson, hint: personHint) {
-                VStack(spacing: GridConstants.gapTight) {
-                    ZStack(alignment: .bottom) {
-                        ProfileBanner(pictures: banner)
-                            .padding(.bottom, Self.headSide / 2)
-                        PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
-                            .padding(4)
-                            .background(Circle().fill(WarmBackground.top))
-                    }
-                    Text(name)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
-                        .lineLimit(1)
-                    if !chips.isEmpty {
-                        // **Organised, not a sentence** (the owner,
-                        // 2026-10-16: "looks a bit lacking, I would prefer it
-                        // more the Hinge aesthetic"): icon facts with
-                        // hairlines between, on their card.
-                        InfoCard(chips: chips, contained: true)
-                            .padding(.top, GridConstants.gapTight)
-                    }
+        let inset = GridConstants.radiusSurface - GridConstants.cornerRadius
+        let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+        return pressable(onPerson, hint: personHint) {
+            VStack(spacing: GridConstants.gapTight) {
+                ZStack(alignment: .bottom) {
+                    ProfileBanner(pictures: banner)
+                        .padding(.bottom, Self.headSide / 2)
+                    PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
+                        .padding(4)
+                        .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground)))
+                }
+                Text(name)
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
+                    .lineLimit(1)
+                if !chips.isEmpty {
+                    InfoCard(chips: chips, quiet: true)
                 }
             }
-            .accessibilityLabel(([name] + chips.map(\.text) + [personHint]).filter { !$0.isEmpty }.joined(separator: ", "))
-            if !figures.isEmpty {
-                pressable(onFigures, hint: figuresHint) {
-                    self.figuresLine
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
-                }
-            }
+            .padding([.horizontal, .top], inset)
+            .padding(.bottom, GridConstants.gapItem)
+            .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
+            .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.06), lineWidth: GridConstants.strokeThin))
         }
+        .accessibilityLabel(([name] + chips.map(\.text) + [personHint]).filter { !$0.isEmpty }.joined(separator: ", "))
         .padding(.top, GridConstants.gapTight)
         .frame(maxWidth: .infinity)
     }
