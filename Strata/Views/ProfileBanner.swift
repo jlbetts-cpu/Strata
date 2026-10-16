@@ -56,21 +56,44 @@ struct ProfileBanner: View {
         GeometryReader { geo in
             let cell = Self.cell(for: geo.size.width)
             ZStack(alignment: .topLeading) {
-                ForEach(Array(Self.slots.enumerated()), id: \.offset) { index, slot in
-                    let f = GridConstants.blockFrame(column: slot.column, row: slot.row,
-                                                     columnSpan: slot.columns, rowSpan: slot.rows, cellSize: cell)
-                    Group {
-                        if index < pictures.count {
-                            tile(pictures[index], f.width, f.height)
-                        } else {
+                // **The empty slots, fading upward as the tower's lattice
+                // does** (the owner, 2026-10-16: "the empty lattice has to
+                // fade on the top like it does on the tower ... it should blend
+                // in better with the back"). One layer for all of them, under
+                // one fade, so the fade runs across the banner and not slot by
+                // slot.
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(Self.slots.enumerated()), id: \.offset) { index, slot in
+                        if index >= pictures.count {
+                            let f = frame(slot, cell)
                             panes(columns: slot.columns, rows: slot.rows, cell: cell)
+                                .frame(width: f.width, height: f.height)
+                                .offset(x: f.minX, y: f.minY)
                         }
                     }
-                    .frame(width: f.width, height: f.height)
-                    .offset(x: f.minX, y: f.minY)
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                .mask {
+                    LinearGradient(stops: [.init(color: .clear, location: 0),
+                                           .init(color: .black.opacity(0.55), location: 0.5),
+                                           .init(color: .black, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+                ForEach(Array(Self.slots.enumerated()), id: \.offset) { index, slot in
+                    if index < pictures.count {
+                        let f = frame(slot, cell)
+                        tile(pictures[index], f.width, f.height)
+                            .frame(width: f.width, height: f.height)
+                            .offset(x: f.minX, y: f.minY)
+                    }
                 }
             }
         }
+    }
+
+    private func frame(_ slot: (column: Int, row: Int, columns: Int, rows: Int), _ cell: CGFloat) -> CGRect {
+        GridConstants.blockFrame(column: slot.column, row: slot.row,
+                                 columnSpan: slot.columns, rowSpan: slot.rows, cellSize: cell)
     }
 
     /// The lattice's empty cells, one pane a cell, as the tower draws them.

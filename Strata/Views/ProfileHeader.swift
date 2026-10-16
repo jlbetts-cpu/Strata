@@ -117,8 +117,7 @@ struct ProfileTop: View {
     /// distance from every edge, their corners concentric with the card's.
     /// The whole card opens your profile.
     private func bannered(_ banner: [BannerPicture]) -> some View {
-        let inset = GridConstants.radiusSurface - GridConstants.cornerRadius
-        let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+        let inset = PageCard.inset
         return pressable(onPerson, hint: personHint) {
             VStack(spacing: GridConstants.gapTight) {
                 ZStack(alignment: .bottom) {
@@ -138,8 +137,7 @@ struct ProfileTop: View {
             }
             .padding([.horizontal, .top], inset)
             .padding(.bottom, GridConstants.gapItem)
-            .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
-            .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.06), lineWidth: GridConstants.strokeThin))
+            .pageCard()
         }
         .accessibilityLabel(([name] + chips.map(\.text) + [personHint]).filter { !$0.isEmpty }.joined(separator: ", "))
         .padding(.top, GridConstants.gapTight)

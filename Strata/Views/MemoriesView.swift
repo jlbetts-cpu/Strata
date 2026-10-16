@@ -802,16 +802,6 @@ struct MemoriesView: View {
                 }
             }
             }
-            MonthPicker(
-                title: vm.monthTitle,
-                months: vm.availableMonths,
-                titleFor: { vm.title(for: $0) },
-                onSelect: { month in
-                    withAnimation(GridConstants.crossFade) {
-                        vm.select(month: month, context: modelContext)
-                    }
-                }
-            )
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.gapItem)
@@ -1019,8 +1009,9 @@ struct MemoriesView: View {
         return vm.gallery.filter { $0.id == key }
     }
 
+    /// Inside the calendar's card (2026-10-16), so its cells stay square.
     private var monthGridWidth: CGFloat {
-        UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
+        UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2 - PageCard.inset * 2
     }
 
     private var monthCell: CGFloat {
@@ -1055,7 +1046,31 @@ struct MemoriesView: View {
     /// the place collection for the same shape of reason: content that is less
     /// than a screenful is not a composition failure.
     @ViewBuilder
+    /// **The calendar on its card, the month chosen at its top** (the
+    /// owner, 2026-10-16: "the calendar should be in a container too, I
+    /// think that's what looks off", and "the month selector should be in the
+    /// calendar container"). The same card as the profile's above it.
     private var monthTower: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            MonthPicker(
+                title: vm.monthTitle,
+                months: vm.availableMonths,
+                titleFor: { vm.title(for: $0) },
+                onSelect: { month in
+                    withAnimation(GridConstants.crossFade) {
+                        vm.select(month: month, context: modelContext)
+                    }
+                }
+            )
+            calendarGrid
+        }
+        .padding(PageCard.inset)
+        .pageCard()
+        .padding(.horizontal, GridConstants.horizontalPadding)
+    }
+
+    @ViewBuilder
+    private var calendarGrid: some View {
         do {
             // **AN EMPTY MONTH IS STILL A MONTH, SO IT IS STILL THE CALENDAR.**
             //
@@ -1096,12 +1111,6 @@ struct MemoriesView: View {
                 written: journalHidden ? [] : vm.writtenDays
             )
             .frame(maxWidth: .infinity, alignment: .center)
-            // **Air, and the owner asked for it by name**: "make the white
-            // space a big part of the designs." The calendar used to start a
-            // `gapTight` under the picker, which on a fixed band reads as the
-            // control sitting ON the grid rather than above it. A full `gapWide`
-            // separates the thing that chooses from the thing it chose.
-            .padding(.top, GridConstants.gapWide)
             // The month is REPLACED, not moved, so it cross-fades. A spring
             // would claim the blocks travelled somewhere.
             //
