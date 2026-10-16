@@ -220,7 +220,7 @@ struct MemoriesView: View {
                         // spacing between the different containers is
                         // slightly too far").
                         monthTower
-                            .padding(.top, GridConstants.gapLabel)
+                            .padding(.top, PageCard.gap)
                     }
 
                     // Under the fold: the photos are a scroll away, their
@@ -237,7 +237,7 @@ struct MemoriesView: View {
                         // (`Album.monthShelf`): under the count, so the fold
                         // and the first screen are exactly as they were.
                         MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
-                                      topGap: GridConstants.gapLabel,
+                                      topGap: PageCard.gap,
                                       onRemove: { album, never in remove(album, never: never) })
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
@@ -255,7 +255,7 @@ struct MemoriesView: View {
                                         viewing = ViewedPhoto(id: id, title: photos.first { $0.fileName == id }?.title)
                                     }
                                     .padding(.horizontal, GridConstants.horizontalPadding)
-                                    .padding(.top, GridConstants.gapLabel)
+                                    .padding(.top, PageCard.gap)
                                 }
                             }
                         }

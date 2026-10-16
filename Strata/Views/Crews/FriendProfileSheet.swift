@@ -209,7 +209,7 @@ struct FriendProfileSheet: View {
     private func page(today: [SharedWin], colW: CGFloat, viewport: CGFloat) -> some View {
         let width = colW * CGFloat(columns) + spacing * CGFloat(columns - 1)
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: GridConstants.gapLabel) {
+            VStack(spacing: PageCard.gap) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
                            figures: [],
                            // This month's, by the rule yours keeps.

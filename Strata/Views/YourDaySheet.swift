@@ -99,7 +99,7 @@ struct YourDaySheet: View {
             }
             .listSectionSeparator(.hidden)
             // Cards closer, as everywhere (2026-10-16).
-            .listSectionSpacing(GridConstants.gapLabel)
+            .listSectionSpacing(PageCard.gap)
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(WarmBackground().ignoresSafeArea())

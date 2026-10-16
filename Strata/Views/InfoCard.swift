@@ -159,4 +159,10 @@ extension View {
 /// of the tiles inside it, so their corners run concentric.
 enum PageCard {
     static let inset: CGFloat = GridConstants.radiusSurface - GridConstants.cornerRadius
+    /// **Between one card and the next, everywhere** (the owner, 2026-10-16:
+    /// "I liked the spacing between containers in Memories before ... the
+    /// profile and everything has to feel consistent with Memories and vice
+    /// versa"): Memories' own 32, on Memories, Profile, a friend's profile
+    /// and Your day.
+    static let gap: CGFloat = GridConstants.gapSection
 }

@@ -74,7 +74,7 @@ struct MemoriesShelf: View {
     /// 2.3 cards show, so the third still peeks and says the row scrolls.
     /// (132 was turned down once as too loud, when the shelf stood under the
     /// calendar with nothing to be measured against.)
-    static let albumWidth: CGFloat = 152
+    static let albumWidth: CGFloat = 132
 
     /// Hold a card: take it off the shelf. `never` is every album of its
     /// kind. Nil where a shelf is only for looking.
@@ -100,7 +100,7 @@ struct MemoriesShelf: View {
     var body: some View {
         if !albums.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
+                VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                     // **ONE ROW, AND IT WAS THREE.** Months ran at 132pt,
                     // weeks at 96 on a second row under them, and the albums
                     // carousel at a third size under that: three horizontal
@@ -110,10 +110,22 @@ struct MemoriesShelf: View {
                     // nothing on it was the same size as anything else.
                     //
                     // The width, and why it is 108, is on `albumWidth`.
+                    // **On a card like the rest** (the owner, 2026-10-16: "the
+                    // albums need to be redesigned to fit with the rest"): the
+                    // title inside, the covers inside, scrolling within it.
+                    Text("Albums")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .padding(.horizontal, PageCard.inset)
+                        .accessibilityAddTraits(.isHeader)
                     row(width: Self.albumWidth)
                         .id("MemoriesReplays")
                 }
             }
+            .padding(.vertical, PageCard.inset)
+            .pageCard()
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
+            .padding(.horizontal, GridConstants.horizontalPadding)
             // The break the heading used to carry, now on the band itself. See
             // the note on `body`.
             .padding(.top, topGap)
@@ -150,7 +162,7 @@ struct MemoriesShelf: View {
                         HapticsEngine.lightTap()
                         onOpenAlbum(album.route)
                     } label: {
-                        AlbumCard(album: album, width: width)
+                        AlbumCard(album: album, width: width, coverRadius: GridConstants.cornerRadius)
                     }
                     .buttonStyle(.pressSurface)
                     // **Hold: take it off the shelf** (rule 2, `docs/ten.md`:
@@ -173,7 +185,7 @@ struct MemoriesShelf: View {
                 }
             }
             .scrollTargetLayout()
-            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.horizontal, PageCard.inset)
         }
         .edgeFade()
         .scrollTargetBehavior(.viewAligned)

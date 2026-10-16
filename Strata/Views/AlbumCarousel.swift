@@ -21,10 +21,11 @@ import SwiftUI
 struct AlbumCard: View {
     let album: Album
     let width: CGFloat
+    var coverRadius: CGFloat? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            AlbumCoverView(photoFileNames: album.photoFileNames, side: width)
+            AlbumCoverView(photoFileNames: album.photoFileNames, side: width, cornerRadius: coverRadius)
             // **A card's name is a caption, not a header.**
             //
             // This was `headerLarge` — the `.title3` a SCREEN uses to name

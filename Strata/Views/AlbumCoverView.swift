@@ -38,13 +38,15 @@ struct AlbumCoverView: View {
     /// `Album.carousel`, so this draws what it is given.
     let photoFileNames: [String]
     let side: CGFloat
+    /// The corner, where a card holds it: concentric with the card's.
+    var cornerRadius: CGFloat? = nil
 
     /// A block's proportions. Square, because every block in Strata is square
     /// or wider, and at the block's own radius ratio so it scales like one.
     static let aspect: CGFloat = 1.0
 
     private var height: CGFloat { side / Self.aspect }
-    private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: side) }
+    private var radius: CGFloat { cornerRadius ?? GridConstants.blockCornerRadius(forCell: side) }
 
     var body: some View {
         ZStack {

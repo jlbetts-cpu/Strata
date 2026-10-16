@@ -393,7 +393,7 @@ struct YourScoreSheet: View {
         }
         // Cards closer (the owner, 2026-10-16: "the spacing between the
         // different containers is slightly too far").
-        .listSectionSpacing(GridConstants.gapLabel)
+        .listSectionSpacing(PageCard.gap)
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)
