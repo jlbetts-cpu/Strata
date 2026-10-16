@@ -189,6 +189,14 @@ extension CrewMessage {
     nonisolated var isPicture: Bool { sketch != nil && Self.words(after: Self.pictureMarker, in: text) != nil }
     /// The line under a picture, or nothing.
     nonisolated var caption: String { Self.words(after: Self.pictureMarker, in: text) ?? "" }
+    /// What a sticker's line says where nothing draws it as a picture.
+    nonisolated static let stickerWord = "Sticker"
+    /// **A sticker, and only a sticker** (2026-10-15): a picture captioned
+    /// "Sticker". A picture with no words is a photograph sent from the
+    /// chat's + (Send a Photo); before that, four places each guessed that
+    /// an uncaptioned picture was a sticker. A chat lasts a day, so no line
+    /// from before reads differently for long.
+    nonisolated var isSticker: Bool { isPicture && caption == Self.stickerWord }
     /// The words a person wrote, for a line that is only words.
     nonisolated var isPlainWords: Bool {
         sketch == nil && Self.words(after: Self.planMarker, in: text) == nil

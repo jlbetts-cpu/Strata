@@ -310,9 +310,14 @@ struct GroupPlanTests {
     /// the research's row Win, Plan, Sticker, Strip). Memory came off the row
     /// and was his 2026-10-12 pick, so this pin moved with his word; its sheet
     /// stays, so the two checks on it stay.
-    @Test("the row is four, in the research's order, and nothing in the chat posts by itself")
+    ///
+    /// **Five since 2026-10-15**: the row became a menu (`ChatPlusMenu`), so
+    /// the four-across limit of the smallest phone no longer binds, and Photo
+    /// went in second for the owner's "has all the components needed to be a
+    /// successful chat". Memory stays off.
+    @Test("the menu is five, Photo second, and nothing in the chat posts by itself")
     func theRow() throws {
-        #expect(ChatPlusRow.Choice.offered.map(\.word) == ["Win", "Plan", "Sticker", "Strip"])
+        #expect(ChatPlusRow.Choice.offered.map(\.word) == ["Win", "Photo", "Plan", "Sticker", "Strip"])
         #expect(!ChatPlusRow.Choice.offered.contains(.memory), "Memory is back on the row")
         #expect(ChatPlusRow.Choice.win.symbol != "plus.app", "a plus inside the plus menu")
         #expect(ChatPlusRow.Choice.doodle.symbol == "scribble" && ChatPlusRow.Choice.doodle.word == "Doodle")

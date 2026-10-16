@@ -54,9 +54,9 @@ nonisolated enum CrewActivity: Equatable {
             if let plan = line.groupPlan { return "\(who) planned \(plan.title)" }
             if line.isPicture {
                 let caption = line.caption.trimmingCharacters(in: .whitespacesAndNewlines)
-                // A sticker is a picture captioned "Sticker" (`sendSticker`),
-                // or none: it said "Sam: Sticker" (walked, 2026-10-15).
-                return caption.isEmpty || caption == SocialStore.stickerWord ? "\(who) sent a sticker" : "\(who): \(caption)"
+                // `isSticker`: it said "Sam: Sticker" (walked, 2026-10-15).
+                if line.isSticker { return "\(who) sent a sticker" }
+                return caption.isEmpty ? "\(who) sent a photo" : "\(who): \(caption)"
             }
             if line.sketch != nil { return "\(who) sent a doodle" }
             let words = line.text.trimmingCharacters(in: .whitespacesAndNewlines)

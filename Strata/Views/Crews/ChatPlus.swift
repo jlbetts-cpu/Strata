@@ -18,7 +18,7 @@ import SwiftUI
 /// in what order and in what words, is still decided here.
 enum ChatPlusRow {
     enum Choice: String, CaseIterable, Identifiable {
-        case win, plan, sticker, strip
+        case win, photo, plan, sticker, strip
         /// **Sticker's place for someone who may not send photos**: a
         /// sticker is lifted out of a photograph, so their row says what it
         /// opens, the doodle pad, rather than "Sticker" opening it.
@@ -35,7 +35,11 @@ enum ChatPlusRow {
         /// **The row, in this order**: what you did, making plans, the quick
         /// reply, then the once-a-day thing (Sticker moved ahead of Strip:
         /// a sticker can go every day and a strip once).
-        static let offered: [Choice] = [.win, .plan, .sticker, .strip]
+        ///
+        /// **Photo, second** (2026-10-15, the owner: "has all the components
+        /// needed to be a successful chat"): every chat people use leads its
+        /// + with a photo, and this one had no way to send one.
+        static let offered: [Choice] = [.win, .photo, .plan, .sticker, .strip]
         /// Strip is photographs, and so is a sticker: not offered to
         /// someone who may not send one.
         static let withoutPhotos: [Choice] = [.win, .plan, .doodle]
@@ -43,6 +47,7 @@ enum ChatPlusRow {
         var word: String {
             switch self {
             case .win: "Win"
+            case .photo: "Photo"
             case .plan: "Plan"
             case .sticker: "Sticker"
             case .strip: "Strip"
@@ -58,6 +63,7 @@ enum ChatPlusRow {
         var symbol: String {
             switch self {
             case .win: "square.stack.3d.up"
+            case .photo: "photo"
             case .plan: "checklist"
             case .sticker: ""
             case .strip: "film"
@@ -70,6 +76,7 @@ enum ChatPlusRow {
         var menuWord: String {
             switch self {
             case .win: "Add a Win"
+            case .photo: "Send a Photo"
             case .plan: "Make a Plan"
             case .sticker: "Send a Sticker"
             case .strip: "Send Today's Strip"
@@ -81,6 +88,7 @@ enum ChatPlusRow {
         var spoken: String {
             switch self {
             case .win: "Add a win to this crew"
+            case .photo: "Send a photo"
             case .plan: "Plan something with this crew"
             case .sticker: "Send a sticker or a doodle"
             case .strip: "Send today's photo strip"
@@ -437,6 +445,8 @@ struct ChatPicture: View {
     let url: URL
     let caption: String
     let mine: Bool
+    /// A sticker is its own cut-out shape; a photograph is rounded.
+    var sticker = false
 
     static let side: CGFloat = 160
 
@@ -449,7 +459,7 @@ struct ChatPicture: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: caption.isEmpty ? 0 : GridConstants.radiusSurface, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: sticker ? 0 : GridConstants.radiusSurface, style: .continuous))
                 } else {
                     // **A quiet fill at the picture's place while it loads**
                     // (the chat research, 2026-10-15, item 3): an empty

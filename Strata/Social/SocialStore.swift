@@ -1259,7 +1259,7 @@ final class SocialStore {
     }
 
     /// What a sticker's line says where nothing draws it as a picture.
-    static let stickerWord = "Sticker"
+    static let stickerWord = CrewMessage.stickerWord
 
     /// **A sticker in the chat**, drawn as the picture it is
     /// (`CrewMessage.pictureMarker`). Checked and paced as a doodle is.

@@ -1,4 +1,5 @@
 import SwiftData
+import PhotosUI
 import SwiftUI
 
 /// **Today's crew chat** (the owner, 2026-10-05).
@@ -102,6 +103,8 @@ struct CrewChatSheet: View {
     /// A friend's profile, from their face (`FriendProfileSheet`).
     @State private var profileOf: CrewMember?
     /// What the + menu's things open (`ChatPlusMenu`).
+    @State private var pickingPhoto = false
+    @State private var pickedPhoto: PhotosPickerItem?
     @State private var planning = false
     @State private var choosingSticker = false
     @State private var makingSticker = false
@@ -228,6 +231,18 @@ struct CrewChatSheet: View {
                     guard !presenting, returnToChat else { return }
                     returnToChat = false
                     reopen?()
+                }
+            }
+            // **Send a Photo**: from the library, shrunk as every crew photo
+            // is, through the same photo check (`sendPicture`).
+            .photosPicker(isPresented: $pickingPhoto, selection: $pickedPhoto, matching: .images)
+            .onChange(of: pickedPhoto) { _, item in
+                guard let item else { return }
+                pickedPhoto = nil
+                Task {
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let jpeg = ShareDerivative.jpeg(from: data) else { return }
+                    answer(await store.sendPicture(jpeg, caption: "", in: crewID))
                 }
             }
             .sheet(item: $profileOf) { member in
@@ -1105,7 +1120,8 @@ struct CrewChatSheet: View {
     private func gist(_ line: CrewMessage) -> String {
         if line.isStrip { return "a photo strip" }
         if let plan = line.groupPlan { return plan.title }
-        if line.isPicture { return line.caption == SocialStore.stickerWord || line.caption.isEmpty ? "a sticker" : line.caption }
+        if line.isSticker { return "a sticker" }
+        if line.isPicture { return line.caption.isEmpty ? "a photo" : line.caption }
         if line.text.isEmpty { return "a doodle" }
         return line.text
     }
@@ -1117,7 +1133,8 @@ struct CrewChatSheet: View {
         } else if let plan = message.groupPlan {
             planCard(plan, pinned: false)
         } else if message.isPicture, let picture = message.sketch {
-            ChatPicture(url: picture, caption: message.caption == SocialStore.stickerWord ? "" : message.caption, mine: mine)
+            ChatPicture(url: picture, caption: message.isSticker ? "" : message.caption, mine: mine,
+                        sticker: message.isSticker)
         } else if let quote, let photo = winPhoto(message, mine: mine) {
             // **A win said in the chat, with its photo**: the picture, and
             // its title under it with the quote's mark. No sentence: the win
@@ -1229,7 +1246,7 @@ struct CrewChatSheet: View {
             return parts.joined(separator: ", ")
         }
         if message.isPicture {
-            parts.append(message.caption == SocialStore.stickerWord || message.caption.isEmpty ? "a sticker" : "a photo, \(message.caption)")
+            parts.append(message.isSticker ? "a sticker" : message.caption.isEmpty ? "a photo" : "a photo, \(message.caption)")
             return parts.joined(separator: ", ")
         }
         if message.sketch != nil { parts.append("a doodle") }
@@ -1462,6 +1479,7 @@ struct CrewChatSheet: View {
         switch choice {
         // Over the chat, which stays open: the win lands here as a line.
         case .win: addingWin = true
+        case .photo: pickingPhoto = true
         case .plan: planning = true
         case .strip: showsStrip = true
         case .doodle: doodling = true

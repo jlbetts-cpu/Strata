@@ -35,7 +35,9 @@ struct ChatRestBar: View {
         #if DEBUG
         let _ = PerfProbe.count("ChatRestBar")
         #endif
-        let unread = store.unreadChats.contains(crewID)
+        // Not when the newest line is yours: you have seen what came before
+        // it, and the dot stood alone on the left beside your own bubble.
+        let unread = store.unreadChats.contains(crewID) && store.messages(in: crewID).last?.senderProfileID != store.me
         VStack(spacing: GridConstants.gapTight) {
             Capsule()
                 .fill(AppColors.inkTertiary.opacity(0.5))
@@ -496,7 +498,7 @@ private struct RestLine: View {
     private static let stickerSide: CGFloat = 34
 
     private var isSticker: Bool {
-        line.isPicture && (line.caption == SocialStore.stickerWord || line.caption.isEmpty)
+        line.isSticker
     }
 
     var body: some View {
