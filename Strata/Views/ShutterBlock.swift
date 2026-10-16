@@ -60,14 +60,27 @@ struct ShutterBlock: View {
 
     /// The hit shape, so a caller can hand it to `contentShape` and to its own
     /// gesture without rebuilding the corner a third time.
+    @ViewBuilder
+    private var rim: some View {
+        if #available(iOS 26.0, *) {
+            Color.clear.glassEffect(.regular, in: shape)
+        } else {
+            shape.fill(.ultraThinMaterial)
+        }
+    }
+
     var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
     }
 
     var body: some View {
         ZStack {
-            shape
-                .strokeBorder(.white, lineWidth: 1)
+            // **A rim of glass, no line** (the owner, 2026-10-16, after
+            // Apple's own shutter: "I want that outer rim behind the box to be
+            // liquid glass, and remove the line on the outside"). The glass
+            // fills the outer shape behind the block; the white hairline that
+            // drew its edge is gone.
+            rim
                 .frame(width: bounds.width, height: bounds.height)
 
             // ONE block, in the shape you are drawing.

@@ -239,6 +239,14 @@ struct CameraTabBarSkin: View {
             let origin = geo.frame(in: .global).origin
             if let bar {
                 ZStack(alignment: .topLeading) {
+                    // **Black under it, to the foot of the screen** (the owner,
+                    // 2026-10-16: "make that background black, not white, on
+                    // the camera"): drawn here with the bar, so the real bar's
+                    // ground never changes and leaving never lags.
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: geo.size.width + 2, height: geo.size.height - (bar.minY - origin.y) + 40)
+                        .offset(x: -1, y: bar.minY - origin.y - 40)
                     Capsule()
                         .fill(Color(white: 0.1))
                         .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: GridConstants.strokeThin))
