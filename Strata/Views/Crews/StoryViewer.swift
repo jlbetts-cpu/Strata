@@ -81,7 +81,11 @@ struct StoryViewer: View {
             }
             .allowsHitTesting(false)
         }
-        .background { WarmBackground().ignoresSafeArea() }
+        // **Black all round, as the camera is** (the owner, 2026-10-16: "for
+        // the story I think the bottom should be black like it is in the
+        // camera"): the reply bar and the end page in their dark appearance.
+        .background { Color.black.ignoresSafeArea() }
+        .environment(\.colorScheme, .dark)
         .offset(y: drop)
         .scaleEffect(1 - min(drop, 400) / 4000, anchor: .top)
         // **Down to close**, as Photos and every story closes (`OneWayPan`:
@@ -101,6 +105,8 @@ struct StoryViewer: View {
                     openedNight = Self.night(of: people) ?? ""
                     withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.4)) { opening = false }
                 }
+                // Dark, as the story it opens is.
+                .environment(\.colorScheme, .dark)
                 .transition(.opacity)
             }
         }
@@ -742,7 +748,7 @@ private struct StoryOpening: View {
             }
             .allowsHitTesting(false)
         }
-        .background { WarmBackground().ignoresSafeArea() }
+        .background { Color.black.ignoresSafeArea() }
         .task {
             for i in 0..<shownCount {
                 // Quicker the more there are, so fifteen land in about two seconds.
