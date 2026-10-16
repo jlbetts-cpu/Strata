@@ -165,6 +165,11 @@ struct GoalRingStroke: View {
     let wins: Int
     let goal: Int
     var line: CGFloat = 4
+    /// **One segment after another**, this far apart, after `delay`: how a
+    /// story's ring inks itself at 8pm, like a ring closing (Tonight's
+    /// Story). Zero, as on Wins, and every segment moves at once.
+    var stagger: Double = 0
+    var delay: Double = 0
     /// Half the space between two segments, as a share of the ring.
     private static let gap = 0.018
 
@@ -181,9 +186,9 @@ struct GoalRingStroke: View {
                     .stroke(i < wins ? AppColors.inkPrimary : AppColors.inkPrimary.opacity(0.08),
                             style: StrokeStyle(lineWidth: line, lineCap: .round))
                     .rotationEffect(.degrees(-90))
+                    .animation(GridConstants.cueIn.delay(delay + Double(i) * stagger), value: i < wins)
             }
         }
-        .animation(GridConstants.cueIn, value: wins)
         .accessibilityHidden(true)
     }
 

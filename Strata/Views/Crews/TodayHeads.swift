@@ -20,6 +20,29 @@ struct TodayHeads: View {
     /// lights at 8pm and a preview goes at 9am with nothing else changing
     /// (the review, 2026-10-15).
     @State private var minute = 0
+    /// **The 8pm unlock, once a night** (the owner, 2026-10-16: "make the 8pm
+    /// unlock truly special ... something people genuinely look forward to").
+    /// Research: a fixed time with the content unknown is what builds the
+    /// wait (Fiorillo et al. 2003; Loewenstein 1987), and a ritual you take
+    /// part in makes what follows better (Vohs et al. 2013). So at 8:00, or
+    /// on the first look after, the faint rings hold a beat, ink themselves
+    /// segment by segment down the row, and each head develops into its
+    /// photograph; one soft tick; never again that night.
+    @AppStorage("crews.storyUnlockNight") private var unlockedNight = ""
+    @State private var unlockTick = 0
+    /// Tonight, while its unlock has not played on this phone: the rings stay
+    /// faint and the heads stay heads. Read from what is stored, so the very
+    /// first frame of the row is already the faint one.
+    private var unveiling: Bool {
+        guard let night = Self.night(store.storyPeople()) else { return false }
+        return unlockedNight != night
+    }
+
+    /// The night tonight's open stories belong to, if any are open.
+    static func night(_ stories: [StoryPerson]) -> String? {
+        stories.first { $0.phase == .open }?.stories.first?.day
+    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     struct Watching: Identifiable {
         let people: [StoryPerson]
@@ -92,6 +115,7 @@ struct TodayHeads: View {
         let people = Self.people(store: store, stories: stories)
         let byPerson = Dictionary(uniqueKeysWithValues: stories.map { ($0.profileID, $0) })
         let open = stories.filter { $0.phase == .open }
+        let night = Self.night(stories)
         let mine = store.myStory
         if !store.crews.isEmpty {
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
@@ -100,7 +124,10 @@ struct TodayHeads: View {
                         // **Your Story first**, as yours is in every story
                         // row; it opens any time, as it will look at 8pm.
                         if !mine.isEmpty { yourStory(mine) }
-                        ForEach(people) { person in face(person, story: byPerson[person.id], open: open) }
+                        ForEach(people) { person in
+                            face(person, story: byPerson[person.id], open: open,
+                                 order: open.firstIndex { $0.profileID == person.id } ?? 0)
+                        }
                         // Invited from outside the app and not yet in.
                         ForEach(InvitedPeople.shared.waiting(in: store.crews)) { person in
                             InvitedHead(person: person, side: Self.side, inset: Self.inset)
@@ -125,6 +152,29 @@ struct TodayHeads: View {
                     minute &+= 1
                 }
             }
+            .task(id: night) {
+                guard let night, unlockedNight != night else { return }
+                // A beat in the faint state, then the rings close.
+                var hold = 0.45
+                #if DEBUG
+                if let seconds = DebugHarness.argument("-strataReplayUnlock").flatMap(Double.init) { hold = max(hold, seconds) }
+                #endif
+                try? await Task.sleep(for: .seconds(hold))
+                guard !Task.isCancelled else { return }
+                // Each segment and each picture keeps its own timing
+                // (`GoalRingStroke.stagger`, `storyCrest`'s develop); this
+                // only says the change is one to be seen.
+                withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.6)) {
+                    unlockedNight = night
+                }
+                unlockTick &+= 1
+            }
+            #if DEBUG
+            // `-strataReplayUnlock <seconds>`: the unlock plays on every launch,
+            // after holding that long, to be filmed.
+            .onAppear { if DebugHarness.argument("-strataReplayUnlock") != nil { unlockedNight = "" } }
+            #endif
+            .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: unlockTick)
             .fullScreenCover(item: $watching) { watching in
                 StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil })
             }
@@ -182,10 +232,10 @@ struct TodayHeads: View {
         .accessibilityHint(crew.map { "Shares an invitation to \($0.displayName(excluding: store.me))." } ?? "")
     }
 
-    private func face(_ person: Person, story: StoryPerson?, open: [StoryPerson]) -> some View {
+    private func face(_ person: Person, story: StoryPerson?, open: [StoryPerson], order: Int) -> some View {
         let logged = person.newest != nil
         let name = person.member.shortName.isEmpty ? "A friend" : person.member.shortName
-        let showing = story?.phase == .open
+        let showing = story?.phase == .open && !unveiling
         return Button {
             // **Their story, from 8pm** (the owner, 2026-10-15: Snapchat
             // style, the head becomes a preview); otherwise **their profile**
@@ -201,13 +251,7 @@ struct TodayHeads: View {
                         // 2026-10-16: "treat the story icons as the liquid
                         // glass ring in wins, with the pic in the middle and
                         // the number of notches the number of win stories").
-                        StoryCrest(story: story, side: Self.side + Self.inset * 2, seen: store.storiesSeen) {
-                            if showing {
-                                StoryBubble(story: story, side: Self.storyFace)
-                            } else {
-                                PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.storyFace)
-                            }
-                        }
+                        storyCrest(person, story: story, showing: showing, order: order)
                     } else {
                         PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
                             .padding(.horizontal, Self.inset)
@@ -235,24 +279,36 @@ struct TodayHeads: View {
         // hold for view profile the whole bar highlights when it should just
         // be that profile"): the system's lift took the row's whole scroll
         // with it, so the preview is drawn here, the head and the name.
-        .applying(showing) { view in
-            view.contextMenu {
-                Button { profile = person } label: { Label("View Profile", systemImage: "person.crop.circle") }
-            } preview: {
-                VStack(spacing: GridConstants.gapTight) {
-                    PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: 96)
-                    Text(name)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkPrimary)
-                }
-                .padding(GridConstants.gapWide)
-                .background(WarmBackground.top)
+        // On every head, always: attached only while a story showed, it
+        // swapped the head for a new view the moment the story opened, and
+        // the 8pm unlock lost its timing with it.
+        .contextMenu {
+            Button { profile = person } label: { Label("View Profile", systemImage: "person.crop.circle") }
+        } preview: {
+            VStack(spacing: GridConstants.gapTight) {
+                PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: 96)
+                Text(name)
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
             }
+            .padding(GridConstants.gapWide)
+            .background(WarmBackground.top)
         }
         .accessibilityLabel(logged ? "\(name), \(person.wins == 1 ? "1 win" : "\(person.wins) wins") today" : "\(name), no wins yet today")
         .accessibilityValue(showing ? (story?.watched == true ? "Story" : "New story")
                             : story?.phase == .waiting ? "A story tonight" : "")
         .accessibilityHint(showing ? "Opens their story." : "Opens their profile.")
+    }
+
+    /// A friend with a story: the crest, and the head that develops into
+    /// the picture, blurred to sharp, once its ring has closed.
+    private func storyCrest(_ person: Person, story: StoryPerson, showing: Bool, order: Int) -> some View {
+        StoryCrest(story: story, side: Self.side + Self.inset * 2, seen: store.storiesSeen,
+                   held: unveiling, order: order) {
+            PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.storyFace)
+        } picture: {
+            StoryBubble(story: story, side: Self.storyFace)
+        }
     }
 
     /// You, first, with tonight's story: your own preview and a lit ring,
@@ -265,6 +321,8 @@ struct TodayHeads: View {
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: []) {
+                    EmptyView()
+                } picture: {
                     StoryBubble(story: me, side: Self.storyFace)
                 }
                 // Whole, never "Your St...": the one name in the row that is
@@ -295,29 +353,83 @@ enum StoryCrestSize {
     static func face(in side: CGFloat) -> CGFloat { side - 2 * (GoalCrest.faceInset - 2) }
 }
 
-struct StoryCrest<Face: View>: View {
+struct StoryCrest<Head: View, Picture: View>: View {
     let story: StoryPerson
     /// The whole crest, ring and glass: the row's head and its breathing room.
     let side: CGFloat
     let seen: Set<UUID>
-    @ViewBuilder let face: () -> Face
+    /// Held faint a beat before the unlock plays (`TodayHeads.unveiling`).
+    var held = false
+    /// Its place in the row, so the rings close one after another.
+    var order = 0
+    /// Who, while the story waits.
+    @ViewBuilder let head: () -> Head
+    /// Their first photograph, once it is open.
+    @ViewBuilder let picture: () -> Picture
+
+    /// **Its own moment of release**, after the crests before it in the row:
+    /// the ring inks segment by segment, and once it has closed the head
+    /// develops into the picture, blurred to sharp, as a print comes up.
+    @State private var released: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(story: StoryPerson, side: CGFloat, seen: Set<UUID>, held: Bool = false, order: Int = 0,
+         @ViewBuilder head: @escaping () -> Head, @ViewBuilder picture: @escaping () -> Picture) {
+        self.story = story
+        self.side = side
+        self.seen = seen
+        self.held = held
+        self.order = order
+        self.head = head
+        self.picture = picture
+        // Released already unless it is being held: only a held crest waits
+        // for its own turn.
+        _released = State(initialValue: !held)
+    }
+
+    /// A segment this long after the last; a crest this long after the one
+    /// before it.
+    static var segmentBeat: Double { 0.09 }
+    static var crestBeat: Double { 0.16 }
+
+    private var open: Bool { story.phase == .open && released && !held }
 
     private var lit: Int {
-        story.phase == .open ? story.stories.filter { !seen.contains($0.id) }.count : 0
+        guard open else { return 0 }
+        return story.stories.filter { !seen.contains($0.id) }.count
     }
 
     var body: some View {
+        let count = story.stories.count
+        let develop: Animation = reduceMotion ? GridConstants.crossFade
+            : .smooth(duration: 0.7).delay(Double(count) * Self.segmentBeat + 0.1)
+        let change: AnyTransition = reduceMotion ? .opacity : AnyTransition(BlurReplaceTransition(configuration: .downUp))
         ZStack {
-            GoalRingStroke(wins: lit, goal: story.stories.count, line: GoalCrest.line)
+            GoalRingStroke(wins: lit, goal: count, line: GoalCrest.line,
+                           stagger: reduceMotion ? 0 : Self.segmentBeat)
                 .padding(GoalCrest.ringInset - 1)
-            face()
-                .frame(width: StoryCrestSize.face(in: side), height: StoryCrestSize.face(in: side))
-                .clipShape(Circle())
+            ZStack {
+                if open {
+                    picture().transition(change)
+                } else {
+                    head().transition(change)
+                }
+            }
+            .animation(develop, value: open)
+            .frame(width: StoryCrestSize.face(in: side), height: StoryCrestSize.face(in: side))
+            .clipShape(Circle())
         }
         .frame(width: side, height: side)
         .stillGlassCircle()
-        .animation(GridConstants.crossFade, value: lit)
         .accessibilityHidden(true)
+        .onChange(of: held) { _, now in
+            if now { released = false; return }
+            let wait = reduceMotion ? 0 : Double(order) * Self.crestBeat
+            Task {
+                try? await Task.sleep(for: .seconds(wait))
+                released = true
+            }
+        }
     }
 }
 
