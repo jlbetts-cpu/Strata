@@ -302,6 +302,11 @@ struct DaySheet: View {
     @State private var selection: TextSelection?
     @State private var asked: [String] = []
     @State private var thinking = false
+    /// Write My Day at work (`JournalDraft`).
+    @State private var drafting = false
+    /// Whether the day has a win to write from: the button is offered only
+    /// then.
+    @State private var hasWinsToWrite = false
     @FocusState private var writing: Bool
     /// What is being typed in the Journal's bar, before it joins the note.
     @State private var journalDraft = ""
@@ -634,6 +639,7 @@ struct DaySheet: View {
     private func journalShown() async {
         load()
         JournalQuestions.prewarm()
+        hasWinsToWrite = !JournalQuestionContext.winTitles(on: dateString, context: modelContext).isEmpty
         #if DEBUG
         guard !journalHarnessRan else { return }
         journalHarnessRan = true
@@ -688,6 +694,14 @@ struct DaySheet: View {
             // type; still no photographs.
             DayWinNotes(dateString: dateString, shown: $winNotesShown)
             editor
+            // **Write My Day** on an empty page with wins to write from,
+            // where Apple's model is (`JournalDraft`): the entry lands in
+            // the note, yours to change.
+            if isEmpty, hasWinsToWrite, JournalDraft.isAvailable {
+                writeMyDay
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .transition(.opacity)
+            }
             if let question, !isEmpty {
                 questionLine(question)
                     .padding(.horizontal, GridConstants.horizontalPadding)
@@ -742,6 +756,47 @@ struct DaySheet: View {
             .accessibilityLabel("Note")
             .accessibilityHint(isEmpty ? (question ?? "") : "")
             .padding(.horizontal, GridConstants.horizontalPadding - 5)
+    }
+
+    /// One quiet line, as Suggest's question is drawn: the sparkles and the
+    /// words, and the app's loader in their place while it writes.
+    private var writeMyDay: some View {
+        Button { draftDay() } label: {
+            HStack(spacing: GridConstants.gapTight) {
+                if drafting {
+                    WinsLoader(size: 20)
+                } else {
+                    Image(systemName: "sparkles")
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                }
+                Text(drafting ? "Writing your day" : "Write My Day")
+                    .font(Typography.headerMedium)
+            }
+            .foregroundStyle(AppColors.inkSecondary)
+            .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .disabled(drafting)
+        .accessibilityHint("Drafts a short entry from today's wins and photos, on this phone, for you to edit.")
+    }
+
+    private func draftDay() {
+        HapticsEngine.lightTap()
+        withAnimation(motion) { drafting = true }
+        Task {
+            let context = await JournalDraft.context(on: dateString, isToday: isToday, context: modelContext)
+            let entry = await JournalDraft.write(context, using: JournalDraft.drafter)
+            withAnimation(motion) { drafting = false }
+            // Only into a note still empty: a word typed meanwhile is theirs.
+            guard let entry, isEmpty else {
+                if entry == nil { HapticsEngine.warning() }
+                return
+            }
+            withAnimation(motion) { text = entry }
+            selection = TextSelection(insertionPoint: entry.endIndex)
+            writing = true
+        }
     }
 
     /// **The question, faded, under what you wrote.** A tap writes it into

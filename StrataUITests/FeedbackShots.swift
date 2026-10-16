@@ -2085,6 +2085,19 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-swipe still in crew after slot: \(!app.staticTexts["Today"].firstMatch.exists)")
     }
 
+    /// **Write My Day** (2026-10-15): the journal's draft, from the fixed
+    /// answer the simulator uses.
+    func testWriteMyDay() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeSuggestions"])
+        wait(6)
+        app.buttons["Journal"].firstMatch.tap()
+        wait(2.5); snap("draft-0-empty")
+        let write = app.buttons["Write My Day"].firstMatch
+        print("PLANNING-draft button \(write.exists)")
+        if write.exists { write.tap() }
+        wait(3); snap("draft-1-written")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",
