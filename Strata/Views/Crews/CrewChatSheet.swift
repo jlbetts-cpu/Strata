@@ -101,8 +101,7 @@ struct CrewChatSheet: View {
     @State private var newFrom: UUID?
     /// A friend's profile, from their face (`FriendProfileSheet`).
     @State private var profileOf: CrewMember?
-    /// The plus row (`ChatPlusRow`), and what its five things open.
-    @State private var showsPlus = false
+    /// What the + menu's things open (`ChatPlusMenu`).
     @State private var planning = false
     @State private var choosingSticker = false
     @State private var makingSticker = false
@@ -155,8 +154,8 @@ struct CrewChatSheet: View {
     /// Opened by pressing the resting bar's field (`ChatRestBar`): the
     /// keyboard comes up with the thread.
     var startsWriting = false
-    /// Opened by the resting bar's +: the plus row is already out.
-    var startsWithPlus = false
+    /// Chosen from the resting bar's + menu: opened once the chat is up.
+    var startsWith: ChatPlusRow.Choice? = nil
     /// **Part way up, the tower still showing above** (the owner,
     /// 2026-10-14: "it felt like it was taking me to another screen rather
     /// than just popping up enough to see the chat"). A drag takes it to the
@@ -305,14 +304,14 @@ struct CrewChatSheet: View {
     /// its heights and keeps it up; this view brings only its content.
     var native = false
 
-    init(crewID: CrewID, startsWriting: Bool = false, startsWithPlus: Bool = false, visible: Bool = true,
+    init(crewID: CrewID, startsWriting: Bool = false, startsWith: ChatPlusRow.Choice? = nil, visible: Bool = true,
          answeringWin: UUID? = nil, native: Bool = false,
          close: (() -> Void)? = nil, reopen: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.close = close
         self.startsWriting = startsWriting
-        self.startsWithPlus = startsWithPlus
+        self.startsWith = startsWith
         self.visible = visible
         self.answeringWin = answeringWin
         self.native = native
@@ -352,7 +351,7 @@ struct CrewChatSheet: View {
             newFrom = store.firstUnseenMessage(in: crewID)
             store.markChatSeen(crewID)
             if startsWriting { writing = true }
-            if startsWithPlus { showsPlus = true }
+            if let startsWith { afterSheet { open(startsWith) } }
         }
         .onChange(of: messages.map(\.messageID)) { _, _ in if visible { store.markChatSeen(crewID) } }
         // Up: seen, and the plus row or the keyboard as it was asked for,
@@ -363,7 +362,6 @@ struct CrewChatSheet: View {
                 risen()
             } else {
                 writing = false
-                showsPlus = false
                 replyingToWin = nil
             }
         }
@@ -381,11 +379,7 @@ struct CrewChatSheet: View {
             Button("OK", role: .cancel) {}
         }
         .overlay(alignment: .bottom) { dialogs }
-        // Writing folds the plus row, which stands where the keyboard is
-        // about to.
         .onChange(of: writing) { _, now in
-            // On the keys' curve: the row folds as they rise (fix 6).
-            if now, showsPlus { withAnimation(GridConstants.keyboard) { showsPlus = false } }
             drawerWriting(now)
             // The newest line on the field once the keys have landed, never
             // tucked under it.
@@ -505,9 +499,13 @@ struct CrewChatSheet: View {
             store.markChatSeen(crewID)
             snapToNewest += 1
         }
-        // Opened with the row out, it is out; a row already opened by
-        // + on the resting card stays out as the chat rises.
-        if startsWithPlus { showsPlus = true }
+        // Chosen on the resting bar's +: it opens once the chat has landed.
+        if let startsWith {
+            Task { @MainActor in
+                try? await Task.sleep(for: GridConstants.drawerLands)
+                if visible { open(startsWith) }
+            }
+        }
         if let answeringWin { replyingTo = nil; replyingToWin = answeringWin }
         guard startsWriting else { return }
         Task { @MainActor in
@@ -545,6 +543,12 @@ struct CrewChatSheet: View {
                                 ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                                     row(message, after: index > 0 ? messages[index - 1] : nil,
                                         reactions: shownReactions(message, lines: reactions), crew: crew)
+                                        // **The held line alone in focus**, as
+                                        // Messages dims the rest under its menu
+                                        // (2026-10-15: the menu lay over the
+                                        // next bubble at full strength).
+                                        .opacity(menuOn == nil || menuOn == message.messageID ? 1 : 0.25)
+                                        .animation(GridConstants.crossFade, value: menuOn)
                                         .id(message.id)
                                 }
                             }
@@ -1059,10 +1063,7 @@ struct CrewChatSheet: View {
     /// **Reply**: the line quoted above the field, and the field ready.
     private func reply(to message: CrewMessage) {
         HapticsEngine.lightTap()
-        withAnimation(GridConstants.motionSnappy) {
-            replyingTo = message
-            showsPlus = false
-        }
+        withAnimation(GridConstants.motionSnappy) { replyingTo = message }
         writing = true
     }
 
@@ -1242,14 +1243,6 @@ struct CrewChatSheet: View {
     private var composer: some View {
         if store.canReply() {
           VStack(spacing: 0) {
-            if showsPlus {
-                // Strip and a sticker are photographs: not offered to
-                // someone who may not send one. Their third is Doodle.
-                ChatPlusRow(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos) { choice in
-                    choose(choice)
-                }
-                    .transition(.opacity)
-            }
             if let replyingTo {
                 replyQuote(replyingTo)
                     // A fade, so nothing travels against the keys (fix 6).
@@ -1270,12 +1263,10 @@ struct CrewChatSheet: View {
                 .transition(.opacity)
             }
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
-                GlassIconButton(systemName: showsPlus ? "xmark" : "plus", onPage: true,
-                                accessibilityLabel: showsPlus ? "Close" : "More to send") {
-                    writing = false
-                    // At rest the row has no room: the chat rises with it out.
-                    if atRest { reopen?() }
-                    withAnimation(GridConstants.motionSnappy) { showsPlus.toggle() }
+                // Strip and a sticker are photographs: not offered to
+                // someone who may not send one. Their third is Doodle.
+                ChatPlusMenu(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos) { choice in
+                    choose(choice)
                 }
                 // The hint in the resting bar's own ink, so the word does not
                 // change colour as the chat rises (the consistency pass).
@@ -1438,7 +1429,7 @@ struct CrewChatSheet: View {
     }
 
     private func choose(_ choice: ChatPlusRow.Choice) {
-        withAnimation(GridConstants.motionSnappy) { showsPlus = false }
+        writing = false
         alone { open(choice) }
     }
 
@@ -1447,7 +1438,12 @@ struct CrewChatSheet: View {
     /// goes down first and the sheet opens on its own; once it has gone, the
     /// chat comes back up, where what was sent has landed.
     private func alone(_ present: @escaping () -> Void) {
-        guard close != nil else { present(); return }
+        // **Full height, it opens over the chat** (2026-10-15: the chat going
+        // down and coming back up for each choice was the "sometimes it
+        // pushes up" the owner saw). A card over a whole-screen chat is the
+        // iOS stack Messages uses; the drawer's rule was for a part-height
+        // panel with a sheet floating over it.
+        guard close != nil, !native else { present(); return }
         returnToChat = true
         leave()
         Task { @MainActor in

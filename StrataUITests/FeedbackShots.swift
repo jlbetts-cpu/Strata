@@ -1988,6 +1988,34 @@ final class FeedbackShots: XCTestCase {
         app.swipeDown(velocity: .fast); wait(1.5); snap("send-4-keys-down")
     }
 
+    /// **The chat's menus** (the owner, 2026-10-15: "the menus feel not very
+    /// ux driven like they are hard to understand"): a friend's line held,
+    /// your own held, and the +.
+    func testChatMenus() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(8)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat,'")).firstMatch.tap()
+        wait(2); snap("menus-0-open")
+        let theirs = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS \"who's up for a walk\"")).firstMatch
+        print("PLANNING-menus theirs \(theirs.exists)")
+        if theirs.exists { theirs.press(forDuration: 0.8) }
+        wait(1.2); snap("menus-1-theirs")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap(); wait(1)
+        let mine = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'me! 6ish?'")).firstMatch
+        if mine.exists { mine.press(forDuration: 0.8) }
+        wait(1.2); snap("menus-2-mine")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap(); wait(1)
+        let plus = app.buttons["More to send"].firstMatch
+        print("PLANNING-menus plus \(plus.exists)")
+        if plus.exists { plus.tap() }
+        wait(1.2); snap("menus-3-plus")
+        let plan = app.buttons["Make a Plan"].firstMatch
+        if plan.exists { plan.tap() }
+        for i in 0..<3 { wait(0.25); snap("menus-4-plan-\(i)") }
+        wait(1); snap("menus-5-plan")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

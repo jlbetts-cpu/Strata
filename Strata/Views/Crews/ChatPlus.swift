@@ -13,7 +13,10 @@ import SwiftUI
 /// and sleek and understandable", and "finish the recommended"). No drawer
 /// behind it: four fit the smallest phone at 44 points each, and a drawer with
 /// nothing in it is clutter. The doodle pad is inside Sticker.
-struct ChatPlusRow: View {
+///
+/// **The row became a menu on 2026-10-15** (`ChatPlusMenu`); what it offers,
+/// in what order and in what words, is still decided here.
+enum ChatPlusRow {
     enum Choice: String, CaseIterable, Identifiable {
         case win, plan, sticker, strip
         /// **Sticker's place for someone who may not send photos**: a
@@ -63,6 +66,18 @@ struct ChatPlusRow: View {
             }
         }
 
+        /// What the menu says: what it does, in a few words.
+        var menuWord: String {
+            switch self {
+            case .win: "Add a Win"
+            case .plan: "Make a Plan"
+            case .sticker: "Send a Sticker"
+            case .strip: "Send Today's Strip"
+            case .doodle: "Draw a Doodle"
+            case .memory: "Bring Back a Day"
+            }
+        }
+
         var spoken: String {
             switch self {
             case .win: "Add a win to this crew"
@@ -74,31 +89,45 @@ struct ChatPlusRow: View {
             }
         }
     }
+}
 
-    var choices: [Choice] = Choice.offered
-    let pick: (Choice) -> Void
+/// **The chat's +, as a menu** (the owner, 2026-10-15: "the pop up from the
+/// + ... does not feel smooth ... the menus feel not very ux driven like they
+/// are hard to understand"). The row of four slid in above the field, pushed
+/// the thread up and shared the keys' room; iOS 26 Messages' + is a list of
+/// what you can send, each with its word, opened in place. This is that: the
+/// system's own menu from the + itself, nothing moves under it, and each
+/// line says what it does. The same menu on the resting bar and in the chat.
+struct ChatPlusMenu: View {
+    var choices: [ChatPlusRow.Choice]
+    let pick: (ChatPlusRow.Choice) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
+        Menu {
             ForEach(choices) { choice in
-                VStack(spacing: GridConstants.spacing) {
+                Button {
+                    HapticsEngine.lightTap()
+                    pick(choice)
+                } label: {
                     if choice == .sticker {
-                        GlassIconButton(drawn: .sticker, onPage: true, accessibilityLabel: choice.spoken) { pick(choice) }
+                        // His drawn sticker, as on every sticker button.
+                        Label { Text(choice.menuWord) } icon: { Image(Doodle.sticker.rawValue).renderingMode(.template) }
                     } else {
-                        GlassIconButton(systemName: choice.symbol, onPage: true, accessibilityLabel: choice.spoken) { pick(choice) }
+                        Label(choice.menuWord, systemImage: choice.symbol)
                     }
-                    Text(choice.word)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
-                        .lineLimit(1)
-                        .fitsLargeType(.subheadline)
-                        .accessibilityHidden(true)
                 }
-                .frame(maxWidth: .infinity)
             }
+        } label: {
+            Image(systemName: "plus")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                .glassCircle(onPage: true)
+                .contentShape(Circle())
         }
-        .padding(.horizontal, GridConstants.horizontalPadding - GridConstants.gapTight)
-        .padding(.top, GridConstants.gapTight)
+        // Top to bottom as written, wherever the menu opens.
+        .menuOrder(.fixed)
+        .accessibilityLabel("More to send")
     }
 }
 

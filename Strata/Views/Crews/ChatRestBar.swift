@@ -19,7 +19,7 @@ struct ChatRestBar: View {
     /// Open the chat, part way up: to read, to write, or with the + row out.
     var open: (_ how: Opening) -> Void
 
-    enum Opening { case reading, writing, plus }
+    enum Opening: Equatable { case reading, writing, choice(ChatPlusRow.Choice) }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lift: CGFloat = 0
@@ -65,8 +65,9 @@ struct ChatRestBar: View {
             // before it rises. Each opens the chat part way, doing its job.
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 if store.canReply() {
-                    GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "More to send") {
-                        open(.plus)
+                    ChatPlusMenu(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered
+                                                                : ChatPlusRow.Choice.withoutPhotos) { choice in
+                        open(.choice(choice))
                     }
                     // A tap on the field itself, not a Button round glass:
                     // wrapped in a Button, the glass took the press and the

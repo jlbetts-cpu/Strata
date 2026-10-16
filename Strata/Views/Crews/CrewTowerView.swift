@@ -383,7 +383,7 @@ struct CrewTowerView: View {
             if !native {
             ChatDrawer(isOpen: $showsChat, restTop: restTop, covering: $chatCovering) {
                 CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
-                              startsWithPlus: chatOpening == .plus, visible: showsChat,
+                              startsWith: { if case .choice(let c) = chatOpening { c } else { nil } }(), visible: showsChat,
                               answeringWin: answeringWin,
                               close: { withAnimation(GridConstants.drawerMove) { showsChat = false } },
                               reopen: {
@@ -471,7 +471,7 @@ struct CrewTowerView: View {
     private var nativeChatSheet: some View {
         presenting(
             CrewChatSheet(crewID: crewID, startsWriting: chatOpening == .writing,
-                          startsWithPlus: chatOpening == .plus, visible: true,
+                          startsWith: { if case .choice(let c) = chatOpening { c } else { nil } }(), visible: true,
                           answeringWin: answeringWin, native: true,
                           close: { showsChat = false },
                           reopen: { chatOpening = .reading },
