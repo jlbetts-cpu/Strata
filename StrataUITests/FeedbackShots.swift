@@ -2146,6 +2146,21 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("empty-1-chat")
     }
 
+    /// **A friend's photos together, under their tower** (2026-10-15).
+    func testFriendPhotos() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3", "-strataSeedCrewHistory", "4"])
+        wait(9)
+        let heads = app.buttons.matching(NSPredicate(format: "label CONTAINS 'today' AND NOT (label CONTAINS 'Invite')")).allElementsBoundByIndex
+        for h in heads.prefix(6) { print("PLANNING-photos head '\(h.label)'") }
+        (heads.first(where: { $0.label.hasPrefix("Ana") }) ?? heads.first)?.tap()
+        wait(2.5); snap("photos-0-profile")
+        app.swipeUp(); wait(1.2); snap("photos-1-grid")
+        let tile = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'run' OR label CONTAINS[c] 'read' OR label == 'A photo'")).firstMatch
+        if tile.exists { tile.tap() }
+        wait(2); snap("photos-2-viewer")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

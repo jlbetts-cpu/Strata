@@ -28,6 +28,9 @@ struct FriendProfileSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var model = CrewTowerModel()
     @State private var viewing: String?
+    /// What the viewer pages through: today's tower, or the recent photos,
+    /// whichever was pressed.
+    @State private var viewerWins: [SharedWin] = []
     @State private var reporting: SharedWin?
     /// Hold to react and double-tap hearts, as on a crew's tower.
     @State private var reacts = TowerReactions()
@@ -99,8 +102,9 @@ struct FriendProfileSheet: View {
         // on the crew's tower (`CrewTowerView` watches the same map).
         .onChange(of: together.map { store.reactionsByCrew[$0.id] }) { _, _ in rebuild(wins) }
         .fullScreenCover(item: Binding(get: { viewing.map(Viewed.init) }, set: { viewing = $0?.id })) { shown in
-            let crew = today.first { $0.winID.uuidString == shown.id }?.crewID ?? crewID
-            PhotoViewer(photos: CrewGallery.photos(today, crew: store.crew(crew), me: store.me), startAt: shown.id,
+            let shownWins = viewerWins
+            let crew = shownWins.first { $0.winID.uuidString == shown.id }?.crewID ?? crewID
+            PhotoViewer(photos: CrewGallery.photos(shownWins, crew: store.crew(crew), me: store.me), startAt: shown.id,
                         onClose: { viewing = nil },
                         crew: crew,
                         onReport: { photo in
@@ -108,7 +112,7 @@ struct FriendProfileSheet: View {
                             // After the cover has gone, as `CrewDayView`.
                             Task { @MainActor in
                                 try? await Task.sleep(for: .milliseconds(450))
-                                reporting = today.first { $0.winID.uuidString == photo.id }
+                                reporting = shownWins.first { $0.winID.uuidString == photo.id }
                             }
                         },
                         onHide: { photo in
@@ -119,7 +123,7 @@ struct FriendProfileSheet: View {
                             // The crew of the win on screen, not of the one
                             // tapped: the carousel runs across every crew you
                             // share (found by review, 2026-10-15).
-                            let its = today.first { $0.winID == id }?.crewID ?? crew
+                            let its = shownWins.first { $0.winID == id }?.crewID ?? crew
                             return AnyView(CrewPhotoReactions(winID: id, crewID: its, mine: false))
                         })
         }
@@ -176,6 +180,7 @@ struct FriendProfileSheet: View {
                             onTapExpandBlock: { id in
                                 if reacts.reacting != nil { reacts.close(); return }
                                 guard !reacts.justHeld else { return }
+                                viewerWins = today
                                 viewing = id.uuidString
                             },
                             liftedBlockID: nil,
@@ -197,10 +202,67 @@ struct FriendProfileSheet: View {
                                              : "\(name)'s tower today, nothing shared yet")
             }
             .frame(minHeight: viewport)
+            photos(width: colW * CGFloat(columns) + spacing * CGFloat(columns - 1))
         }
         // A finger choosing a reaction must not scroll the page under it.
         .scrollDisabled(reacts.reacting != nil)
         .softScrollEdge(.top)
     }
-}
 
+    // MARK: Their photos
+
+    /// **Their photographs together, under the tower** (the owner,
+    /// 2026-10-15: "the profile could also kinda showcase the images
+    /// together which helps with socialbility"). What they shared with you,
+    /// newest first, from the days your crews still keep (two weeks), in a
+    /// grid of squares as your own Memories shows yours. A press opens them
+    /// in the carousel. Nothing they did not share, and nothing you hid.
+    @ViewBuilder
+    private func photos(width: CGFloat) -> some View {
+        let recent = Self.recentPhotos(of: member.profileID, store: store)
+        if !recent.isEmpty {
+            let gap = GridConstants.spacing
+            let side = floor((width - gap * 2) / 3)
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                Text("Recent Photos")
+                    .font(Typography.sectionLabel)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .accessibilityAddTraits(.isHeader)
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: gap), count: 3), spacing: gap) {
+                    ForEach(recent) { win in
+                        Button {
+                            HapticsEngine.lightTap()
+                            viewerWins = recent
+                            viewing = win.winID.uuidString
+                        } label: {
+                            if let url = win.photo {
+                                CrewPhotoView(url: url, width: side, height: side)
+                                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+                            }
+                        }
+                        .buttonStyle(.press)
+                        .accessibilityLabel(win.title.isEmpty ? "A photo" : win.title)
+                        .accessibilityHint("Opens it full screen.")
+                    }
+                }
+            }
+            .padding(.horizontal, hPad)
+            .padding(.top, GridConstants.gapItem)
+            .padding(.bottom, GridConstants.gapPage)
+        }
+    }
+
+    /// Their photographs this phone may show, once each, newest first.
+    static func recentPhotos(of friend: UUID, store: SocialStore, limit: Int = 30) -> [SharedWin] {
+        guard !store.blocked.contains(friend) else { return [] }
+        var seen: Set<UUID> = []
+        return store.crews.compactMap { store.visible($0.id) }
+            .filter { crew in crew.members.contains { $0.profileID == friend } }
+            .flatMap { store.wins(in: $0.id) }
+            .filter { $0.senderProfileID == friend && $0.photo != nil && !store.hiddenWins.contains($0.winID) }
+            .sorted { $0.createdAt > $1.createdAt }
+            .filter { seen.insert($0.winID).inserted }
+            .prefix(limit)
+            .map { $0 }
+    }
+}
