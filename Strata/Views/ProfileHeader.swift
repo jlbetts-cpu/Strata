@@ -29,6 +29,10 @@ struct ProfileHeader: View {
                        + (crews.map { [ProfileTop.Figure($0, $0 == 1 ? "crew" : "crews")] } ?? []),
                    onPerson: onEdit, personHint: "Edit Profile",
                    onFigures: onScore, figuresHint: "Opens your stats.")
+            // Any change here, an older win deleted too, reaches your crews.
+            .onChange(of: tally, initial: true) { _, now in
+                if CrewsFlag.isOn { SocialStore.shared.noteMyScore(now) }
+            }
     }
 }
 

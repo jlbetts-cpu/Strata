@@ -884,6 +884,33 @@ final class SocialStore {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    /// **Your score, told to your crews when it changes** (2026-10-15): on
+    /// your member record with your name and head, so a friend's profile
+    /// shows it. Settled for a few seconds first, so a run of wins is one
+    /// write, and only when the numbers moved since the last one sent.
+    func noteMyScore(_ tally: WinsScore.Tally, settle: Duration = .seconds(3)) {
+        guard isEnabled(), !crews.isEmpty else { return }
+        scoreSoon?.cancel()
+        scoreSoon = Task { @MainActor in
+            try? await Task.sleep(for: settle)
+            guard !Task.isCancelled else { return }
+            var changed = false
+            for crew in crews {
+                guard var mine = crew.member(me), mine.score != tally.score || mine.wins != tally.wins else { continue }
+                mine.score = tally.score
+                mine.wins = tally.wins
+                if let i = crews.firstIndex(where: { $0.id == crew.id }),
+                   let j = crews[i].members.firstIndex(where: { $0.profileID == me }) {
+                    crews[i].members[j] = mine
+                }
+                enqueue(.init(crew: crew.id, type: .member, name: CrewRecords.name(of: mine), fields: CrewRecords.fields(mine)))
+                changed = true
+            }
+            if changed { await flush() }
+        }
+    }
+    @ObservationIgnored private(set) var scoreSoon: Task<Void, Never>?
+
     /// Something about you changed (your name, photo or head): your crews
     /// hear once things settle, so typing a name sends one update, not one a
     /// letter. Cheap to call from anywhere; does nothing while crews are off.

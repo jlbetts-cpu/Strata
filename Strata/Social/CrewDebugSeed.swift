@@ -162,6 +162,10 @@ extension DebugHarness {
                     HeadStore.writeVersion2Fixture(to: headDir)
                     await friend.setMyHead(CrewHeadPack.make(from: headDir))
                 }
+                // Their score, as their phone would send it (`noteMyScore`).
+                let wins = 6 + (f * 7 + c * 3) % 20
+                friend.noteMyScore(WinsScore.Tally(score: wins * 2 - 1, wins: wins), settle: .zero)
+                await friend.scoreSoon?.value
                 friends.append(friend)
             }
             store.now = Date.init

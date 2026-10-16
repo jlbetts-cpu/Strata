@@ -87,6 +87,11 @@ nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {
     /// same circle a head sits in, so the two read as one set (the owner,
     /// 2026-10-02, "everyone in a circle"). Never sent under 16.
     var photo: URL? = nil
+    /// **Their score and their wins, as their own phone counts them**
+    /// (`WinsScore`; the owner, 2026-10-15: "the score and wins should be
+    /// visable in peoples profile"). Nil from a phone on a build before it.
+    var score: Int? = nil
+    var wins: Int? = nil
 
     var id: UUID { profileID }
 

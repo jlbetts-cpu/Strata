@@ -565,6 +565,8 @@ struct MainAppView: View {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     focusFilterService.refresh()
+                    // Your score to your crews, if it moved (`noteMyScore`).
+                    if CrewsFlag.isOn { SocialStore.shared.noteMyScore(WinsScore.tally(in: modelContext)) }
                     SpotlightIndexer.reindex(container: SharedModelContainer.shared)
                     // Keep a fortnight of reminders ahead. See `DailyReminder`.
                     scheduleReminder()
@@ -1095,6 +1097,8 @@ struct MainAppView: View {
             noteDayChange()
         }
         .onChange(of: scenePhase) { _, phase in if phase == .active { noteDayChange() } }
+        // A win logged or deleted today moves the score your crews see.
+        .modifier(ScoreToCrews(count: towerVM.placedBlocks.count))
         .task(id: "\(selectedTab == .tower)|\(scenePhase == .active)|\(dayOnScreen)") {
             await handOffYesterdayIfDue()
         }
@@ -4482,5 +4486,19 @@ private struct CrewsTabRouting: ViewModifier {
                 CrewRouter.shared.leaveCrews = false
                 selectedTab = .tower
             }
+    }
+}
+
+/// A win logged or deleted today moves the score your crews see
+/// (`SocialStore.noteMyScore`). Its own modifier: `MainAppView.body` is at
+/// the type-checker's ceiling.
+private struct ScoreToCrews: ViewModifier {
+    let count: Int
+    @Environment(\.modelContext) private var modelContext
+
+    func body(content: Content) -> some View {
+        content.onChange(of: count) { _, _ in
+            if CrewsFlag.isOn { SocialStore.shared.noteMyScore(WinsScore.tally(in: modelContext)) }
+        }
     }
 }

@@ -2,11 +2,11 @@ import SwiftUI
 
 /// **A friend's profile** (the owner, 2026-10-15: "you should be able to see
 /// other people's profiles so that needs to look clean and consistent with
-/// that"). The top is yours exactly (`ProfileTop`), with their head and name;
-/// the figures are only what a crew already shares: their wins today, in the
-/// crews you share, and how many crews you share. Never their score: that
-/// is counted from a record only their phone holds, and turning it into a
-/// comparison is what the profile research warned against.
+/// that"). The top is yours exactly (`ProfileTop`), with their head and name,
+/// and **their score and wins as their own phone counts them** (the owner,
+/// later the same day: "I feel like the score and wins should be visable in
+/// peoples profile"), sent on their member record (`noteMyScore`). From a
+/// phone on an older build, their wins today instead.
 ///
 /// **Under it, their tower** (the owner, the same day: "it should be like the
 /// tower still with the lattice and everything no different than how it
@@ -128,6 +128,17 @@ struct FriendProfileSheet: View {
 
     private struct Viewed: Identifiable { let id: String }
 
+    /// Score and wins when their phone has sent them, as yours reads; their
+    /// wins today otherwise.
+    private func figures(today: Int, shared: Int) -> [ProfileTop.Figure] {
+        let live = store.crew(crewID)?.member(member.profileID) ?? member
+        let together = ProfileTop.Figure(shared, shared == 1 ? "crew together" : "crews together")
+        guard let score = live.score, let wins = live.wins else {
+            return [ProfileTop.Figure(today, today == 1 ? "win today" : "wins today"), together]
+        }
+        return [ProfileTop.Figure(score, "score"), ProfileTop.Figure(wins, wins == 1 ? "win" : "wins"), together]
+    }
+
     private func rebuild(_ today: [SharedWin]) {
         let names = Dictionary(together.flatMap(\.members).map { ($0.profileID, $0.shortName) },
                                uniquingKeysWith: { first, _ in first })
@@ -149,8 +160,7 @@ struct FriendProfileSheet: View {
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
-                           figures: [ProfileTop.Figure(today.count, today.count == 1 ? "win today" : "wins today"),
-                                     ProfileTop.Figure(shared, shared == 1 ? "crew together" : "crews together")])
+                           figures: figures(today: today.count, shared: shared))
                 Spacer(minLength: GridConstants.gapSection)
                 ZStack(alignment: .topLeading) {
                     Color.clear

@@ -79,7 +79,10 @@ nonisolated enum CrewRecords {
         "withPeople",
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
-    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
+    /// `score` and `wins` since 2026-10-15. Sealed in the item's box with the
+    /// rest (`CrewItemBox`), so the server's schema does not change; a build
+    /// before them reads past them.
+    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt", "score", "wins"]
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -268,6 +271,8 @@ nonisolated enum CrewRecords {
         ]
         if let head = member.head { fields["head"] = .asset(head) }
         if let photo = member.photo { fields["photo"] = .asset(photo) }
+        if let score = member.score { fields["score"] = .int(score) }
+        if let wins = member.wins { fields["wins"] = .int(wins) }
         return fields
     }
 
@@ -277,6 +282,9 @@ nonisolated enum CrewRecords {
                           firstName: CrewWords.kept(fields["firstName"]?.string ?? ""),
                           head: fields["head"]?.asset,
                           joinedAt: fields["joinedAt"]?.date ?? .distantPast,
-                          photo: fields["photo"]?.asset)
+                          photo: fields["photo"]?.asset,
+                          // A count, never below nothing whatever a record claims.
+                          score: fields["score"]?.int.map { max(0, $0) },
+                          wins: fields["wins"]?.int.map { max(0, $0) })
     }
 }
