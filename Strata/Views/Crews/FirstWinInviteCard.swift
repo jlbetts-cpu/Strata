@@ -103,7 +103,7 @@ struct FirstWinInvitePrompt: ViewModifier {
         let card = towerCard()
         showing = nil
         let store = SocialStore.shared
-        if let crew = store.crews.first {
+        if let crew = store.groupCrews.first {
             Task { await CrewSharing.invite(crew.id, card: card) }
         } else {
             // No crew yet: start one. The list stands behind the crew rules

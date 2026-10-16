@@ -160,6 +160,13 @@ struct YourScoreSheet: View {
     @State private var vm = ProfileViewModel()
     @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
 
+    private func figures(_ stats: ProfileStats) -> String {
+        let week = stats.thisWeek == 1 ? "1 win this week" : "\(stats.thisWeek) wins this week"
+        let streak = vm.currentStreak == 1 ? "1 day streak" : "\(vm.currentStreak) day streak"
+        let best = vm.bestStreak == 1 ? "best 1 day" : "best \(vm.bestStreak) days"
+        return [week, streak, best].joined(separator: " \u{00B7} ")
+    }
+
     private var stats: ProfileStats {
         ProfileStats.make(logs.compactMap { log in
             guard let habit = log.habit else { return nil }
@@ -168,18 +175,39 @@ struct YourScoreSheet: View {
         })
     }
 
+    @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
+
+    /// Every win as the charts read it: its day, its hour, its colour.
+    private var entries: [StatsData.Entry] {
+        logs.compactMap { log in
+            guard let habit = log.habit else { return nil }
+            let hour = Calendar.current.component(.hour, from: log.completedAt ?? log.createdAt)
+            return StatsData.Entry(day: log.dateString, hour: hour, category: habit.displayCategory)
+        }
+    }
+
     var body: some View {
         let stats = stats
+        let entries = entries
+        let colours = StatsData.colours(entries, today: Date())
         Form {
             Section {
-                VStack(spacing: 0) {
-                    Text(verbatim: StrataFont.digits(stats.score))
-                        .font(Typography.tally)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .contentTransition(.numericText(value: Double(stats.score)))
-                    Text("score")
+                VStack(spacing: GridConstants.gapTight) {
+                    VStack(spacing: 0) {
+                        Text(verbatim: StrataFont.digits(stats.score))
+                            .font(Typography.tally)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .contentTransition(.numericText(value: Double(stats.score)))
+                        Text("score")
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                    }
+                    // The week, the streak and the best, one quiet line, as
+                    // a profile states its figures (`ProfileTop`).
+                    Text(figures(stats))
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkSecondary)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, GridConstants.gapTight)
@@ -193,47 +221,34 @@ struct YourScoreSheet: View {
             .listRowBackground(Color.clear)
 
             Section {
-                LabeledContent("Wins") {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(verbatim: "\(stats.thisWeek)").monospacedDigit()
-                        if stats.thisWeek + stats.lastWeek > 0 {
-                            Text(stats.weekCompared)
-                                .font(Typography.screenSubtitle)
-                                .foregroundStyle(AppColors.inkTertiary)
-                        }
-                    }
-                }
-                LabeledContent("Streak") {
-                    Text(verbatim: vm.currentStreak == 1 ? "1 day" : "\(vm.currentStreak) days").monospacedDigit()
-                }
+                WeekWinsChart(days: StatsData.week(entries, today: Date()), goal: dailyGoal)
+                    .padding(.vertical, GridConstants.gapTight)
             } header: {
                 FormSectionLabel("This Week")
             } footer: {
-                Text(vm.currentStreak == 0 ? "Log a win to start one." : "A day off a week won't break it.")
+                Text(stats.thisWeek + stats.lastWeek > 0 ? stats.weekCompared : "Drag across to read a day.")
                     .formFooter()
             }
 
-            Section {
-                LabeledContent("Wins") { Text(verbatim: "\(stats.wins)").monospacedDigit() }
-                LabeledContent("Photos") { Text(verbatim: "\(stats.photos)").monospacedDigit() }
-                LabeledContent("Best Streak") {
-                    Text(verbatim: vm.bestStreak == 1 ? "1 day" : "\(vm.bestStreak) days").monospacedDigit()
+            if !entries.isEmpty {
+                Section {
+                    HourWinsChart(hours: StatsData.hours(entries, today: Date()))
+                        .padding(.vertical, GridConstants.gapTight)
+                } header: {
+                    FormSectionLabel("When You Win")
                 }
-                if let colour = stats.topColour {
-                    LabeledContent("Top Colour") {
-                        HStack(spacing: GridConstants.gapTight) {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(colour.style.baseColor)
-                                .frame(width: 14, height: 14)
-                            Text(colour.rawValue.capitalized)
-                        }
-                    }
+            }
+
+            if !colours.isEmpty {
+                Section {
+                    ColourRingChart(colours: colours)
+                        .padding(.vertical, GridConstants.gapTight)
+                } header: {
+                    FormSectionLabel("What You Win At")
+                } footer: {
+                    Text("The last 30 days. Tap a colour.")
+                        .formFooter()
                 }
-                if let day = stats.bestDay {
-                    LabeledContent("Best Day") { Text(day) }
-                }
-            } header: {
-                FormSectionLabel("All Time")
             }
 
             WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)

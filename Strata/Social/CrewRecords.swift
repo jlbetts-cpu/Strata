@@ -92,7 +92,7 @@ nonisolated enum CrewRecords {
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo", "personal"]
     /// Who it is from and to, and the invitation sealed to `to` alone.
-    static let personalKeys: Set<String> = ["from", "to", "sealed", "createdAt"]
+    static let personalKeys: Set<String> = ["from", "sealed", "createdAt"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
     /// Sealed in the item's box like every record (`CrewItemBox`), so the
     /// server's schema does not change.
@@ -306,15 +306,15 @@ nonisolated enum CrewRecords {
     // MARK: Personal
 
     static func fields(_ invite: PersonalInvite) -> RecordFields {
-        ["from": .uuid(invite.from), "to": .uuid(invite.to),
+        ["from": .uuid(invite.from),
          "sealed": .string(invite.sealed.base64EncodedString()), "createdAt": .date(invite.createdAt)]
     }
 
     static func personal(_ fields: RecordFields) -> PersonalInvite? {
-        guard let from = fields["from"]?.uuid, let to = fields["to"]?.uuid, from != to,
+        guard let from = fields["from"]?.uuid,
               let sealed = fields["sealed"]?.string.flatMap({ Data(base64Encoded: $0) }),
               sealed.count <= CrewSealedNote.largest else { return nil }
-        return PersonalInvite(from: from, to: to, sealed: sealed, createdAt: fields["createdAt"]?.date ?? .distantPast)
+        return PersonalInvite(from: from, sealed: sealed, createdAt: fields["createdAt"]?.date ?? .distantPast)
     }
 
     // MARK: Member

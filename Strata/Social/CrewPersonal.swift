@@ -14,13 +14,17 @@ import Foundation
 /// that crew can open it, and their phone joins on its next sync.
 nonisolated struct PersonalInvite: Equatable, Sendable {
     let from: UUID
-    let to: UUID
-    /// The new crew's invitation link, sealed to `to` alone.
+    /// Who it is for and the chat's link, sealed together to them alone:
+    /// nobody else in the crew can see who is chatting with whom (the
+    /// review, 2026-10-16).
     let sealed: Data
     let createdAt: Date
+}
 
-    static func name(from: UUID, to: UUID) -> String { "\(from.uuidString)-\(to.uuidString)" }
-    var name: String { Self.name(from: from, to: to) }
+/// What a personal invitation holds once opened.
+nonisolated struct PersonalNote: Codable, Equatable, Sendable {
+    let to: UUID
+    let link: String
 }
 
 /// One message sealed to one person's public key: HPKE, as `CrewRekey` locks
@@ -31,7 +35,9 @@ nonisolated enum CrewSealedNote {
     /// Larger than any invitation link could be.
     static let largest = 4096
 
-    static func info(from: UUID, to: UUID) -> Data { Data("somewins.personal|\(from.uuidString)|\(to.uuidString)".utf8) }
+    /// Bound to the sender: a note sealed as from one person does not open as
+    /// from another.
+    static func info(from: UUID) -> Data { Data("somewins.personal.v2|\(from.uuidString)".utf8) }
 
     static func seal(_ data: Data, to publicText: String, info: Data) -> Data? {
         guard let raw = Data(base64Encoded: publicText),

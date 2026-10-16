@@ -66,8 +66,8 @@ struct PersonalChatTests {
         let (a, _, c, crew, story) = try await setUp()
         _ = await a.replyToStory("hi", story: story)
         let invite = try #require(try await (c.cloud as! FakeCrewCloud).fetchPersonals(in: crew.id).first)
-        #expect(invite.to == sam)
-        #expect(c.cloud.openSealed(invite.sealed, info: CrewSealedNote.info(from: jayden, to: sam)) == nil)
+        // Ana can see Jayden left one, not who it is for, and cannot open it.
+        #expect(c.cloud.openSealed(invite.sealed, info: CrewSealedNote.info(from: jayden)) == nil)
         await c.refresh()
         #expect(!c.crews.contains { $0.isPersonal })
     }
@@ -119,14 +119,13 @@ struct PersonalChatTests {
         let (trap, trapLink) = try await c.createCrew(name: "Trap")
         let stranger = UUID()
         let key = try #require(c.cloud.memberPublicKey(sam, in: crew.id))
-        let sealed = try #require(CrewSealedNote.seal(Data(trapLink.absoluteString.utf8), to: key,
-                                                       info: CrewSealedNote.info(from: stranger, to: sam)))
-        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: stranger, to: sam, sealed: sealed, createdAt: .now)),
+        let note = try JSONEncoder().encode(PersonalNote(to: sam, link: trapLink.absoluteString))
+        let sealed = try #require(CrewSealedNote.seal(note, to: key, info: CrewSealedNote.info(from: stranger)))
+        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: stranger, sealed: sealed, createdAt: .now)),
                                type: .personal, name: "forged-1", in: crew.id)
-        // And one claiming to be from Ana herself, pointing at a group crew.
-        let sealed2 = try #require(CrewSealedNote.seal(Data(trapLink.absoluteString.utf8), to: key,
-                                                        info: CrewSealedNote.info(from: ana, to: sam)))
-        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: ana, to: sam, sealed: sealed2, createdAt: .now)),
+        // And one honestly from Ana, pointing at a group crew.
+        let sealed2 = try #require(CrewSealedNote.seal(note, to: key, info: CrewSealedNote.info(from: ana)))
+        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: ana, sealed: sealed2, createdAt: .now)),
                                type: .personal, name: "forged-2", in: crew.id)
         await b.refresh()
         #expect(!b.crews.contains { $0.id == trap.id })
@@ -167,5 +166,36 @@ struct PersonalChatTests {
         let personal = try #require(a.personalCrew(with: sam))
         await a.postStory(win("Mine"))
         #expect(world.records(of: .story, in: personal.id).isEmpty)
+    }
+
+    @Test("a crew-mate's chat that calls itself someone else is refused")
+    func impersonationRefused() async throws {
+        let (_, b, c, crew, _) = try await setUp()
+        // Ana makes a personal chat, then writes her member record in it alone
+        // as "Jayden".
+        let made = try await c.createCrew(name: "", personal: true)
+        let posing = CrewMember(profileID: ana, firstName: "Jayden", joinedAt: .now)
+        try await c.cloud.save(CrewRecords.fields(posing), type: .member, name: CrewRecords.name(of: posing), in: made.crew.id)
+        let key = try #require(c.cloud.memberPublicKey(sam, in: crew.id))
+        let note = try JSONEncoder().encode(PersonalNote(to: sam, link: made.invite.absoluteString))
+        let sealed = try #require(CrewSealedNote.seal(note, to: key, info: CrewSealedNote.info(from: ana)))
+        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: ana, sealed: sealed, createdAt: .now)),
+                               type: .personal, name: "pose", in: crew.id)
+        await b.refresh()
+        #expect(!b.crews.contains { $0.id == made.crew.id })
+    }
+
+    @Test("an invitation that waited is sent again, and the chat keeps what was said")
+    func waitingInvitationRenewed() async throws {
+        let (a, b, _, crew, story) = try await setUp()
+        _ = await a.replyToStory("first", story: story)
+        let personal = try #require(a.personalCrew(with: sam))
+        a.now = { Date().addingTimeInterval(4 * 86_400) }
+        await a.refresh()
+        #expect(a.crew(personal.id) != nil)
+        #expect(world.records(of: .personal, in: crew.id).count == 1)
+        a.now = Date.init
+        await b.refresh()
+        #expect(b.crews.contains { $0.id == personal.id })
     }
 }
