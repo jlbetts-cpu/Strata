@@ -72,8 +72,33 @@ final class ProfileStore {
     var featuredFiles: [String] { UserDefaults.standard.stringArray(forKey: Self.featuredKey) ?? [] }
 
     func setFeatured(_ files: [String]) {
-        UserDefaults.standard.set(Array(files.prefix(FeaturedWins.prompts.count)), forKey: Self.featuredKey)
+        UserDefaults.standard.set(Array(files.prefix(FeaturedWins.slots)), forKey: Self.featuredKey)
         bannerChanged += 1
+    }
+
+    private static let featuredPromptsKey = "profileFeaturedPrompts"
+    private static let featuredSharedKey = "profileFeaturedShared"
+
+    /// Each slot's words, "" for none; missing, the slot's own prompt.
+    var featuredPrompts: [String] {
+        UserDefaults.standard.stringArray(forKey: Self.featuredPromptsKey) ?? FeaturedWins.prompts
+    }
+
+    func setFeaturedPrompt(_ prompt: String, at index: Int) {
+        var all = featuredPrompts
+        while all.count <= index { all.append(FeaturedWins.prompts[min(all.count, FeaturedWins.prompts.count - 1)]) }
+        all[index] = prompt
+        UserDefaults.standard.set(all, forKey: Self.featuredPromptsKey)
+        bannerChanged += 1
+    }
+
+    /// What your crews are told of them, as last worked out (`FeaturedWins.encode`).
+    var featuredShared: String? { UserDefaults.standard.string(forKey: Self.featuredSharedKey) }
+
+    func noteFeaturedShared(_ text: String?) {
+        guard text != featuredShared else { return }
+        UserDefaults.standard.set(text, forKey: Self.featuredSharedKey)
+        SocialStore.noteMyselfChanged()
     }
 
     /// **A photograph instead of a head, when you would rather** (the owner,
@@ -258,6 +283,8 @@ final class ProfileStore {
         UserDefaults.standard.removeObject(forKey: Self.bannerKey)
         UserDefaults.standard.removeObject(forKey: Self.bannerLayoutKey)
         UserDefaults.standard.removeObject(forKey: Self.featuredKey)
+        UserDefaults.standard.removeObject(forKey: "profileFeaturedPrompts")
+        UserDefaults.standard.removeObject(forKey: "profileFeaturedShared")
         UserDefaults.standard.removeObject(forKey: Self.handleKey)
         UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
         bannerChanged += 1

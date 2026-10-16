@@ -220,6 +220,13 @@ struct FriendProfileSheet: View {
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }
+                // Their featured wins, as on your own profile: only ones
+                // they sent you, only photographs the check lets show.
+                ForEach(theirFeatured, id: \.win.winID) { item in
+                    if let url = item.win.photo {
+                        WinCard(picture: .theirs(url), prompt: item.prompt)
+                    }
+                }
                 photos(width: width - PageCard.inset * 2)
             }
             .padding(.horizontal, hPad)
@@ -238,13 +245,24 @@ struct FriendProfileSheet: View {
         return out
     }
 
+    /// Their featured wins you hold, in their order, with their words.
+    private var theirFeatured: [(win: SharedWin, prompt: String)] {
+        let live = store.crew(crewID)?.member(member.profileID) ?? member
+        let held = together.flatMap { store.wins(in: $0.id) }
+            .filter { $0.senderProfileID == member.profileID && !store.hiddenWins.contains($0.winID) }
+        return live.featured.compactMap { item in
+            guard let win = held.first(where: { $0.winID == item.win }), let photo = win.photo,
+                  store.photoIsShown(photo) else { return nil }
+            return (win, item.prompt)
+        }
+    }
+
     /// What you have in common, and since when.
     private var facts: [InfoCard.Fact] {
         var out: [InfoCard.Fact] = []
         let names = together.map { $0.displayName(excluding: store.me) }
         if !names.isEmpty {
-            out.append(InfoCard.Fact(icon: "person.2", text: names.prefix(2).formatted(.list(type: .and))
-                                     + (names.count > 2 ? " and \(names.count - 2) more" : "")))
+            out.append(InfoCard.Fact(icon: "person.2", text: names.count == 1 ? names[0] : "\(names.count) crews together"))
         }
         if let joined = together.compactMap({ $0.member(member.profileID)?.joinedAt }).min() {
             out.append(InfoCard.Fact(icon: "clock", text: "Since \(joined.formatted(.dateTime.month(.abbreviated).year()))"))

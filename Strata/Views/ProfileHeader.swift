@@ -38,6 +38,14 @@ struct ProfileHeader: View {
 
     private var monthKey: String { String(DateUtils.dateString(from: month).prefix(7)) }
 
+    private var featuredShared: String? {
+        let _ = store.bannerChanged
+        let picked = FeaturedWins.pick(from: logs, chosen: store.featuredFiles)
+        return FeaturedWins.encode(picked.enumerated().map { index, log in
+            FeaturedWins.Shared(win: log.id, prompt: FeaturedWins.prompt(index, chosen: store.featuredPrompts))
+        })
+    }
+
     /// The streak, the month's wins, and its photographs.
     private var chips: [InfoCard.Fact] {
         let streak = Streaks.current(among: Set(logs.map(\.dateString)), restsPerWeek: Streaks.Rest.profile)
@@ -61,6 +69,10 @@ struct ProfileHeader: View {
             // Any change here, an older win deleted too, reaches your crews.
             .onChange(of: tally, initial: true) { _, now in
                 if CrewsFlag.isOn { SocialStore.shared.noteMyScore(now) }
+            }
+            // Your featured wins, as friends will see them on your profile.
+            .onChange(of: featuredShared, initial: true) { _, now in
+                if CrewsFlag.isOn { store.noteFeaturedShared(now) }
             }
     }
 }
@@ -291,46 +303,38 @@ struct YourScoreSheet: View {
 
     private var profile: ProfileStore { .shared }
 
-    /// The figures, across the top of the card, short as Hinge's are.
+    /// **Only what a friend sees** (the owner, 2026-10-16: "the stats card
+    /// near the top is showing too much info, it should only show public
+    /// info, the crew and your profile should look and feel the same"):
+    /// your score and today across the top, then your crews and since when,
+    /// as a friend's profile of you reads.
     private func chips(_ stats: ProfileStats) -> [InfoCard.Fact] {
-        var out = [
-            InfoCard.Fact(icon: "flame", text: vm.currentStreak == 1 ? "1 day streak" : "\(vm.currentStreak) day streak"),
-            InfoCard.Fact(icon: "checkmark.circle", text: stats.wins == 1 ? "1 win" : "\(stats.wins) wins"),
-            InfoCard.Fact(icon: "star", text: "Score \(stats.score)"),
-        ]
-        if CrewsFlag.isOn {
-            let crews = SocialStore.shared.groupCrewCount
-            out.append(InfoCard.Fact(icon: "person.2", text: crews == 1 ? "1 crew" : "\(crews) crews"))
-        }
-        return out
+        let today = logs.filter { $0.dateString == DateUtils.dateString(from: Date()) }.count
+        return [InfoCard.Fact(icon: "star", text: "Score \(stats.score)"),
+                InfoCard.Fact(icon: "checkmark.circle", text: today == 1 ? "1 today" : "\(today) today")]
     }
 
-    /// **Who you are as a winner, a few words a line** (2026-10-16; the
-    /// owner: "the lines were short ... research what information should be
-    /// in there because it is your profile"). A profile's lines are traits,
-    /// not reports (Hinge's "Christian", "Monogamy"; Bitmoji's one identity):
-    /// when you win, your best day, your goal, your best run, your photos,
-    /// and since when. Only the ones that are true yet.
     private func facts(_ stats: ProfileStats, entries: [StatsData.Entry]) -> [InfoCard.Fact] {
         var out: [InfoCard.Fact] = []
-        if entries.count >= 3, let peak = StatsData.peakHour(StatsData.hours(entries, today: Date(), days: 60)) {
-            switch peak {
-            case 5..<12: out.append(InfoCard.Fact(icon: "sunrise", text: "Morning person"))
-            case 12..<17: out.append(InfoCard.Fact(icon: "sun.max", text: "Afternoon person"))
-            case 17..<21: out.append(InfoCard.Fact(icon: "sunset", text: "Evening person"))
-            default: out.append(InfoCard.Fact(icon: "moon", text: "Night owl"))
+        if CrewsFlag.isOn {
+            let names = SocialStore.shared.groupCrews.map { $0.displayName(excluding: SocialStore.shared.me) }
+            // Short, as a fact is: one crew by name, more as a count.
+            if !names.isEmpty {
+                out.append(InfoCard.Fact(icon: "person.2", text: names.count == 1 ? names[0] : "\(names.count) crews"))
             }
-        }
-        if let day = stats.bestDay { out.append(InfoCard.Fact(icon: "calendar", text: "Best on \(day)s")) }
-        out.append(InfoCard.Fact(icon: "target", text: "Goal \(dailyGoal) a day"))
-        if vm.bestStreak > 1 { out.append(InfoCard.Fact(icon: "trophy", text: "Best run \(vm.bestStreak) days")) }
-        if stats.photos > 0 {
-            out.append(InfoCard.Fact(icon: "camera", text: stats.photos == 1 ? "1 photo" : "\(stats.photos) photos"))
         }
         if let first = entries.map(\.day).min(), let date = DateUtils.date(from: first) {
             out.append(InfoCard.Fact(icon: "clock", text: "Since \(date.formatted(.dateTime.month(.abbreviated).year()))"))
         }
         return out
+    }
+
+    /// The featured wins as drawn: each win, its photograph and its words.
+    private var featured: [(id: UUID, file: String, prompt: String)] {
+        let picked = FeaturedWins.pick(from: logs, chosen: profile.featuredFiles)
+        return picked.enumerated().compactMap { index, log in
+            log.imageFileName.map { (log.id, $0, FeaturedWins.prompt(index, chosen: profile.featuredPrompts)) }
+        }
     }
 
     var body: some View {
@@ -362,17 +366,12 @@ struct YourScoreSheet: View {
 
             // **Your featured wins, each under a prompt** (2026-10-16; the
             // owner: "they make people's profiles captivating ... winning
-            // goes hand in hand with being interesting"). What you did, large,
-            // so the profile says who you are.
-            ForEach(Array(FeaturedWins.pick(from: logs, chosen: profile.featuredFiles).enumerated()), id: \.element.id) { index, log in
-                if let file = log.imageFileName {
-                    Section {
-                        WinCard(fileName: file, title: log.habit?.title,
-                                detail: WinCard.detail(date: log.completedAt ?? log.createdAt, size: log.habit?.blockSize ?? .small),
-                                prompt: FeaturedWins.prompts[index])
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                    }
+            // goes hand in hand with being interesting").
+            ForEach(featured, id: \.id) { item in
+                Section {
+                    WinCard(picture: .mine(item.file), prompt: item.prompt)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                 }
             }
 

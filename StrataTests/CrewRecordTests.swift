@@ -44,7 +44,9 @@ struct CrewRecordTests {
         // `photo` since 2026-10-02: a profile photo, for someone with no head.
         // `handle` since 2026-10-16: the username you chose to be seen by,
         // public by design (`Handle`); nothing else of yours joined it.
-        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt", "handle"])
+        // `featured` since 2026-10-16: ids of wins already sent to the crew,
+        // each with a prompt from the app's own list; nothing typed.
+        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt", "handle", "featured"])
         // Your score on its own record since 2026-10-15, not on this one.
         #expect(CrewRecords.scoreKeys == ["profileID", "score", "wins"])
         // `personal` since 2026-10-16: a chat of two, made from a story reply.

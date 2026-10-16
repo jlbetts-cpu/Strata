@@ -146,4 +146,18 @@ struct HandleTests {
         await sam.accountChanged()
         #expect(a.handle == nil)
     }
+
+    @Test("featured wins travel as ids and listed prompts only")
+    func featured() {
+        let a = UUID(), b = UUID()
+        let items = [FeaturedWins.Shared(win: a, prompt: "Proudest win lately"),
+                     FeaturedWins.Shared(win: b, prompt: "")]
+        #expect(FeaturedWins.decode(FeaturedWins.encode(items)) == items)
+        // A prompt that is not the app's own is dropped.
+        let typed = FeaturedWins.encode([FeaturedWins.Shared(win: a, prompt: "anything at all")])
+        #expect(FeaturedWins.decode(typed).isEmpty)
+        var member = CrewMember(profileID: UUID(), firstName: "Sam", head: nil, joinedAt: .now)
+        member.featured = items
+        #expect(CrewRecords.member(CrewRecords.fields(member))?.featured == items)
+    }
 }

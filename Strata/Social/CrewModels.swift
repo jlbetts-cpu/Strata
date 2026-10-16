@@ -95,6 +95,10 @@ nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {
     /// **Their username** (`Handle`), shown as @them. Nil before they chose
     /// one, or from a build before it.
     var handle: String? = nil
+    /// **Their featured wins** (`FeaturedWins.Shared`): ids of wins they
+    /// sent, each with a prompt from the app's list. Shown where you hold
+    /// the win too.
+    var featured: [FeaturedWins.Shared] = []
 
     var id: UUID { profileID }
 

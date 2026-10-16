@@ -93,7 +93,7 @@ nonisolated enum CrewRecords {
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo", "personal"]
     /// Who it is from and to, and the invitation sealed to `to` alone.
     static let personalKeys: Set<String> = ["from", "sealed", "createdAt"]
-    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt", "handle"]
+    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt", "handle", "featured"]
     /// Sealed in the item's box like every record (`CrewItemBox`), so the
     /// server's schema does not change.
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
@@ -330,6 +330,7 @@ nonisolated enum CrewRecords {
         if let head = member.head { fields["head"] = .asset(head) }
         if let photo = member.photo { fields["photo"] = .asset(photo) }
         if let handle = member.handle { fields["handle"] = .string(handle) }
+        if let featured = FeaturedWins.encode(member.featured) { fields["featured"] = .string(featured) }
         return fields
     }
 
@@ -341,7 +342,8 @@ nonisolated enum CrewRecords {
                           joinedAt: fields["joinedAt"]?.date ?? .distantPast,
                           photo: fields["photo"]?.asset,
                           // Only a username that keeps the rules is shown.
-                          handle: fields["handle"]?.string.map(Handle.normalized).flatMap { Handle.problem($0) == nil ? $0 : nil })
+                          handle: fields["handle"]?.string.map(Handle.normalized).flatMap { Handle.problem($0) == nil ? $0 : nil },
+                          featured: FeaturedWins.decode(fields["featured"]?.string))
     }
 
     // MARK: Score

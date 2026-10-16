@@ -49,6 +49,7 @@ final class SocialStore {
         store.keepMyHandle = { ProfileStore.shared.keepHandle($0, at: $1) }
         store.forgetMyHandle = { ProfileStore.shared.forgetHandle() }
         store.myPhoto = { ProfileStore.shared.photoData }
+        store.myFeatured = { FeaturedWins.decode(ProfileStore.shared.featuredShared) }
         store.myFirstName = {
             ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
         }
@@ -165,6 +166,8 @@ final class SocialStore {
     @ObservationIgnored var forgetMyHandle: () -> Void = {}
     /// Your chosen photograph instead of a head, to send (`ProfileStore`).
     @ObservationIgnored var myPhoto: () -> Data? = { nil }
+    /// Your featured wins as your crews are told them (`FeaturedWins`).
+    @ObservationIgnored var myFeatured: () -> [FeaturedWins.Shared] = { [] }
     /// Friends' usernames that have been checked as theirs (`verifyHandle`),
     /// by profile, and when; only these are shown.
     var verifiedHandles: [UUID: String] = [:]
@@ -1004,6 +1007,7 @@ final class SocialStore {
         hasher.update(data: myPhoto() ?? Data())
         hasher.update(data: Data(myFirstName().utf8))
         hasher.update(data: Data((myHandle() ?? "").utf8))
+        hasher.update(data: Data((FeaturedWins.encode(myFeatured()) ?? "").utf8))
         hasher.update(data: Data(crews.map(\.id.rawValue).sorted().joined(separator: ",").utf8))
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
@@ -1099,6 +1103,7 @@ final class SocialStore {
             }
             mine.firstName = myFirstName()
             mine.handle = myHandle()
+            mine.featured = myFeatured()
             // Held here at once, not only after the next fetch: what this
             // phone shows of you, and what `shareMyselfIfChanged` compares,
             // is what was just sent.
