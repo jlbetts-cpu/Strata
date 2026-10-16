@@ -2015,6 +2015,21 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-swipe after \(app.buttons.matching(NSPredicate(format: "label CONTAINS 'September'")).firstMatch.exists || app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'September'")).firstMatch.exists)")
     }
 
+    /// A friend who shared photographs: their banner and Recent photos.
+    func testFriendBannerPhotos() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3", "-strataSeedCrewWins", "6"])
+        wait(8)
+        let ana = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Ana'")).firstMatch
+        print("PLANNING-photos ana \(ana.exists)")
+        if ana.exists { ana.press(forDuration: 0.9) }
+        wait(1)
+        let profile = app.buttons["View Profile"].firstMatch
+        if profile.exists { profile.tap() }
+        wait(2.5); snap("fphotos-1")
+        app.swipeUp(); wait(1.2); snap("fphotos-2")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])

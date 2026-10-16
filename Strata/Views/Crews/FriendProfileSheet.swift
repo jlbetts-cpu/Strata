@@ -212,7 +212,9 @@ struct FriendProfileSheet: View {
             VStack(spacing: GridConstants.gapSection) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
                            figures: [],
-                           banner: recent.compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
+                           // This month's, by the rule yours keeps.
+                           banner: recent.filter { Calendar.current.isDate($0.createdAt, equalTo: Date(), toGranularity: .month) }
+                               .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
                            chips: chips(today: today.count))
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// One picture in a profile's banner: one of your own wins, or a friend's
@@ -129,5 +130,99 @@ struct ProfileBanner: View {
         }
         .frame(width: w, height: h)
         .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.08), lineWidth: GridConstants.strokeThin))
+    }
+}
+
+/// **Choosing a month's banner** (2026-10-16). That month's photographed
+/// wins, newest first; a tap puts one on in the order tapped (the large
+/// square first) or takes it off; Automatic goes back to the latest.
+struct BannerPicker: View {
+    let month: Date
+    @Query(filter: #Predicate<HabitLog> { $0.completed && $0.imageFileName != nil },
+           sort: \HabitLog.createdAt, order: .reverse) private var photographed: [HabitLog]
+    private var store: ProfileStore { .shared }
+    private var key: String { String(DateUtils.dateString(from: month).prefix(7)) }
+
+    var body: some View {
+        let _ = store.bannerChanged
+        let key = key
+        let chosen = store.bannerFiles(for: key)
+        let files = photographed.filter { $0.dateString.hasPrefix(key) }.compactMap(\.imageFileName)
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            if files.isEmpty {
+                Text("Photographed wins this month fill it.")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkSecondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: GridConstants.spacing) {
+                        ForEach(files, id: \.self) { file in
+                            thumb(file, order: chosen.firstIndex(of: file), chosen: chosen)
+                        }
+                    }
+                }
+                .edgeFade()
+                if !chosen.isEmpty {
+                    Button {
+                        HapticsEngine.lightTap()
+                        store.setBanner([], for: key)
+                    } label: {
+                        Text("Automatic")
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                    }
+                    .buttonStyle(.pressWord)
+                }
+            }
+        }
+    }
+
+    private func thumb(_ file: String, order: Int?, chosen: [String]) -> some View {
+        Button {
+            HapticsEngine.tick()
+            var next = chosen
+            if let order { next.remove(at: order) } else if next.count < ProfileBanner.most { next.append(file) }
+            store.setBanner(next, for: key)
+        } label: {
+            CachedImageView(fileName: file, width: 64, height: 64, cornerRadius: GridConstants.cornerRadius)
+                .frame(width: 64, height: 64)
+                .overlay(alignment: .topTrailing) {
+                    if let order {
+                        Text(verbatim: "\(order + 1)")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(WarmBackground.top)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(AppColors.inkPrimary))
+                            .padding(4)
+                    }
+                }
+                .opacity(order == nil && chosen.count >= ProfileBanner.most ? 0.4 : 1)
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(order.map { "Photo, on the banner, \($0 + 1)" } ?? "Photo")
+    }
+}
+
+/// The picker on its own sheet, from a hold on Memories' banner.
+struct BannerPickerSheet: View {
+    let month: Date
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                BannerPicker(month: month)
+                    .padding(GridConstants.horizontalPadding)
+            }
+            .background { WarmBackground().ignoresSafeArea() }
+            .sheetTitle(month.formatted(.dateTime.month(.wide)) + "'s Banner", drawn: true)
+            .toolbar {
+                BareToolbarItem(placement: .confirmationAction) {
+                    Button { dismiss() } label: { Text("Done").sheetAction() }
+                        .buttonStyle(.pressWord)
+                }
+            }
+        }
+        .presentationDetents([.height(260)])
     }
 }

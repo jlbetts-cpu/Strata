@@ -232,11 +232,12 @@ struct CrewStatsSections: View {
     private var streak: some View {
         Section {
             FormSectionLabel("Crew Streak")
-            HStack(alignment: .top, spacing: GridConstants.gapWide) {
-                StreakFigure(value: stats.current, label: "Current")
-                StreakFigure(value: stats.best, label: "Best")
-            }
-            .padding(.vertical, GridConstants.gapTight)
+            // The same quiet line as Your day's (2026-10-16).
+            InfoCard(chips: [
+                InfoCard.Fact(icon: "flame", text: stats.current == 1 ? "1 day now" : "\(stats.current) days now"),
+                InfoCard.Fact(icon: "trophy", text: stats.best == 1 ? "Best 1 day" : "Best \(stats.best) days"),
+            ], quiet: true)
+            .frame(maxWidth: .infinity)
         } footer: {
             Text(streakLine).formFooter()
         }

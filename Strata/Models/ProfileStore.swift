@@ -63,7 +63,7 @@ final class ProfileStore {
     nonisolated private static let profileIDLock = NSLock()
 
     private static let nameKey = "profileName"
-    private static let bannerKey = "profileBanner"
+    private static let bannerKey = "profileBannerByMonth"
     private static let backgroundKey = "profileBackground"
     /// The largest the picture is drawn is 88pt — 264px at 3x. 600 leaves
     /// room without holding a camera-sized image in memory for a circle.
@@ -81,18 +81,18 @@ final class ProfileStore {
         SocialStore.noteMyselfChanged()
     }
 
-    /// **The banner's photographs, as you chose them** (2026-10-16). Empty is
-    /// automatic: your latest photographed wins. Kept on this phone only.
-    var bannerFiles: [String] {
-        UserDefaults.standard.stringArray(forKey: Self.bannerKey) ?? []
+    /// **The banner's photographs, as you chose them, a month at a time**
+    /// (2026-10-16; the owner: "the banner can be edited but has to use
+    /// images from that month"). Keyed by "yyyy-MM"; a month with none is
+    /// automatic, its latest photographed wins. Kept on this phone only.
+    func bannerFiles(for month: String) -> [String] {
+        (UserDefaults.standard.dictionary(forKey: Self.bannerKey) as? [String: [String]])?[month] ?? []
     }
 
-    func setBanner(_ files: [String]) {
-        if files.isEmpty {
-            UserDefaults.standard.removeObject(forKey: Self.bannerKey)
-        } else {
-            UserDefaults.standard.set(Array(files.prefix(ProfileBanner.most)), forKey: Self.bannerKey)
-        }
+    func setBanner(_ files: [String], for month: String) {
+        var all = (UserDefaults.standard.dictionary(forKey: Self.bannerKey) as? [String: [String]]) ?? [:]
+        all[month] = files.isEmpty ? nil : Array(files.prefix(ProfileBanner.most))
+        UserDefaults.standard.set(all, forKey: Self.bannerKey)
         bannerChanged += 1
     }
 
@@ -151,7 +151,8 @@ final class ProfileStore {
         UserDefaults.standard.removeObject(forKey: Self.nameKey)
         SocialStore.noteMyselfChanged()
         setBackground(nil)
-        setBanner([])
+        UserDefaults.standard.removeObject(forKey: Self.bannerKey)
+        bannerChanged += 1
     }
 
     private static var photoURL: URL? {

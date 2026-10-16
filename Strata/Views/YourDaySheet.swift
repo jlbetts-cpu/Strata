@@ -97,13 +97,15 @@ struct YourDaySheet: View {
                 .listRowSeparator(.hidden)
                 Section {
                     FormSectionLabel("Streak")
-                    HStack(alignment: .top, spacing: GridConstants.gapWide) {
-                        StreakFigure(value: Streaks.current(among: counts.keys, restsPerWeek: Streaks.Rest.profile),
-                                     label: "Current")
-                        StreakFigure(value: Streaks.longest(among: counts.keys, restsPerWeek: Streaks.Rest.profile),
-                                     label: "Best")
-                    }
-                    .padding(.vertical, GridConstants.gapTight)
+                    // **A line of facts, not two big numerals** (2026-10-16:
+                    // the owner's Hinge pass, and "I don't like big text").
+                    let now = Streaks.current(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
+                    let best = Streaks.longest(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
+                    InfoCard(chips: [
+                        InfoCard.Fact(icon: "flame", text: now == 1 ? "1 day now" : "\(now) days now"),
+                        InfoCard.Fact(icon: "trophy", text: best == 1 ? "Best 1 day" : "Best \(best) days"),
+                    ], quiet: true)
+                    .frame(maxWidth: .infinity)
                 } footer: {
                     Text("A day off a week won't break it.")
                         .formFooter()

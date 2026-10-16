@@ -802,6 +802,12 @@ struct MemoriesView: View {
                 }
             }
             }
+            // **The page's name, as Crews says its own** (the owner,
+            // 2026-10-16), now the month has gone into the calendar's card.
+            Text("Memories")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .accessibilityAddTraits(.isHeader)
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.gapItem)

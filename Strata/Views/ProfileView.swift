@@ -176,65 +176,13 @@ struct ProfileView: View {
 
     // MARK: - Banner
 
-    @Query(filter: #Predicate<HabitLog> { $0.completed && $0.imageFileName != nil },
-           sort: \HabitLog.createdAt, order: .reverse) private var photographed: [HabitLog]
-
-    /// **The banner, chosen** (2026-10-16: "automatic but you are able to
-    /// edit it"). Your photographed wins, newest first, a tap each to put
-    /// one on (the order you tap is the order it fills, the large square
-    /// first) or take it off; Automatic goes back to your latest.
+    /// **This month's banner, chosen** (`BannerPicker`): the photographs
+    /// have to be this month's (the owner, 2026-10-16).
     private var bannerSection: some View {
-        let chosen = store.bannerFiles
-        let files = Array(photographed.compactMap(\.imageFileName).prefix(24))
-        return Section {
+        Section {
             FormSectionLabel("Banner")
-            if files.isEmpty {
-                Text("Your photographed wins fill it.")
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkSecondary)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: GridConstants.spacing) {
-                        ForEach(files, id: \.self) { file in
-                            let order = chosen.firstIndex(of: file)
-                            Button {
-                                HapticsEngine.tick()
-                                var next = chosen
-                                if let order { next.remove(at: order) } else if next.count < ProfileBanner.most { next.append(file) }
-                                store.setBanner(next)
-                            } label: {
-                                CachedImageView(fileName: file, width: 64, height: 64, cornerRadius: GridConstants.cornerRadius)
-                                    .frame(width: 64, height: 64)
-                                    .overlay(alignment: .topTrailing) {
-                                        if let order {
-                                            Text(verbatim: "\(order + 1)")
-                                                .font(Typography.headerSmall)
-                                                .foregroundStyle(WarmBackground.top)
-                                                .frame(width: 22, height: 22)
-                                                .background(Circle().fill(AppColors.inkPrimary))
-                                                .padding(4)
-                                        }
-                                    }
-                                    .opacity(order == nil && chosen.count >= ProfileBanner.most ? 0.4 : 1)
-                            }
-                            .buttonStyle(.press)
-                            .accessibilityLabel(order.map { "Photo, on the banner, \($0 + 1)" } ?? "Photo")
-                        }
-                    }
-                }
+            BannerPicker(month: Date())
                 .listRowSeparator(.hidden)
-                if !chosen.isEmpty {
-                    Button {
-                        HapticsEngine.lightTap()
-                        store.setBanner([])
-                    } label: {
-                        Text("Automatic")
-                            .font(Typography.bodyLarge)
-                            .foregroundStyle(AppColors.inkPrimary)
-                    }
-                    .buttonStyle(.pressWord)
-                }
-            }
         }
     }
 

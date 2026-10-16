@@ -14,6 +14,7 @@ struct ProfileHeader: View {
     /// The month Memories is showing, for the line's month figure (the owner:
     /// "one of the stats month specific since it's by month").
     var month: Date = Date()
+    @State private var editingBanner = false
 
     /// Every logged win, read live, so a delete lowers the score in the same
     /// moment the block leaves the tower (`WinsScore`).
@@ -30,7 +31,7 @@ struct ProfileHeader: View {
         let photographed = logs.filter { $0.imageFileName != nil && $0.dateString.hasPrefix(key) }
             .sorted { ($0.completedAt ?? $0.createdAt) > ($1.completedAt ?? $1.createdAt) }
         let files = photographed.compactMap(\.imageFileName)
-        let chosen = store.bannerFiles.filter { files.contains($0) }
+        let chosen = store.bannerFiles(for: key).filter { files.contains($0) }
         let picked = chosen.isEmpty ? Array(files.prefix(ProfileBanner.most)) : chosen
         return picked.map(BannerPicture.mine)
     }
@@ -56,6 +57,14 @@ struct ProfileHeader: View {
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
                    figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true,
                    banner: banner, chips: chips)
+            // **Edit this month's banner** from a hold, as a hold edits
+            // everything else here.
+            .contextMenu {
+                Button { editingBanner = true } label: {
+                    Label("Edit Banner", systemImage: "photo.on.rectangle")
+                }
+            }
+            .sheet(isPresented: $editingBanner) { BannerPickerSheet(month: month) }
             // Any change here, an older win deleted too, reaches your crews.
             .onChange(of: tally, initial: true) { _, now in
                 if CrewsFlag.isOn { SocialStore.shared.noteMyScore(now) }
