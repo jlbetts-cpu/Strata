@@ -216,8 +216,11 @@ struct MemoriesView: View {
                         .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet(resetAllData: { resetAllData?() ?? false }) } }
                         .padding(.horizontal, GridConstants.horizontalPadding)
                     if !pageIsUndecided || pageIsEmpty {
+                        // Cards a little closer (the owner, 2026-10-16: "the
+                        // spacing between the different containers is
+                        // slightly too far").
                         monthTower
-                            .padding(.top, GridConstants.gapSection)
+                            .padding(.top, GridConstants.gapLabel)
                     }
 
                     // Under the fold: the photos are a scroll away, their
@@ -229,23 +232,33 @@ struct MemoriesView: View {
                     // first days of a month there are no photos here yet,
                     // and "a year ago today" was hidden with them.
                     if !pageIsEmpty, count > 0 || !vm.monthAlbums.isEmpty {
-                        // **The month's photographs, a tap away** (the owner,
-                        // 2026-10-16: "you should be able to click into the
-                        // month, and that's where all the photos should be").
-                        // One row on its card, as a profile's facts are.
-                        if count > 0 {
-                            monthPhotosRow(count)
-                                .padding(.top, GridConstants.gapSection)
-                        }
+
                         // **The month's albums, made of these photographs**
                         // (`Album.monthShelf`): under the count, so the fold
                         // and the first screen are exactly as they were.
                         MemoriesShelf(albums: vm.monthAlbums, onOpenAlbum: open(album:),
-                                      topGap: count > 0 ? GridConstants.gapTight : GridConstants.gapSection,
+                                      topGap: GridConstants.gapLabel,
                                       onRemove: { album, never in remove(album, never: never) })
                         // The camera roll, edge to edge: it reads as the
                         // photos, not as more blocks (the owner, 2026-10-03).
+                        // **The month's photographs on Memories, a card a
+                        // size** (the owner, 2026-10-16: "the Apple photos
+                        // area and the albums don't need a separate screen ...
+                        // three containers for deep, medium and quick").
                         let _ = roll
+                        if let month = shown.first, count > 0 {
+                            ForEach(Album.sizeSections(month)) { section in
+                                let photos = section.photos.filter { $0.block == nil }
+                                if !photos.isEmpty {
+                                    PhotoGridCard(title: section.title,
+                                                  pictures: photos.map { ($0.fileName, BannerPicture.mine($0.fileName)) }) { id in
+                                        viewing = ViewedPhoto(id: id, title: photos.first { $0.fileName == id }?.title)
+                                    }
+                                    .padding(.horizontal, GridConstants.horizontalPadding)
+                                    .padding(.top, GridConstants.gapLabel)
+                                }
+                            }
+                        }
                     }
 
                     // **The month's drawing, at the end of the page** (the
@@ -437,10 +450,7 @@ struct MemoriesView: View {
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
-                case .monthPhotos:
-                    MonthPhotosPage(title: vm.monthTitle.capitalized, month: monthPhotos.first) { photo in
-                        viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
-                    }
+
                 case .settings:
                     // The app's glass back, as every page pushed here has.
                     SettingsView(onResetAllData: { resetAllData?() ?? false })
@@ -821,35 +831,6 @@ struct MemoriesView: View {
     /// line in the photo count's grey, never a card, and a tap opens that day.
     /// Only on the month you are living in; an older month is already a look
     /// back.
-    private func monthPhotosRow(_ count: Int) -> some View {
-        Button {
-            HapticsEngine.lightTap()
-            path.append(.monthPhotos)
-        } label: {
-            HStack(spacing: GridConstants.gapItem) {
-                Image(systemName: "photo.on.rectangle")
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .frame(width: 24)
-                Text(count == 1 ? "1 photo" : "\(count) photos")
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkPrimary)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkTertiary)
-            }
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .frame(minHeight: 52)
-            .pageCard()
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressSurface)
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .accessibilityHint("Opens the month's photos.")
-        .accessibilityIdentifier("monthPhotosRow")
-    }
-
     private func photosCaption(_ count: Int) -> some View {
         Text(count == 1 ? "1 Photo" : "\(count) Photos")
             .font(Typography.screenSubtitle)
@@ -1113,21 +1094,13 @@ struct MemoriesView: View {
         let canOn = here.map { $0 > 0 } ?? false
         return HStack(spacing: GridConstants.gapItem) {
             arrow("chevron.left", label: "Previous month", enabled: canBack) { stepMonth(-1) }
-            // The month's name opens the month, as your name opens you.
-            Button {
-                HapticsEngine.lightTap()
-                path.append(.monthPhotos)
-            } label: {
-                Text(vm.monthTitle.capitalized)
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .contentTransition(.numericText())
-                    .animation(GridConstants.motionSnappy, value: vm.monthTitle)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.pressWord)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityHint("Opens the month's photos.")
+            Text(vm.monthTitle.capitalized)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .contentTransition(.numericText())
+                .animation(GridConstants.motionSnappy, value: vm.monthTitle)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityAddTraits(.isHeader)
             arrow("chevron.right", label: "Next month", enabled: canOn) { stepMonth(1) }
         }
     }
@@ -1281,8 +1254,6 @@ enum MemoriesRoute: Hashable {
     case moment(String)
     /// Your wins sent to one crew in one month (`Album.monthShelf`).
     case crew(String)
-    /// The month opened: every photograph, as cards (`MonthPhotosPage`).
-    case monthPhotos
 }
 
 /// The month being drawn, by key ("2026-10").

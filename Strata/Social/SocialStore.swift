@@ -375,17 +375,6 @@ final class SocialStore {
                 changed = true
             }
         }
-        // Their chosen photographs instead of a head (2026-10-16), as their
-        // wins' are: checked here before any phone draws one.
-        for crew in crews {
-            for member in crew.members where member.profileID != me {
-                guard let photo = member.photo, photoVerdicts[photo.lastPathComponent] == nil,
-                      let data = try? Data(contentsOf: photo),
-                      let verdict = await incomingCheck(data) else { continue }
-                photoVerdicts[photo.lastPathComponent] = verdict
-                changed = true
-            }
-        }
         // Their stories' photos, as their crew wins' are (the review,
         // 2026-10-15: the row and the viewer drew them unchecked).
         for stories in storiesByCrew.values {
@@ -939,7 +928,11 @@ final class SocialStore {
             var sentPhoto: Data?
             if photosAllowed(), let small = await derived(photo), await photoCheck(small) { sentPhoto = small }
             await setMyHead(nil, photo: sentPhoto)
-            defaults.set(selfDigest(pack: nil), forKey: Self.sentSelfKey)
+            // Held back by the check (or a check that could not run): not
+            // recorded as sent, so the next launch tries again (the review).
+            if sentPhoto != nil || !photosAllowed() {
+                defaults.set(selfDigest(pack: nil), forKey: Self.sentSelfKey)
+            }
             return
         }
         let pack = await headToSend()
@@ -985,6 +978,13 @@ final class SocialStore {
     func shareMyselfIfChanged() async {
         guard isEnabled(), !checkedSelf, !crews.isEmpty else { return }
         checkedSelf = true
+        // A photograph in place of a head: its own digest, and no head is
+        // missing on purpose (the review: every launch re-sent it otherwise).
+        if myPhoto() != nil {
+            guard selfDigest(pack: nil) != defaults.string(forKey: Self.sentSelfKey) else { return }
+            await shareMyself()
+            return
+        }
         let pack = await headToSend()
         let digest = selfDigest(pack: pack)
         // A head the check held back is missing on purpose.
@@ -1005,6 +1005,9 @@ final class SocialStore {
         hasher.update(data: pack ?? Data())
         hasher.update(data: Data([0]))
         hasher.update(data: myPhoto() ?? Data())
+        // The photo rule too: a change in it takes a sent photograph back
+        // (or sends it), as a head's does.
+        hasher.update(data: Data([photosAllowed() ? 1 : 0]))
         hasher.update(data: Data(myFirstName().utf8))
         hasher.update(data: Data((myHandle() ?? "").utf8))
         hasher.update(data: Data((FeaturedWins.encode(myFeatured()) ?? "").utf8))
@@ -1103,7 +1106,10 @@ final class SocialStore {
             }
             mine.firstName = myFirstName()
             mine.handle = myHandle()
-            mine.featured = myFeatured()
+            // Only wins this crew was sent (the review: every crew was told of
+            // every featured win, sent there or not).
+            let sentHere = Set((winsByCrew[crew.id] ?? []).filter { $0.senderProfileID == me }.map(\.winID))
+            mine.featured = myFeatured().filter { sentHere.contains($0.win) }
             // Held here at once, not only after the next fetch: what this
             // phone shows of you, and what `shareMyselfIfChanged` compares,
             // is what was just sent.

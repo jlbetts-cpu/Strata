@@ -27,6 +27,9 @@ struct YourDaySheet: View {
     /// The titles of today's wins, for the ticks on your three.
     @State private var titlesToday: [String] = []
     @State private var choosingThree = false
+    @State private var vm = ProfileViewModel()
+    @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
+    @State private var hours: [Int] = Array(repeating: 0, count: 24)
     /// A day of the week tapped to read (2026-10-16: the owner wanted this
     /// sheet's figures "you can interact with", as Your Stats is).
     @State private var pickedDay: String?
@@ -66,22 +69,10 @@ struct YourDaySheet: View {
                         .disabled(goal >= DailyGoal.range.upperBound)
                     }
                     .accessibilityElement(children: .contain)
-                    // **Your last two weeks beside the number** (`GoalHistory`,
-                    // 2026-10-08): only once there are a few days to read.
-                    if history.isReadable {
-                        GoalHistoryChart(history: history, goal: goal)
-                            .padding(.vertical, GridConstants.gapTight)
-                    }
-                } footer: {
-                    // "...and prints the day's strip" was untrue of a day with
-                    // no photos; onboarding's line was fixed for the same on
-                    // 2026-10-11 and this one was missed.
-                    Text(history.isReadable && !history.sentence(goal: goal).isEmpty
-                         ? "\(history.sentence(goal: goal)) Reach it and your tower dances. The day's photos print as a strip."
-                         : "Reach it and your tower dances. The day's photos print as a strip.")
-                        .formFooter()
-                        .contentTransition(.numericText())
-                        .animation(GridConstants.crossFade, value: goal)
+                    // **The number alone** (the owner, 2026-10-16: "too much
+                    // information and repeated data"): the two weeks' bars said
+                    // what This week's rings and Wins per week say, and the
+                    // footer what the dance says.
                 }
                 .listRowSeparator(.hidden)
                 yourThree
@@ -95,24 +86,20 @@ struct YourDaySheet: View {
                     if !printed.isEmpty { weekStrips }
                 }
                 .listRowSeparator(.hidden)
-                Section {
-                    FormSectionLabel("Streak")
-                    // **A line of facts, not two big numerals** (2026-10-16:
-                    // the owner's Hinge pass, and "I don't like big text").
-                    let now = Streaks.current(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
-                    let best = Streaks.longest(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
-                    InfoCard(chips: [
-                        InfoCard.Fact(icon: "flame", text: now == 1 ? "1 day now" : "\(now) days now"),
-                        InfoCard.Fact(icon: "trophy", text: best == 1 ? "Best 1 day" : "Best \(best) days"),
-                    ], quiet: true)
-                    .frame(maxWidth: .infinity)
-                } footer: {
-                    Text("A day off a week won't break it.")
-                        .formFooter()
+                // **Your record, here and not on your profile** (the owner,
+                // 2026-10-16: "the profile doesn't even need stats, because it
+                // would be in the middle container in the wins").
+                WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)
+                if hours.contains(where: { $0 > 0 }) {
+                    Section {
+                        HourWinsChart(hours: hours)
+                            .padding(.vertical, GridConstants.gapTight)
+                    }
                 }
-                .listRowSeparator(.hidden)
             }
             .listSectionSeparator(.hidden)
+            // Cards closer, as everywhere (2026-10-16).
+            .listSectionSpacing(GridConstants.gapLabel)
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(WarmBackground().ignoresSafeArea())
@@ -133,6 +120,8 @@ struct YourDaySheet: View {
         }
         .task {
             counts = Self.counts(context: context)
+            vm.load(context: context)
+            hours = Self.hours(context: context)
             titlesToday = WinIdeas.titlesToday(context: context)
             #if DEBUG
             if DebugHarness.openSheet == "yourthree" { choosingThree = true }
@@ -226,9 +215,6 @@ struct YourDaySheet: View {
                     .accessibilityHint("Changes your three.")
                 }
             }
-        } footer: {
-            Text(YourThree.Copy.footer)
-                .formFooter()
         }
         .listRowSeparator(.hidden)
         .animation(GridConstants.crossFade, value: done)
@@ -256,6 +242,13 @@ struct YourDaySheet: View {
                     .monospacedDigit()
                     .foregroundStyle(AppColors.inkPrimary)
                     .contentTransition(.numericText(value: Double(winsToday)))
+                // The streak as a quiet line under the count, not a section.
+                let now = Streaks.current(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
+                let best = Streaks.longest(among: counts.keys, restsPerWeek: Streaks.Rest.profile)
+                InfoCard(chips: [
+                    InfoCard.Fact(icon: "flame", text: now == 1 ? "1 day streak" : "\(now) day streak"),
+                    InfoCard.Fact(icon: "trophy", text: best == 1 ? "Best 1 day" : "Best \(best) days"),
+                ], quiet: true)
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
@@ -332,6 +325,18 @@ struct YourDaySheet: View {
                            name: date.formatted(.dateTime.weekday(.wide)),
                            future: date > today)
         }
+    }
+
+    /// Wins by the hour over the last month (`HourWinsChart`).
+    @MainActor
+    static func hours(context: ModelContext) -> [Int] {
+        let from = DateUtils.dateString(from: Calendar.current.date(byAdding: .day, value: -29, to: Date()) ?? Date())
+        let d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString >= from })
+        var out = Array(repeating: 0, count: 24)
+        for log in (try? context.fetch(d)) ?? [] {
+            out[Calendar.current.component(.hour, from: log.completedAt ?? log.createdAt)] += 1
+        }
+        return out
     }
 
     /// Wins per day over the streak's horizon.

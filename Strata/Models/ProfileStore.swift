@@ -124,8 +124,10 @@ final class ProfileStore {
     var photoData: Data? { usesPhoto ? Self.photoURL.flatMap { try? Data(contentsOf: $0) } : nil }
 
     /// Takes a photograph as your picture, square and small enough to send.
-    func usePhoto(_ jpeg: Data) {
-        guard let url = Self.photoURL, let square = Self.square(jpeg) else { return }
+    func usePhoto(_ jpeg: Data) async {
+        // Off the main thread: a picked photograph can be 48 megapixels.
+        let square = await Task.detached(priority: .userInitiated) { Self.square(jpeg) }.value
+        guard let url = Self.photoURL, let square else { return }
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? square.write(to: url, options: .atomic)
         photoCacheRead = false
@@ -144,7 +146,7 @@ final class ProfileStore {
     }
 
     /// The middle square, 600 pixels across.
-    private static func square(_ data: Data) -> Data? {
+    nonisolated private static func square(_ data: Data) -> Data? {
         guard let image = UIImage(data: data) else { return nil }
         let side = min(image.size.width, image.size.height)
         let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)

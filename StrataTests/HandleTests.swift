@@ -160,4 +160,20 @@ struct HandleTests {
         member.featured = items
         #expect(CrewRecords.member(CrewRecords.fields(member))?.featured == items)
     }
+
+    @Test("a crew is told only of featured wins it was sent")
+    func featuredPerCrew() async throws {
+        let a = Kept()
+        let samID = UUID()
+        let sam = store(samID, kept: a)
+        let (crew, _) = try await sam.createCrew(name: "Roommates")
+        let sentWin = UUID(), elsewhere = UUID()
+        await sam.post(OwnWin(winID: sentWin, title: "Run", colour: .health, icon: .health, blockSize: .small,
+                              photoJPEG: nil, cropX: nil, cropY: nil, createdAt: .now, updatedAt: .now), to: [crew.id])
+        sam.myFeatured = { [FeaturedWins.Shared(win: sentWin, prompt: "Proudest win lately"),
+                            FeaturedWins.Shared(win: elsewhere, prompt: "")] }
+        await sam.setMyHead(nil)
+        let mine = try #require(sam.crew(crew.id)?.member(samID))
+        #expect(mine.featured.map(\.win) == [sentWin])
+    }
 }

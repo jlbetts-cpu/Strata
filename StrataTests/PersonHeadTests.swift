@@ -104,7 +104,9 @@ struct HeadSwitchesGoneTests {
     @Test("Profile offers no placement switches; a chosen photograph is checked before it is sent")
     func profileHasNoPhoto() throws {
         let profile = SourceSweep.code(try SourceSweep.read("Strata/Views/ProfileView.swift"))
-        for gone in ["Choose Photo", "Remove Photo", "Use Photo or Initials", "Use as Profile Picture",
+        // "Remove Photo" is back since 2026-10-16, for the photograph chosen
+        // instead of a head: the way to stop sharing it (the review).
+        for gone in ["Choose Photo", "Use Photo or Initials", "Use as Profile Picture",
                      "Show My Head on the Map", "Add My Head to Photos", ".photosPicker("] {
             #expect(!profile.contains(gone), "\(gone) is back in Profile")
         }

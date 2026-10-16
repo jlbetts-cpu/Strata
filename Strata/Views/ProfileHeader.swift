@@ -25,8 +25,12 @@ struct ProfileHeader: View {
     /// owner, 2026-10-16: "the banner should use only wins from that month,
     /// so every month is different"). Your choice where it is of this month;
     /// else the month's latest photographs.
-    private var banner: [BannerPicture] {
-        let key = monthKey
+    private var banner: [BannerPicture] { Self.banner(logs: logs, month: monthKey, store: store) }
+
+    /// A month's banner: your picks where they are still that month's, else
+    /// its latest photographed wins, as many as its arrangement holds. The
+    /// one answer, for Memories and Profile alike.
+    static func banner(logs: [HabitLog], month key: String, store: ProfileStore) -> [BannerPicture] {
         let photographed = logs.filter { $0.imageFileName != nil && $0.dateString.hasPrefix(key) }
             .sorted { ($0.completedAt ?? $0.createdAt) > ($1.completedAt ?? $1.createdAt) }
         let files = photographed.compactMap(\.imageFileName)
@@ -38,8 +42,13 @@ struct ProfileHeader: View {
 
     private var monthKey: String { String(DateUtils.dateString(from: month).prefix(7)) }
 
+    /// **Only the ones you chose** go to your crews (the review: the
+    /// automatic picks changed with every photographed win, and each change
+    /// re-sent your member record to every crew). Until you choose, your
+    /// profile shows them here and friends see none.
     private var featuredShared: String? {
         let _ = store.bannerChanged
+        guard !store.featuredFiles.isEmpty else { return nil }
         let picked = FeaturedWins.pick(from: logs, chosen: store.featuredFiles)
         return FeaturedWins.encode(picked.enumerated().map { index, log in
             FeaturedWins.Shared(win: log.id, prompt: FeaturedWins.prompt(index, chosen: store.featuredPrompts))
@@ -341,27 +350,27 @@ struct YourScoreSheet: View {
         let stats = stats
         let entries = entries
         Form {
-            // **You, then your facts, organised** (the owner, 2026-10-16:
-            // "the stats header looks pretty lame"; then, after Hinge, "organize
-            // information using icons and clean hairline dividers"). Your head
-            // alive and your name; then one card (`InfoCard`): the figures
-            // across the top, sideways when they do not fit, and the facts
-            // about your record a line each.
+            // **You, as the banner card on Memories is** (the owner,
+            // 2026-10-16: "make sure the profile screen shows the banner too;
+            // this profile is really important to get right"): this month's
+            // banner, your head across its foot, your name and @, your facts
+            // under it. One card for you, here and there.
             Section {
-                VStack(spacing: GridConstants.gapItem) {
-                    PersonHead(person: .me, side: 80, life: .expressive, setting: .disc(.quiet))
-                    Text(profile.name.isEmpty ? "Your Name" : profile.name)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(profile.name.isEmpty ? AppColors.inkTertiary : AppColors.inkPrimary)
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .combine)
+                let key = String(DateUtils.dateString(from: Date()).prefix(7))
+                ProfileTop(person: .me, name: profile.name.isEmpty ? "Your Name" : profile.name,
+                           nameIsPrompt: profile.name.isEmpty, figures: [],
+                           banner: ProfileHeader.banner(logs: logs, month: key, store: profile),
+                           bannerLayout: profile.bannerLayout(for: key),
+                           chips: chips(stats), handle: profile.handle)
+                    .listRowInsets(EdgeInsets())
             }
             .listRowBackground(Color.clear)
 
-            Section {
-                InfoCard(chips: chips(stats), rows: facts(stats, entries: entries))
-                    .listRowInsets(EdgeInsets())
+            if !facts(stats, entries: entries).isEmpty {
+                Section {
+                    InfoCard(rows: facts(stats, entries: entries))
+                        .listRowInsets(EdgeInsets())
+                }
             }
 
             // **Your featured wins, each under a prompt** (2026-10-16; the
@@ -378,16 +387,13 @@ struct YourScoreSheet: View {
             // No separate week here (the owner, 2026-10-16: "the wins on the
             // bottom covers the wins this week, so why is there a separate
             // one"): Wins per week below says it, a day or a month too.
-            if !entries.isEmpty {
-                Section {
-                    HourWinsChart(hours: StatsData.hours(entries, today: Date()))
-                        .padding(.vertical, GridConstants.gapTight)
-                }
-            }
-
-            WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)
+            // **No charts here** (the owner, 2026-10-16: "the profile doesn't
+            // even need stats, because it would be in the middle container in
+            // the wins"): they are in Your day, from the Wins middle.
         }
-        .listSectionSpacing(GridConstants.gapPage)
+        // Cards closer (the owner, 2026-10-16: "the spacing between the
+        // different containers is slightly too far").
+        .listSectionSpacing(GridConstants.gapLabel)
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)

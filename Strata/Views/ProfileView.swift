@@ -588,19 +588,23 @@ struct ProfileView: View {
             .onChange(of: photoPick) { _, item in
                 guard let item else { return }
                 Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) { store.usePhoto(data) }
+                    if let data = try? await item.loadTransferable(type: Data.self) { await store.usePhoto(data) }
                     photoPick = nil
                 }
             }
-            if store.usesPhoto, !heads.entries.isEmpty {
+            if store.usesPhoto {
+                // Back to your head, or with none, simply the photograph gone
+                // (the review: with no head there was no way to stop sharing it).
                 Button {
                     HapticsEngine.lightTap()
                     store.useHead()
                 } label: {
                     Label {
-                        Text("Use My Head Instead").foregroundStyle(AppColors.inkPrimary)
+                        Text(heads.entries.isEmpty ? "Remove Photo" : "Use My Head Instead")
+                            .foregroundStyle(heads.entries.isEmpty ? AppColors.destructiveInk : AppColors.inkPrimary)
                     } icon: {
-                        SettingsIcon(systemName: "face.smiling")
+                        SettingsIcon(systemName: heads.entries.isEmpty ? "trash" : "face.smiling",
+                                     tint: heads.entries.isEmpty ? AppColors.destructiveInk : nil)
                     }
                 }
             }

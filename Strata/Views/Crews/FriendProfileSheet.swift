@@ -209,7 +209,7 @@ struct FriendProfileSheet: View {
     private func page(today: [SharedWin], colW: CGFloat, viewport: CGFloat) -> some View {
         let width = colW * CGFloat(columns) + spacing * CGFloat(columns - 1)
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: GridConstants.gapSection) {
+            VStack(spacing: GridConstants.gapLabel) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
                            figures: [],
                            // This month's, by the rule yours keeps.
@@ -284,36 +284,13 @@ struct FriendProfileSheet: View {
     @ViewBuilder
     private func photos(width: CGFloat) -> some View {
         if !recent.isEmpty {
-            let gap = GridConstants.spacing
-            let side = floor((width - gap * 2) / 3)
-            // On its card with its title inside, as every section's is now.
-            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                Text("Recent photos")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .accessibilityAddTraits(.isHeader)
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: gap), count: 3), spacing: gap) {
-                    ForEach(recent) { win in
-                        Button {
-                            HapticsEngine.lightTap()
-                            viewerWins = recent
-                            viewerNewest = true
-                            viewing = win.winID.uuidString
-                        } label: {
-                            if let url = win.photo {
-                                CrewPhotoView(url: url, width: side, height: side)
-                                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-                            }
-                        }
-                        .buttonStyle(.press)
-                        .accessibilityLabel(win.title.isEmpty ? "A photo" : win.title)
-                        .accessibilityHint("Opens it full screen.")
-                    }
-                }
+            // The one photo card, as Memories' months are (`PhotoGridCard`).
+            PhotoGridCard(title: "Recent photos",
+                          pictures: recent.compactMap { win in win.photo.map { (win.winID.uuidString, BannerPicture.theirs($0)) } }) { id in
+                viewerWins = recent
+                viewerNewest = true
+                viewing = id
             }
-            .padding(PageCard.inset)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .pageCard()
         }
     }
 
