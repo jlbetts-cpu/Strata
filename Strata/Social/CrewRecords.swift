@@ -99,7 +99,7 @@ nonisolated enum CrewRecords {
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
     /// A shared win's, and the sealed end. Its `crewDay` is the poster's
     /// date, the night it belongs to (`CrewStory`).
-    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt", "line"])
+    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt", "line", "low", "buffalo"])
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -183,14 +183,20 @@ nonisolated enum CrewRecords {
         var fields = fields(story.win)
         fields["endsAt"] = .date(story.endsAt)
         if let line = story.line, !line.isEmpty { fields["line"] = .string(line) }
+        if let low = story.low, !low.isEmpty { fields["low"] = .string(low) }
+        if let buffalo = story.buffalo, !buffalo.isEmpty { fields["buffalo"] = .string(buffalo) }
         return fields
     }
 
     /// A story needs its end: one without it would never go.
     static func story(_ fields: RecordFields, crew: CrewID) -> CrewStory? {
         guard let ends = fields["endsAt"]?.date, let win = sharedWin(fields, crew: crew) else { return nil }
-        let line = fields["line"]?.string.map { String(CrewWords.kept($0).trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
-        return CrewStory(win: win, endsAt: ends, line: line?.isEmpty == true ? nil : line)
+        // Each line checked as every word a crew sees is, and cut to one line.
+        func words(_ key: String) -> String? {
+            let text = fields[key]?.string.map { String(CrewWords.kept($0).trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
+            return text?.isEmpty == true ? nil : text
+        }
+        return CrewStory(win: win, endsAt: ends, line: words("line"), low: words("low"), buffalo: words("buffalo"))
     }
 
     // MARK: Reaction

@@ -177,3 +177,25 @@ struct HandleTests {
         #expect(mine.featured.map(\.win) == [sentWin])
     }
 }
+
+@Suite("High, low, buffalo")
+struct StoryWordsTests {
+    @Test("the journal keeps the three as lines, replaced not repeated, the rest kept")
+    func journal() {
+        let first = JournalWords.merge(note: "A good day overall.", words: StoryWords(high: "Ran 5k", low: "Rain", buffalo: ""))
+        #expect(first == "High: Ran 5k\nLow: Rain\n\nA good day overall.")
+        let again = JournalWords.merge(note: first, words: StoryWords(high: "Ran 6k", low: "", buffalo: "Honey never goes off"))
+        #expect(again == "High: Ran 6k\nBuffalo: Honey never goes off\n\nA good day overall.")
+    }
+
+    @Test("the three ride on the story record, checked and cut to a line")
+    func record() {
+        let win = SharedWin(winID: UUID(), crewID: CrewID(rawValue: "c"), senderProfileID: UUID(), crewDay: "2026-10-16",
+                            title: "Run", colour: .health, icon: .health, blockSize: .small, photo: nil, cropX: nil, cropY: nil,
+                            createdAt: .now, updatedAt: .now)
+        let story = CrewStory(win: win, endsAt: .now, line: "High", low: "Low", buffalo: String(repeating: "b", count: 200))
+        let back = CrewRecords.story(CrewRecords.fields(story), crew: CrewID(rawValue: "c"))
+        #expect(back?.low == "Low")
+        #expect(back?.buffalo?.count == StoryLine.limit)
+    }
+}

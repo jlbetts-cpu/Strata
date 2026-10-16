@@ -241,7 +241,12 @@ extension DebugHarness {
             let lines = ["Finally finished the lab report", "Ran the whole loop without stopping", ""]
             for (k, friend) in friends.prefix(n).enumerated() {
                 await friend.refresh()
-                await friend.setStoryLine(lines[k % lines.count], on: CrewDay.string(for: Date(), in: .current))
+                // High, low and buffalo for the first two (2026-10-16).
+                let lows = ["Missed the bus by a minute", "Rained the whole walk home", ""]
+                let facts = ["Octopuses have three hearts", "Honey never goes off", ""]
+                await friend.setStoryWords(StoryWords(high: lines[k % lines.count], low: lows[k % lows.count],
+                                                      buffalo: facts[k % facts.count]),
+                                           on: CrewDay.string(for: Date(), in: .current))
                 for j in 0..<(k == 0 ? 2 : 1) {
                     await friend.postStory(win(1 + k * 3 + j * 3, minutesAgo: 150 - k * 25 - j * 10))
                 }

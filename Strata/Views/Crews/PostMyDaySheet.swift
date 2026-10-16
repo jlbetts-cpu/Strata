@@ -18,6 +18,10 @@ struct PostMyDaySheet: View {
     @State private var wins: [HabitLog] = []
     @State private var picked: [UUID] = []
     @State private var line = ""
+    @State private var low = ""
+    @State private var buffalo = ""
+    @FocusState private var field: Field?
+    enum Field { case high, low, buffalo }
     @State private var posting = false
     @State private var refused = false
     @FocusState private var writing: Bool
@@ -36,9 +40,15 @@ struct PostMyDaySheet: View {
                 // organized well"): the line, then the wins, each with its
                 // title inside; when your friends see it, quiet at the foot.
                 VStack(alignment: .leading, spacing: PageCard.gap) {
+                    // **High, low, buffalo** (the owner, 2026-10-16): the best of
+                    // today, the hardest part and a random fact, each a line,
+                    // each optional; together a page of your story.
                     card {
-                        title(StoryLine.prompt)
-                        lineField
+                        wordsRow(StoryLine.high, prompt: StoryLine.highPrompt, text: $line, field: .high)
+                        Divider().overlay(AppColors.inkPrimary.opacity(0.06))
+                        wordsRow(StoryLine.low, prompt: StoryLine.lowPrompt, text: $low, field: .low)
+                        Divider().overlay(AppColors.inkPrimary.opacity(0.06))
+                        wordsRow(StoryLine.buffalo, prompt: StoryLine.buffaloPrompt, text: $buffalo, field: .buffalo)
                     }
                     card {
                         if wins.isEmpty {
@@ -96,6 +106,32 @@ struct PostMyDaySheet: View {
             .submitLabel(.done)
             .frame(minHeight: 44, alignment: .leading)
             .accessibilityLabel(StoryLine.prompt)
+    }
+
+    /// One of the three: its name small above, the line written under it.
+    private func wordsRow(_ name: String, prompt: String, text: Binding<String>, field: Field) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+                .font(Typography.headerSmall)
+                .foregroundStyle(AppColors.inkSecondary)
+            TextField(name, text: Binding(get: { text.wrappedValue },
+                                          set: { text.wrappedValue = String($0.prefix(StoryLine.limit)) }),
+                      prompt: Text(prompt).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1...3)
+                .focused($field, equals: field)
+                .submitLabel(.next)
+                .onSubmit {
+                    switch field {
+                    case .high: self.field = .low
+                    case .low: self.field = .buffalo
+                    case .buffalo: self.field = nil
+                    }
+                }
+                .frame(minHeight: 32, alignment: .leading)
+                .accessibilityLabel(name == StoryLine.high ? StoryLine.prompt : "\(name), \(prompt)")
+        }
     }
 
     // MARK: The cards
@@ -183,7 +219,10 @@ struct PostMyDaySheet: View {
                                           sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
         d.relationshipKeyPathsForPrefetching = [\.habit]
         wins = (try? modelContext.fetch(d)) ?? []
-        line = store.storyLine(on: day) ?? ""
+        let words = store.storyWords(on: day)
+        line = words.high
+        low = words.low
+        buffalo = words.buffalo
         // What is on the story already; else a guess: the photographs,
         // newest first, or the latest win.
         let on = wins.filter { store.isOnStory($0.id) }.map(\.id)
@@ -195,11 +234,24 @@ struct PostMyDaySheet: View {
         }
     }
 
+    /// Into today's journal entry too (`JournalWords`): made if there is none.
+    private func keepInJournal(_ words: StoryWords) {
+        guard !(words.high + words.low + words.buffalo).isEmpty else { return }
+        let day = today
+        let found = (try? modelContext.fetch(FetchDescriptor<MoodLog>(predicate: #Predicate { $0.dateString == day })))?.first
+        let entry = found ?? MoodLog(dateString: day, mood: 3, motivation: 3)
+        if found == nil { modelContext.insert(entry) }
+        entry.note = JournalWords.merge(note: entry.note, words: words)
+        try? modelContext.save()
+    }
+
     private func post() async {
         posting = true
         defer { posting = false }
-        let outcome = await store.setStoryLine(line, on: today)
+        let words = StoryWords(high: line, low: low, buffalo: buffalo)
+        let outcome = await store.setStoryWords(words, on: today)
         guard outcome != .refusedWords else { refused = true; return }
+        keepInJournal(words)
         let chosen = Set(picked)
         for log in wins {
             let isOn = store.isOnStory(log.id)

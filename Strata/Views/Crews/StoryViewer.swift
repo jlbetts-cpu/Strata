@@ -161,7 +161,23 @@ private struct StoryPage: View {
 
     private var store: SocialStore { SocialStore.shared }
     private var mine: Bool { person.profileID == store.me }
-    private var story: CrewStory { person.stories[min(page, person.stories.count - 1)] }
+    /// **High, low, buffalo, a page of its own** (the owner, 2026-10-16:
+    /// "should the high, low and buffalo be its own story slide, in the middle
+    /// of the photographs"): between the first photographs and the rest.
+    private var wordsIndex: Int? { person.hasWords ? (person.stories.count + 1) / 2 : nil }
+    private var pageCount: Int { person.stories.count + (wordsIndex == nil ? 0 : 1) }
+    private var isWords: Bool { page == wordsIndex }
+    /// The story a page shows, or (the words page) the one before it, which a
+    /// reply from there is about.
+    private func storyIndex(_ page: Int) -> Int {
+        guard let w = wordsIndex else { return page }
+        return page >= w ? max(page - 1, 0) : page
+    }
+    private func pageOf(_ storyIndex: Int) -> Int {
+        guard let w = wordsIndex else { return storyIndex }
+        return storyIndex >= w ? storyIndex + 1 : storyIndex
+    }
+    private var story: CrewStory { person.stories[min(storyIndex(page), person.stories.count - 1)] }
     private let hPad = GridConstants.horizontalPadding
 
     /// How long a page stands before the next.
@@ -205,7 +221,7 @@ private struct StoryPage: View {
         .onChange(of: isCurrent, initial: true) { _, now in
             busy = false
             guard now else { return }
-            page = person.stories.firstIndex { !store.storiesSeen.contains($0.id) } ?? 0
+            page = pageOf(person.stories.firstIndex { !store.storiesSeen.contains($0.id) } ?? 0)
             seen()
         }
         .onChange(of: page) {
@@ -220,7 +236,7 @@ private struct StoryPage: View {
     }
 
     private func forward() {
-        if page + 1 < person.stories.count { page += 1 } else { next() }
+        if page + 1 < pageCount { page += 1 } else { next() }
     }
 
     private func backward() {
@@ -233,7 +249,7 @@ private struct StoryPage: View {
     /// picture itself so the words read on a bright sky.
     private var top: some View {
         VStack(spacing: GridConstants.gapTight) {
-            StoryProgress(count: person.stories.count, index: page, paused: paused,
+            StoryProgress(count: pageCount, index: page, paused: paused,
                           length: Self.pageLength, finished: forward)
                 .id("\(person.id)-\(page)-\(isCurrent)")
                 .padding(.top, GridConstants.gapTight)
@@ -322,7 +338,9 @@ private struct StoryPage: View {
             // The camera's own card (`CameraView`'s `radiusSurface`).
             let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
             Group {
-                if let url = story.win.photo {
+                if isWords {
+                    StoryWordsPage(high: person.line, low: person.low, buffalo: person.buffalo)
+                } else if let url = story.win.photo {
                     CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height,
                                   crop: CGPoint(x: story.win.cropX ?? 0, y: story.win.cropY ?? 0))
                 } else {
@@ -339,7 +357,7 @@ private struct StoryPage: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipShape(shape)
-            .id(story.id)
+            .id(isWords ? "words" : story.id.uuidString)
             .transition(.opacity)
             // **Tap on, tap back, hold to pause.** The left third goes back,
             // as every story does; the rest goes on.
@@ -352,7 +370,7 @@ private struct StoryPage: View {
                 held = pressing
             })
         }
-        .animation(GridConstants.crossFade, value: story.id)
+        .animation(GridConstants.crossFade, value: page)
         .accessibilityElement()
         .accessibilityLabel(spoken)
         .accessibilityHint("Swipe up or down for the next or the one before.")
@@ -366,7 +384,13 @@ private struct StoryPage: View {
     }
 
     private var spoken: String {
-        var parts = ["\(mine ? "Your story" : "\(name)'s story"), \(page + 1) of \(person.stories.count)"]
+        var parts = ["\(mine ? "Your story" : "\(name)'s story"), \(page + 1) of \(pageCount)"]
+        if isWords {
+            for (name, text) in [(StoryLine.high, person.line), (StoryLine.low, person.low), (StoryLine.buffalo, person.buffalo)] {
+                if let text { parts.append("\(name): \(text)") }
+            }
+            return parts.joined(separator: ", ")
+        }
         if !story.win.title.isEmpty { parts.append(story.win.title) }
         parts.append(story.win.photo == nil ? "a block" : "a photo")
         return parts.joined(separator: ", ")
@@ -382,7 +406,8 @@ private struct StoryPage: View {
     /// **Their line opens the story** (2026-10-16): on the first page, the
     /// best part of today in their words; after it, each win's own name.
     private var caption: String? {
-        if page == 0, let line = person.line { return "\u{201C}\(line)\u{201D}" }
+        // The words have their own page now; a photograph says its win.
+        if isWords { return nil }
         return story.win.title.isEmpty ? nil : story.win.title
     }
 
@@ -903,5 +928,43 @@ struct StoryGlyph: View {
             .foregroundStyle(tint)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
+    }
+}
+
+/// **The night's words, a page of the story** (2026-10-16): High, Low and
+/// Buffalo, each its name small above its line, on a dark card the size of
+/// a photograph, so it sits among them as one of them. A reply from here is
+/// a reply to their day, which is how a close friend's evening starts a
+/// conversation.
+private struct StoryWordsPage: View {
+    let high: String?
+    let low: String?
+    let buffalo: String?
+
+    var body: some View {
+        ZStack {
+            Color(white: 0.09)
+            VStack(alignment: .leading, spacing: GridConstants.gapSection) {
+                Spacer(minLength: 0)
+                if let high { row(StoryLine.high, high) }
+                if let low { row(StoryLine.low, low) }
+                if let buffalo { row(StoryLine.buffalo, buffalo) }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, GridConstants.gapWide + 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func row(_ name: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            Text(name)
+                .font(Typography.headerSmall)
+                .foregroundStyle(Color.white.opacity(0.55))
+            Text(text)
+                .font(Typography.headerMedium)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

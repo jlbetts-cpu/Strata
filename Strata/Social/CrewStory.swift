@@ -22,6 +22,12 @@ nonisolated struct CrewStory: Identifiable, Codable, Equatable, Sendable {
     /// a story carries that no crew tower does. The crew saw what happened;
     /// the story says what it meant. One a night, on every story record.
     var line: String? = nil
+    /// **High, low, buffalo** (the owner, 2026-10-16: "I used to do this thing
+    /// called high, low and buffalo, buffalo is a random fact; having that
+    /// would make the stories a lot more engaging"). The line above is the
+    /// high; these are the low of the day and a random fact, each optional.
+    var low: String? = nil
+    var buffalo: String? = nil
 
     var id: UUID { win.winID }
     var sender: UUID { win.senderProfileID }
@@ -113,6 +119,10 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
     var newest: Date { stories.map(\.win.createdAt).max() ?? .distantPast }
     /// Tonight's line, if they wrote one.
     var line: String? { stories.lazy.compactMap(\.line).first { !$0.isEmpty } }
+    var low: String? { stories.lazy.compactMap(\.low).first { !$0.isEmpty } }
+    var buffalo: String? { stories.lazy.compactMap(\.buffalo).first { !$0.isEmpty } }
+    /// Anything said in words tonight.
+    var hasWords: Bool { line != nil || low != nil || buffalo != nil }
     /// The first photograph, the picture the head becomes at 8pm.
     var cover: CrewStory? { stories.first { $0.win.photo != nil } ?? stories.first }
 
@@ -159,4 +169,39 @@ nonisolated enum StoryLine {
     /// One line, not a caption essay.
     static let limit = 80
     static let prompt = "Best part of today"
+    /// The three, as they are asked and shown.
+    static let high = "High"
+    static let low = "Low"
+    static let buffalo = "Buffalo"
+    static let highPrompt = "The best part of today"
+    static let lowPrompt = "The hardest part"
+    static let buffaloPrompt = "A random fact"
+}
+
+/// The night's words: your high, low and buffalo, kept per day.
+nonisolated struct StoryWords: Codable, Equatable, Sendable {
+    var high: String = ""
+    var low: String = ""
+    var buffalo: String = ""
+}
+
+
+/// **Your high, low and buffalo, kept in your journal** (the owner,
+/// 2026-10-16: "all these things should go into the journal at the end ...
+/// for remembering and gratitude"). Written into the day's note as three
+/// lines; posting again replaces those lines and leaves the rest of the
+/// note as you wrote it.
+nonisolated enum JournalWords {
+    static let names = [StoryLine.high, StoryLine.low, StoryLine.buffalo]
+
+    static func merge(note: String?, words: StoryWords) -> String {
+        let kept = (note ?? "").split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            .filter { line in !names.contains { line.hasPrefix($0 + ": ") } }
+        var added: [String] = []
+        for (name, text) in zip(names, [words.high, words.low, words.buffalo]) where !text.isEmpty {
+            added.append("\(name): \(text)")
+        }
+        let rest = kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return ([added.joined(separator: "\n"), rest].filter { !$0.isEmpty }).joined(separator: "\n\n")
+    }
 }

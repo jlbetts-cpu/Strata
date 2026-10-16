@@ -3312,7 +3312,10 @@ extension SocialStore {
         for crew in groupCrews where !leavingCrews.contains(crew.id) {
             var shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crew.id, win: win.winID, stem: "story-") })
             shared.crewDay = day
-            let story = CrewStory(win: shared, endsAt: ends, line: storyLine(on: day))
+            let words = storyWords(on: day)
+            let story = CrewStory(win: shared, endsAt: ends, line: storyLine(on: day),
+                                  low: words.low.isEmpty ? nil : words.low,
+                                  buffalo: words.buffalo.isEmpty ? nil : words.buffalo)
             let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
             var held = storiesByCrew[crew.id] ?? []
             held.removeAll { $0.id == story.id }
@@ -3919,5 +3922,52 @@ extension SocialStore {
         if member.profileID == me { return myHandle() }
         guard let handle = member.handle, verifiedHandles[member.profileID] == handle else { return nil }
         return handle
+    }
+}
+
+// MARK: - High, low, buffalo
+
+extension SocialStore {
+    private static let storyWordsKey = "crews.storyWords"
+
+    /// The night's words for a day (the high is also `storyLine`).
+    func storyWords(on day: String) -> StoryWords {
+        let all = (defaults.data(forKey: Self.storyWordsKey)).flatMap { try? JSONDecoder().decode([String: StoryWords].self, from: $0) } ?? [:]
+        var words = all[day] ?? StoryWords()
+        words.high = storyLine(on: day) ?? words.high
+        return words
+    }
+
+    /// **Your high, low and buffalo for tonight**, onto every story of yours
+    /// that is up; each checked as every word a crew sees is, and cut to one
+    /// line. Empty takes one off.
+    @discardableResult
+    func setStoryWords(_ raw: StoryWords, on day: String) async -> ReplyOutcome {
+        func clean(_ s: String) -> String { String(s.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
+        let words = StoryWords(high: clean(raw.high), low: clean(raw.low), buffalo: clean(raw.buffalo))
+        for text in [words.low, words.buffalo] where !text.isEmpty && !CrewWords.isAcceptable(text) {
+            return .refusedWords
+        }
+        var all = (defaults.data(forKey: Self.storyWordsKey)).flatMap { try? JSONDecoder().decode([String: StoryWords].self, from: $0) } ?? [:]
+        all[day] = words
+        if all.count > 7 { for key in all.keys.sorted().dropLast(7) { all[key] = nil } }
+        defaults.set(try? JSONEncoder().encode(all), forKey: Self.storyWordsKey)
+        // The high goes the line's own way (and its own check).
+        let outcome = await setStoryLine(words.high, on: day)
+        guard outcome != .refusedWords else { return outcome }
+        let t = now()
+        for (crewID, stories) in storiesByCrew {
+            for story in stories where story.sender == me && story.day == day && t < story.endsAt {
+                var changed = story
+                changed.low = words.low.isEmpty ? nil : words.low
+                changed.buffalo = words.buffalo.isEmpty ? nil : words.buffalo
+                storiesByCrew[crewID]?.removeAll { $0.id == story.id }
+                storiesByCrew[crewID]?.append(changed)
+                enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(changed)))
+            }
+        }
+        nudgeLive()
+        await flush()
+        return .sent
     }
 }
