@@ -208,7 +208,7 @@ struct MemoriesView: View {
                     // the liquid glass in the Wins middle and the crew"): your
                     // head on glass and your name in the glass caption open
                     // Profile, your stats and Edit together.
-                    ProfileHeader(onOpen: { showsScore = true })
+                    ProfileHeader(onOpen: { showsScore = true }, month: vm.selectedMonth)
                         // **Hung on what is pressed** (the owner, 2026-10-16:
                         // "pressing the chevron in the stats doesn't do
                         // anything"). It hung on the month's illustration,

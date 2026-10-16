@@ -11,6 +11,9 @@ import SwiftData
 /// Profile; a press on the score opens Your Score.
 struct ProfileHeader: View {
     var onOpen: () -> Void
+    /// The month Memories is showing, for the line's month figure (the owner:
+    /// "one of the stats month specific since it's by month").
+    var month: Date = Date()
 
     /// Every logged win, read live, so a delete lowers the score in the same
     /// moment the block leaves the tower (`WinsScore`).
@@ -18,11 +21,41 @@ struct ProfileHeader: View {
 
     private var store: ProfileStore { .shared }
 
+    /// This month's wins only, so every month's banner is its own (the
+    /// owner, 2026-10-16: "the banner should use only wins from that month,
+    /// so every month is different"). Your choice where it is of this month;
+    /// else the month's latest photographs.
+    private var banner: [BannerPicture] {
+        let key = monthKey
+        let photographed = logs.filter { $0.imageFileName != nil && $0.dateString.hasPrefix(key) }
+            .sorted { ($0.completedAt ?? $0.createdAt) > ($1.completedAt ?? $1.createdAt) }
+        let files = photographed.compactMap(\.imageFileName)
+        let chosen = store.bannerFiles.filter { files.contains($0) }
+        let picked = chosen.isEmpty ? Array(files.prefix(ProfileBanner.most)) : chosen
+        return picked.map(BannerPicture.mine)
+    }
+
+    private var monthKey: String { String(DateUtils.dateString(from: month).prefix(7)) }
+
+    /// The streak, the month's wins, and its photographs.
+    private var chips: [InfoCard.Fact] {
+        let streak = Streaks.current(among: Set(logs.map(\.dateString)), restsPerWeek: Streaks.Rest.profile)
+        let inMonth = logs.filter { $0.dateString.hasPrefix(monthKey) }
+        let monthName = month.formatted(.dateTime.month(.wide))
+        var out = [InfoCard.Fact(icon: "flame", text: streak == 1 ? "1 day streak" : "\(streak) day streak"),
+                   InfoCard.Fact(icon: "checkmark.circle", text: "\(inMonth.count) in \(monthName)")]
+        let photos = inMonth.filter { $0.imageFileName != nil }.count
+        if photos > 0 { out.append(InfoCard.Fact(icon: "camera", text: photos == 1 ? "1 photo" : "\(photos) photos")) }
+        return out
+    }
+
     var body: some View {
         // Once a pass: each read faults every log's win (the review).
         let tally = WinsScore.tally(logs.compactMap { $0.habit?.blockSize })
+        let _ = store.bannerChanged
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
-                   figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true)
+                   figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true,
+                   banner: banner, chips: chips)
             // Any change here, an older win deleted too, reaches your crews.
             .onChange(of: tally, initial: true) { _, now in
                 if CrewsFlag.isOn { SocialStore.shared.noteMyScore(now) }
@@ -61,11 +94,61 @@ struct ProfileTop: View {
     /// **Yours, on glass** (2026-10-16): the head in a glass bubble and the
     /// name in the glass caption, as the Wins middle and a crew's are.
     var glass = false
+    /// The banner of recent wins over the head (`ProfileBanner`); none, and
+    /// the head stands alone as it did.
+    var banner: [BannerPicture]? = nil
+    /// Short facts under the name, Hinge's way (`InfoCard`): yours.
+    var chips: [InfoCard.Fact] = []
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let headSide: CGFloat = 76
 
     var body: some View {
+        if let banner { bannered(banner) } else { plain }
+    }
+
+    /// **The banner, the head over its foot, the name and a line** (the
+    /// owner's sketch, 2026-10-16): the head stands across the banner's
+    /// lower edge on a ring of the page, so it reads as in front of it.
+    private func bannered(_ banner: [BannerPicture]) -> some View {
+        VStack(spacing: GridConstants.gapTight) {
+            pressable(onPerson, hint: personHint) {
+                VStack(spacing: GridConstants.gapTight) {
+                    ZStack(alignment: .bottom) {
+                        ProfileBanner(pictures: banner)
+                            .padding(.bottom, Self.headSide / 2)
+                        PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
+                            .padding(4)
+                            .background(Circle().fill(WarmBackground.top))
+                    }
+                    Text(name)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
+                        .lineLimit(1)
+                    if !chips.isEmpty {
+                        // **Organised, not a sentence** (the owner,
+                        // 2026-10-16: "looks a bit lacking, I would prefer it
+                        // more the Hinge aesthetic"): icon facts with
+                        // hairlines between, on their card.
+                        InfoCard(chips: chips, contained: true)
+                            .padding(.top, GridConstants.gapTight)
+                    }
+                }
+            }
+            .accessibilityLabel(([name] + chips.map(\.text) + [personHint]).filter { !$0.isEmpty }.joined(separator: ", "))
+            if !figures.isEmpty {
+                pressable(onFigures, hint: figuresHint) {
+                    self.figuresLine
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
+                }
+            }
+        }
+        .padding(.top, GridConstants.gapTight)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var plain: some View {
         VStack(spacing: GridConstants.gapTight) {
             pressable(onPerson, hint: personHint) {
                 if glass {
@@ -90,7 +173,7 @@ struct ProfileTop: View {
                 // Said as "11 score, 8 wins, 1 crew": on the line itself, so
                 // the button inside takes it, never the dots between.
                 pressable(onFigures, hint: figuresHint) {
-                    line
+                    figuresLine
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
                 }
@@ -101,7 +184,7 @@ struct ProfileTop: View {
     }
 
     /// "11 score · 8 wins · 1 crew"
-    private var line: some View {
+    private var figuresLine: some View {
         HStack(spacing: GridConstants.gapTight) {
             ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
                 if index > 0 {

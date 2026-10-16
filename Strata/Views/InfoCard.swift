@@ -18,12 +18,27 @@ struct InfoCard: View {
 
     var chips: [Fact] = []
     var rows: [Fact] = []
+    /// On its own card, where it is not already a form's row: the surface a
+    /// form's rows sit on, and the hairline round it.
+    var contained = false
 
     private static let line: CGFloat = 52
     private static let iconWidth: CGFloat = 24
     private var hairline: Color { AppColors.inkPrimary.opacity(0.1) }
 
     var body: some View {
+        if contained {
+            let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+            content
+                .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
+                .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.06), lineWidth: GridConstants.strokeThin))
+                .clipShape(shape)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             if !chips.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {

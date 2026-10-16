@@ -208,6 +208,9 @@ struct FriendProfileSheet: View {
             VStack(spacing: 0) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
                            figures: figures(today: today.count, shared: shared))
+                // No banner here (the owner, 2026-10-16: "doesn't look the
+                // best in other people's profiles because it's above the
+                // tower"): their tower is the page.
                 Spacer(minLength: GridConstants.gapSection)
                 ZStack(alignment: .topLeading) {
                     Color.clear

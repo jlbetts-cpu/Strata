@@ -63,6 +63,7 @@ final class ProfileStore {
     nonisolated private static let profileIDLock = NSLock()
 
     private static let nameKey = "profileName"
+    private static let bannerKey = "profileBanner"
     private static let backgroundKey = "profileBackground"
     /// The largest the picture is drawn is 88pt — 264px at 3x. 600 leaves
     /// room without holding a camera-sized image in memory for a circle.
@@ -79,6 +80,24 @@ final class ProfileStore {
         UserDefaults.standard.set(newValue, forKey: Self.nameKey)
         SocialStore.noteMyselfChanged()
     }
+
+    /// **The banner's photographs, as you chose them** (2026-10-16). Empty is
+    /// automatic: your latest photographed wins. Kept on this phone only.
+    var bannerFiles: [String] {
+        UserDefaults.standard.stringArray(forKey: Self.bannerKey) ?? []
+    }
+
+    func setBanner(_ files: [String]) {
+        if files.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.bannerKey)
+        } else {
+            UserDefaults.standard.set(Array(files.prefix(ProfileBanner.most)), forKey: Self.bannerKey)
+        }
+        bannerChanged += 1
+    }
+
+    /// Bumped on a change, so a view reading `bannerFiles` redraws.
+    private(set) var bannerChanged = 0
 
     func setBackground(_ colour: HabitCategory?) {
         background = colour
@@ -132,6 +151,7 @@ final class ProfileStore {
         UserDefaults.standard.removeObject(forKey: Self.nameKey)
         SocialStore.noteMyselfChanged()
         setBackground(nil)
+        setBanner([])
     }
 
     private static var photoURL: URL? {

@@ -1989,6 +1989,17 @@ final class FeedbackShots: XCTestCase {
 
     /// **Memories as your profile** (2026-10-15): the header, Your Score,
     /// Edit Profile and Settings from the gear.
+    /// The banner over the head, full and empty (2026-10-16).
+    func testProfileBanner() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedWins", "6", "-strataSeedHead", "1",
+                          "-strataSeedHistory", "20", "-strataSeedRealPhotos", "1"])
+        wait(8); snap("banner-1-photos")
+        app.terminate()
+        app = launch(["-strataStartTab", "memories", "-strataSeedWins", "2", "-strataSeedHead", "1"])
+        wait(8); snap("banner-2-few")
+        app.terminate()
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])
