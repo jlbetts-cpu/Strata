@@ -1060,21 +1060,49 @@ struct MemoriesView: View {
         // The month in the middle (the owner, 2026-10-16: "the month should
         // be in the middle, not on the side").
         VStack(alignment: .center, spacing: GridConstants.gapItem) {
-            MonthPicker(
-                title: vm.monthTitle,
-                months: vm.availableMonths,
-                titleFor: { vm.title(for: $0) },
-                onSelect: { month in
-                    withAnimation(GridConstants.crossFade) {
-                        vm.select(month: month, context: modelContext)
-                    }
-                }
-            )
+            monthArrows
             calendarGrid
         }
         .padding(PageCard.inset)
         .pageCard()
         .padding(.horizontal, GridConstants.horizontalPadding)
+    }
+
+    /// **The month between two arrows** (the owner, 2026-10-16: "remove the
+    /// chevron from the October, it should be arrows on both sides, I think
+    /// that would look cleaner"). Back a month on the left, on a month on the
+    /// right, as the swipe goes; an arrow with nowhere to go is quiet.
+    private var monthArrows: some View {
+        let months = vm.availableMonths
+        let here = months.firstIndex {
+            MemoriesViewModel.mondayCalendar.isDate($0, equalTo: vm.selectedMonth, toGranularity: .month)
+        }
+        let canBack = here.map { $0 + 1 < months.count } ?? false
+        let canOn = here.map { $0 > 0 } ?? false
+        return HStack(spacing: GridConstants.gapItem) {
+            arrow("chevron.left", label: "Previous month", enabled: canBack) { stepMonth(-1) }
+            Text(vm.monthTitle.capitalized)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .contentTransition(.numericText())
+                .animation(GridConstants.motionSnappy, value: vm.monthTitle)
+                .frame(maxWidth: .infinity)
+                .accessibilityAddTraits(.isHeader)
+            arrow("chevron.right", label: "Next month", enabled: canOn) { stepMonth(1) }
+        }
+    }
+
+    private func arrow(_ systemName: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(Typography.headerSmall)
+                .foregroundStyle(enabled ? AppColors.inkPrimary : AppColors.inkTertiary.opacity(0.5))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
