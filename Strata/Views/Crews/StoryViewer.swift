@@ -280,6 +280,21 @@ private struct StoryPage: View {
                 } label: {
                     Label("Take Off Story", systemImage: "minus.circle")
                 }
+                // One tap to Instagram's story, once the App ID is set
+                // (`InstagramShare`).
+                if InstagramShare.isReady {
+                    Button {
+                        let (photo, line) = (story.win.photo, person.line)
+                        Task {
+                            let picture = photo.flatMap { $0.isFileURL ? UIImage(contentsOfFile: $0.path) : nil }
+                            if let card = InstagramShare.card(picture: picture, line: line) {
+                                await InstagramShare.share(card)
+                            }
+                        }
+                    } label: {
+                        Label("Share to Instagram", systemImage: "square.and.arrow.up")
+                    }
+                }
             } else {
                 Button {
                     store.hideStory(of: person.profileID, day: story.day)
