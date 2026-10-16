@@ -13,6 +13,13 @@ struct DailyGoalTests {
         #expect(DailyGoal.progress(wins: 7, goal: 3) == 1)
     }
 
+    @Test("the caption is the fraction up to the goal, the count past it")
+    func caption() {
+        #expect(DailyGoal.caption(wins: 0, goal: 3) == "0/3")
+        #expect(DailyGoal.caption(wins: 3, goal: 3) == "3/3")
+        #expect(DailyGoal.caption(wins: 14, goal: 3) == "14")
+    }
+
     @Test("reaching is crossing, not resting on it")
     func reached() {
         #expect(DailyGoal.reached(from: 2, to: 3, goal: 3))

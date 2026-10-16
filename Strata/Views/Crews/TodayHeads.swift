@@ -452,7 +452,7 @@ struct StoryCrest<Head: View, Picture: View>: View {
         let change: AnyTransition = reduceMotion ? .opacity : AnyTransition(BlurReplaceTransition(configuration: .downUp))
         ZStack {
             GoalRingStroke(wins: lit, goal: count, line: GoalCrest.line,
-                           stagger: reduceMotion ? 0 : Self.segmentBeat)
+                           stagger: reduceMotion ? 0 : Self.segmentBeat, closesWhenMet: false)
                 .padding(GoalCrest.ringInset - 1)
             ZStack {
                 if open {

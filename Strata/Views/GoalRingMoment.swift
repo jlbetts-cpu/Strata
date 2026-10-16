@@ -270,7 +270,7 @@ struct GoalRingMomentLayer: View {
         .overlay(alignment: .bottom) {
             // The count, under it, as the caption is at home: only while
             // it is out, and counted up as the segment closes.
-            CrestCaption(text: "\(moment.filled ? moment.to : moment.from)/\(moment.goal)")
+            CrestCaption(text: DailyGoal.caption(wins: moment.filled ? moment.to : moment.from, goal: moment.goal))
                 .scaleEffect(1.25)
                 .fixedSize()
                 .offset(y: 54)

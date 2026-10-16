@@ -29,6 +29,14 @@ nonisolated enum DailyGoal {
         return min(1, Double(max(0, wins)) / Double(goal))
     }
 
+    /// **What the crest's caption says** (the owner, 2026-10-16: "it should
+    /// be clear how many wins you got for that day"). Up to the goal, the
+    /// fraction; past it, the count alone: "14/3" read as a ratio, and the
+    /// full ring above already says the goal is met.
+    static func caption(wins: Int, goal: Int) -> String {
+        wins > goal ? "\(wins)" : "\(wins)/\(goal)"
+    }
+
     /// The moment it is reached: the count crossing the goal, not resting on it.
     static func reached(from old: Int, to new: Int, goal: Int) -> Bool {
         old < goal && new >= goal
@@ -170,19 +178,27 @@ struct GoalRingStroke: View {
     /// Story). Zero, as on Wins, and every segment moves at once.
     var stagger: Double = 0
     var delay: Double = 0
+    /// **Met, it closes into one line** (2026-10-16): past the goal a
+    /// segment a win made fourteen dashes of a ring, the dotted line the
+    /// owner had taken off Invite and Story. A whole ring says done. Off
+    /// for a story's ring, whose notches are its stories (his ask).
+    var closesWhenMet = true
     /// Half the space between two segments, as a share of the ring.
     private static let gap = 0.018
 
-    /// One segment a win toward the goal; past it, one for every win, so
-    /// the ring stays full.
-    private var segments: Int { max(1, max(goal, wins)) }
+    /// One segment a win toward the goal; met, one whole ring.
+    private var segments: Int {
+        if closesWhenMet, goal > 0, wins >= goal { return 1 }
+        return max(1, max(goal, wins))
+    }
 
     var body: some View {
         ZStack {
             ForEach(0..<segments, id: \.self) { i in
                 let span = 1.0 / Double(segments)
                 DoodleRing()
-                    .trim(from: Double(i) * span + Self.gap, to: Double(i + 1) * span - Self.gap)
+                    .trim(from: segments == 1 ? 0 : Double(i) * span + Self.gap,
+                          to: segments == 1 ? 1 : Double(i + 1) * span - Self.gap)
                     .stroke(i < wins ? AppColors.inkPrimary : AppColors.inkPrimary.opacity(0.08),
                             style: StrokeStyle(lineWidth: line, lineCap: .round))
                     .rotationEffect(.degrees(-90))
@@ -391,7 +407,7 @@ struct GoalCrest: View {
             .buttonStyle(.press)
             .zIndex(1)
             Button { HapticsEngine.lightTap(); openDay() } label: {
-                CrestCaption(text: "\(shown)/\(goal)")
+                CrestCaption(text: DailyGoal.caption(wins: shown, goal: goal))
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
                     .contentShape(Rectangle())

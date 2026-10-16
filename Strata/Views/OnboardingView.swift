@@ -418,7 +418,7 @@ struct OnboardingView: View {
         // glass"). It was a bare 4pt ring; now the pen-weight ring inset on a
         // glass disc, the way Wins draws the day's goal, the size of the back
         // disc beside it.
-        return GoalRingStroke(wins: index + 1, goal: max(shownSteps.count, 1), line: GoalCrest.line)
+        return GoalRingStroke(wins: index + 1, goal: max(shownSteps.count, 1), line: GoalCrest.line, closesWhenMet: false)
             .padding(GoalCrest.ringInset)
             .frame(width: Self.progressSide, height: Self.progressSide)
             .stillGlassCircle()
