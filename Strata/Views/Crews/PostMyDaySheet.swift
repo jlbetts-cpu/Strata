@@ -1,0 +1,186 @@
+import SwiftData
+import SwiftUI
+
+/// **Tonight's Story, made in one go** (2026-10-16; the research: the crew
+/// already saw what happened, so a story has to say what it meant, Burke and
+/// Kraut 2016 on what close friends' words do, Bayer et al. 2016 on why
+/// small private sharing feels good).
+///
+/// The best of today, up to three wins you pick, and one line in your words,
+/// "Best part of today". The picks start as a sensible guess (the ones with
+/// photographs, newest first, or the latest win), so it is one tap when that
+/// is right. Nothing is ever posted without the tap.
+struct PostMyDaySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var wins: [HabitLog] = []
+    @State private var picked: [UUID] = []
+    @State private var line = ""
+    @State private var posting = false
+    @State private var refused = false
+    @FocusState private var writing: Bool
+
+    private var store: SocialStore { SocialStore.shared }
+    private let hPad = GridConstants.horizontalPadding
+    static let most = 3
+    private var today: String { DateUtils.dateString(from: Date()) }
+    private var wasPosted: Bool { !store.myStory.isEmpty }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: GridConstants.gapSection) {
+                    lineField
+                    picks
+                    Text(TonightsStoryRow.lesson)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                }
+                .padding(.horizontal, hPad)
+                .padding(.top, GridConstants.gapItem)
+                .padding(.bottom, GridConstants.gapPage)
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .background { WarmBackground().ignoresSafeArea() }
+            .sheetTitle("Tonight's Story", drawn: true)
+            .toolbar {
+                BareToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
+                        .buttonStyle(.pressWord)
+                }
+                BareToolbarItem(placement: .confirmationAction) {
+                    Button { Task { await post() } } label: {
+                        Text(wasPosted ? "Update" : "Post").sheetAction()
+                    }
+                    .buttonStyle(.pressWord)
+                    .disabled(picked.isEmpty || posting)
+                }
+            }
+            .alert("Try other words", isPresented: $refused) { Button("OK", role: .cancel) {} }
+        }
+        .task { load() }
+    }
+
+    // MARK: The line
+
+    private var lineField: some View {
+        TextField("Line", text: Binding(get: { line }, set: { line = String($0.prefix(StoryLine.limit)) }),
+                  prompt: Text(StoryLine.prompt).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+            .font(Typography.bodyLarge)
+            .foregroundStyle(AppColors.inkPrimary)
+            .lineLimit(1...3)
+            .focused($writing)
+            .submitLabel(.done)
+            .padding(.horizontal, GridConstants.gapLabel)
+            .padding(.vertical, GridConstants.gapItem)
+            .frame(minHeight: 56)
+            .glassField()
+            .accessibilityLabel(StoryLine.prompt)
+    }
+
+    // MARK: The picks
+
+    private var picks: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: GridConstants.gapItem), count: 3)
+        return VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            Text(wins.isEmpty ? "Log a win today to post your story." : "Up to three of today's wins")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+            LazyVGrid(columns: columns, spacing: GridConstants.gapItem) {
+                ForEach(wins, id: \.id) { log in tile(log) }
+            }
+        }
+    }
+
+    private func tile(_ log: HabitLog) -> some View {
+        let on = picked.contains(log.id)
+        let full = picked.count >= Self.most && !on
+        let category = log.habit?.displayCategory ?? .unlabeled
+        return Button {
+            HapticsEngine.tick()
+            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+                if on { picked.removeAll { $0 == log.id } } else if !full { picked.append(log.id) }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                GeometryReader { geo in
+                    ZStack {
+                        if let name = log.imageFileName {
+                            CachedImageView(fileName: name, width: geo.size.width, height: geo.size.width,
+                                            cornerRadius: GridConstants.blockCornerRadius)
+                        } else {
+                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
+                                .fill(category.style.baseColor)
+                            if let icon = category.iconName {
+                                Image(systemName: icon)
+                                    .font(.system(size: geo.size.width * 0.28, weight: .medium))
+                                    .foregroundStyle(category.style.text)
+                            }
+                        }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.width)
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(on ? WarmBackground.top : Color.white, on ? AppColors.inkPrimary : Color.black.opacity(0.25))
+                            .padding(6)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+                Text(log.habit?.title.isEmpty == false ? (log.habit?.title ?? "") : "A win")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .lineLimit(1)
+            }
+            .opacity(full ? 0.4 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(log.habit?.title ?? "A win")
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+
+    // MARK: Loading and posting
+
+    private func load() {
+        let day = today
+        var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.completed && $0.dateString == day },
+                                          sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+        d.relationshipKeyPathsForPrefetching = [\.habit]
+        wins = (try? modelContext.fetch(d)) ?? []
+        line = store.storyLine(on: day) ?? ""
+        // What is on the story already; else a guess: the photographs,
+        // newest first, or the latest win.
+        let on = wins.filter { store.isOnStory($0.id) }.map(\.id)
+        if !on.isEmpty {
+            picked = Array(on.prefix(Self.most))
+        } else {
+            let photos = wins.filter { $0.imageFileName != nil }.map(\.id)
+            picked = Array((photos.isEmpty ? wins.prefix(1).map(\.id) : photos).prefix(Self.most))
+        }
+    }
+
+    private func post() async {
+        posting = true
+        defer { posting = false }
+        let outcome = await store.setStoryLine(line, on: today)
+        guard outcome != .refusedWords else { refused = true; return }
+        let chosen = Set(picked)
+        for log in wins {
+            let isOn = store.isOnStory(log.id)
+            if chosen.contains(log.id), !isOn { CrewSync.setStory(log, on: true) }
+            if !chosen.contains(log.id), isOn { CrewSync.setStory(log, on: false) }
+        }
+        HapticsEngine.success()
+        // **Said where you are** (the owner, 2026-10-16: "they should know").
+        let ids = Array(chosen)
+        UndoLine.shared.show(wasPosted ? "Your story is updated" : "On tonight's story", undo: {
+            Task { for id in ids { await SocialStore.shared.withdrawStory(winID: id) } }
+        })
+        dismiss()
+    }
+}

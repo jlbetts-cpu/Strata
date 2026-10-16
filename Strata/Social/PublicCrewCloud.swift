@@ -657,14 +657,24 @@ final class PublicCrewCloud: CrewCloud {
         }
     }
 
+    /// **Strict, unlike other kinds** (the review, 2026-10-16): an invitation
+    /// is kept only when its `from` is a member of this crew with a record of
+    /// their own, and the account that wrote the invitation is that member's.
+    /// `keep` lets a record through when the profile has no member record;
+    /// here that would let anyone in the crew claim to be anyone.
     func fetchPersonals(in crew: CrewID) async throws -> [PersonalInvite] {
         records(.personal, in: crew).compactMap { fields in
-            CrewRecords.personal(fields).flatMap { keep(fields, from: $0.from, in: crew) ? $0 : nil }
+            guard let invite = CrewRecords.personal(fields), !isRemoved(invite.from, from: crew),
+                  let writer = fields[Self.creatorKey]?.string, !banned.contains(writer),
+                  let member = account(of: invite.from, in: crew), writer == member,
+                  keep(fields, from: invite.from, in: crew) else { return nil }
+            return invite
         }
     }
 
     func memberPublicKey(_ profileID: UUID, in crew: CrewID) -> String? {
         guard !isRemoved(profileID, from: crew),
+              let account = account(of: profileID, in: crew), !banned.contains(account),
               let text = cache[crew]?["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"]?[CrewAgreement.field]?.string,
               CrewRekey.isKey(text) else { return nil }
         return text

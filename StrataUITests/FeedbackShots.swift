@@ -1816,6 +1816,39 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-story posted \(app.buttons["Your Story"].firstMatch.exists)")
     }
 
+    /// **Tonight's Story, made in one go** (2026-10-16): Your Story's +, the
+    /// best of today and a line, Post, the confirmation; then the viewer's
+    /// opening line and its end card.
+    func testPostMyDay() {
+        var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedWins", "4", "-strataSeedStories", "2", "-strataStoryHour", "21"])
+        wait(9); snap("post-0-row")
+        let add = app.buttons["Add to Tonight's Story"].firstMatch
+        print("PLANNING-post add \(add.exists)")
+        if add.exists { add.tap() }
+        wait(1.5); snap("post-1-sheet")
+        let field = app.textFields["Best part of today"].firstMatch
+        let fieldView = field.exists ? field : app.textViews["Best part of today"].firstMatch
+        print("PLANNING-post field \(fieldView.exists)")
+        if fieldView.exists { fieldView.tap(); app.typeText("Got the internship call back") }
+        wait(1); snap("post-2-written")
+        let post = app.buttons["Post"].firstMatch
+        print("PLANNING-post post \(post.exists)")
+        if post.exists { post.tap() }
+        wait(1.2); snap("post-3-posted")
+        app.terminate()
+        // Watching: the line opens a friend's story; after everyone, the end.
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                      "-strataSeedStories", "2", "-strataStoryHour", "21"])
+        wait(9)
+        let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
+        if story.exists { story.tap() }
+        wait(1.2); snap("post-4-line")
+        for _ in 0..<4 { app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45)).tap(); wait(0.8) }
+        wait(1); snap("post-5-end")
+        print("PLANNING-post end \(app.staticTexts["That's everyone tonight."].exists)")
+    }
+
     /// A new win sent to a crew says where it went (2026-10-15).
     func testSentToCrew() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",

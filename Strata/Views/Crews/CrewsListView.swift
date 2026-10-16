@@ -241,7 +241,7 @@ struct CrewsListView: View {
         // its crew chat, 6 seconds, in the onboarding film's own player, Skip
         // from the first frame. Never for someone arriving by an invitation:
         // they came to join, and the join is waiting.
-        .fullScreenCover(isPresented: Binding(get: { CrewsFilm.isDue(crews: store.crews.count) },
+        .fullScreenCover(isPresented: Binding(get: { CrewsFilm.isDue(crews: store.groupCrewCount) },
                                               set: { if !$0 { CrewsFilm.markSeen() } })) {
             OnboardingFilm(resource: "CrewsFilm", poster: "CrewsFilmPoster.jpg", reports: false) {
                 CrewsFilm.markSeen()
@@ -445,7 +445,7 @@ struct CrewsListView: View {
 
     /// The one New Crew sheet, or why not at the cap.
     private func newCrew() {
-        if store.crews.count >= CrewCaps.crews { atCap = true } else { startsCrew = true }
+        if store.groupCrewCount >= CrewCaps.crews { atCap = true } else { startsCrew = true }
     }
 
     /// The top row's crew (the one with the newest news) unless one is
@@ -902,7 +902,7 @@ final class CrewsFilm {
     }
 
     /// The film is up or due: the crew rules wait for it to finish.
-    static var holdsRules: Bool { isDue(crews: SocialStore.shared.crews.count) }
+    static var holdsRules: Bool { isDue(crews: SocialStore.shared.groupCrewCount) }
 
     static func markSeen() {
         shared.seen = true

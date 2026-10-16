@@ -87,7 +87,7 @@ struct SendToPage: View {
 
     private var crewList: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            if store.crews.count > 1 { everyCrew }
+            if store.groupCrewCount > 1 { everyCrew }
             ForEach(store.crews) { crew in
                 row(on: crews.contains(crew.id),
                     label: crew.displayName(excluding: store.me),
@@ -101,7 +101,7 @@ struct SendToPage: View {
     }
 
     private var everyCrew: some View {
-        let all = Set(store.crews.map(\.id))
+        let all = Set(store.groupCrews.map(\.id))
         let on = all.isSubset(of: crews)
         return row(on: on, label: CrewPicker.everyCrewWord,
                    hint: on ? "Takes the win off every crew." : "Sends the win to every crew.") {
@@ -134,21 +134,8 @@ struct SendToPage: View {
     }
 
     private var sendBar: some View {
-        Button {
-            HapticsEngine.lightTap()
-            send()
-        } label: {
-            HStack(spacing: GridConstants.gapTight) {
-                Text(crews.isEmpty && !onStory ? "Add" : "Send")
-                Image(systemName: "arrow.up")
-            }
-            .font(Typography.headerMedium)
-            .foregroundStyle(WarmBackground.top)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Capsule().fill(AppColors.inkPrimary))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.press)
+        // The app's one primary action (`PrimaryCapsule`).
+        PrimaryCapsule(title: crews.isEmpty && !onStory ? "Add" : "Send", action: send)
         .disabled(sending)
         .accessibilityHint(summary)
         .padding(.horizontal, hPad)

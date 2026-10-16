@@ -124,6 +124,9 @@ final class SocialStore {
     @ObservationIgnored var storyGeneration: [UUID: Int] = [:]
     /// Crews being left: nothing new is written to them meanwhile.
     @ObservationIgnored var leavingCrews: Set<CrewID> = []
+    /// A personal chat being started, per friend, so two quick replies make
+    /// one chat (the review, 2026-10-16).
+    @ObservationIgnored var personalStarting: [UUID: Task<Crew?, Never>] = [:]
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
     /// yet" and stop saying it.
     private(set) var outboxRevision = 0
@@ -754,8 +757,9 @@ final class SocialStore {
         try requireOn()
         guard let crew = crew(crewID) else { throw CrewError.unknownCrew }
         guard crew.members.count < CrewCaps.members else { throw CrewError.crewFull }
-        // A personal chat is two people: its one link went to the other.
-        guard !crew.isPersonal || crew.members.count < 2 else { throw CrewError.crewFull }
+        // A personal chat is two people: its one link went, sealed, to the
+        // other, and no other link is ever made (the review, 2026-10-16).
+        guard !crew.isPersonal else { throw CrewError.crewFull }
         return try await cloud.shareURL(for: crewID)
     }
 
@@ -767,10 +771,16 @@ final class SocialStore {
     /// asked only if the person later opened the Crews list. Nothing here
     /// touches the cloud before the check: `CrewRouter` holds the invitation
     /// while the rules and the age are asked, and lets it go on a no.
-    /// Group crews only: a personal chat never counts toward the cap.
-    var groupCrewCount: Int { crews.filter { !$0.isPersonal }.count }
+    /// Group crews only: a personal chat never counts toward a cap, a count,
+    /// an invitation or a story's fan-out.
+    var groupCrews: [Crew] { crews.filter { !$0.isPersonal } }
+    var groupCrewCount: Int { groupCrews.count }
 
-    func accept(_ invite: CrewInvite, personal: Bool = false) async throws -> Crew {
+    /// `personalFrom`: the friend a personal chat's invitation came from. The
+    /// crew joined must then be a personal chat they started, with nobody in
+    /// it but the two of you, or the join is turned away (the review,
+    /// 2026-10-16: a forged invitation could put you in any crew).
+    func accept(_ invite: CrewInvite, personal: Bool = false, personalFrom: UUID? = nil) async throws -> Crew {
         try requireOn()
         guard joinGate() == .open else { throw CrewError.notReady }
         if crews.isEmpty { await refresh() }
@@ -804,6 +814,12 @@ final class SocialStore {
             // Accepting is where the second check happens: eight people were
             // already in it when the link was opened.
             guard found.members.filter({ $0.profileID != me }).count < CrewCaps.members else { throw CrewError.crewFull }
+            if let from = personalFrom {
+                guard found.isPersonal, found.ownerProfileID == from, !blocked.contains(from),
+                      found.members.allSatisfy({ $0.profileID == from || $0.profileID == me }) else {
+                    throw CrewError.unknownCrew
+                }
+            }
             let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
             try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
             crew = found
@@ -1045,6 +1061,7 @@ final class SocialStore {
     func leave(_ crewID: CrewID) async throws {
         try requireOn()
         guard let crew = crew(crewID) else { throw CrewError.unknownCrew }
+        notePersonalLeft(crew)
         if crew.isOwner(me) { return try await end(crewID) }
         // **The leaving is said first** (the fourth read). Your posts and
         // member record were deleted before the note that you left existed,
@@ -1089,6 +1106,7 @@ final class SocialStore {
         try requireOn()
         guard let crew = crew(crewID) else { throw CrewError.unknownCrew }
         guard crew.isOwner(me) else { throw CrewError.notOwner }
+        notePersonalLeft(crew)
         try await cloud.endCrew(crewID)
         leftByChoice.insert(crewID)
         forget(crewID)
@@ -3210,7 +3228,7 @@ extension SocialStore {
         let signature = Self.signature(win)
         // An edit that changed nothing a friend sees sends nothing (a note,
         // another win of the same habit): no new photo to every crew.
-        let targets = crews.filter { !leavingCrews.contains($0.id) }
+        let targets = groupCrews.filter { !leavingCrews.contains($0.id) }
         if let existing, existing.signature == signature,
            Set(targets.map(\.id.rawValue)).isSubset(of: existing.crews) { return }
         // **Taken off while this waited** (the review: an edit's post waited on
@@ -3220,10 +3238,12 @@ extension SocialStore {
         let photo = await checkedPhoto(for: win)
         guard storyGeneration[win.winID, default: 0] == generation else { return }
         var sentTo: Set<String> = []
-        for crew in crews where !leavingCrews.contains(crew.id) {
+        // Group crews only: a friend in a personal chat with you is in a crew
+        // with you too, and saw it there.
+        for crew in groupCrews where !leavingCrews.contains(crew.id) {
             var shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crew.id, win: win.winID, stem: "story-") })
             shared.crewDay = day
-            let story = CrewStory(win: shared, endsAt: ends)
+            let story = CrewStory(win: shared, endsAt: ends, line: storyLine(on: day))
             let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
             var held = storiesByCrew[crew.id] ?? []
             held.removeAll { $0.id == story.id }
@@ -3243,6 +3263,40 @@ extension SocialStore {
     /// An edit to a win on the story: the story changes with it, on the
     /// night it was posted to.
     func updateStory(_ win: OwnWin) async { await postStory(win) }
+
+    static let storyLinesKey = "crewStoryLines"
+
+    /// Your line for the night of `day`, if you wrote one.
+    func storyLine(on day: String) -> String? {
+        (defaults.dictionary(forKey: Self.storyLinesKey) as? [String: String])?[day]
+    }
+
+    /// **Your line for tonight**, onto every story of yours that is up, in
+    /// every crew it went to; kept for a story marked later the same night.
+    /// Empty takes it off. Checked as every word a crew sees is.
+    @discardableResult
+    func setStoryLine(_ raw: String, on day: String) async -> ReplyOutcome {
+        let line = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit))
+        guard line.isEmpty || CrewWords.isAcceptable(line) else { return .refusedWords }
+        var lines = defaults.dictionary(forKey: Self.storyLinesKey) as? [String: String] ?? [:]
+        lines[day] = line.isEmpty ? nil : line
+        // Only the last few nights are worth keeping.
+        if lines.count > 7 { for key in lines.keys.sorted().dropLast(7) { lines[key] = nil } }
+        defaults.set(lines, forKey: Self.storyLinesKey)
+        let t = now()
+        for (crewID, stories) in storiesByCrew {
+            for story in stories where story.sender == me && story.day == day && t < story.endsAt {
+                var changed = story
+                changed.line = line.isEmpty ? nil : line
+                storiesByCrew[crewID]?.removeAll { $0.id == story.id }
+                storiesByCrew[crewID]?.append(changed)
+                enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(changed)))
+            }
+        }
+        nudgeLive()
+        await flush()
+        return .sent
+    }
 
     /// Off the story, from every crew it went to, read this time or not (R3).
     func withdrawStory(winID: UUID) async {
@@ -3303,14 +3357,20 @@ extension SocialStore {
     /// stories and it go to your personal chat"). Into your one-to-one
     /// crew with them when there is one (`personalCrew(with:)`), quoting the
     /// story; until there is, into the crew the story came from, as before.
-    func replyToStory(_ text: String, story: CrewStory) async -> ReplyOutcome {
-        let title = story.win.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// The outcome, and where it went, said back to you ("Sent to Sam", or
+    /// the crew's name when there could be no personal chat): the review,
+    /// 2026-10-16, a private reply must never go to a crew unannounced.
+    func replyToStory(_ text: String, story: CrewStory) async -> (outcome: ReplyOutcome, to: String) {
+        let title = String(story.win.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit))
         let quote = title.isEmpty ? "a win" : title
+        let friend = crew(story.win.crewID)?.member(story.sender)?.firstName ?? ""
         if let personal = await startPersonal(with: story.sender) {
-            return await send(text, in: personal.id, quoting: holdsWinOrStory(story.id, in: personal.id) ? story.id : nil,
-                              storyQuote: quote)
+            let outcome = await send(text, in: personal.id, quoting: holdsWinOrStory(story.id, in: personal.id) ? story.id : nil,
+                                     storyQuote: quote)
+            return (outcome, friend.isEmpty ? "your chat" : friend)
         }
-        return await send(text, in: story.win.crewID, quoting: story.id, storyQuote: quote)
+        let outcome = await send(text, in: story.win.crewID, quoting: story.id, storyQuote: quote)
+        return (outcome, crew(story.win.crewID)?.displayName(excluding: me) ?? "the crew")
     }
 
     /// A quick reaction from a story's reply bar: on the story itself, so it
@@ -3325,7 +3385,8 @@ extension SocialStore {
         if let both = crews.first(where: { $0.isPersonal && $0.member(friend) != nil && visible($0.id) != nil }) {
             return both
         }
-        return personalStarted[friend.uuidString].flatMap { crew(CrewID(rawValue: $0)) }
+        guard let start = personalStarted[friend.uuidString], now().timeIntervalSince(start.at) < Self.personalWait else { return nil }
+        return crew(CrewID(rawValue: start.crew))
     }
 
     /// A story opened on this phone: its ring goes grey.
@@ -3479,31 +3540,80 @@ extension SocialStore {
 
 // MARK: - Personal chats
 
+/// One personal chat you started, until the friend is in it.
+nonisolated struct PersonalStart: Codable, Equatable, Sendable {
+    var crew: String
+    var invite: String
+    var at: Date
+}
+
 extension SocialStore {
-    static let personalStartedKey = "crews.personalStarted"
-    static let personalHandledKey = "crews.personalHandled"
+    static let personalStartedKey = "crews.personalStarted.v2"
+    static let personalHandledKey = "crews.personalHandled.v2"
+    static let personalLeftKey = "crews.personalLeft"
+    /// A chat started and never joined is let go after this long.
+    static let personalWait: TimeInterval = 3 * 86_400
 
     /// Personal chats you started and they have not joined, by friend.
-    var personalStarted: [String: String] {
-        get { defaults.dictionary(forKey: Self.personalStartedKey) as? [String: String] ?? [:] }
-        set { defaults.set(newValue, forKey: Self.personalStartedKey) }
+    var personalStarted: [String: PersonalStart] {
+        get { (defaults.data(forKey: Self.personalStartedKey)).flatMap { try? JSONDecoder().decode([String: PersonalStart].self, from: $0) } ?? [:] }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Self.personalStartedKey) }
     }
 
-    private var personalHandled: Set<String> {
-        get { Set(defaults.stringArray(forKey: Self.personalHandledKey) ?? []) }
+    /// Invitations already acted on, oldest first, by a fingerprint of what
+    /// was sealed (so a new chat's invitation is never mistaken for an old one).
+    private var personalHandled: [String] {
+        get { defaults.stringArray(forKey: Self.personalHandledKey) ?? [] }
         set { defaults.set(Array(newValue.suffix(200)), forKey: Self.personalHandledKey) }
+    }
+
+    /// Friends whose personal chat you left: their invitations are refused
+    /// until you start one with them yourself.
+    private var personalLeft: Set<String> {
+        get { Set(defaults.stringArray(forKey: Self.personalLeftKey) ?? []) }
+        set { defaults.set(Array(newValue), forKey: Self.personalLeftKey) }
+    }
+
+    static func fingerprint(_ invite: PersonalInvite) -> String {
+        SHA256.hash(data: invite.sealed).prefix(12).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// A personal chat is being left or ended: remember not to be pulled
+    /// back in by the other's next invitation.
+    func notePersonalLeft(_ crew: Crew) {
+        guard crew.isPersonal else { return }
+        var left = personalLeft
+        for member in crew.members where member.profileID != me { left.insert(member.profileID.uuidString) }
+        personalLeft = left
     }
 
     /// **Your personal chat with a friend, made if there is none** (the owner,
     /// 2026-10-16). A crew of two, and its invitation left in a crew you
     /// share, sealed to their key alone (`CrewSealedNote`). Nil when they
     /// cannot be reached that way (blocked, no crew in common, a phone too
-    /// old to have published a key): the caller falls back to the crew.
+    /// old to have published a key): the caller then says where it went.
+    /// One start at a time per friend.
     func startPersonal(with friend: UUID) async -> Crew? {
         if let existing = personalCrew(with: friend) { return existing }
+        if let running = personalStarting[friend] { return await running.value }
+        let task = Task { @MainActor in await self.makePersonal(with: friend) }
+        personalStarting[friend] = task
+        let made = await task.value
+        personalStarting[friend] = nil
+        return made
+    }
+
+    private func makePersonal(with friend: UUID) async -> Crew? {
         guard isEnabled(), canReply(), friend != me, !blocked.contains(friend),
-              let shared = crews.first(where: { !$0.isPersonal && $0.member(friend) != nil && visible($0.id) != nil }),
+              let shared = groupCrews.first(where: { $0.member(friend) != nil && visible($0.id) != nil }),
               let key = cloud.memberPublicKey(friend, in: shared.id) else { return nil }
+        // One started long ago and never joined: let it go.
+        if let stale = personalStarted[friend.uuidString] {
+            var started = personalStarted
+            started[friend.uuidString] = nil
+            personalStarted = started
+            if let old = crew(CrewID(rawValue: stale.crew)), old.members.count < 2 { try? await end(old.id) }
+        }
         do {
             let made = try await createCrew(name: "", personal: true)
             guard let sealed = CrewSealedNote.seal(Data(made.invite.absoluteString.utf8), to: key,
@@ -3511,11 +3621,16 @@ extension SocialStore {
                 try? await end(made.crew.id)
                 return nil
             }
-            var started = personalStarted
-            started[friend.uuidString] = made.crew.id.rawValue
-            personalStarted = started
             let invite = PersonalInvite(from: me, to: friend, sealed: sealed, createdAt: now())
-            enqueue(.init(crew: shared.id, type: .personal, name: invite.name, fields: CrewRecords.fields(invite)))
+            let name = "\(invite.name)-\(made.crew.id.rawValue)"
+            var started = personalStarted
+            started[friend.uuidString] = PersonalStart(crew: made.crew.id.rawValue, invite: name, at: now())
+            personalStarted = started
+            // Starting one yourself undoes having left their last.
+            var left = personalLeft
+            left.remove(friend.uuidString)
+            personalLeft = left
+            enqueue(.init(crew: shared.id, type: .personal, name: name, fields: CrewRecords.fields(invite)))
             await flush()
             return made.crew
         } catch {
@@ -3525,52 +3640,58 @@ extension SocialStore {
     }
 
     /// **After a refresh: join what was left for you, tidy what you left.**
-    /// An invitation for you, from someone not blocked, opens with your key
-    /// and is accepted as a personal chat, once. Yours is deleted once they
-    /// are in. If you both started one for each other, the one started by the
-    /// lower profile id is kept, the same answer on both phones.
+    /// An invitation is acted on only when it comes from a member of the crew
+    /// it was left in, not blocked, and not someone whose chat you left; it
+    /// opens with your key, and what it opens must be a personal chat they
+    /// started (`accept(personalFrom:)`). Yours is deleted once they are in.
+    /// If you both started one, the lower profile id's stands on both phones.
     func settlePersonals() async {
         var tidy: [(CrewID, String)] = []
-        for crew in crews where !crew.isPersonal {
+        for crew in groupCrews {
             guard let invites = try? await cloud.fetchPersonals(in: crew.id) else { continue }
             for invite in invites {
                 if invite.from == me {
-                    if let mine = personalStarted[invite.to.uuidString].flatMap({ self.crew(CrewID(rawValue: $0)) }),
-                       mine.member(invite.to) != nil {
-                        tidy.append((crew.id, invite.name))
+                    if let start = personalStarted[invite.to.uuidString],
+                       let mine = self.crew(CrewID(rawValue: start.crew)), mine.member(invite.to) != nil {
+                        tidy.append((crew.id, start.invite))
                         var started = personalStarted
                         started[invite.to.uuidString] = nil
                         personalStarted = started
                     }
                     continue
                 }
-                guard invite.to == me, !blocked.contains(invite.from), !personalHandled.contains(invite.name) else { continue }
+                let print = Self.fingerprint(invite)
+                guard invite.to == me, crew.member(invite.from) != nil, !blocked.contains(invite.from),
+                      !personalLeft.contains(invite.from.uuidString), !personalHandled.contains(print) else { continue }
                 if crews.contains(where: { $0.isPersonal && $0.member(invite.from) != nil && $0.members.count == 2 }) {
-                    personalHandled.insert(invite.name)
+                    personalHandled.append(print)
                     continue
                 }
-                if let mine = personalStarted[invite.from.uuidString].flatMap({ self.crew(CrewID(rawValue: $0)) }) {
+                if let start = personalStarted[invite.from.uuidString] {
                     // Both started one: the lower id's stands.
                     if me.uuidString < invite.from.uuidString { continue }
-                    try? await end(mine.id)
+                    if let mine = self.crew(CrewID(rawValue: start.crew)) { try? await end(mine.id) }
+                    // Ended by the app, not left by you.
+                    var left = personalLeft
+                    left.remove(invite.from.uuidString)
+                    personalLeft = left
                     var started = personalStarted
                     started[invite.from.uuidString] = nil
                     personalStarted = started
                 }
+                personalHandled.append(print)
                 guard let opened = cloud.openSealed(invite.sealed, info: CrewSealedNote.info(from: invite.from, to: me)),
-                      let text = String(data: opened, encoding: .utf8), let url = URL(string: text) else {
-                    personalHandled.insert(invite.name)
-                    continue
-                }
+                      let text = String(data: opened, encoding: .utf8), let url = URL(string: text) else { continue }
                 do {
-                    _ = try await accept(CrewInvite(url: url), personal: true)
-                    personalHandled.insert(invite.name)
+                    _ = try await accept(CrewInvite(url: url), personal: true, personalFrom: invite.from)
                 } catch {
                     Self.log.error("personal chat not joined: \(error)")
                 }
             }
         }
-        for (crewID, name) in tidy { enqueue(.init(crew: crewID, type: .personal, name: name, fields: nil)) }
+        for (crewID, name) in tidy {
+            enqueue(.init(crew: crewID, type: .personal, name: name, fields: nil))
+        }
         if !tidy.isEmpty { await flush() }
     }
 }

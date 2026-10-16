@@ -20,6 +20,10 @@ struct StoryViewer: View {
 
     @State private var current: UUID?
     @State private var drop: CGFloat = 0
+    /// The page after everyone: "That's everyone tonight."
+    private static let endID = UUID(uuidString: "00000000-0000-0000-0000-00000000E0D0")!
+    /// Whether this is friends' stories (an end card) or only your own.
+    private var hasEnd: Bool { people.contains { $0.profileID != store.me } }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shown: UUID { current ?? start }
@@ -52,6 +56,12 @@ struct StoryViewer: View {
                           close: onClose)
                     .tag(person.id)
             }
+            // **A finish line** (Instagram's "You're all caught up", 2018):
+            // the evening is finite, and this says it is done.
+            if hasEnd {
+                StoryEnd(close: onClose)
+                    .tag(Self.endID)
+            }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         // **Black above, the page below**, as the camera stands (its
@@ -82,7 +92,7 @@ struct StoryViewer: View {
         // Nobody left to show (all blocked, hidden or past 9am): close.
         .onChange(of: people.isEmpty) { _, empty in if empty { onClose() } }
         .onChange(of: people.map(\.id)) { _, ids in
-            if !ids.contains(shown), let first = ids.first { current = first }
+            if shown != Self.endID, !ids.contains(shown), let first = ids.first { current = first }
         }
     }
 
@@ -94,7 +104,11 @@ struct StoryViewer: View {
         if people.indices.contains(j) {
             withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { current = people[j].id }
         } else if offset > 0 {
-            onClose()
+            if hasEnd {
+                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { current = Self.endID }
+            } else {
+                onClose()
+            }
         }
     }
 }
@@ -325,18 +339,25 @@ private struct StoryPage: View {
     /// 2026-10-16: no colour dot, "the dot showing the category color isn't
     /// relevant", and no size, "the deep, quick isn't important for the
     /// story, that's personal").
+    /// **Their line opens the story** (2026-10-16): on the first page, the
+    /// best part of today in their words; after it, each win's own name.
+    private var caption: String? {
+        if page == 0, let line = person.line { return "\u{201C}\(line)\u{201D}" }
+        return story.win.title.isEmpty ? nil : story.win.title
+    }
+
     @ViewBuilder
     private var label: some View {
-        if !story.win.title.isEmpty {
-            labelText
+        if let caption {
+            labelText(caption)
         }
     }
 
-    private var labelText: some View {
+    private func labelText(_ caption: String) -> some View {
         HStack {
-            Text(story.win.title)
+            Text(caption)
                 .font(Typography.headerMedium)
-                .lineLimit(2)
+                .lineLimit(3)
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
@@ -551,9 +572,11 @@ private struct StoryReplyBar: View {
         HapticsEngine.lightTap()
         text = ""
         Task {
-            let outcome = await store.replyToStory(words, story: story)
+            let (outcome, to) = await store.replyToStory(words, story: story)
             if outcome != .sent { text = words }
-            done(outcome == .sent ? "Sent" : outcome == .refusedWords ? "Try other words" : "Didn't send. Try again.")
+            // **Where it went, every time** (the owner, 2026-10-16: "they
+            // should know").
+            done(outcome == .sent ? "Sent to \(to)" : outcome == .refusedWords ? "Try other words" : "Didn't send. Try again.")
         }
     }
 
@@ -566,5 +589,34 @@ private struct StoryReplyBar: View {
             try? await Task.sleep(for: .seconds(1.2))
             withAnimation(motion) { said = nil }
         }
+    }
+}
+
+/// **The end of tonight's stories**: one line and a way out. No count, no
+/// list of who posted, nothing more to see.
+private struct StoryEnd: View {
+    let close: () -> Void
+
+    var body: some View {
+        VStack(spacing: GridConstants.gapSection) {
+            Spacer()
+            // His drawn check, the mark a reached goal wears (`RingMoment`).
+            Image("MarkCheck")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(AppColors.inkPrimary)
+                .frame(width: 44, height: 44)
+                .accessibilityHidden(true)
+            Text("That's everyone tonight.")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+            Spacer()
+            PrimaryCapsule(title: "Done", action: close)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.bottom, GridConstants.gapItem)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { WarmBackground().ignoresSafeArea() }
     }
 }

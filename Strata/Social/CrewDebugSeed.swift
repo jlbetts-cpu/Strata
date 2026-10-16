@@ -236,8 +236,10 @@ extension DebugHarness {
         // watched. With `-strataStoryHour 21` they are open; without it,
         // before 8pm, they wait.
         if let n = argument("-strataSeedStories").flatMap(Int.init) {
+            let lines = ["Finally finished the lab report", "Ran the whole loop without stopping", ""]
             for (k, friend) in friends.prefix(n).enumerated() {
                 await friend.refresh()
+                await friend.setStoryLine(lines[k % lines.count], on: CrewDay.string(for: Date(), in: .current))
                 for j in 0..<(k == 0 ? 2 : 1) {
                     await friend.postStory(win(1 + k * 3 + j * 3, minutesAgo: 150 - k * 25 - j * 10))
                 }

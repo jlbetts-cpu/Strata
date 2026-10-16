@@ -18,6 +18,10 @@ nonisolated struct CrewStory: Identifiable, Codable, Equatable, Sendable {
     /// a story past it, whatever its own clock says, and the poster's phone
     /// deletes it then.
     let endsAt: Date
+    /// **The best part of today, in their words** (2026-10-16): the one line
+    /// a story carries that no crew tower does. The crew saw what happened;
+    /// the story says what it meant. One a night, on every story record.
+    var line: String? = nil
 
     var id: UUID { win.winID }
     var sender: UUID { win.senderProfileID }
@@ -107,6 +111,8 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
 
     var id: UUID { profileID }
     var newest: Date { stories.map(\.win.createdAt).max() ?? .distantPast }
+    /// Tonight's line, if they wrote one.
+    var line: String? { stories.lazy.compactMap(\.line).first { !$0.isEmpty } }
     /// The first photograph, the picture the head becomes at 8pm.
     var cover: CrewStory? { stories.first { $0.win.photo != nil } ?? stories.first }
 
@@ -146,4 +152,11 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
             return a.profileID.uuidString < b.profileID.uuidString
         }
     }
+}
+
+/// The line's own rules, kept in one place.
+nonisolated enum StoryLine {
+    /// One line, not a caption essay.
+    static let limit = 80
+    static let prompt = "Best part of today"
 }

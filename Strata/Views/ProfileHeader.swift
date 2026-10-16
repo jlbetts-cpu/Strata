@@ -22,7 +22,7 @@ struct ProfileHeader: View {
     var body: some View {
         // Once a pass: each read faults every log's win (the review).
         let tally = WinsScore.tally(logs.compactMap { $0.habit?.blockSize })
-        let crews = CrewsFlag.isOn ? SocialStore.shared.crews.count : nil
+        let crews = CrewsFlag.isOn ? SocialStore.shared.groupCrewCount : nil
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
                    figures: [ProfileTop.Figure(tally.score, "score"),
                              ProfileTop.Figure(tally.wins, tally.wins == 1 ? "win" : "wins")]

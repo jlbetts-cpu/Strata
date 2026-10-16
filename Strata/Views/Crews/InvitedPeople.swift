@@ -150,7 +150,7 @@ enum InvitePicking {
 }
 
 /// **Someone invited, waiting to join**: their picture or initial, faded,
-/// in the dashed ring the Invite button wears, their first name under it.
+/// on the row's glass, their first name under it.
 struct InvitedHead: View {
     let person: InvitedPerson
     let side: CGFloat
@@ -168,13 +168,12 @@ struct InvitedHead: View {
                         .foregroundStyle(AppColors.inkSecondary)
                 }
             }
-            .frame(width: side - 8, height: side - 8)
+            .frame(width: side - 10, height: side - 10)
             .clipShape(Circle())
-            .opacity(0.6)
+            .opacity(0.55)
             .frame(width: side, height: side)
-            .overlay {
-                Circle().strokeBorder(AppColors.inkTertiary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-            }
+            // On glass, as the row's other empty places are (2026-10-16).
+            .stillGlassCircle()
             .padding(.horizontal, inset)
             .padding(.top, inset)
             Text(person.firstName)

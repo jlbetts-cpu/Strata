@@ -30,6 +30,8 @@ struct TodayHeads: View {
     /// photograph; one soft tick; never again that night.
     @AppStorage("crews.storyUnlockNight") private var unlockedNight = ""
     @State private var unlockTick = 0
+    /// Tonight's Story being made or changed (`PostMyDaySheet`).
+    @State private var composing = false
     /// Tonight, while its unlock has not played on this phone: the rings stay
     /// faint and the heads stay heads. Read from what is stored, so the very
     /// first frame of the row is already the faint one.
@@ -123,7 +125,7 @@ struct TodayHeads: View {
                     HStack(alignment: .top, spacing: GridConstants.gapItem) {
                         // **Your Story first**, as yours is in every story
                         // row; it opens any time, as it will look at 8pm.
-                        if !mine.isEmpty { yourStory(mine) }
+                        if !mine.isEmpty { yourStory(mine) } else if store.canReply() { addYourStory }
                         ForEach(people) { person in
                             face(person, story: byPerson[person.id], open: open,
                                  order: open.firstIndex { $0.profileID == person.id } ?? 0)
@@ -133,7 +135,7 @@ struct TodayHeads: View {
                             InvitedHead(person: person, side: Self.side, inset: Self.inset)
                         }
                         // Only where there is room for one more.
-                        if store.crews.contains(where: { $0.members.count < CrewCaps.members }), store.canReply() { invite }
+                        if store.groupCrews.contains(where: { $0.members.count < CrewCaps.members }), store.canReply() { invite }
                     }
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     // Room above and below inside the scroll, so the glass's
@@ -175,6 +177,10 @@ struct TodayHeads: View {
             .onAppear { if DebugHarness.argument("-strataReplayUnlock") != nil { unlockedNight = "" } }
             #endif
             .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: unlockTick)
+            .sheet(isPresented: $composing) {
+                PostMyDaySheet()
+                    .presentationBackground { WarmBackground().ignoresSafeArea() }
+            }
             .fullScreenCover(item: $watching) { watching in
                 StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil })
             }
@@ -191,7 +197,7 @@ struct TodayHeads: View {
     /// 2026-10-15, item 5: we underestimate how much people like being asked).
     /// Into the crew that has the fewest people, where one more counts most.
     private var invite: some View {
-        let crew = store.crews.filter { $0.members.count < CrewCaps.members }.min { $0.members.count < $1.members.count }
+        let crew = store.groupCrews.filter { $0.members.count < CrewCaps.members }.min { $0.members.count < $1.members.count }
         // **A person, or a link** (2026-10-16): a contact chosen here stands
         // on the row as invited until they join (`InvitedPeople`); the link
         // goes anywhere, as before.
@@ -209,14 +215,14 @@ struct TodayHeads: View {
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 VStack(spacing: 0) {
-                    Circle()
-                        .strokeBorder(AppColors.inkTertiary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                    // **Liquid glass, not a dotted line** (the owner, 2026-10-16:
+                    // "remove the dotted line on the invite and story, just
+                    // have it liquid glass, that's our thing").
+                    Image(systemName: "plus")
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                        .foregroundStyle(AppColors.inkPrimary)
                         .frame(width: Self.side, height: Self.side)
-                        .overlay {
-                            Image(systemName: "plus")
-                                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                                .foregroundStyle(AppColors.inkSecondary)
-                        }
+                        .stillGlassCircle()
                         .padding(.horizontal, Self.inset)
                         .padding(.top, Self.inset)
                 }
@@ -311,6 +317,39 @@ struct TodayHeads: View {
         }
     }
 
+    /// **You, first, before you have posted**: your head in a dashed ring with
+    /// a +, "Your Story" under it. A press makes tonight's story.
+    private var addYourStory: some View {
+        Button {
+            HapticsEngine.lightTap()
+            composing = true
+        } label: {
+            VStack(spacing: GridConstants.spacing) {
+                // Your head on the crest's glass, a glass + at its corner:
+                // the story's own mark before there is a story.
+                PersonHead(person: .me, side: StoryCrestSize.face(in: Self.side + Self.inset * 2))
+                    .frame(width: Self.side + Self.inset * 2, height: Self.side + Self.inset * 2)
+                    .stillGlassCircle()
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "plus")
+                            .iconSize(13, relativeTo: .caption, weight: .bold)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .frame(width: 24, height: 24)
+                            .glassCircle(onPage: true)
+                    }
+                Text("Your Story")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel("Add to Tonight's Story")
+        .accessibilityHint("Pick the best of today for your friends to see at 8pm.")
+    }
+
     /// You, first, with tonight's story: your own preview and a lit ring,
     /// "Your Story" under it.
     private func yourStory(_ stories: [CrewStory]) -> some View {
@@ -336,6 +375,9 @@ struct TodayHeads: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        .contextMenu {
+            Button { composing = true } label: { Label("Edit Tonight's Story", systemImage: "pencil") }
+        }
         .accessibilityLabel("Your Story")
         .accessibilityHint("Opens it as your friends see it from 8pm.")
     }

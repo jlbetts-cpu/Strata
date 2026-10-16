@@ -803,7 +803,12 @@ struct CrewChatSheet: View {
         let answered = quotedLine(message)
         // A story reply says so, in the poster's words for it (Snapchat's
         // "Replied to your story").
-        let storyLine = message.storyQuote.map { mine ? "You replied to their story: \($0)" : "Replied to your story: \($0)" }
+        // "Your story" only in a chat of two, where it is true; in a crew,
+        // whose story it was is not on the line.
+        let personal = store.crew(crewID)?.isPersonal == true
+        let storyLine = message.storyQuote.map {
+            mine ? "You replied to their story: \($0)" : personal ? "Replied to your story: \($0)" : "Replied to a story: \($0)"
+        }
         let face = bubbleFace(message, mine: mine, quote: quote?.title ?? answered?.words ?? storyLine)
         // **Two taps heart it** (M3; the owner, 2026-10-13: "double tap a
         // message to heart it"), yours or a friend's, and two more take the

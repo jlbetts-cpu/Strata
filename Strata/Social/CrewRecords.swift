@@ -99,7 +99,7 @@ nonisolated enum CrewRecords {
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
     /// A shared win's, and the sealed end. Its `crewDay` is the poster's
     /// date, the night it belongs to (`CrewStory`).
-    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt"])
+    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt", "line"])
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -182,13 +182,15 @@ nonisolated enum CrewRecords {
     static func fields(_ story: CrewStory) -> RecordFields {
         var fields = fields(story.win)
         fields["endsAt"] = .date(story.endsAt)
+        if let line = story.line, !line.isEmpty { fields["line"] = .string(line) }
         return fields
     }
 
     /// A story needs its end: one without it would never go.
     static func story(_ fields: RecordFields, crew: CrewID) -> CrewStory? {
         guard let ends = fields["endsAt"]?.date, let win = sharedWin(fields, crew: crew) else { return nil }
-        return CrewStory(win: win, endsAt: ends)
+        let line = fields["line"]?.string.map { String(CrewWords.kept($0).trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
+        return CrewStory(win: win, endsAt: ends, line: line?.isEmpty == true ? nil : line)
     }
 
     // MARK: Reaction
@@ -262,7 +264,10 @@ nonisolated enum CrewRecords {
         let sketch = fields["sketch"]?.asset
         guard !text.isEmpty || sketch != nil else { return nil }
         guard text.isEmpty || CrewWords.isAcceptable(text) else { return nil }
-        let story = fields["storyQuote"]?.string.map { String(CrewWords.kept($0).prefix(80)) }
+        // Cut, then checked: a cut can leave a refused word whole at the end.
+        let story = fields["storyQuote"]?.string
+            .map { CrewWords.kept(String($0.prefix(StoryLine.limit))).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
         return CrewMessage(messageID: id, crewID: crew, senderProfileID: sender, crewDay: day, text: text,
                            quoteWinID: fields["quoteWinID"]?.uuid, sketch: sketch, createdAt: created,
                            storyQuote: story)

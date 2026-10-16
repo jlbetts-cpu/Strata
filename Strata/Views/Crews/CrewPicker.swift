@@ -35,7 +35,7 @@ struct CrewPicker: View {
                         // are adding wins so you don't have to individually
                         // click crews"). First, and only when there is more
                         // than one crew to choose: with one, it is that crew.
-                        if store.crews.count > 1, !single { everyCrew }
+                        if store.groupCrewCount > 1, !single { everyCrew }
                         ForEach(store.crews) { crew in
                             chip(crew)
                         }
@@ -72,7 +72,7 @@ struct CrewPicker: View {
     /// On when every crew is chosen. A press chooses them all, or, when they
     /// all are, none: the one switch a person reaches for either way.
     private var everyCrew: some View {
-        let all = Set(store.crews.map(\.id))
+        let all = Set(store.groupCrews.map(\.id))
         let on = !all.isEmpty && all.isSubset(of: selection)
         return Button {
             HapticsEngine.tick()

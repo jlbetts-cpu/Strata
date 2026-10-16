@@ -42,7 +42,7 @@ struct PersonalChatTests {
     @Test("a reply makes a personal chat, the friend joins it, and the line says what it answers")
     func replyLandsInPersonalChat() async throws {
         let (a, b, _, crew, story) = try await setUp()
-        #expect(await a.replyToStory("that's so good", story: story) == .sent)
+        #expect(await a.replyToStory("that's so good", story: story).outcome == .sent)
         let personal = try #require(a.personalCrew(with: sam))
         #expect(personal.isPersonal)
         #expect(a.groupCrewCount == 1)
@@ -57,7 +57,7 @@ struct PersonalChatTests {
         await a.refresh()
         #expect(world.records(of: .personal, in: crew.id).isEmpty)
         // And the next reply goes straight there.
-        #expect(await a.replyToStory("again", story: story) == .sent)
+        #expect(await a.replyToStory("again", story: story).outcome == .sent)
         #expect(a.crews.filter(\.isPersonal).count == 1)
     }
 
@@ -109,5 +109,63 @@ struct PersonalChatTests {
         _ = await a.replyToStory("hey", story: story)
         await b.refresh()
         #expect(!b.crews.contains { $0.isPersonal })
+    }
+
+    @Test("a forged invitation cannot put you into someone else's crew")
+    func forgedInvitationRefused() async throws {
+        let (a, b, c, crew, _) = try await setUp()
+        // Ana starts an ordinary crew and seals its link to Sam, claiming to
+        // be from someone who is not in the crew at all.
+        let (trap, trapLink) = try await c.createCrew(name: "Trap")
+        let stranger = UUID()
+        let key = try #require(c.cloud.memberPublicKey(sam, in: crew.id))
+        let sealed = try #require(CrewSealedNote.seal(Data(trapLink.absoluteString.utf8), to: key,
+                                                       info: CrewSealedNote.info(from: stranger, to: sam)))
+        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: stranger, to: sam, sealed: sealed, createdAt: .now)),
+                               type: .personal, name: "forged-1", in: crew.id)
+        // And one claiming to be from Ana herself, pointing at a group crew.
+        let sealed2 = try #require(CrewSealedNote.seal(Data(trapLink.absoluteString.utf8), to: key,
+                                                        info: CrewSealedNote.info(from: ana, to: sam)))
+        try await c.cloud.save(CrewRecords.fields(PersonalInvite(from: ana, to: sam, sealed: sealed2, createdAt: .now)),
+                               type: .personal, name: "forged-2", in: crew.id)
+        await b.refresh()
+        #expect(!b.crews.contains { $0.id == trap.id })
+        _ = a
+    }
+
+    @Test("leaving a personal chat is respected: their next reply does not pull you back")
+    func leavingIsRespected() async throws {
+        let (a, b, _, _, story) = try await setUp()
+        _ = await a.replyToStory("hi", story: story)
+        await b.refresh()
+        let personal = try #require(b.crews.first { $0.isPersonal })
+        try await b.leave(personal.id)
+        await a.refresh()
+        // Jayden replies to another story of Sam's.
+        await b.postStory(win("Second"))
+        await a.refresh()
+        let second = try #require(a.storiesByCrew.values.flatMap { $0 }.first { $0.sender == sam && $0.win.title == "Second" })
+        _ = await a.replyToStory("again", story: second)
+        await b.refresh()
+        #expect(!b.crews.contains { $0.isPersonal })
+    }
+
+    @Test("two quick replies make one chat")
+    func quickRepliesOneChat() async throws {
+        let (a, _, _, _, story) = try await setUp()
+        async let one = a.replyToStory("one", story: story)
+        async let two = a.replyToStory("two", story: story)
+        _ = await (one, two)
+        #expect(a.crews.filter(\.isPersonal).count == 1)
+    }
+
+    @Test("stories go to group crews only, never into a personal chat")
+    func storiesSkipPersonalChats() async throws {
+        let (a, b, _, _, story) = try await setUp()
+        _ = await a.replyToStory("hi", story: story)
+        await b.refresh()
+        let personal = try #require(a.personalCrew(with: sam))
+        await a.postStory(win("Mine"))
+        #expect(world.records(of: .story, in: personal.id).isEmpty)
     }
 }

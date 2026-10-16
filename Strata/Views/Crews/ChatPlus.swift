@@ -184,7 +184,7 @@ struct GroupPlanSheet: View {
         let store = SocialStore.shared
         guard let chosen = crews?.wrappedValue else { return crewName }
         if chosen.count > 1 {
-            return chosen.count == store.crews.count ? "Every Crew" : "\(chosen.count) Crews"
+            return chosen.count == store.groupCrewCount ? "Every Crew" : "\(chosen.count) Crews"
         }
         return chosen.first.flatMap { store.crew($0)?.displayName(excluding: store.me) } ?? crewName
     }
