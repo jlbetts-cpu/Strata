@@ -680,6 +680,29 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("zoom-closed")
     }
 
+    /// **The carousel's reactions, as the crew's hold has them** (the owner,
+    /// 2026-10-16: "fix the reaction menu in the photo carousel, it's not as
+    /// nice as it is in the crews screen"): the hold's bar, then the
+    /// carousel's.
+    func testCarouselReact() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(9)
+        let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Morning run'")).firstMatch
+        let at = block.exists ? block.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                              : app.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.62))
+        at.tap()
+        wait(3); snap("react-1-carousel")
+        let react = app.buttons.matching(NSPredicate(format: "label == 'React' OR label BEGINSWITH 'Reactions:'")).firstMatch
+        print("PLANNING-react button \(react.exists)")
+        if react.exists { react.tap() }
+        wait(1.2); snap("react-2-open")
+        if app.buttons["Close photo"].firstMatch.exists { app.buttons["Close photo"].firstMatch.tap() }
+        wait(2)
+        at.press(forDuration: 0.9)
+        wait(1); snap("react-0-hold")
+    }
+
     /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
     /// to react reply should pop up as an option and the chat should pop up").
     func testReplyFromHold() {

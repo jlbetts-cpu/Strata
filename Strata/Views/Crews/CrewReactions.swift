@@ -381,34 +381,36 @@ struct CrewReactionsPanel: View {
             // Doodle with it (the same day: "there is no way to reply or add
             // doodle to own win"). They were kept a friend's at first.
             if open {
-                ReactionBar(mine: myReaction, onDark: onDark) { emoji in
-                    Task { await store.react(emoji, to: winID, in: crewID) }
-                    withAnimation(motion) { open = false }
-                }
-                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
-                // **Reply** and **Doodle** post into the crew's day chat,
-                // quoting this win (the owner, 2026-10-05). They used to be a
-                // line and a drawing under the photo that only the win's owner
-                // saw; the lists that showed them here are gone, and the panel
-                // is the bar, these two words and who reacted.
-                // Off together when writing is off (`canReply`).
+                // **The crew's hold, here too** (the owner, 2026-10-16: "fix
+                // the reaction menu in the photo carousel, it's not as nice
+                // as it is in the crews screen"). The answers in glass pills
+                // over the bar, each with its mark, as the hold's Reply is;
+                // they were bare words under it. Reply and Doodle post into
+                // the crew's day chat, quoting this win (2026-10-05), and on
+                // your own win too (2026-10-13). Off together when writing
+                // is off (`canReply`).
                 if store.canReply() {
-                    HStack(spacing: GridConstants.gapWide) {
-                        replyChip("Reply") {
+                    HStack(spacing: GridConstants.gapTight) {
+                        replyChip("Reply", symbol: "arrowshape.turn.up.left") {
                             // What was written last time and not sent: a
                             // refused reply or a Cancel keeps its words.
                             draft = CrewDrafts.reply(crewID, to: winID)
                             replying = true
                         }
-                        replyChip("Doodle") { doodling = true }
+                        replyChip("Doodle", symbol: "scribble", wordless: true) { doodling = true }
                         // One of your stickers, as a chat line can take one.
                         // Not from someone who may not send photographs.
                         if store.photosAllowed() {
-                            replyChip("Sticker") { choosingSticker = true }
+                            replyChip("Sticker", drawn: .sticker, wordless: true) { choosingSticker = true }
                         }
                     }
-                    .transition(.opacity)
+                    .transition(.scale(scale: 0.9, anchor: .bottom).combined(with: .opacity))
                 }
+                ReactionBar(mine: myReaction, onDark: onDark) { emoji in
+                    Task { await store.react(emoji, to: winID, in: crewID) }
+                    withAnimation(motion) { open = false }
+                }
+                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
             }
             if open, let crew = store.visible(crewID), !reactions.isEmpty {
                 ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
@@ -543,20 +545,40 @@ struct CrewReactionsPanel: View {
     /// glass controls against a budget of three). Reply and Doodle read as
     /// the plan's Suggest and Others do: plain words in the control ink, a
     /// 44pt target, the word press. Only the reaction bar keeps glass.
-    private func replyChip(_ word: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(word)
-                .font(Typography.headerSmall)
-                .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+    /// One answer, as the hold's Reply is drawn (`TowerReactionLayers`): its
+    /// mark and its word in a glass pill.
+    /// `wordless`: the mark alone in a glass circle, so the row stays one
+    /// pill wide, as the hold's is (Reply in words, the rest as marks).
+    private func replyChip(_ word: String, symbol: String? = nil, drawn: Doodle? = nil, wordless: Bool = false,
+                           action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.lightTap()
+            action()
+        } label: {
+            HStack(spacing: GridConstants.spacing + 2) {
+                if let drawn {
+                    DoodleIcon(drawn, size: GridConstants.iconToolbar, label: word)
+                        .accessibilityHidden(true)
+                } else if let symbol {
+                    Image(systemName: symbol)
+                }
                 // One line, at its own width: with a third word beside it
                 // "Reply" was squeezed and broke as "Re-ply" (seen 2026-10-13).
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, GridConstants.gapTight)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                if !wordless {
+                    Text(word)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .font(Typography.headerSmall)
+            .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+            .padding(.horizontal, wordless ? 0 : GridConstants.gapLabel)
+            .frame(minWidth: 44, minHeight: 44)
+            .glassCapsule(onPage: !onDark, carriesType: true)
+            .contentShape(Capsule())
         }
-        .buttonStyle(.pressWord)
+        .buttonStyle(.pressSurface)
+        .accessibilityLabel(word)
     }
 
     /// Yours first, then in the order they came.
