@@ -35,7 +35,7 @@ struct InfoCard: View {
             let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
             content
                 .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
-                .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.06), lineWidth: GridConstants.strokeThin))
+                .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.1), lineWidth: GridConstants.strokeThin))
                 .clipShape(shape)
         } else {
             content
@@ -139,7 +139,9 @@ struct InfoCard: View {
 }
 
 /// **A card on the page** (2026-10-16): the surface a form's rows sit on,
-/// the radius of the app's surfaces and the hairline round it, no shadow.
+/// the radius of the app's surfaces and a thin light-grey hairline round it
+/// (the owner: "the thin light grey hairline around the containers, I
+/// think that would make it more clean"), no shadow.
 /// The profile card and the calendar card are this one card, so Memories
 /// reads as two of a kind.
 extension View {
@@ -147,7 +149,7 @@ extension View {
         let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
         return self
             .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
-            .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.06), lineWidth: GridConstants.strokeThin))
+            .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.1), lineWidth: GridConstants.strokeThin))
     }
 }
 

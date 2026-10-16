@@ -1051,7 +1051,9 @@ struct MemoriesView: View {
     /// think that's what looks off", and "the month selector should be in the
     /// calendar container"). The same card as the profile's above it.
     private var monthTower: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+        // The month in the middle (the owner, 2026-10-16: "the month should
+        // be in the middle, not on the side").
+        VStack(alignment: .center, spacing: GridConstants.gapItem) {
             MonthPicker(
                 title: vm.monthTitle,
                 months: vm.availableMonths,

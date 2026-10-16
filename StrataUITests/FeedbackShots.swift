@@ -2000,6 +2000,21 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
     }
 
+    /// Swiping the calendar's card changes the month (2026-10-16).
+    func testCalendarSwipe() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "60", "-strataSeedHead", "1"])
+        wait(8)
+        app.swipeUp(velocity: .slow); wait(1)
+        let day = app.buttons.matching(NSPredicate(format: "label CONTAINS 'October'")).firstMatch
+        let at = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+        print("PLANNING-swipe before \(app.staticTexts.matching(NSPredicate(format: "label == 'October'")).firstMatch.exists)")
+        _ = day
+        at.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.56)),
+                 withVelocity: .fast, thenHoldForDuration: 0)
+        wait(1.5); snap("swipe-1-back")
+        print("PLANNING-swipe after \(app.buttons.matching(NSPredicate(format: "label CONTAINS 'September'")).firstMatch.exists || app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'September'")).firstMatch.exists)")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])

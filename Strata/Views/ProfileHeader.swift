@@ -127,10 +127,22 @@ struct ProfileTop: View {
                         .padding(4)
                         .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground)))
                 }
-                Text(name)
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
-                    .lineLimit(1)
+                // **It opens** (the owner, 2026-10-16: "making sure the user
+                // knows they can open the profile"): the row's chevron beside
+                // the name, where yours opens Profile.
+                HStack(spacing: 4) {
+                    Text(name)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
+                        .lineLimit(1)
+                    if onPerson != nil {
+                        Image(systemName: "chevron.right")
+                            .font(Typography.headerSmall)
+                            .imageScale(.small)
+                            .foregroundStyle(AppColors.inkTertiary)
+                            .accessibilityHidden(true)
+                    }
+                }
                 if !chips.isEmpty {
                     InfoCard(chips: chips, quiet: true)
                 }

@@ -196,67 +196,60 @@ struct FriendProfileSheet: View {
                       })
     }
 
-    /// The top, then the tower standing on the foot of the page: the lattice
-    /// is the floor whether a block is on it or not.
+    /// **The same profile as yours** (the owner, 2026-10-16: "having the
+    /// tower isn't useful, let's put the banner profile thing with the stats
+    /// and recent photos ... make sure the profile is consistent like on the
+    /// Memories and the crew, consistency is key"). Their banner card, built
+    /// as yours is (`ProfileTop`, `ProfileBanner`): their latest shared
+    /// photographs over their head, their name, their facts in a quiet line;
+    /// then what you share and since when, a line each (`InfoCard`); then
+    /// their photographs. What a social profile is for, in the research
+    /// behind it (Hinge, Strava, BeReal): who they are, how they are doing,
+    /// what you have in common, and what they have shared lately.
     private func page(today: [SharedWin], colW: CGFloat, viewport: CGFloat) -> some View {
-        let shared = together.count
-        let tower = model.tower
-        let rows = tower.totalRows
-        let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
-        let gridH = rows > 0 ? CGFloat(rows) * colW + CGFloat(rows - 1) * spacing : 0
+        let width = colW * CGFloat(columns) + spacing * CGFloat(columns - 1)
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
+            VStack(spacing: GridConstants.gapSection) {
                 ProfileTop(person: .member(member, crew: crewID, me: store.me), name: name,
-                           figures: figures(today: today.count, shared: shared))
-                // No banner here (the owner, 2026-10-16: "doesn't look the
-                // best in other people's profiles because it's above the
-                // tower"): their tower is the page.
-                Spacer(minLength: GridConstants.gapSection)
-                ZStack(alignment: .topLeading) {
-                    Color.clear
-                        .allowsHitTesting(false)
-                        .frame(width: gridW, height: max(gridH, 1))
-                    if rows > 0 {
-                        TowerBlocksForEach(
-                            visibleBlocks: tower.placedBlocks, animCoord: model.animation, towerVM: tower,
-                            groupedIDs: [], mergeDestinedIDs: [],
-                            colW: colW, gridH: gridH,
-                            cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
-                            reduceMotion: reduceMotion, colorScheme: colorScheme,
-                            onTapExpandBlock: { id in
-                                if reacts.reacting != nil { reacts.close(); return }
-                                guard !reacts.justHeld else { return }
-                                viewerWins = today
-                                viewerNewest = false
-                                viewing = id.uuidString
-                            },
-                            liftedBlockID: nil,
-                            onDoubleTapBlock: { reacts.doubleTap($0) },
-                            onHoldBlock: { id, phase in reacts.hold(id, phase) })
-                    }
+                           figures: [],
+                           banner: recent.compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
+                           chips: chips(today: today.count))
+                if !facts.isEmpty {
+                    InfoCard(rows: facts, contained: true)
                 }
-                .modifier(TowerReactionLayers(reactions: reacts, blocks: tower.placedBlocks,
-                                              colW: colW, gridW: gridW, gridH: gridH))
-                .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
-                .background(alignment: .bottom) {
-                    TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: nil)
-                        .frame(width: gridW)
-                }
-                .padding(.horizontal, hPad)
-                .padding(.bottom, GridConstants.gapWide)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(rows > 0 ? "\(name)'s tower today, \(tower.placedBlocks.count) wins"
-                                             : "\(name)'s tower today, nothing shared yet")
+                photos(width: width - PageCard.inset * 2)
             }
-            // Their recent photos start below the first screen, found by a
-            // scroll (the owner, 2026-10-16: they "shouldn't be visible
-            // unless you scroll").
-            .frame(minHeight: viewport + GridConstants.gapPage)
-            photos(width: colW * CGFloat(columns) + spacing * CGFloat(columns - 1))
+            .padding(.horizontal, hPad)
+            .padding(.bottom, GridConstants.gapPage)
         }
-        // A finger choosing a reaction must not scroll the page under it.
-        .scrollDisabled(reacts.reacting != nil)
         .softScrollEdge(.top)
+    }
+
+    /// Their figures, as yours sit under your name: the score their phone
+    /// sends, and today.
+    private func chips(today: Int) -> [InfoCard.Fact] {
+        let live = store.crew(crewID)?.member(member.profileID) ?? member
+        var out: [InfoCard.Fact] = []
+        if let score = live.score { out.append(InfoCard.Fact(icon: "star", text: "Score \(score)")) }
+        out.append(InfoCard.Fact(icon: "checkmark.circle", text: today == 1 ? "1 today" : "\(today) today"))
+        return out
+    }
+
+    /// What you have in common, and since when.
+    private var facts: [InfoCard.Fact] {
+        var out: [InfoCard.Fact] = []
+        let names = together.map { $0.displayName(excluding: store.me) }
+        if !names.isEmpty {
+            out.append(InfoCard.Fact(icon: "person.2", text: names.prefix(2).formatted(.list(type: .and))
+                                     + (names.count > 2 ? " and \(names.count - 2) more" : "")))
+        }
+        if let joined = together.compactMap({ $0.member(member.profileID)?.joinedAt }).min() {
+            out.append(InfoCard.Fact(icon: "clock", text: "Since \(joined.formatted(.dateTime.month(.abbreviated).year()))"))
+        }
+        if !Self.story(of: member.profileID, store: store).isEmpty {
+            out.append(InfoCard.Fact(icon: "sparkles", text: "On tonight's story"))
+        }
+        return out
     }
 
     // MARK: Their photos
@@ -272,9 +265,10 @@ struct FriendProfileSheet: View {
         if !recent.isEmpty {
             let gap = GridConstants.spacing
             let side = floor((width - gap * 2) / 3)
-            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                Text("Recent Photos")
-                    .font(Typography.sectionLabel)
+            // On its card with its title inside, as every section's is now.
+            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                Text("Recent photos")
+                    .font(Typography.headerSmall)
                     .foregroundStyle(AppColors.inkSecondary)
                     .accessibilityAddTraits(.isHeader)
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: gap), count: 3), spacing: gap) {
@@ -296,9 +290,9 @@ struct FriendProfileSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, hPad)
-            .padding(.top, GridConstants.gapItem)
-            .padding(.bottom, GridConstants.gapPage)
+            .padding(PageCard.inset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .pageCard()
         }
     }
 

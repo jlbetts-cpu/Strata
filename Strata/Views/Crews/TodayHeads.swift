@@ -272,6 +272,11 @@ struct TodayHeads: View {
                     // "the person should be dimmed when they haven't logged that
                     // day"). The green dot came out: it read as "online", and
                     // the app never says who has it open.
+                    // Flattened first (the owner, 2026-10-16: the eyes did
+                    // not dim with the head): opacity on a stack fades each
+                    // layer alone, so the drawn irises stayed dark on a faded
+                    // face. One picture, then faded, fades as one.
+                    .compositingGroup()
                     .opacity(logged || showing ? 1 : 0.45)
                     .animation(GridConstants.motionSnappy, value: logged)
                 // Their name under it. (The owner's "no names under the
