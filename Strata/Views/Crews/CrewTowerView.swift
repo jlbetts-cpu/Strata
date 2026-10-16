@@ -1147,7 +1147,7 @@ private struct BackToCrews: View {
                     .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                 if count > 0 {
                     Text(count > 9 ? "9+" : "\(count)")
-                        .font(.body.weight(.semibold))
+                        .font(Typography.headerMedium)
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(count)))
                         .transition(.opacity)

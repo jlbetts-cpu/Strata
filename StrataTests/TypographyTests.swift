@@ -172,6 +172,9 @@ struct TypographyTests {
             "                .font(.system(size: 14.5, weight: .medium))",
             "                .font(Typography.numeral(10))",
             "                .font(StrataFont.size(12))",
+            "                        .font(.body.weight(.semibold))",
+            "                .font(.title2)",
+            "                .font(.headline)",
         ]
         for line in bad {
             #expect(TypeSweep.faults(in: line) != nil,
@@ -203,6 +206,8 @@ enum TypeSweep {
 
     /// Everything below 15 at the default content size category.
     private static let smallStyles = ["caption2", "caption", "footnote"]
+    /// Text styles set straight on a view rather than through a token.
+    private static let offScale = ["largeTitle", "title", "headline", "body", "callout", "subheadline"]
 
     /// Lines that are allowed to break the rule, each with the reason, matched
     /// on a distinctive substring of the line itself so that moving the code
@@ -233,6 +238,11 @@ enum TypeSweep {
         ("ProfileAvatar.swift", ".font(.system(size: side * 0.42, weight: .medium))"),
         ("IconStyle.swift", "content.font(.system(size: size, weight: weight, design: design))"),
         ("StrataMark.swift", ".font(.system(size: points, weight: Typography.titleWeight, design: .default))"),
+        // A recipient's and a pick's tick: an SF Symbol at Title 2.
+        ("SendToPage.swift", ".font(.title2)"),
+        ("PostMyDaySheet.swift", ".font(.title2)"),
+        // The reaction glyphs: emoji, 20pt in the Figma frame (Title 3).
+        ("CrewReactions.swift", ".font(.title3)"),
     ]
 
     /// Why this line breaks the rule, or nil.
@@ -246,6 +256,13 @@ enum TypeSweep {
         }
         if line.contains("Typography.bodySmall") || line.contains("Typography.caption2") {
             return "a deleted 13/11pt token"
+        }
+        // **Three tiers, and only through `Typography`** (the owner,
+        // 2026-10-16: "we shouldn't have a crazy amount of text sizes ... very
+        // researched and strict"). A bare text style is a size and weight of
+        // its own beside the scale: `.title2` is 22pt, a fourth size.
+        for style in offScale where line.contains(".font(.\(style)") {
+            return "text style .\(style) set outside Typography"
         }
         for weight in [".regular", ".light", ".thin", ".ultraLight"] where line.contains("weight: \(weight)") {
             return "weight \(weight) is lighter than .medium"
