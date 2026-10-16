@@ -59,7 +59,7 @@ struct CrewTowerView: View {
     /// resting card "looks like a glitch on the bottom", and the chat was
     /// "super laggy"; his pick "Bar, then sheet").
     private var chatUp: Bool { showsChat }
-    @State private var chatDetent: PresentationDetent = NativeChat.reading
+    @State private var chatDetent: PresentationDetent = .large
     @State private var chatAside = ChatAside()
     private var native: Bool { NativeChat.isOn }
     /// "Just you so far.": once a crew, while nobody else has joined.
@@ -151,11 +151,7 @@ struct CrewTowerView: View {
         // What was joined or closed in the chat shows here when it shuts.
         .onChange(of: showsChat) { _, open in
             if !open { plansRefresh += 1; plannedNudge += 1; answeringWin = nil; chatOpening = .reading }
-            // The native sheet opens at the height the bar asked for: the
-            // whole height to write, part way to read.
-            if native, open {
-                chatDetent = chatOpening == .writing ? .large : NativeChat.reading
-            }
+            if native, open { chatDetent = .large }
             Task { @MainActor in
                 try? await Task.sleep(for: GridConstants.drawerLands)
                 if showsChat == open { chatSettled = open }
@@ -478,10 +474,7 @@ struct CrewTowerView: View {
                           startsWithPlus: chatOpening == .plus, visible: true,
                           answeringWin: answeringWin, native: true,
                           close: { showsChat = false },
-                          reopen: {
-                              chatOpening = .reading
-                              withAnimation(GridConstants.drawerMove) { chatDetent = NativeChat.reading }
-                          },
+                          reopen: { chatOpening = .reading },
                           onOpenWin: openQuotedWin, onAddWin: { addWin() }),
             active: true
         )
@@ -496,9 +489,6 @@ struct CrewTowerView: View {
             withAnimation(GridConstants.drawerMove) { chatDetent = .large }
         })
         .presentationDetents(NativeChat.detents, selection: $chatDetent)
-        // The tower stays the tower under the reading chat: a tap on a block
-        // lands, as Maps' card leaves the map.
-        .presentationBackgroundInteraction(.enabled(upThrough: NativeChat.reading))
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         // VoiceOver's escape: the chat down into its bar.

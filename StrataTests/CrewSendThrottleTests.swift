@@ -3,20 +3,24 @@ import Foundation
 @testable import Strata
 
 /// **How fast this phone may write to a crew** (the 2026-10-08 launch
-/// audit): a line a second and 200 a crew day; reactions two a second.
+/// audit): four lines a second (one a second until 2026-10-15, when a burst
+/// of texts bounced back to the field) and 200 a crew day; reactions two a
+/// second.
 @MainActor
 @Suite("Crew send throttle", .serialized)
 struct CrewSendThrottleTests {
     let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test func aLineASecond() {
+    @Test func fourLinesASecond() {
         var throttle = CrewSendThrottle()
         #expect(throttle.verdict(.message, crew: "a", day: "d", at: t0) == .allowed)
         throttle.record(.message, crew: "a", day: "d", at: t0)
-        #expect(throttle.verdict(.message, crew: "a", day: "d", at: t0.addingTimeInterval(0.5)) == .tooFast)
-        #expect(throttle.verdict(.message, crew: "a", day: "d", at: t0.addingTimeInterval(1)) == .allowed)
+        // A stuck key is still stopped.
+        #expect(throttle.verdict(.message, crew: "a", day: "d", at: t0.addingTimeInterval(0.1)) == .tooFast)
+        // Two texts sent half a second apart both go.
+        #expect(throttle.verdict(.message, crew: "a", day: "d", at: t0.addingTimeInterval(0.5)) == .allowed)
         // Another crew is its own.
-        #expect(throttle.verdict(.message, crew: "b", day: "d", at: t0.addingTimeInterval(0.5)) == .allowed)
+        #expect(throttle.verdict(.message, crew: "b", day: "d", at: t0.addingTimeInterval(0.1)) == .allowed)
     }
 
     @Test func twoReactionsASecondAndNoDailyCap() {

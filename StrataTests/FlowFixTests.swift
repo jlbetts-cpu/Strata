@@ -151,8 +151,10 @@ struct FlowFixTests {
         #expect(bar.contains(".glassField()") && !bar.contains(".glassCapsule("))
         let chat = try code("Strata/Views/Crews/CrewChatSheet.swift")
         // The field's prompt is the app's ink since 2026-10-15 (the
-        // consistency pass), so it is found by its binding, not its line.
-        let field = try #require(chat.range(of: "TextField(\"Message\", text: draftField,"))
+        // consistency pass), and the field is its own view since the same
+        // day (`ChatTextInput`, so a keystroke redraws only the field): the
+        // glass goes on at the call site.
+        let field = try #require(chat.range(of: "ChatTextInput(field: field, crewID: crewID, writing: $writing)"))
         let after = chat[field.upperBound...].prefix(600)
         #expect(after.contains(".glassField()") && !after.contains(".glassCapsule("))
         // And nothing else that grows sits in a capsule.
@@ -243,7 +245,9 @@ struct FlowFixTests {
         #expect(tower.contains("let win = store.wins(in: crewID).first(where: { $0.winID == id }) else { return }\n        CrewRouter.shared.openWin = nil"))
         let chat = try code("Strata/Views/Crews/CrewChatSheet.swift")
         let undo = try #require(chat.range(of: ".undoLine()"))
-        let field = try #require(chat.range(of: ".safeAreaInset(edge: .bottom, spacing: 0) { composer }"))
+        // The field is under the thread in one column since 2026-10-15, not
+        // an inset over it; the undo line still hangs on the thread above it.
+        let field = try #require(chat.range(of: "\n            composer\n        }"))
         #expect(undo.lowerBound < field.lowerBound)
         #expect(chat.components(separatedBy: ".undoLine()").count == 2)
     }

@@ -90,9 +90,12 @@ struct RoughEdgesTests {
     @Test("the chat and Reply read and write the kept draft, and clear it only on a send that went")
     func draftsAreWired() throws {
         let chat = try code("Strata/Views/Crews/CrewChatSheet.swift")
-        #expect(chat.contains("_draft = State(initialValue: CrewDrafts.chat(crewID))"),
+        // Held in `ChatFieldText` since 2026-10-15, so typing redraws only
+        // the field (`ChatTextInput`), not the thread.
+        #expect(chat.contains("_field = State(initialValue: ChatFieldText(CrewDrafts.chat(crewID)))"),
                 "the chat opens on an empty field again")
-        #expect(chat.contains("TextField(\"Message\", text: draftField"))
+        #expect(chat.contains("TextField(\"Message\", text: Binding(get: { field.text }"))
+        #expect(chat.contains("CrewDrafts.keepChat(kept, for: crewID)"), "a keystroke no longer keeps the draft")
         let send = try body(of: "private func send() {", until: "// MARK: - Report and Block", in: chat)
         // A `switch` since the send throttle (2026-10-08) added `.throttled`;
         // the draft is still cleared only on `.sent`.

@@ -1939,6 +1939,55 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("bar-7-dragged-up")
     }
 
+    /// **The resting bar, every way a chat can end** (the owner,
+    /// 2026-10-15: "test the collapsed view for when you text multiple times
+    /// vs them texting multiple times and various variations").
+    func testCollapsedVariants() {
+        let kinds = ["base", "mine3", "theirs3", "mixed", "theirsmixed", "long", "emoji", "mineemoji", "photo",
+                     "minephoto", "sticker", "doodle", "strip", "winline", "minewinline", "plan", "empty"]
+        for kind in kinds {
+            var args = ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"]
+            if kind != "empty" { args += ["-strataSeedCrewChat", "1"] }
+            if kind != "base" && kind != "empty" { args += ["-strataChatTail", kind] }
+            let app = launch(args)
+            wait(8); snap("collapsed-\(kind)")
+            app.terminate()
+        }
+    }
+
+    /// **Typing in the chat** (the owner, 2026-10-15: "I try to type and it
+    /// take forever"): forty characters into the open chat, for a probe.
+    func testChatTyping() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none", "-strataPerfProbe"])
+        wait(8)
+        app.buttons["Write a message"].firstMatch.tap()
+        wait(2.5)
+        print("PLANNING-typing start")
+        app.typeText("okay heading over now, see you in a bit, also bringing the snacks we talked about earlier today")
+        print("PLANNING-typing end")
+        wait(1.5); snap("typing-done")
+    }
+
+    /// **Talking** (the owner, 2026-10-15: "when messaging it doesnt scroll
+    /// to the bottom and the message isnt visable"): three lines sent, each
+    /// photographed as it lands.
+    func testChatSending() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(8)
+        app.buttons["Write a message"].firstMatch.tap()
+        for (i, t) in [0.3, 0.4, 0.5, 0.8].enumerated() { wait(t); snap("send-0-\(i)") }
+        wait(1); snap("send-0-keys")
+        let lines = ["on my way", "should be there in like ten minutes, traffic is a little slow right now", "🙌"]
+        for (i, line) in lines.enumerated() {
+            app.typeText(line)
+            app.buttons["Send"].firstMatch.tap()
+            wait(1.2); snap("send-\(i + 1)")
+        }
+        app.swipeDown(velocity: .fast); wait(1.5); snap("send-4-keys-down")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

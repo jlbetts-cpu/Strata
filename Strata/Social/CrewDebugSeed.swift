@@ -330,6 +330,9 @@ extension DebugHarness {
         // for when you text multiple times vs them texting multiple times
         // and various variations").
         if let tail = argument("-strataChatTail") {
+            // Past the send pacing's quarter second since the seed's own
+            // lines, as a person would be.
+            try? await Task.sleep(for: .milliseconds(400))
             await seedChatTail(tail, first: first, second: second, me: me, crew: crew.id)
         }
         // `-strataSeedCrewPlan`: a friend plans something for today, another
@@ -359,8 +362,9 @@ extension DebugHarness {
                                      crew: CrewID) async {
         func say(_ who: SocialStore, _ words: String) async {
             await who.refresh()
-            await who.send(words, in: crew)
-            try? await Task.sleep(for: .milliseconds(30))
+            let outcome = await who.send(words, in: crew)
+            NSLog("[strata-tail] %@ -> %@", words, String(describing: outcome))
+            try? await Task.sleep(for: .milliseconds(300))
         }
         switch kind {
         case "mine3":
@@ -385,6 +389,34 @@ extension DebugHarness {
             }
         case "sticker":
             if let png = StickerMaker.sample()?.pngData() { await first.refresh(); _ = await first.sendSticker(png, in: crew) }
+        case "strip":
+            let frames = ["DemoPhoto3", "DemoPhoto7", "DemoPhoto5"].enumerated().compactMap { i, name in
+                UIImage(named: name).map { PhotoStrip.Frame(id: UUID(), title: ["Run", "Read", "Cooked"][i],
+                                                            size: .medium, picture: $0) }
+            }
+            let renderer = ImageRenderer(content: StripView(frames: frames, day: DateUtils.dateString(from: Date()),
+                                                            signature: "Sam", paper: .white,
+                                                            width: StripStory.stripWidth).fixedSize())
+            renderer.scale = 3 * CrewStripPicture.width / StripStory.stripWidth
+            renderer.isOpaque = false
+            if let png = renderer.uiImage?.pngData() { await first.refresh(); _ = await first.sendStrip(png, in: crew) }
+        case "winline":
+            await second.refresh()
+            if let theirs = second.today(in: crew).last(where: { $0.senderProfileID == second.me && !$0.title.isEmpty }) {
+                _ = await second.sendWinLine(theirs.winID, in: crew)
+            }
+        case "minewinline":
+            await me.refresh()
+            if let mine = me.today(in: crew).last(where: { $0.senderProfileID == me.me && !$0.title.isEmpty }) {
+                _ = await me.sendWinLine(mine.winID, in: crew)
+            }
+        case "doodle":
+            if let png = StickerMaker.sample()?.pngData() { await first.refresh(); _ = await first.sendDoodle(png, in: crew) }
+        case "theirsmixed":
+            await say(first, "look at this")
+            if let png = StickerMaker.sample()?.pngData() { await first.refresh(); _ = await first.sendSticker(png, in: crew) }
+            try? await Task.sleep(for: .milliseconds(300))
+            await say(first, "made it myself")
         case "plan":
             await second.refresh()
             _ = await second.sendPlan(title: "Evening walk", when: .day(CrewDay.string(for: Date(), in: me.crew(crew)?.timeZone ?? .current)), in: crew)

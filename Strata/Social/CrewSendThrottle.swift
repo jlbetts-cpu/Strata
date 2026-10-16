@@ -5,7 +5,12 @@ import Foundation
 /// a script, or someone set on flooding a crew could fill its chat and its
 /// starter's iCloud as fast as CloudKit would take it.
 ///
-/// - Lines and doodles: one a second, and 200 a crew a crew day.
+/// - Lines and doodles: four a second, and 200 a crew a crew day. **It was
+///   one a second** until 2026-10-15, and a second line sent inside it came
+///   back to the field without a word: texting "ok", then "omw" read as the
+///   chat freezing (the owner: "I try to type and it take forever not
+///   responsive"). A quarter second passes anyone typing and still stops a
+///   stuck key; the daily cap is the real limit on a flood.
 /// - Reactions: two a second.
 ///
 /// Too fast is dropped quietly (a second tap on a reaction, a double send);
@@ -26,7 +31,7 @@ nonisolated struct CrewSendThrottle: Codable, Equatable, Sendable {
 
     static func minimumGap(_ kind: Kind) -> TimeInterval {
         switch kind {
-        case .message: 1
+        case .message: 0.25
         case .reaction: 0.5
         }
     }

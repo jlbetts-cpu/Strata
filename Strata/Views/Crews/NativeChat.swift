@@ -25,12 +25,13 @@ enum NativeChat {
         return true
     }
 
-    /// Part way: the thread, the tower still showing above (the owner,
-    /// 2026-10-14: "popping up enough to see the chat").
-    static let reading = CrewChatSheet.drawerHeight
-    /// Open only: at rest the crew stands on `ChatRestBar`, not on a
-    /// floating card (2026-10-15).
-    static let detents: Set<PresentationDetent> = [reading, .large]
+    /// **One height: the whole screen** (the owner, 2026-10-15: "rn trying
+    /// to hard to make it a medium open vs the full screen open maybe lets
+    /// just do the full screen so the lag isnt there and its just
+    /// consistent"). The part-way height floated as an inset card, changed
+    /// size under a thumb, and was a second layout for every line; there is
+    /// one now. At rest the crew stands on `ChatRestBar`.
+    static let detents: Set<PresentationDetent> = [.large]
 }
 
 /// **The chat steps aside for what the app itself presents.** Add a Win and

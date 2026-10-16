@@ -39,8 +39,12 @@ struct CrewChatSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What is in the field. Seeded from `CrewDrafts` and written back to it
-    /// on every keystroke (`draftField`), so the words outlive the sheet.
-    @State private var draft: String
+    /// on every keystroke (`ChatTextInput`), so the words outlive the sheet.
+    /// **Held in its own object, and read only by the field, the send
+    /// button and the starters** (2026-10-15, the owner: "I try to type and
+    /// it take forever not responsive"): as this view's `@State` String, a
+    /// keystroke redrew the whole thread, every row and its look-ups.
+    @State private var field: ChatFieldText
     @State private var refused = false
     @State private var atDailyLimit = false
     @State private var reporting: CrewMessage?
@@ -143,6 +147,8 @@ struct CrewChatSheet: View {
     /// How long a line is held before its bar opens: shorter than the
     /// system's half second, which the context menu it replaced waited.
     private static let holdToReact: Double = 0.35
+    /// How near the newest line counts as at it, for keeping it in sight.
+    private static let followsWithin: CGFloat = 120
     /// An emoji-only line's size: Messages' large emoji, a size a glance reads.
     private static let bigEmoji: CGFloat = 44
 
@@ -164,6 +170,16 @@ struct CrewChatSheet: View {
 
     /// The thread with its cards above and its composer below.
     private func chatPage(_ messages: [CrewMessage], reactions: [UUID: [Reaction]], crew: Crew?) -> some View {
+        // **The thread, then the field, in one column** (2026-10-15, the
+        // owner: "sometimes it opens pushing up the chat and other times it
+        // doesnt", and "it doesnt scroll to the bottom and the message isnt
+        // visable"). The field was an inset laid over the thread's foot, so
+        // the thread ran on under it and under the keys, and "the bottom" a
+        // scroll aimed for was behind them; it caught up only when a timed
+        // scroll fired. In a column the keys shorten the thread itself, its
+        // anchor holds the newest line on the field, and a send lands in
+        // sight every time, as Messages does.
+        VStack(spacing: 0) {
         thread(messages, reactions: reactions, crew: crew)
             // **At rest, the line is a way up** (the native sheet,
             // 2026-10-15): a tap on it, or a drag up from it, raises the
@@ -198,8 +214,9 @@ struct CrewChatSheet: View {
             // review, 2026-10-13): hung on the whole sheet, "In your
             // plan · Undo" lay on the field for five seconds.
             .undoLine()
+            composer
+        }
             .safeAreaInset(edge: .top, spacing: 0) { if !atRest { topCards(messages) } }
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
             // The emoji keyboard for "+" on a held line, as a win's "+" opens
             // it. Here, not on `body`, which is at the type-checker's ceiling.
             .background { emojiPicker }
@@ -302,7 +319,7 @@ struct CrewChatSheet: View {
         self.reopen = reopen
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
-        _draft = State(initialValue: CrewDrafts.chat(crewID))
+        _field = State(initialValue: ChatFieldText(CrewDrafts.chat(crewID)))
     }
 
     var body: some View {
@@ -545,6 +562,21 @@ struct CrewChatSheet: View {
                 // field, never half under it (filmed, 2026-10-14).
                 .defaultScrollAnchor(.bottom, for: .sizeChanges)
                 .scrollDismissesKeyboard(.interactively)
+                // **At the newest line, it stays at the newest line** as the
+                // thread gets shorter (the keys rising, the field growing),
+                // as Messages keeps it (2026-10-15: the keys took the foot
+                // of the thread and the top stayed put, so opening to write
+                // showed the morning, not the last line). Read from before
+                // the change: the distance from the foot grows by exactly
+                // what the thread lost.
+                .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { old, new in
+                    let lost = old - new
+                    guard lost > 1, lineFrames.fromFoot < Self.followsWithin + lost,
+                          let last = messages.last?.id else { return }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { proxy.scrollTo(last, anchor: .bottom) }
+                }
                 // Lines leave under the title softly, as the tower's do.
                 .softScrollEdge(.top)
                 // Where the thread stands on screen, for which way a held
@@ -1226,9 +1258,11 @@ struct CrewChatSheet: View {
                 // Starters for a friend's win, while the field is empty
                 // (`ReplyStarters`): a press fills the field, never sends.
                 let starters = ReplyStarters.lines(title: win.title, mine: win.senderProfileID == store.me)
-                if draft.isEmpty, !starters.isEmpty {
-                    starterRow(starters)
-                        .transition(.opacity)
+                if !starters.isEmpty {
+                    WhileFieldEmpty(field: field) {
+                        starterRow(starters)
+                    }
+                    .transition(.opacity)
                 }
                 quoteRow("\u{21AA}\u{FE0E} \(win.title)") {
                     withAnimation(GridConstants.motionSnappy) { self.replyingToWin = nil }
@@ -1245,33 +1279,25 @@ struct CrewChatSheet: View {
                 }
                 // The hint in the resting bar's own ink, so the word does not
                 // change colour as the chat rises (the consistency pass).
-                TextField("Message", text: draftField,
-                          prompt: Text(CrewChatWords.placeholder).foregroundStyle(AppColors.inkTertiary),
-                          axis: .vertical)
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .lineLimit(1...5)
-                    .focused($writing)
+                // Its own view: built here with the binding, the chat counted
+                // as reading the words and redrew on every key.
+                ChatTextInput(field: field, crewID: crewID, writing: $writing) {
+                    // A line more in the field: the newest line rides up
+                    // with it rather than going under it (walked, 2026-10-15).
+                    snapToNewest += 1
+                }
                     .padding(.horizontal, GridConstants.gapLabel)
                     .padding(.vertical, GridConstants.gapTight)
                     .frame(minHeight: GlassIconButton.defaultSide)
                     // A box as it grows, never a capsule: see `glassField`.
                     .glassField()
                     .accessibilityLabel("Message")
-                GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send") { send() }
-                    .disabled(isEmpty)
+                ChatSendButton(field: field) { send() }
             }
             .padding(.horizontal, hPad)
             .padding(.top, GridConstants.gapTight)
             // Low, where the system's own bars sit (`GridConstants.barSink`).
             .modifier(BarSink())
-            // 280 characters, the owner's number: the field stops there
-            // rather than letting a long paste be cut on the way out.
-            .onChange(of: draft) { _, text in
-                guard text.count > CrewMessage.textLimit else { return }
-                draft = String(text.prefix(CrewMessage.textLimit))
-                CrewDrafts.keepChat(draft, for: crewID)
-            }
           }
         } else {
             // Off for an age not shared (`canReply`): the chat reads, and
@@ -1301,7 +1327,8 @@ struct CrewChatSheet: View {
                 ForEach(starters, id: \.self) { line in
                     Button {
                         HapticsEngine.lightTap()
-                        draft = line
+                        field.text = line
+                        CrewDrafts.keepChat(line, for: crewID)
                         writing = true
                     } label: {
                         // The chat's own weight, not a heading's: a starter
@@ -1350,15 +1377,6 @@ struct CrewChatSheet: View {
         .padding(.trailing, hPad)
     }
 
-    private var isEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    /// The field's binding: a keystroke is the person's own edit, so it is
-    /// the one thing that writes the kept draft. `send` empties the field
-    /// without touching it, which is how the words survive a send that does
-    /// not go.
-    private var draftField: Binding<String> {
-        Binding(get: { draft }, set: { draft = $0; CrewDrafts.keepChat($0, for: crewID) })
-    }
 
     /// **A draft is cleared by a send that went, and by nothing else** (the
     /// QoL review, 2026-10-06). It lived in this sheet's `@State`, so a swipe
@@ -1368,11 +1386,11 @@ struct CrewChatSheet: View {
     /// kept copy goes only on `.sent`, and only if nothing new was typed
     /// since.
     private func send() {
-        let text = draft
-        guard !isEmpty else { return }
+        let text = field.text
+        guard !field.isEmpty else { return }
         // The press is felt, as Messages' send is.
         HapticsEngine.lightTap()
-        draft = ""
+        field.text = ""
         let answering = replyingTo
         let answeringWin = replyingToWin
         withAnimation(GridConstants.motionSnappy) { replyingTo = nil; replyingToWin = nil }
@@ -1393,13 +1411,13 @@ struct CrewChatSheet: View {
             case .throttled:
                 // A second send inside a second (2026-10-08): the words come
                 // back to the field, and nothing is said.
-                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
+                if field.text.isEmpty { field.text = CrewDrafts.chat(crewID) }
             case .dailyLimit:
-                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
+                if field.text.isEmpty { field.text = CrewDrafts.chat(crewID) }
                 atDailyLimit = true
             case .refusedWords, .refusedSketch, .notAllowed:
                 // Refused words come back to the field, to be changed.
-                if draft.isEmpty { draft = CrewDrafts.chat(crewID) }
+                if field.text.isEmpty { field.text = CrewDrafts.chat(crewID) }
                 refused = true
             }
         }
@@ -1891,5 +1909,67 @@ private struct OwnChatDetents: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// **The chat field's words, apart from the chat** (2026-10-15). Only what
+/// reads `text` redraws as you type: the field, `ChatSendButton` and
+/// `WhileFieldEmpty`. The thread never does.
+@MainActor @Observable
+final class ChatFieldText {
+    var text: String
+    init(_ text: String) { self.text = text }
+    var isEmpty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+}
+
+/// Send, dimmed while there is nothing to send: its own view, so the
+/// keystroke that wakes it wakes nothing else.
+private struct ChatSendButton: View {
+    let field: ChatFieldText
+    let send: () -> Void
+
+    var body: some View {
+        GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send") { send() }
+            .disabled(field.isEmpty)
+    }
+}
+
+/// What shows only while the field is empty (the reply starters).
+private struct WhileFieldEmpty<Content: View>: View {
+    let field: ChatFieldText
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if field.text.isEmpty { content() }
+    }
+}
+
+/// The field itself. A keystroke is the person's own edit, so it is the one
+/// thing that writes the kept draft; `send` empties the field without
+/// touching it, which is how the words survive a send that does not go.
+/// 280 characters, the owner's number: the field stops there rather than
+/// letting a long paste be cut on the way out.
+private struct ChatTextInput: View {
+    let field: ChatFieldText
+    let crewID: CrewID
+    var writing: FocusState<Bool>.Binding
+    /// The field grew a line.
+    var grew: () -> Void = {}
+
+    var body: some View {
+        // The hint in the resting bar's own ink, so the word does not change
+        // colour as the chat rises (the consistency pass).
+        TextField("Message", text: Binding(get: { field.text }, set: { typed in
+            let kept = typed.count > CrewMessage.textLimit ? String(typed.prefix(CrewMessage.textLimit)) : typed
+            field.text = kept
+            CrewDrafts.keepChat(kept, for: crewID)
+        }), prompt: Text(CrewChatWords.placeholder).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+            .font(Typography.bodyLarge)
+            .foregroundStyle(AppColors.inkPrimary)
+            .lineLimit(1...5)
+            .focused(writing)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { old, new in
+                if new > old + 1 { grew() }
+            }
     }
 }

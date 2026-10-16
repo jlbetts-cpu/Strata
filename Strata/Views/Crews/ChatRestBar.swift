@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 
 /// **The crew's chat, at rest, under its tower** (the owner, 2026-10-13: the
@@ -143,30 +144,30 @@ struct ChatRestBar: View {
 
     /// **The newest line as the chat draws it** (the owner, 2026-10-14:
     /// "when collapsed the notification of last sent message lacks all
-    /// flavor and look of the app"). It was a line of grey type. Now it is
-    /// the line itself: a friend's head beside their bubble on the quiet
-    /// fill, or your own in ink on the right, one line long, so the bar is
-    /// the foot of the conversation it opens.
+    /// flavor and look of the app"): a friend's head beside their bubble on
+    /// the quiet fill, or your own in ink on the right, one line long, so the
+    /// bar is the foot of the conversation it opens.
+    ///
+    /// **Every kind of line as itself** (2026-10-15, the owner: "everything
+    /// that can be in that chat needs to be tested to the max"): a win said
+    /// in the chat is its block and its title, a photo or a strip is its
+    /// picture, a sticker is the sticker, a plan is what was planned. **A
+    /// run of lines from one person stacks** behind the newest, as the Lock
+    /// Screen stacks a run of notifications, so three texts in a row read as
+    /// three without three rows.
     @ViewBuilder
     private var latest: some View {
-        if let last = store.messages(in: crewID).last {
+        let lines = store.messages(in: crewID)
+        if let last = lines.last {
             let mine = last.senderProfileID == store.me
             let crew = store.crew(crewID)
+            let run = min(3, lines.reversed().prefix { $0.senderProfileID == last.senderProfileID }.count)
             HStack(alignment: .center, spacing: GridConstants.gapTight) {
                 if mine { Spacer(minLength: GridConstants.gapWide) }
                 if !mine, let crew, let member = crew.member(last.senderProfileID) {
                     CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
                 }
-                Text(Self.says(last) ?? latestLine)
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(mine ? AppColors.myLineInk : AppColors.inkPrimary)
-                    .lineLimit(1)
-                    .padding(.horizontal, GridConstants.gapItem)
-                    .padding(.vertical, GridConstants.spacing + 2)
-                    .background {
-                        RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                            .fill(mine ? AppColors.myLine : AppColors.quietFill)
-                    }
+                RestLine(line: last, mine: mine, run: run, win: winSaid(in: last))
                 if !mine { Spacer(minLength: GridConstants.gapWide) }
             }
         } else {
@@ -177,16 +178,14 @@ struct ChatRestBar: View {
         }
     }
 
+    /// The win a line says, when the line is a win said in the chat.
+    private func winSaid(in line: CrewMessage) -> SharedWin? {
+        guard store.isWinLine(line), let id = line.quoteWinID else { return nil }
+        return store.wins(in: crewID).first { $0.winID == id }
+    }
+
     /// The thread's own face size.
     private static let faceSide: CGFloat = 28
-
-    /// A plain line's own words; nil for a strip, a picture or a plan, which
-    /// say what they are in the Crews list's sentence.
-    private static func says(_ line: CrewMessage) -> String? {
-        guard !line.isStrip, !line.isPicture, line.groupPlan == nil else { return nil }
-        let words = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return words.isEmpty ? nil : words
-    }
 
     /// The newest line as the Crews list says it ("Sam: see you at 6",
     /// "Sam sent a strip"), or the empty chat's own words.
@@ -477,5 +476,116 @@ extension EnvironmentValues {
     var chatAtRest: Bool {
         get { self[ChatAtRestKey.self] }
         set { self[ChatAtRestKey.self] = newValue }
+    }
+}
+
+/// **One line of the chat, at the resting bar's size**: the bubble the
+/// thread draws, cut to one line, and whatever the line carries.
+private struct RestLine: View {
+    let line: CrewMessage
+    let mine: Bool
+    /// How many lines in a row, this one included, came from this person.
+    let run: Int
+    let win: SharedWin?
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var picture: UIImage?
+
+    private static let thumb: CGFloat = 26
+    private static let stickerSide: CGFloat = 34
+
+    private var isSticker: Bool {
+        line.isPicture && (line.caption == SocialStore.stickerWord || line.caption.isEmpty)
+    }
+
+    var body: some View {
+        Group {
+            if isSticker {
+                // A sticker is its own shape, never in a bubble.
+                pictureView(side: Self.stickerSide, corner: 0, fit: true)
+            } else {
+                bubble
+            }
+        }
+        .task(id: line.sketch) { await load() }
+    }
+
+    private var bubble: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            if let win {
+                // The win's own block, small, in its colour.
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(win.colour.style.baseColor)
+                    .frame(width: 12, height: 12)
+            } else if line.sketch != nil {
+                pictureView(side: Self.thumb, corner: 6, fit: false)
+            }
+            Text(words)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(mine ? AppColors.myLineInk : AppColors.inkPrimary)
+                .lineLimit(1)
+        }
+        .padding(.leading, line.sketch != nil && win == nil ? GridConstants.spacing + 2 : GridConstants.gapItem)
+        .padding(.trailing, GridConstants.gapItem)
+        .padding(.vertical, GridConstants.spacing + 2)
+        .frame(minHeight: 36)
+        .background {
+            let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+            shape.fill(mine ? AppColors.myLine : AppColors.quietFill)
+                // The run, stacked behind: each one a little narrower and a
+                // little higher, as notifications stack.
+                .background(alignment: .top) {
+                    ZStack(alignment: .top) {
+                        ForEach(Array((1..<max(run, 1)).reversed()), id: \.self) { depth in
+                            shape.fill(mine ? AppColors.myLine : AppColors.quietFill)
+                                .opacity(depth == 1 ? 0.55 : 0.3)
+                                .padding(.horizontal, CGFloat(depth) * 7)
+                                .offset(y: -CGFloat(depth) * 4)
+                        }
+                    }
+                }
+        }
+        .animation(GridConstants.motionSnappy, value: run)
+    }
+
+    /// What the bubble says.
+    private var words: String {
+        if let win { return win.title.isEmpty ? "A win" : win.title }
+        if line.isStrip { return "Today's strip" }
+        if let plan = line.groupPlan { return "Planned \(plan.title)" }
+        if line.isPicture { return line.caption.isEmpty ? "Photo" : line.caption }
+        let words = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if line.sketch != nil, words.isEmpty { return "Doodle" }
+        return words.isEmpty ? "Something" : words
+    }
+
+    @ViewBuilder
+    private func pictureView(side: CGFloat, corner: CGFloat, fit: Bool) -> some View {
+        Group {
+            if let picture {
+                Image(uiImage: picture)
+                    .resizable()
+                    .aspectRatio(contentMode: fit ? .fit : .fill)
+            } else {
+                AppColors.quietFill
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+    }
+
+    /// Small, off the main thread: the bar is on screen whenever the crew is.
+    private func load() async {
+        guard let url = line.sketch else { picture = nil; return }
+        let pixels = Self.stickerSide * displayScale
+        picture = await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceThumbnailMaxPixelSize: pixels * 2,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                  ] as CFDictionary) else { return nil }
+            return UIImage(cgImage: cg)
+        }.value
     }
 }
