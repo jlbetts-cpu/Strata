@@ -379,8 +379,20 @@ struct TodayHeads: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        // Its own preview, as every head's: the system's lift took the
+        // row's whole scroll with it (seen 2026-10-16 in light mode).
         .contextMenu {
             Button { composing = true } label: { Label("Edit Tonight's Story", systemImage: "pencil") }
+        } preview: {
+            VStack(spacing: GridConstants.gapTight) {
+                StoryBubble(story: me, side: 96)
+                    .clipShape(Circle())
+                Text("Your Story")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
+            }
+            .padding(GridConstants.gapWide)
+            .background(WarmBackground.top)
         }
         .accessibilityLabel("Your Story")
         .accessibilityHint("Opens it as your friends see it from 8pm.")
