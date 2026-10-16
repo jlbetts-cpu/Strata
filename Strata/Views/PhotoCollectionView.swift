@@ -120,7 +120,8 @@ struct PhotoCollectionView: View {
                         startAt: photo.id,
                         onClose: { viewing = nil },
                         onDelete: { _ in load() },
-                        onWinChanged: { load() })
+                        onWinChanged: { load() },
+                        dragsToClose: false)
                 .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
         }
     }

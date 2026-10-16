@@ -939,6 +939,9 @@ struct MainAppView: View {
                 if tab == .memories, selectedTab == .memories {
                     LandingRouter.shared.memoriesReselected += 1
                 }
+                // **Wins again: to the top**, as every tab bar's second tap
+                // goes (the interaction audit, 2026-10-15).
+                if tab == .tower, selectedTab == .tower { scrollToTopTrigger += 1 }
                 selectedTab = tab
             })
     }

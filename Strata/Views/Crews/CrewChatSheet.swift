@@ -842,6 +842,9 @@ struct CrewChatSheet: View {
         }
         .scaleEffect(lit == id ? 1.04 : 1, anchor: mine ? .trailing : .leading)
         .animation(motion, value: lit == id)
+        // **Swiped right, it is quoted to reply**, as Messages does (the
+        // interaction audit, 2026-10-15). Reply stays in the hold menu too.
+        .modifier(SwipeToReply { if store.canReply() { reply(to: message) } })
         .simultaneousGesture(LongPressGesture(minimumDuration: Self.holdToReact).onEnded { _ in
             openMenu(on: message, fromQuote: quote != nil || answered != nil)
         })

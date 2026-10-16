@@ -30,6 +30,10 @@ struct PhotoViewer: View {
     /// Called after a win was edited or deleted from the viewer's Edit, so
     /// the screen underneath reloads. Both used to leave it stale.
     var onWinChanged: () -> Void = {}
+    /// **A drag down closes it**, as Photos and Instagram close a picture
+    /// (the interaction audit, 2026-10-15). Off where the viewer is opened
+    /// with the zoom transition, which brings its own.
+    var dragsToClose = true
     /// Set when these are a crew's photographs (`CrewTowerView`): the menu
     /// offers Report on a friend's, and taking your own back out of the
     /// crew, instead of deleting a photograph that is not this viewer's to
@@ -98,6 +102,8 @@ struct PhotoViewer: View {
     /// True while the picture on screen is zoomed in. The deck stops paging
     /// then, or a pan across a magnified photo would flick to the next one.
     @State private var isZoomed = false
+    /// How far a drag down has the picture from its place.
+    @State private var drop: CGFloat = 0
     /// **The Photos state: the controls gone and the ground black** (the
     /// owner, 2026-10-14: "look at what the photos app does it looks super
     /// clean and proves that light and dark mode can exist when you zoom in
@@ -213,7 +219,18 @@ struct PhotoViewer: View {
                 }
                 .padding(.top, Self.topInset)
                 .padding(.bottom, Self.bottomInset)
+                .offset(y: drop)
+                .scaleEffect(1 - min(drop / 2400, 0.12), anchor: .top)
             }
+            .opacity(1 - min(Double(drop / 900), 0.35))
+            .gesture(OneWayPan(way: .down, allows: { dragsToClose && !isZoomed }, changed: { drop = $0 }, ended: { distance, speed in
+                if distance > 120 || speed > 900 {
+                    HapticsEngine.lightTap()
+                    onClose()
+                } else {
+                    withAnimation(GridConstants.motionSnappy) { drop = 0 }
+                }
+            }))
             // **The page at rest, black when immersive** (2026-10-14). The
             // scheme was forced dark here because the field was always black;
             // at rest it is the page now, in the phone's own appearance, and

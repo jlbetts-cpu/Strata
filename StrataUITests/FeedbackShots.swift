@@ -2098,6 +2098,35 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("draft-1-written")
     }
 
+    /// **Swipe to reply, swipe down to close** (the interaction audit,
+    /// 2026-10-15).
+    func testEverydaySwipes() {
+        var app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0",
+                          "-strataSeedCrewChat", "1", "-strataCrewFaces", "none"])
+        wait(8)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat,'")).firstMatch.tap()
+        wait(2)
+        let line = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS \"who's up for a walk\"")).firstMatch
+        print("PLANNING-swipes line \(line.exists)")
+        if line.exists {
+            let start = line.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+            start.press(forDuration: 0.02, thenDragTo: start.withOffset(CGVector(dx: 140, dy: 0)),
+                        withVelocity: XCUIGestureVelocity(500), thenHoldForDuration: 0.1)
+        }
+        wait(1.5); snap("swipes-0-replying")
+        print("PLANNING-swipes reply quote \(app.buttons["Stop Replying"].exists)")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4"])
+        wait(6)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Your win, Walk'")).firstMatch.tap()
+        wait(2); snap("swipes-1-viewer")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.52, dy: 0.85)),
+                   withVelocity: XCUIGestureVelocity(1400), thenHoldForDuration: 0)
+        wait(1.5); snap("swipes-2-closed")
+        print("PLANNING-swipes viewer closed \(!app.buttons["Close photo"].exists)")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

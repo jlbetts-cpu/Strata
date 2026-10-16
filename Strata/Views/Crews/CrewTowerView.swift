@@ -1088,6 +1088,9 @@ struct CrewTowerView: View {
         .defaultScrollAnchor(.bottom)
         // A finger choosing a reaction must not scroll the tower under it.
         .scrollDisabled(reacts.reacting != nil)
+        // Pulled down, the crew is asked again, as the Crews list is (the
+        // interaction audit, 2026-10-15).
+        .refreshable { _ = await store.refreshLive(crewID) }
         .softScrollEdge(.top)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(rows == 0 ? "No wins yet today" : "Today's crew tower, \(tower.placedBlocks.count) wins")

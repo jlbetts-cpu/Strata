@@ -416,7 +416,9 @@ struct MemoriesView: View {
                                 Task { await vm.reload(context: modelContext) }
                                 Task { await reloadReplays() }
                             },
-                            onWinChanged: { Task { await vm.reload(context: modelContext) } })
+                            onWinChanged: { Task { await vm.reload(context: modelContext) } },
+                            // The zoom brings its own drag down.
+                            dragsToClose: false)
                     // Out of the thumbnail, not up from the bottom.
                     .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
             }
@@ -442,6 +444,10 @@ struct MemoriesView: View {
                     }
                     .ignoresSafeArea()
                     .toolbar(.hidden, for: .navigationBar)
+                    // The edge swipe back the hidden bar took with it (the
+                    // interaction audit, 2026-10-15). The edge only: the map
+                    // pans.
+                    .background { SwipeBackKeeper().frame(width: 0, height: 0) }
                     // **A WAY BACK.** The owner: "make sure there is a way to
                     // get back to the Memories from the map." It is in
                     // `MapBackButton` now, with its own measurements: the
