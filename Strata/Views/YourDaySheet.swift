@@ -27,6 +27,9 @@ struct YourDaySheet: View {
     /// The titles of today's wins, for the ticks on your three.
     @State private var titlesToday: [String] = []
     @State private var choosingThree = false
+    /// A day of the week tapped to read (2026-10-16: the owner wanted this
+    /// sheet's figures "you can interact with", as Your Stats is).
+    @State private var pickedDay: String?
 
     private var today: String { DateUtils.dateString(from: Date()) }
     private var winsToday: Int { counts[today] ?? 0 }
@@ -244,10 +247,20 @@ struct YourDaySheet: View {
                     CrestFace(side: 72)
                 }
                 .frame(width: 104, height: 104)
-                Text("\(winsToday) of \(todaysGoal) today")
-                    .font(Typography.headerMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(AppColors.inkPrimary)
+                // **The count first, large** (the owner, 2026-10-16: "it
+                // should be clear how many wins you got for that day"): the
+                // number in the tally's size, what it is under it; the ring
+                // above already says how near the goal it is.
+                VStack(spacing: 0) {
+                    Text(verbatim: "\(winsToday)")
+                        .font(Typography.tally)
+                        .monospacedDigit()
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .contentTransition(.numericText(value: Double(winsToday)))
+                    Text(winsToday == 1 ? "win today" : "wins today")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                }
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
@@ -260,8 +273,33 @@ struct YourDaySheet: View {
     /// the goal by that day's wins. Days to come are only their letter.
     private var week: some View {
         let days = Self.weekDays()
-        return HStack(spacing: 0) {
+        return VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            Text(weekCaption(days))
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .contentTransition(.numericText())
+                .animation(GridConstants.motionSnappy, value: pickedDay)
+            weekRings(days)
+        }
+        .sensoryFeedback(.selection, trigger: pickedDay)
+    }
+
+    /// At rest the week's total; with a day picked, that day.
+    private func weekCaption(_ days: [WeekDay]) -> String {
+        func wins(_ n: Int) -> String { n == 1 ? "1 win" : "\(n) wins" }
+        if let key = pickedDay, let day = days.first(where: { $0.key == key }) {
+            return "\(key == today ? "Today" : day.name), \(wins(counts[key] ?? 0))"
+        }
+        return "\(wins(days.filter { !$0.future }.reduce(0) { $0 + (counts[$1.key] ?? 0) })) this week"
+    }
+
+    private func weekRings(_ days: [WeekDay]) -> some View {
+        HStack(spacing: 0) {
             ForEach(days, id: \.key) { day in
+                Button {
+                    guard !day.future else { return }
+                    withAnimation(GridConstants.motionSnappy) { pickedDay = pickedDay == day.key ? nil : day.key }
+                } label: {
                 VStack(spacing: GridConstants.spacing) {
                     GoalRingStroke(wins: day.future ? 0 : counts[day.key] ?? 0,
                                    goal: day.key == today ? todaysGoal : goal, line: 3)
@@ -271,9 +309,15 @@ struct YourDaySheet: View {
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(day.key == today ? AppColors.inkPrimary : AppColors.inkTertiary)
                 }
-                .frame(maxWidth: .infinity)
+                .opacity(pickedDay == nil || pickedDay == day.key ? 1 : 0.4)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .disabled(day.future)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(day.future ? day.name : "\(day.name), \(counts[day.key] ?? 0) wins")
+                .accessibilityAddTraits(day.future ? [] : (pickedDay == day.key ? [.isButton, .isSelected] : .isButton))
             }
         }
         .padding(.vertical, GridConstants.gapTight)

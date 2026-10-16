@@ -1856,6 +1856,20 @@ final class FeedbackShots: XCTestCase {
     }
 
     /// **Your head's personality** in Edit Profile (2026-10-16).
+    /// Your day: the count large, and a tapped day of the week read out.
+    func testYourDayWeek() {
+        let app = launch(["-strataSeedWins", "3", "-strataSeedHead", "1", "-strataOpenSheet", "yourday"])
+        wait(8)
+        app.swipeUp(); wait(1); snap("yourday-0-week")
+        let ring = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '\(Date().formatted(.dateTime.weekday(.wide))), '")).firstMatch
+        print("PLANNING-yourday ring \(ring.exists) '\(ring.exists ? ring.label : "")'")
+        if ring.exists { ring.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.62, dy: 0.672)).tap() }
+        wait(1); snap("yourday-1-picked")
+        let caption = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Today, '")).firstMatch
+        wait(2); snap("yourday-2-settled")
+        print("PLANNING-yourday caption \(caption.exists)")
+    }
+
     func testHeadPersonality() {
         let app = launch(["-strataStartTab", "memories", "-strataSeedWins", "4", "-strataSeedHead", "1"])
         wait(7)
