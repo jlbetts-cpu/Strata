@@ -421,7 +421,7 @@ struct CrewsListView: View {
         DrawnMoment(title: "Joining your crew", line: "This takes a moment the first time.") {
             JoiningWalk()
         } extra: {
-            if reduceMotion { ProgressView() }
+            if reduceMotion { WinsLoader() }
         }
         .accessibilityElement(children: .combine)
     }

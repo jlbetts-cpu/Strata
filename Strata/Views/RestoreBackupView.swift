@@ -371,7 +371,7 @@ struct RestoreBackupView: View {
 
     private func line(_ text: String) -> some View {
         HStack(spacing: GridConstants.gapItem) {
-            ProgressView()
+            WinsLoader(size: 22)
             Text(text)
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)

@@ -239,6 +239,15 @@ struct StrataApp: App {
                 #if DEBUG
                 if DebugHarness.headParity {
                     HeadParityView()
+                } else if DebugHarness.argument("-strataShowLoader") == "1" {
+                    // `-strataShowLoader 1`: the loader, large, alone, so its
+                    // rounds can be photographed (`WinsLoader`).
+                    VStack(spacing: 48) {
+                        WinsLoader(size: 120)
+                        HStack(spacing: 32) { WinsLoader(size: 22); WinsLoader(size: 28); WinsLoader(size: 44) }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background { WarmBackground().ignoresSafeArea() }
                 } else {
                     appRoot
                 }

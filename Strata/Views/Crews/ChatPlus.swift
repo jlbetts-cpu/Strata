@@ -468,6 +468,8 @@ struct ChatPicture: View {
                     RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                         .fill(AppColors.quietFill)
                         .frame(width: Self.side, height: Self.side)
+                        // The app's own loader while it arrives (`WinsLoader`).
+                        .overlay { WinsLoader(size: 24) }
                 }
             }
             .frame(maxWidth: Self.side, maxHeight: Self.side * 4 / 3)
