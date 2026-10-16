@@ -245,3 +245,10 @@ Each slice ships alone behind `CrewsFlag`, with the two-phone test. Measures are
 6. **Personal crews and the five-crew cap:** Recommended: they do not count.
 7. **Findable by default at 16+:** Recommended: on, with a Settings switch.
 8. **Order:** Recommended: slices 1 and 2 after crews are live and compliance gaps 1 to 3 are closed, then 3, then 4.
+
+## Decided (the owner, 2026-10-15, evening)
+
+1. Stories unlock at 8pm fixed, in each viewer's own zone, and are gone by 9am. Sunset is the colour only.
+2. Before 8pm, a friend with a story coming tonight wears an unlit ring, with no count.
+3. Findable by exact @username is on by default for 16 and over, with a Settings switch. 13 to 15 are never findable.
+4. Order: close the compliance gaps first (regions to sell in, NCMEC registration, reports reaching the developer), then slice 1 (@usernames and requests), then stories.
