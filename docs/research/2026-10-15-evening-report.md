@@ -1,13 +1,13 @@
 # The evening of 2026-10-15: what changed, and what is yours
 
-Builds 147 and 148 went to TestFlight for you. Neither is with Friends.
+Builds 147 and 148 went to TestFlight for you (148 at 10:13pm, with Tonight's Story). Neither is with Friends.
 
 ## Left for you
 
 1. **Two compliance steps outside the app**, before the social layer (your pick: compliance first):
    - Choose where to sell 1.0. The audit suggests the US, Canada and New Zealand first.
    - Register with NCMEC, and in the CloudKit Console untick Read and Write for Creator on `Report` in Production, so a reporter cannot edit or delete a report.
-2. **The stories and friends spec** (`docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`) has your four decisions recorded. It is not built: it waits on step 1.
+2. **Tonight's Story is built** (your /goal moved it ahead of the compliance steps): `docs/superpowers/plans/2026-10-15-tonights-story.md` has the 17 requirements and where each stands. @names and personal crews (slice 1) are not built. The evening violet is a starting value, yours to pick.
 3. **An illustration for an empty day**, in your hand. The empty states are one component now (`EmptyPageLine`), so the drawing can go into all of them at once.
 4. **Check on your phone**, because the simulator cannot show these:
    - A swipe down on Add a Win with words typed is held and says nothing; Cancel asks. Asking on the swipe needs a device to verify, so it was not shipped.
