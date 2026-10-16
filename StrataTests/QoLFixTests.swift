@@ -108,9 +108,10 @@ struct QoLFixTests {
             // Ink since the owner thinned the glass (2026-10-06).
             #expect(!source.contains(".glassCapsule("), "\(path) is a glass chip again")
         }
+        // The journal's corner glass button became its + (`PlusMenu`, a
+        // menu, which takes no press style at all) on 2026-10-15.
         let day = try code("Strata/Views/DaySheet.swift")
-        let emoji = try body(of: "private var emojiButton: some View {", until: "EmojiField(", in: day)
-        #expect(emoji.contains(".buttonStyle(.plain)"))
+        #expect(day.contains("PlusMenu {") && !day.contains("emojiButton"))
     }
 
     @Test("Lock Journal comes off only for whoever can open it")

@@ -694,11 +694,14 @@ struct DaySheet: View {
             // type; still no photographs.
             DayWinNotes(dateString: dateString, shown: $winNotesShown)
             editor
-            // **Write My Day** on an empty page with wins to write from,
-            // where Apple's model is (`JournalDraft`): the entry lands in
-            // the note, yours to change.
-            if isEmpty, hasWinsToWrite, JournalDraft.isAvailable {
-                writeMyDay
+                // **The day's sticker, stuck on the page** (2026-10-15): it
+                // was a button alone in the top corner; the + at the foot
+                // adds it now, and once chosen it sits on the note, as a
+                // sticker sits on a paper journal. A tap changes it.
+                .overlay(alignment: .topTrailing) { stuckMark }
+            // Write My Day at work: the app's loader where the words will be.
+            if drafting {
+                writingLine
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .transition(.opacity)
             }
@@ -758,27 +761,16 @@ struct DaySheet: View {
             .padding(.horizontal, GridConstants.horizontalPadding - 5)
     }
 
-    /// One quiet line, as Suggest's question is drawn: the sparkles and the
-    /// words, and the app's loader in their place while it writes.
-    private var writeMyDay: some View {
-        Button { draftDay() } label: {
-            HStack(spacing: GridConstants.gapTight) {
-                if drafting {
-                    WinsLoader(size: 20)
-                } else {
-                    Image(systemName: "sparkles")
-                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                }
-                Text(drafting ? "Writing your day" : "Write My Day")
-                    .font(Typography.headerMedium)
-            }
-            .foregroundStyle(AppColors.inkSecondary)
-            .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
-            .contentShape(Rectangle())
+    /// While Write My Day writes: the app's loader and one quiet line.
+    private var writingLine: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            WinsLoader(size: 20)
+            Text("Writing your day")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkSecondary)
         }
-        .buttonStyle(.pressWord)
-        .disabled(drafting)
-        .accessibilityHint("Drafts a short entry from today's wins and photos, on this phone, for you to edit.")
+        .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func draftDay() {
@@ -867,27 +859,48 @@ struct DaySheet: View {
     /// **The chat's bar** (the owner's pick, 2026-10-06, "Composer for
     /// both"): what is sent joins the note as its next paragraph. The pen
     /// stands where a chat keeps its attachment, and Suggest sits above.
+    ///
+    /// **Everything the page can take, behind one +** (the owner,
+    /// 2026-10-15: "the ai write up could be on a + button in the bottom we
+    /// can put all the doodle button, and other things just to make that
+    /// experience cleaner and more compared to the chat. instead of having
+    /// the doodle and the sticker be separate areas of the screen"). The
+    /// chat's own + (`PlusMenu`): Write My Day, a question to start from,
+    /// the sketch, and the day's sticker, each saying what it does.
     private var journalFoot: some View {
-        VStack(spacing: 0) {
-            // Only while the keyboard is up (the owner, 2026-10-06: "the
-            // suggest should only pop up when the keyboard does").
-            if writing || journalComposing {
-                journalSuggest.transition(.opacity)
+        DayComposer(canSend: DayComposing.hasWords(journalDraft), onSend: sendParagraph) {
+            TextField(invitation, text: $journalDraft,
+                      prompt: Text(invitation).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+                .lineLimit(1...5)
+                .focused($journalComposing)
+        } leading: {
+            journalPlus
+        }
+    }
+
+    private var journalPlus: some View {
+        PlusMenu {
+            if JournalDraft.isAvailable, hasWinsToWrite, isEmpty {
+                Button { draftDay() } label: { Label("Write My Day", systemImage: "sparkles") }
+                    .disabled(drafting)
             }
-            DayComposer(canSend: DayComposing.hasWords(journalDraft), onSend: sendParagraph) {
-                TextField(invitation, text: $journalDraft,
-                          prompt: Text(invitation).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
-                    .lineLimit(1...5)
-                    .focused($journalComposing)
-            } leading: {
-                GlassIconButton(systemName: "pencil", onPage: true,
-                                accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
-                    openEditor()
-                }
+            Button { ask() } label: {
+                Label(question == nil ? "Ask Me a Question" : "Another Question", systemImage: "questionmark.bubble")
+            }
+            .disabled(thinking)
+            Button { openEditor() } label: {
+                Label(sketchName == nil ? "Draw a Sketch" : "Edit the Sketch", systemImage: "scribble")
+            }
+            Button {
+                HapticsEngine.lightTap()
+                choosingMark = true
+            } label: {
+                Label { Text(symbol == nil ? "Add a Sticker" : "Change the Sticker") }
+                    icon: { Image(Doodle.sticker.rawValue).renderingMode(.template) }
             }
         }
-        // On the keys' curve: Suggest comes and goes with them (fix 6).
-        .animation(GridConstants.keyboard, value: writing || journalComposing)
+        .accessibilityLabel("More for the journal")
+        .modifier(markPicking)
     }
 
     private func sendParagraph() {
@@ -899,22 +912,6 @@ struct DaySheet: View {
 
     private var todaysLines: [PlanItem] {
         allItems.filter { $0.belongs(on: Date(), calendar: .current) }
-    }
-
-    /// One quiet word at the foot of the page, as on the plan. It asks for
-    /// one question and shows it as the placeholder; pressed again, another.
-    private var journalSuggest: some View {
-        Button { ask() } label: {
-            Label(question == nil ? "Suggest" : "Another", systemImage: "sparkles")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(maxWidth: .infinity, minHeight: Self.tapTarget)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.press)
-        .disabled(thinking)
-        .opacity(thinking ? 0.5 : 1)
-        .accessibilityHint("Shows a question about your day.")
     }
 
     /// `win`: the win a photograph in the row was pressed for, so the question
@@ -985,98 +982,56 @@ struct DaySheet: View {
     /// emoji again.
     @ViewBuilder
     private var leadingButton: some View {
-        switch tab {
-        case .journal: emojiButton
-        // The Plan's ＋ became its bar at the foot (`planComposer`).
-        case .plan: EmptyView()
-        }
+        // The journal's sticker went behind its + and onto its page
+        // (2026-10-15); the Plan's ＋ became its bar at the foot.
+        EmptyView()
     }
 
-    private var emojiButton: some View {
-        Button {
-            HapticsEngine.lightTap()
-            choosingMark = true
-        } label: {
-            ZStack {
-                if let name = StickerStore.name(in: symbol), let image = StickerStore.shared.image(name) {
-                    // One of your stickers (`StickerStore`), a touch bigger
-                    // than the disc so it reads as stuck on.
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: Self.tapTarget - 6, height: Self.tapTarget - 6)
-                        .rotationEffect(.degrees(-6))
-                        .transition(.scale(scale: 0.5).combined(with: .opacity))
-                } else if let symbol, StickerStore.name(in: symbol) == nil {
-                    Text(symbol)
-                        .font(Typography.headerMedium)
-                        .transition(.scale(scale: 0.5).combined(with: .opacity))
-                } else {
-                    // **The owner's smiley** (2026-10-06, `DoodleIcon`), the
-                    // same drawing as the ink row's sticker button, because it
-                    // opens the same stickers. Alone in its corner (the title
-                    // is words, Done is a word), so no symbol stands beside it.
-                    DoodleIcon(.sticker, size: GridConstants.iconToolbar, label: "Sticker")
-                        // `GlassIconButton`'s ink, as the Plan's ＋ in this
-                        // corner wears: switching tabs changed the glyph's ink.
-                        .foregroundStyle(.primary)
-                        .transition(.opacity)
+    /// **The day's sticker, on the page** (2026-10-15): chosen from the +
+    /// at the foot, drawn stuck to the note's corner, a little turned, as on
+    /// paper. A tap opens the picker again; a hold offers Remove. Nothing
+    /// shows until there is one.
+    @ViewBuilder
+    private var stuckMark: some View {
+        if let symbol {
+            Button {
+                HapticsEngine.lightTap()
+                choosingMark = true
+            } label: {
+                Group {
+                    if let name = StickerStore.name(in: symbol), let image = StickerStore.shared.image(name) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: Self.tapTarget, height: Self.tapTarget)
+                    } else {
+                        Text(symbol)
+                            .font(.system(size: 30))
+                    }
                 }
+                .rotationEffect(.degrees(8))
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
+                .contentShape(Rectangle())
             }
-            // `GlassIconLabel`'s own face: a 44pt disc of the page's glass.
-            // Built here rather than through it because a chosen emoji is
-            // text, not an SF Symbol.
-            .frame(width: Self.tapTarget, height: Self.tapTarget)
-            .glassCircle(onPage: true)
-            .contentShape(Circle())
-        }
-        // `.plain`, as `GlassIconButton` is: the glass answers the finger
-        // itself, and a scaling press on interactive glass cancels the tap on
-        // a phone (`CrewReactions`, 2026-10-05). The Plan's ＋ in this same
-        // corner is a `GlassIconButton`, so the two now press alike.
-        .buttonStyle(.plain)
-        .popover(isPresented: $choosingMark) {
-            StickerPicker(current: symbol, onPick: { picked in
-                symbol = picked == symbol ? nil : picked
-                save()
-                choosingMark = false
-            }, onNewSticker: {
-                choosingMark = false
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    choosingPhoto = true
-                }
-            }, onEmoji: {
-                choosingMark = false
-                // The keyboard once the popover has gone: a field asked to
-                // take focus under a closing popover does not.
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    picking = true
-                }
-            })
-            .presentationCompactAdaptation(.popover)
-        }
-        .overlay {
-            EmojiField(isActive: $picking) { picked in
-                // The same one again takes it off.
-                symbol = picked == symbol ? nil : picked
-                save()
-            }
-            .frame(width: 1, height: 1)
-            .opacity(0.01)
-        }
-        .contextMenu {
-            if symbol != nil {
+            .buttonStyle(.press)
+            .padding(.trailing, GridConstants.horizontalPadding)
+            .contextMenu {
                 Button("Remove", systemImage: "xmark", role: .destructive) {
-                    symbol = nil
+                    self.symbol = nil
                     save()
                 }
             }
+            .transition(.scale(scale: 0.5).combined(with: .opacity))
+            .accessibilityLabel("The day's sticker, \(JournalMark.spoken(symbol))")
+            .accessibilityHint("Changes it. Choose the same one again to remove it.")
         }
-        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: symbol)
-        .accessibilityLabel(symbol.map { "The day's mark, \(JournalMark.spoken($0))" } ?? "Add a sticker or emoji for the day")
-        .accessibilityHint(symbol == nil ? "" : "Choose the same one again to remove it")
+    }
+
+    /// The sticker picker and the emoji keyboard, hung on the + that asks
+    /// for them.
+    private var markPicking: MarkPicking {
+        MarkPicking(symbol: $symbol, choosingMark: $choosingMark, picking: $picking,
+                    choosingPhoto: $choosingPhoto, save: save)
     }
 
     // MARK: - Done, and keeping it
@@ -1165,5 +1120,50 @@ private struct DayTitleOrTabs: ViewModifier {
         } else {
             content.sheetTitle(title, drawn: false)
         }
+    }
+}
+
+/// The day's sticker being chosen: the picker from the +, the emoji keyboard
+/// through an invisible field, and a new sticker made from a photograph.
+private struct MarkPicking: ViewModifier {
+    @Binding var symbol: String?
+    @Binding var choosingMark: Bool
+    @Binding var picking: Bool
+    @Binding var choosingPhoto: Bool
+    let save: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .popover(isPresented: $choosingMark) {
+                StickerPicker(current: symbol, onPick: { picked in
+                    symbol = picked == symbol ? nil : picked
+                    save()
+                    choosingMark = false
+                }, onNewSticker: {
+                    choosingMark = false
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        choosingPhoto = true
+                    }
+                }, onEmoji: {
+                    choosingMark = false
+                    // The keyboard once the popover has gone: a field asked
+                    // to take focus under a closing popover does not.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        picking = true
+                    }
+                })
+                .presentationCompactAdaptation(.popover)
+            }
+            .background {
+                EmojiField(isActive: $picking) { picked in
+                    // The same one again takes it off.
+                    symbol = picked == symbol ? nil : picked
+                    save()
+                }
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+            }
     }
 }

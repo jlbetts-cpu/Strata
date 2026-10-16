@@ -111,7 +111,7 @@ struct ChatPlusMenu: View {
     let pick: (ChatPlusRow.Choice) -> Void
 
     var body: some View {
-        Menu {
+        PlusMenu {
             ForEach(choices) { choice in
                 Button {
                     HapticsEngine.lightTap()
@@ -125,6 +125,20 @@ struct ChatPlusMenu: View {
                     }
                 }
             }
+        }
+        .accessibilityLabel("More to send")
+    }
+}
+
+/// **The one + menu** (2026-10-15): the glass + at the foot of a bar, and
+/// the system's menu from it, each line saying what it does. The chat's
+/// (`ChatPlusMenu`) and the journal's are this, so the two cannot drift.
+struct PlusMenu<Items: View>: View {
+    @ViewBuilder let items: () -> Items
+
+    var body: some View {
+        Menu {
+            items()
         } label: {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
@@ -135,7 +149,6 @@ struct ChatPlusMenu: View {
         }
         // Top to bottom as written, wherever the menu opens.
         .menuOrder(.fixed)
-        .accessibilityLabel("More to send")
     }
 }
 

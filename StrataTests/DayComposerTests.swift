@@ -83,7 +83,11 @@ struct DayComposerTests {
     func suggestOnlyWithTheKeyboard() throws {
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
         #expect(sheet.contains("offersWord: planFocus != nil)"))
-        #expect(sheet.contains("if writing || journalComposing {\n                journalSuggest"))
+        // The journal's question is in its + since 2026-10-15 (the owner:
+        // "put all the doodle button, and other things" behind one +): there
+        // is no idle word over its bar at all now.
+        #expect(sheet.contains("Label(question == nil ? \"Ask Me a Question\" : \"Another Question\""))
+        #expect(!sheet.contains("journalSuggest"))
         let plan = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanSuggestionsView.swift"))
         #expect(plan.contains("if offersWord {"))
         // Suggestions already asked for stay when the keyboard goes down:

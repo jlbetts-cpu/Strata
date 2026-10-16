@@ -217,8 +217,12 @@ struct DaySheetTests {
         #expect(!planBody.contains("journalSuggest"), "the journal's Suggest is on the Plan tab")
         let foot = try #require(text.components(separatedBy: "private var journalFoot: some View {").dropFirst().first)
         let footBody = foot.components(separatedBy: "private var todaysLines").first ?? ""
-        #expect(footBody.contains("journalSuggest"))
-        #expect(footBody.contains("systemName: \"pencil\""), "the pen left the Journal's foot")
+        // One + since 2026-10-15: the question, the sketch, the sticker and
+        // Write My Day are its lines (`journalPlus`).
+        #expect(footBody.contains("journalPlus"))
+        let plus = try #require(text.components(separatedBy: "private var journalPlus: some View {").dropFirst().first)
+        #expect(plus.contains("ask()"), "the journal lost its question")
+        #expect(plus.contains("openEditor()"), "the sketch left the Journal's foot")
         #expect(!footBody.contains("PlanSuggestionsView"), "the plan's Suggest is on the Journal tab")
     }
 
@@ -286,9 +290,12 @@ struct DaySheetTests {
         let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
         #expect(text.contains("DaySheetToolbar(leading: leadingButton, done: done)"))
         let leading = try #require(text.components(separatedBy: "private var leadingButton: some View {").dropFirst().first)
-        let fn = leading.components(separatedBy: "private var emojiButton").first ?? ""
-        #expect(fn.contains("case .journal: emojiButton"))
-        #expect(fn.contains("case .plan: EmptyView()"))
+        let fn = leading.components(separatedBy: "// MARK:").first ?? ""
+        // Nothing top left since 2026-10-15: the day's sticker is added from
+        // the journal's + and stuck on its page (`stuckMark`).
+        #expect(fn.contains("EmptyView()"))
+        #expect(!text.contains("emojiButton"))
+        #expect(text.contains("stuckMark") && text.contains("markPicking"))
         #expect(!fn.contains("systemName: \"plus\""), "the ＋ is back beside the Plan's bar")
         #expect(!text.contains("planAdds"), "a second way to start a plan line is back")
     }

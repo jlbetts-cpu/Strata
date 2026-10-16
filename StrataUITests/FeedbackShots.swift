@@ -2092,10 +2092,18 @@ final class FeedbackShots: XCTestCase {
         wait(6)
         app.buttons["Journal"].firstMatch.tap()
         wait(2.5); snap("draft-0-empty")
+        app.buttons["More for the journal"].firstMatch.tap()
+        wait(1); snap("draft-0b-menu")
         let write = app.buttons["Write My Day"].firstMatch
         print("PLANNING-draft button \(write.exists)")
-        if write.exists { write.tap() }
-        wait(3); snap("draft-1-written")
+        if write.exists {
+            write.tap()
+            wait(3); snap("draft-1-written")
+            app.buttons["More for the journal"].firstMatch.tap()
+            wait(1)
+        }
+        app.buttons["Add a Sticker"].firstMatch.tap()
+        wait(1.2); snap("draft-2-sticker")
     }
 
     /// **Swipe to reply, swipe down to close** (the interaction audit,
