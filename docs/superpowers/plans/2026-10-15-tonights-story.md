@@ -65,7 +65,7 @@ From `docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`, sections
 **The review's twelve findings** (photo check on friends' stories, a ledger of your own, reactions kept after the end, the stuck pause, the row following the clock, and the rest) are fixed in 0a5f56e, with four tests.
 
 **Not built, and why:**
-- The row on the camera's review: camera changes go to the owner first.
+- The row on the camera's review: **not needed, met by Add a Win.** The review's own crews row came out on 2026-10-06 (`CameraView`: "the camera asked who sees it twice"), and every shot goes on to Add a Win, which has the story row. A second row on the camera would bring back the doubling he removed.
 - @names and personal crews (spec slice 1): a new `Handle` record type needs a CloudKit Console deploy, which is his.
 - The double-tap heart (R10): left for his call; it would slow every tap forward.
 - The Locket-style widget preview: later, as the spec says.
