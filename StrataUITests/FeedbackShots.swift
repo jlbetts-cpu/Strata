@@ -703,6 +703,34 @@ final class FeedbackShots: XCTestCase {
         wait(1); snap("react-0-hold")
     }
 
+    /// **Your own win, reacted to from Wins** (the owner, 2026-10-16).
+    func testOwnWinReact() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
+                          "-strataSeedWins", "2", "-strataOpenSheet", "add"])
+        wait(7)
+        app.typeText("Sunset walk")
+        let next = app.buttons["Next"].firstMatch
+        if next.exists { next.tap() }
+        wait(1.5)
+        let crewRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Roommates'")).firstMatch
+        if crewRow.exists, !crewRow.isSelected { crewRow.tap() }
+        let send = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Send'")).firstMatch
+        print("PLANNING-own send \(send.exists)")
+        if send.exists { send.tap() }
+        wait(4); snap("own-0-tower")
+        let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sunset walk'")).firstMatch
+        print("PLANNING-own block \(block.exists)")
+        if block.exists { block.tap() }
+        wait(2.5); snap("own-1-carousel")
+        let react = app.buttons.matching(NSPredicate(format: "label == 'React' OR label BEGINSWITH 'Reactions:'")).firstMatch
+        print("PLANNING-own react \(react.exists)")
+        if react.exists { react.tap() }
+        wait(1.2); snap("own-2-open")
+        let fire = app.buttons["🔥"].firstMatch
+        if fire.exists { fire.tap() }
+        wait(1.5); snap("own-3-reacted")
+    }
+
     /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
     /// to react reply should pop up as an option and the chat should pop up").
     func testReplyFromHold() {

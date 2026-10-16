@@ -2137,7 +2137,18 @@ struct MainAppView: View {
                 PhotoViewer(photos: towerGallery, startAt: shown.id,
                             onClose: { viewingOnTower = nil },
                             onDelete: { _ in repackTower() },
-                            onWinChanged: { repackTower() })
+                            onWinChanged: { repackTower() },
+                            reactions: { photo in
+                                // **React to your own win here too** (the owner,
+                                // 2026-10-16: "allow yourself to react to your win
+                                // on your wins screen"): the crews' panel, in the
+                                // first crew it went to; a win kept to yourself
+                                // has nobody to react with, so nothing shows.
+                                guard let id = towerWinID(of: photo),
+                                      let crew = SocialStore.shared.crews(holding: id).min(by: { $0.rawValue < $1.rawValue })
+                                else { return AnyView(EmptyView()) }
+                                return AnyView(CrewPhotoReactions(winID: id, crewID: crew, mine: true))
+                            })
             }
             .sheet(item: Binding(
                 get: {
@@ -2175,6 +2186,11 @@ struct MainAppView: View {
                                     size: block.look.blockSize,
                                     block: block.look.imageFileName == nil ? block.look.displayCategory : nil)
             }
+    }
+
+    /// The win a carousel photo on the Wins tower is.
+    private func towerWinID(of photo: GalleryPhoto) -> UUID? {
+        towerVM.placedBlocks.first { Self.galleryName(of: $0) == photo.fileName }?.log?.id
     }
 
     private static func galleryName(of block: PlacedBlock) -> String {
