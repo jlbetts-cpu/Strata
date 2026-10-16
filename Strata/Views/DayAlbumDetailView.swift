@@ -101,12 +101,7 @@ struct DayAlbumDetailView: View {
                         // 2026-10-15: "it should be centered"). The title is
                         // in the bar now, so nothing under it to hang from.
                         Spacer(minLength: GridConstants.gapWide)
-                        Text("Nothing logged this day.")
-                            .font(Typography.headerMedium)
-                            .foregroundStyle(AppColors.inkPrimary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, GridConstants.horizontalPadding)
+                        EmptyPageLine("Nothing logged this day.")
                         Spacer(minLength: GridConstants.gapWide)
                     } else {
                         Spacer(minLength: GridConstants.gapWide)

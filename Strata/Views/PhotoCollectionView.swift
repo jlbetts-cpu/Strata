@@ -174,12 +174,11 @@ struct PhotoCollectionView: View {
     /// 4.69:1 and 137 levels; `inkPrimary` is rgb(37,36,37), about 15:1 and 212
     /// levels. Neither was failing. What was failing is that the page's one
     /// sentence was its quietest object.
+    /// In the middle of the page, as every empty page says it (2026-10-15:
+    /// it was the one that sat top left).
     private var emptyLine: some View {
-        Text("No photos here.")
-            .font(Typography.headerMedium)
-            .foregroundStyle(AppColors.inkPrimary)
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapWide)
+        EmptyPageLine("No photos here. Yet.")
+            .frame(minHeight: 420)
     }
 
     // MARK: - Header

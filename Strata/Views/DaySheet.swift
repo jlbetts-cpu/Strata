@@ -616,9 +616,7 @@ struct DaySheet: View {
                     // The chat's own empty line, in its type and ink (the
                     // consistency pass, 2026-10-15): it was the one empty
                     // page that spoke a size down and two greys quieter.
-                    Text("Nothing written. Yet.")
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkPrimary)
+                    EmptyPageLine("Nothing written. Yet.")
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }

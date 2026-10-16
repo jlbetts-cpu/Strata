@@ -740,12 +740,8 @@ struct CrewMemorySheet: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     if let items, items.isEmpty {
                         // The page's one sentence, as every empty page says its own.
-                        Text("Nothing sent here with a photo. Yet.")
-                            .font(Typography.headerMedium)
-                            .foregroundStyle(AppColors.inkPrimary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity, minHeight: geo.size.height)
-                            .padding(.horizontal, GridConstants.horizontalPadding)
+                        EmptyPageLine("Nothing sent here with a photo. Yet.")
+                            .frame(minHeight: geo.size.height)
                     } else {
                         LazyVGrid(columns: Self.columns, spacing: GridConstants.gapTight) {
                             ForEach(items ?? []) { item in

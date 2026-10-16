@@ -555,9 +555,7 @@ struct CrewChatSheet: View {
                             // **And that the chat is today's** (M6): without
                             // it a morning's empty chat reads as lost lines.
                             VStack(spacing: GridConstants.gapTight) {
-                                Text("Quiet here. Yet.")
-                                    .font(Typography.headerMedium)
-                                    .foregroundStyle(AppColors.inkPrimary)
+                                EmptyPageLine("Quiet here. Yet.")
                                 clearsLine(crew)
                             }
                             .frame(maxWidth: .infinity, minHeight: geo.size.height)

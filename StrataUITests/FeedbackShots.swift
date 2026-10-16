@@ -2135,6 +2135,17 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-swipes viewer closed \(!app.buttons["Close photo"].exists)")
     }
 
+    /// **Every empty page says it the same way** (2026-10-15).
+    func testEmptyStates() {
+        var app = launch(["-strataStartTab", "memories", "-strataSeedWins", "14", "-strataOpenDay", "1"])
+        wait(7); snap("empty-0-day")
+        app.terminate()
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataOpenCrew", "0", "-strataCrewFaces", "none"])
+        wait(8)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Chat,'")).firstMatch.tap()
+        wait(2); snap("empty-1-chat")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",
