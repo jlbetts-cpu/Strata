@@ -198,4 +198,20 @@ struct PersonalChatTests {
         await b.refresh()
         #expect(b.crews.contains { $0.id == personal.id })
     }
+
+    @Test("a personal chat shows them as the crew you share does, whatever they write in it")
+    func namedFromTheSharedCrew() {
+        let shared = Crew(id: CrewID(rawValue: "g"), name: "Roommates", ownerProfileID: jayden, timeZoneIdentifier: "UTC",
+                          createdAt: .now, photo: nil,
+                          members: [CrewMember(profileID: jayden, firstName: "Jayden", joinedAt: .now),
+                                    CrewMember(profileID: sam, firstName: "Sam", joinedAt: .now)])
+        let chat = Crew(id: CrewID(rawValue: "p"), name: "", ownerProfileID: sam, timeZoneIdentifier: "UTC",
+                        createdAt: .now, photo: nil,
+                        members: [CrewMember(profileID: sam, firstName: "Ana", joinedAt: .now),
+                                  CrewMember(profileID: jayden, firstName: "Jayden", joinedAt: .now)],
+                        personal: true)
+        let named = SocialStore.personalNamedFromShared([shared, chat], me: jayden)
+        #expect(named[1].member(sam)?.firstName == "Sam")
+        #expect(named[0] == shared)
+    }
 }

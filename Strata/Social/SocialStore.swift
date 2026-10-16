@@ -2072,7 +2072,8 @@ final class SocialStore {
     private func refreshCrew(_ crewID: CrewID) async -> Bool {
         guard crews.contains(where: { $0.id == crewID }),
               let fetched = try? await cloud.fetchCrew(crewID) else { return false }
-        let crew = withEdits(Self.ordered(fetched))
+        var crew = withEdits(Self.ordered(fetched))
+        if crew.isPersonal, let named = Self.personalNamedFromShared([crew] + groupCrews, me: me).first { crew = named }
         let held = await held(in: crew)
         // Read again after the awaits: the list may have moved meanwhile.
         guard let i = crews.firstIndex(where: { $0.id == crewID }) else { return false }
@@ -2138,8 +2139,8 @@ final class SocialStore {
                 messages[crew.id] = messagesByCrew[crew.id]
                 stories[crew.id] = storiesByCrew[crew.id]
             }
-            let merged = (fetched.map(withEdits) + crews.filter { unread.contains($0.id) })
-                .sorted { $0.createdAt < $1.createdAt }
+            let merged = Self.personalNamedFromShared((fetched.map(withEdits) + crews.filter { unread.contains($0.id) })
+                .sorted { $0.createdAt < $1.createdAt }, me: me)
             if crews != merged { crews = merged }
             await repairMissingMembership(in: fetched)
             if winsByCrew != wins { winsByCrew = wins }
@@ -3546,6 +3547,28 @@ extension SocialStore {
 
 // MARK: - Personal chats
 
+extension SocialStore {
+    /// **A personal chat shows the other person as the crew you share shows
+    /// them** (the review, 2026-10-16): their name and head from their
+    /// member record there, never from the chat, where they could write
+    /// anyone's. Kept live, refresh by refresh.
+    nonisolated static func personalNamedFromShared(_ crews: [Crew], me: UUID) -> [Crew] {
+        let shared = crews.filter { !$0.isPersonal }
+        return crews.map { crew in
+            guard crew.isPersonal else { return crew }
+            var named = crew
+            for (i, member) in crew.members.enumerated() where member.profileID != me {
+                if let there = shared.lazy.compactMap({ $0.member(member.profileID) }).first {
+                    named.members[i].firstName = there.firstName
+                    named.members[i].head = there.head
+                    named.members[i].photo = there.photo
+                }
+            }
+            return named
+        }
+    }
+}
+
 /// One personal chat you started, until the friend is in it.
 nonisolated struct PersonalStart: Codable, Equatable, Sendable {
     var crew: String
@@ -3674,6 +3697,13 @@ extension SocialStore {
                 var started = personalStarted
                 started[friend] = nil
                 personalStarted = started
+            } else if let id = UUID(uuidString: friend),
+                      blocked.contains(id) || !groupCrews.contains(where: { $0.member(id) != nil }) {
+                // Nobody to send it to any more: stop asking, keep the chat.
+                if !start.sharedCrew.isEmpty { tidy.append((CrewID(rawValue: start.sharedCrew), start.invite)) }
+                var started = personalStarted
+                started[friend] = nil
+                personalStarted = started
             } else if now().timeIntervalSince(start.at) > Self.personalWait, let id = UUID(uuidString: friend),
                       let link = try? await cloud.shareURL(for: chat.id) {
                 // The chat and every line in it stay; only the invitation is new.
@@ -3727,12 +3757,9 @@ extension SocialStore {
                 }
             }
         }
-        // A personal chat the other person left: you alone in it, waiting on
-        // nobody. Gone, so the list has no one-person chats.
-        let waiting = Set(personalStarted.values.map(\.crew))
-        for chat in crews where chat.isPersonal && chat.members.count == 1 && !waiting.contains(chat.id.rawValue) {
-            if chat.isOwner(me) { try? await end(chat.id) } else { try? await leave(chat.id) }
-        }
+        // No automatic clean-up of one-person chats (the review, 2026-10-16):
+        // a second phone, a reinstall or a half-finished join all look like
+        // one, and ending one deletes it for both. They are left as they are.
         for (crewID, name) in tidy {
             enqueue(.init(crew: crewID, type: .personal, name: name, fields: nil))
         }
