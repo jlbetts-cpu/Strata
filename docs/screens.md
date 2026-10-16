@@ -1,4 +1,4 @@
-# Some Wins: every screen (updated 2026-10-15, after the night's build)
+# Some Wins: every screen (updated 2026-10-15, evening)
 
 A map of the app as it ships, for brainstorming what to add next. Each
 screen lists what is on it and what you can do there. Rare screens and
@@ -46,8 +46,9 @@ block shows its colour, a photo or doodle, and its size. Your head
 stands on top as a companion.
 - The empty slot: press it to Add, hold it to log a quick win, or draw a
   block out of it to choose its size.
-- Press a block to open its menu: open the photo, Edit, Move, Replace,
-  Remove photo, or Doodle.
+- Press a block to open the day's carousel at it, as in a crew; its ⋯
+  has Edit, Delete Win, and Remove Photo where there is one. Hold a block
+  to move it. A second tap on Wins scrolls to the top.
 - The goal crest: a head inside a ring that fills as the day fills. When
   the day's goal is reached, the head dances and a photo strip prints.
 - Month picker: past days and months as smaller towers.
@@ -69,6 +70,12 @@ stands on top as a companion.
 - A press on a planned line opens Take Photo, Choose from Library, Log
   Without a Photo, Edit, or Not Today.
 
+**Journal.** Opens from its own button on the Wins tab. The note, your
+wins' own notes above it, and one + at the foot (as the chat's): Write My
+Day (a short entry drafted on the phone from the day's wins and photos,
+yours to edit), Ask Me a Question, Draw a Sketch, Add a Sticker. A chosen
+sticker sits stuck on the note's corner.
+
 **Day sheet / Your Day.** A summary of one day's wins.
 
 **Block doodle sheet.** Draw on a block.
@@ -81,10 +88,9 @@ can save the video or share it. A count-up header, simple dates.
 ## 3. Crews tab
 
 **Crews list.**
-- Today: a row of every friend's head across your crews, each standing
-  on a small tower of today's blocks (one block a win). Someone who
-  hasn't logged stands on one empty cell, faded. A press opens their
-  profile. Invite at the end.
+- Today: a row of every friend's head across your crews, with a small
+  green dot on anyone with a win today. A press opens their profile.
+  Invite at the end.
 - Your crews as cards: name, faces, and today's wins.
 - New Crew.
 - Join from a link: a walking-cat drawing while it joins, then a thumbs
@@ -110,20 +116,25 @@ stacked, with their heads living in a little arena.
 
 **A friend's profile.** Opens from their head in Today, Profile in the
 chat's face menu, or Profile in the crew card's member menu.
-- Their head, name, and one line: wins today and crews together. Never
-  their score.
+- Their head, name, and one line: their score, wins and crews together
+  (their wins today, from an older build).
 - Their tower today: only what they shared with you, on the lattice.
   Hold a block to react, double-tap for a heart, tap to open it.
   Nothing shared yet is the bare lattice.
 
 **Crew chat (a native sheet).**
-- At rest: the newest line over the composer. A drag or a tap lifts it to
-  reading; writing takes the whole height with the crew's name on top.
+- At rest the crew stands on a flush bar: the newest line as itself (a
+  photo, a sticker, a win's block, a plan; a run from one person stacks)
+  over the field. A tap or a drag up opens the chat at full height; a
+  drag down puts it back. Typing redraws only the field.
+- Swipe a line right to reply; hold it for reactions and its menu, with
+  the rest of the thread dimmed.
 - A "New" marker where you left off; big emoji; links; reply starters on
   a friend's win; tap a reaction to see who; Hide for Me on a line.
 - Messages, quoted replies to wins, and reactions on a hold (Reply,
   Copy, Report).
-- The + menu: Win, Plan, Sticker, Strip.
+- The + menu (a system menu): Add a Win, Send a Photo, Make a Plan,
+  Send a Sticker, Send Today's Strip. What it opens comes over the chat.
 - A picture viewer for chat photos.
 
 **Crew day view.** A past day of the crew.
@@ -161,9 +172,10 @@ from Jayden.
 ## 5. Memories tab
 
 **Memories (your profile).**
-- At the top: your head, your name, and one quiet line: score, wins,
-  crews. A press on your head opens Edit Profile; on the line, Your
-  Score (how it adds up, the streak, the trend).
+- At the top: your head, your name, and one quiet line with a chevron:
+  score, wins, crews. A press on your head opens Edit Profile; on the
+  line, Your Stats (this week against last, the streak, all-time wins,
+  photos, best streak, top colour, best day, and the trend).
 - Months, newest first, each with its month drawing. November's turkey
   runs at the end of the list.
 - Photos for each month in a grid, split into Deep, Regular, and Quick.
@@ -172,13 +184,14 @@ from Jayden.
 
 **Month / calendar view.** A month as a calendar of small towers.
 
-**Day album detail.** One day's photos.
+**Day album detail.** One day's tower, its date in the middle of the bar
+("Yesterday / Wednesday"); an empty day says so in the middle of the page.
 
 **Map.** Photos placed where they were taken, grouped by place. Tap a
 place to see its photos.
 
 **Photo viewer.** Light or dark at rest. A tap or a zoom turns it
-immersive on black.
+immersive on black. A drag down closes it.
 - A filmstrip.
 - Share, Save to Photos, Edit, Remove Photo.
 - Place name and time.
