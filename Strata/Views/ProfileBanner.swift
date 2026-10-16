@@ -23,14 +23,32 @@ enum BannerPicture: Hashable {
 /// likes round each photograph.
 struct ProfileBanner: View {
     let pictures: [BannerPicture]
-    static let most = 4
     private let gap = GridConstants.spacing
 
-    /// The four slots, in the order photographs fill them: the large square
-    /// first, then the tall one, then the two small.
-    private static let slots: [(column: Int, row: Int, columns: Int, rows: Int)] = [
-        (2, 0, 2, 2), (0, 0, 1, 2), (1, 0, 1, 1), (1, 1, 1, 1),
+    typealias Slot = (column: Int, row: Int, columns: Int, rows: Int)
+
+    /// **The banner's arrangements, as the tower's blocks combine** (the
+    /// owner, 2026-10-16: "different combinations just how a tower can, two
+    /// big blocks, medium across, two small ones"). Each fills the two rows
+    /// of four exactly; slots in the order photographs fill them, the large
+    /// first.
+    static let layouts: [[Slot]] = [
+        [(2, 0, 2, 2), (0, 0, 1, 2), (1, 0, 1, 1), (1, 1, 1, 1)],        // big, tall, two small
+        [(0, 0, 2, 2), (2, 0, 2, 2)],                                    // two big
+        [(0, 0, 2, 2), (2, 0, 1, 1), (3, 0, 1, 1), (2, 1, 1, 1), (3, 1, 1, 1)], // big and four small
+        [(0, 0, 2, 2), (2, 0, 2, 1), (2, 1, 2, 1)],                      // big and two wide
+        [(2, 0, 2, 2), (0, 0, 1, 2), (1, 0, 1, 2)],                      // two tall and big
+        [(0, 0, 2, 1), (2, 0, 2, 1), (0, 1, 2, 1), (2, 1, 2, 1)],        // four wide
     ]
+    static let most = 5
+
+    var layout: Int = 0
+    /// The slot being chosen for, in Edit Profile: outlined in ink.
+    var selected: Int? = nil
+    /// A tap on a slot (Edit Profile); nil, and the banner is a picture.
+    var onTapSlot: ((Int) -> Void)? = nil
+
+    private var slots: [Slot] { Self.layouts[min(max(layout, 0), Self.layouts.count - 1)] }
 
     /// The tower's cell for this width, as `TowerLattice` and every block
     /// are measured.
@@ -49,7 +67,7 @@ struct ProfileBanner: View {
             .frame(maxWidth: .infinity)
             .frame(height: max(Self.height(for: width), 1))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-            .overlay(alignment: .topLeading) { grid }
+            .overlay(alignment: .topLeading) { if width > 0 { grid } }
             .accessibilityHidden(true)
     }
 
@@ -64,7 +82,7 @@ struct ProfileBanner: View {
                 // one fade, so the fade runs across the banner and not slot by
                 // slot.
                 ZStack(alignment: .topLeading) {
-                    ForEach(Array(Self.slots.enumerated()), id: \.offset) { index, slot in
+                    ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
                         if index >= pictures.count {
                             let f = frame(slot, cell)
                             panes(columns: slot.columns, rows: slot.rows, cell: cell)
@@ -80,13 +98,26 @@ struct ProfileBanner: View {
                                            .init(color: .black, location: 1)],
                                    startPoint: .top, endPoint: .bottom)
                 }
-                ForEach(Array(Self.slots.enumerated()), id: \.offset) { index, slot in
-                    if index < pictures.count {
-                        let f = frame(slot, cell)
-                        tile(pictures[index], f.width, f.height)
-                            .frame(width: f.width, height: f.height)
-                            .offset(x: f.minX, y: f.minY)
+                ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
+                    let f = frame(slot, cell)
+                    Group {
+                        if index < pictures.count {
+                            tile(pictures[index], f.width, f.height)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(width: f.width, height: f.height)
+                    .overlay {
+                        if selected == index {
+                            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                                .strokeBorder(AppColors.inkPrimary, lineWidth: 2.5)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapSlot?(index) }
+                    .allowsHitTesting(onTapSlot != nil)
+                    .offset(x: f.minX, y: f.minY)
                 }
             }
         }
@@ -133,39 +164,45 @@ struct ProfileBanner: View {
     }
 }
 
-/// **Choosing a month's banner** (2026-10-16). That month's photographed
-/// wins, newest first; a tap puts one on in the order tapped (the large
-/// square first) or takes it off; Automatic goes back to the latest.
-struct BannerPicker: View {
+/// **Editing a month's banner, by its pictures** (the owner, 2026-10-16:
+/// "the banner should be in the profile and you should edit it by picture,
+/// make it easy and visible"; "different combinations ... and make it easy
+/// to edit"). In Edit Profile itself, nothing over it: the banner large,
+/// a tap on a slot to choose for it, the six arrangements under it to pick
+/// from, and the month's photographs big enough to see, a tap putting one
+/// in the chosen slot. Automatic goes back to the latest, the first layout.
+struct BannerEditor: View {
     let month: Date
     @Query(filter: #Predicate<HabitLog> { $0.completed && $0.imageFileName != nil },
            sort: \HabitLog.createdAt, order: .reverse) private var photographed: [HabitLog]
+    @State private var slot: Int? = 0
     private var store: ProfileStore { .shared }
     private var key: String { String(DateUtils.dateString(from: month).prefix(7)) }
 
     var body: some View {
         let _ = store.bannerChanged
         let key = key
-        let chosen = store.bannerFiles(for: key)
         let files = photographed.filter { $0.dateString.hasPrefix(key) }.compactMap(\.imageFileName)
+        let layout = store.bannerLayout(for: key)
+        let count = ProfileBanner.layouts[layout].count
+        let chosen = store.bannerFiles(for: key)
+        let shown = chosen.isEmpty ? Array(files.prefix(count)) : chosen
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            ProfileBanner(pictures: shown.prefix(count).map(BannerPicture.mine), layout: layout,
+                          selected: files.isEmpty ? nil : slot, onTapSlot: { slot = $0; HapticsEngine.tick() })
+            layouts(current: layout, files: files, shown: shown)
             if files.isEmpty {
                 Text("Photographed wins this month fill it.")
-                    .font(Typography.bodyLarge)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: GridConstants.spacing) {
-                        ForEach(files, id: \.self) { file in
-                            thumb(file, order: chosen.firstIndex(of: file), chosen: chosen)
-                        }
-                    }
-                }
-                .edgeFade()
-                if !chosen.isEmpty {
+                photos(files, shown: Array(shown.prefix(count)), count: count)
+                if !chosen.isEmpty || layout != 0 {
                     Button {
                         HapticsEngine.lightTap()
                         store.setBanner([], for: key)
+                        store.setBannerLayout(0, for: key)
+                        slot = 0
                     } label: {
                         Text("Automatic")
                             .font(Typography.bodyLarge)
@@ -177,52 +214,97 @@ struct BannerPicker: View {
         }
     }
 
-    private func thumb(_ file: String, order: Int?, chosen: [String]) -> some View {
-        Button {
-            HapticsEngine.tick()
-            var next = chosen
-            if let order { next.remove(at: order) } else if next.count < ProfileBanner.most { next.append(file) }
-            store.setBanner(next, for: key)
-        } label: {
-            CachedImageView(fileName: file, width: 64, height: 64, cornerRadius: GridConstants.cornerRadius)
-                .frame(width: 64, height: 64)
-                .overlay(alignment: .topTrailing) {
-                    if let order {
-                        Text(verbatim: "\(order + 1)")
-                            .font(Typography.headerSmall)
-                            .foregroundStyle(WarmBackground.top)
-                            .frame(width: 22, height: 22)
-                            .background(Circle().fill(AppColors.inkPrimary))
-                            .padding(4)
+    /// The six arrangements, each drawn as its blocks, the one in use inked.
+    private func layouts(current: Int, files: [String], shown: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: GridConstants.gapItem) {
+                ForEach(ProfileBanner.layouts.indices, id: \.self) { index in
+                    Button {
+                        HapticsEngine.tick()
+                        // The pictures already chosen carry over, as many as fit.
+                        if store.bannerFiles(for: key).isEmpty { store.setBanner(Array(shown), for: key) }
+                        store.setBannerLayout(index, for: key)
+                        slot = 0
+                    } label: {
+                        LayoutGlyph(slots: ProfileBanner.layouts[index], on: index == current)
                     }
+                    .buttonStyle(.press)
+                    .accessibilityLabel("Layout \(index + 1)")
+                    .accessibilityAddTraits(index == current ? [.isButton, .isSelected] : .isButton)
                 }
-                .opacity(order == nil && chosen.count >= ProfileBanner.most ? 0.4 : 1)
+            }
         }
-        .buttonStyle(.press)
-        .accessibilityLabel(order.map { "Photo, on the banner, \($0 + 1)" } ?? "Photo")
+        .edgeFade()
+    }
+
+    /// The month's photographs, three across, big enough to tell apart.
+    private func photos(_ files: [String], shown: [String], count: Int) -> some View {
+        let gap = GridConstants.spacing
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: 3), spacing: gap) {
+            ForEach(files, id: \.self) { file in
+                let at = shown.firstIndex(of: file)
+                Button { place(file, shown: shown, count: count) } label: {
+                    GeometryReader { geo in
+                        CachedImageView(fileName: file, width: geo.size.width, height: geo.size.width,
+                                        cornerRadius: GridConstants.cornerRadius)
+                            .overlay(alignment: .topTrailing) {
+                                if let at {
+                                    Text(verbatim: "\(at + 1)")
+                                        .font(Typography.headerSmall)
+                                        .foregroundStyle(WarmBackground.top)
+                                        .frame(width: 24, height: 24)
+                                        .background(Circle().fill(AppColors.inkPrimary))
+                                        .padding(6)
+                                }
+                            }
+                    }
+                    .aspectRatio(1, contentMode: .fit)
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel(at.map { "Photo, in slot \($0 + 1)" } ?? "Photo")
+            }
+        }
+    }
+
+    /// Into the chosen slot (a picture there already moves to where this one
+    /// was); then on to the next slot.
+    private func place(_ file: String, shown: [String], count: Int) {
+        HapticsEngine.tick()
+        var next = Array(shown.prefix(count))
+        let target = min(slot ?? 0, count - 1)
+        if let was = next.firstIndex(of: file) {
+            if was == target { return }
+            next.swapAt(was, min(target, next.count - 1))
+        } else if target < next.count {
+            next[target] = file
+        } else {
+            next.append(file)
+        }
+        store.setBanner(next, for: key)
+        slot = (target + 1) % count
     }
 }
 
-/// The picker on its own sheet, from a hold on Memories' banner.
-struct BannerPickerSheet: View {
-    let month: Date
-    @Environment(\.dismiss) private var dismiss
+/// An arrangement, drawn as its blocks: small, in ink when it is the one.
+private struct LayoutGlyph: View {
+    let slots: [ProfileBanner.Slot]
+    let on: Bool
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                BannerPicker(month: month)
-                    .padding(GridConstants.horizontalPadding)
-            }
-            .background { WarmBackground().ignoresSafeArea() }
-            .sheetTitle(month.formatted(.dateTime.month(.wide)) + "'s Banner", drawn: true)
-            .toolbar {
-                BareToolbarItem(placement: .confirmationAction) {
-                    Button { dismiss() } label: { Text("Done").sheetAction() }
-                        .buttonStyle(.pressWord)
-                }
+        let cell: CGFloat = 12, gap: CGFloat = 2
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(slots.enumerated()), id: \.offset) { _, s in
+                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                    .fill(on ? AppColors.inkPrimary : AppColors.inkTertiary.opacity(0.45))
+                    .frame(width: CGFloat(s.columns) * cell + CGFloat(s.columns - 1) * gap,
+                           height: CGFloat(s.rows) * cell + CGFloat(s.rows - 1) * gap)
+                    .offset(x: CGFloat(s.column) * (cell + gap), y: CGFloat(s.row) * (cell + gap))
             }
         }
-        .presentationDetents([.height(260)])
+        .frame(width: cell * 4 + gap * 3, height: cell * 2 + gap, alignment: .topLeading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: GridConstants.radiusControl + 4, style: .continuous)
+            .fill(on ? AppColors.chosenFill : AppColors.quietFill))
+        .frame(minHeight: 44)
     }
 }

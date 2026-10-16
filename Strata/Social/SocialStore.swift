@@ -48,6 +48,7 @@ final class SocialStore {
         store.myHandleSetAt = { ProfileStore.shared.handleSetAt }
         store.keepMyHandle = { ProfileStore.shared.keepHandle($0, at: $1) }
         store.forgetMyHandle = { ProfileStore.shared.forgetHandle() }
+        store.myPhoto = { ProfileStore.shared.photoData }
         store.myFirstName = {
             ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
         }
@@ -162,6 +163,8 @@ final class SocialStore {
     @ObservationIgnored var myHandleSetAt: () -> Date? = { nil }
     @ObservationIgnored var keepMyHandle: (String, Date) -> Void = { _, _ in }
     @ObservationIgnored var forgetMyHandle: () -> Void = {}
+    /// Your chosen photograph instead of a head, to send (`ProfileStore`).
+    @ObservationIgnored var myPhoto: () -> Data? = { nil }
     /// Friends' usernames that have been checked as theirs (`verifyHandle`),
     /// by profile, and when; only these are shown.
     var verifiedHandles: [UUID: String] = [:]
@@ -363,6 +366,17 @@ final class SocialStore {
         for wins in winsByCrew.values {
             for win in wins where win.senderProfileID != me {
                 guard let photo = win.photo, photoVerdicts[photo.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: photo),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[photo.lastPathComponent] = verdict
+                changed = true
+            }
+        }
+        // Their chosen photographs instead of a head (2026-10-16), as their
+        // wins' are: checked here before any phone draws one.
+        for crew in crews {
+            for member in crew.members where member.profileID != me {
+                guard let photo = member.photo, photoVerdicts[photo.lastPathComponent] == nil,
                       let data = try? Data(contentsOf: photo),
                       let verdict = await incomingCheck(data) else { continue }
                 photoVerdicts[photo.lastPathComponent] = verdict
@@ -911,8 +925,20 @@ final class SocialStore {
     /// the option for a pfp"). Every share writes `photo: nil`, which takes
     /// back one an older build sent; somebody without a head is the blank
     /// head on every phone.
+    ///
+    /// **Except the one you choose instead of a head** (the owner,
+    /// 2026-10-16, reversing the above): your photograph goes in place of
+    /// your head, on the same photo rule (never under 16) and through the
+    /// same check as a win's photograph; held back, nothing goes.
     func shareMyself() async {
         guard isEnabled() else { return }
+        if let photo = myPhoto() {
+            var sentPhoto: Data?
+            if photosAllowed(), let small = await derived(photo), await photoCheck(small) { sentPhoto = small }
+            await setMyHead(nil, photo: sentPhoto)
+            defaults.set(selfDigest(pack: nil), forKey: Self.sentSelfKey)
+            return
+        }
         let pack = await headToSend()
         var sent = pack
         // **The head is a photograph too** (the 2026-10-08 audit): checked
@@ -975,7 +1001,7 @@ final class SocialStore {
         var hasher = SHA256()
         hasher.update(data: pack ?? Data())
         hasher.update(data: Data([0]))
-        hasher.update(data: Data())
+        hasher.update(data: myPhoto() ?? Data())
         hasher.update(data: Data(myFirstName().utf8))
         hasher.update(data: Data((myHandle() ?? "").utf8))
         hasher.update(data: Data(crews.map(\.id.rawValue).sorted().joined(separator: ",").utf8))

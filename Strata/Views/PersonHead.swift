@@ -29,9 +29,23 @@ enum HeadIdentity {
     static func rig(for person: HeadPerson) -> HeadRig? {
         switch person {
         case .me:
-            return HeadStore.shared.headForCrews
+            // Your photograph instead, when you chose one.
+            return ProfileStore.shared.usesPhoto ? nil : HeadStore.shared.headForCrews
         case let .member(member, crew, me):
             return CrewHeads.shared.rig(for: member, in: crew, me: me)
+        }
+    }
+
+    /// **Their chosen photograph, when they use one instead of a head**:
+    /// yours from this phone; a friend's as received, only once the photo
+    /// check lets it show (`SocialStore.photoIsShown`).
+    static func photo(of person: HeadPerson) -> UIImage? {
+        switch person {
+        case .me:
+            return ProfileStore.shared.usesPhoto ? ProfileStore.shared.photoImage : nil
+        case let .member(member, _, _):
+            guard let url = member.photo, SocialStore.shared.photoIsShown(url) else { return nil }
+            return MemberPhotos.image(url)
         }
     }
 
@@ -195,6 +209,14 @@ struct PersonHead: View {
                 case .expressive:
                     LivingHeadView(rig: rig, side: s, liveliness: .expressive, take: take, traceID: traceID)
                 }
+            } else if let photo = HeadIdentity.photo(of: person) {
+                // A picture someone chose instead of a head, round as a
+                // contact's is.
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: s, height: s)
+                    .clipShape(Circle())
             } else {
                 HeadPlaceholder(colour: HeadIdentity.colour(of: person),
                                 initial: HeadIdentity.initial(of: person), side: s)
@@ -239,5 +261,17 @@ struct HeadPlaceholder: View {
             }
             .frame(width: side, height: side)
             .accessibilityHidden(true)
+    }
+}
+
+/// Friends' chosen photographs, read from their files once.
+@MainActor
+enum MemberPhotos {
+    private static let cache = NSCache<NSURL, UIImage>()
+    static func image(_ url: URL) -> UIImage? {
+        if let hit = cache.object(forKey: url as NSURL) { return hit }
+        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: url as NSURL)
+        return image
     }
 }

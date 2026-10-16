@@ -1,5 +1,6 @@
 import Accessibility
 import Charts
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -101,9 +102,6 @@ struct ProfileView: View {
         // about 15:1 whichever way round the scheme is.
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Edit Profile", drawn: true)
-        // Hung on the screen, not on its row: a sheet hung inside a form's
-        // row came up unable to take a touch or the keyboard.
-        .sheet(isPresented: $editingHandle) { HandleSheet() }
         .toolbar { doneToolbar }
         // **AFTER `.toolbar`, not before it.** Measured: with the tint applied
         // above, Done still rendered (10, 10, 10). A toolbar item is hosted by
@@ -179,12 +177,12 @@ struct ProfileView: View {
 
     // MARK: - Banner
 
-    /// **This month's banner, chosen** (`BannerPicker`): the photographs
+    /// **This month's banner, chosen** (`BannerEditor`): the photographs
     /// have to be this month's (the owner, 2026-10-16).
     private var bannerSection: some View {
         Section {
             FormSectionLabel("Banner")
-            BannerPicker(month: Date())
+            BannerEditor(month: Date())
                 .listRowSeparator(.hidden)
         }
     }
@@ -195,19 +193,18 @@ struct ProfileView: View {
         Section {
             VStack(spacing: GridConstants.gapItem) {
                 pictureControl
-                nameField
-                // Your username, under your name (`HandleSheet`).
-                if CrewsFlag.isOn {
-                    Button {
-                        HapticsEngine.lightTap()
-                        editingHandle = true
-                    } label: {
-                        Text(store.handle.map { "@" + $0 } ?? "Choose a username")
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(store.handle == nil ? AppColors.inkPrimary : AppColors.inkSecondary)
-                            .frame(minHeight: 44)
+                // The name and the username together, close (the owner,
+                // 2026-10-16: "it should be closer to the name").
+                VStack(spacing: 2) {
+                    nameField
+                    // **Typed here, nothing over it** (the owner: "no popups
+                    // in popups"): saved when the keyboard's key or leaving the
+                    // field says so, first come (`SocialStore.setHandle`).
+                    if CrewsFlag.isOn {
+                        HandleField(text: $handleDraft, note: handleNote, onSubmit: saveHandle)
+                            .disabled(handleLocked)
+                            .onDisappear(perform: saveHandle)
                     }
-                    .buttonStyle(.pressWord)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -269,7 +266,30 @@ struct ProfileView: View {
         nameDraft = nil
     }
 
-    @State private var editingHandle = false
+    @State private var photoPick: PhotosPickerItem?
+    @State private var handleDraft = ProfileStore.shared.handle ?? ""
+    @State private var handleNote: String?
+
+    /// Kept until a month has passed (`Handle.nextChange`), and says so.
+    private var handleLocked: Bool {
+        ProfileStore.shared.handle != nil && Handle.nextChange(after: ProfileStore.shared.handleSetAt) != nil
+    }
+
+    private func saveHandle() {
+        let draft = Handle.normalized(handleDraft)
+        guard !draft.isEmpty, draft != ProfileStore.shared.handle, Handle.problem(draft) == nil else { return }
+        handleNote = "Checking"
+        Task {
+            switch await SocialStore.shared.setHandle(draft) {
+            case .saved: handleNote = "Saved"; HapticsEngine.success()
+            case .same: handleNote = nil
+            case .taken: handleNote = "Taken. Try another."
+            case .invalid(let why): handleNote = why
+            case .tooSoon(let date): handleNote = "You can change it again on \(date.formatted(.dateTime.month(.wide).day()))."
+            case .offline: handleNote = "Couldn't reach iCloud. Try again."
+            }
+        }
+    }
 
     private var nameField: some View {
         ZStack {
@@ -542,6 +562,34 @@ struct ProfileView: View {
                             .foregroundStyle(AppColors.destructiveInk)
                     } icon: {
                         SettingsIcon(systemName: "trash", tint: AppColors.destructiveInk)
+                    }
+                }
+            }
+            // **A photograph instead, if you would rather** (the owner,
+            // 2026-10-16). It stands for you everywhere your head would.
+            PhotosPicker(selection: $photoPick, matching: .images) {
+                Label {
+                    Text(store.usesPhoto ? "Change Photo" : "Use a Photo Instead").foregroundStyle(AppColors.inkPrimary)
+                } icon: {
+                    SettingsIcon(systemName: "photo")
+                }
+            }
+            .onChange(of: photoPick) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) { store.usePhoto(data) }
+                    photoPick = nil
+                }
+            }
+            if store.usesPhoto, !heads.entries.isEmpty {
+                Button {
+                    HapticsEngine.lightTap()
+                    store.useHead()
+                } label: {
+                    Label {
+                        Text("Use My Head Instead").foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "face.smiling")
                     }
                 }
             }

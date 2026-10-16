@@ -520,7 +520,8 @@ final class HeadStore {
         // **The old profile photograph goes once a head is made** (the
         // owner's call, 2026-10-14): the head is the picture now, and a face
         // photo nobody can see or send is not kept.
-        ProfileStore.shared.removeOldPhoto()
+        // A new head is a choice of your head: a photograph you used goes.
+        ProfileStore.shared.useHead()
         SocialStore.noteMyselfChanged()
     }
 

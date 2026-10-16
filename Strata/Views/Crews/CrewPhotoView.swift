@@ -32,7 +32,12 @@ struct CrewPhotoView: View {
             }
         }
         .frame(width: width, height: height)
-        .task(id: url) {
+        // **By the size it is drawn at, too** (the owner, 2026-10-16: "other
+        // people's banners come out blurry"): keyed by the url alone, a view
+        // first laid out at no size decoded a few pixels and kept them when it
+        // grew. Under a point it waits.
+        .task(id: "\(url.path)@\(Int(max(width, height) * displayScale))") {
+            guard max(width, height) >= 1 else { return }
             let side = max(width, height) * displayScale
             if let cached = Self.cache.object(forKey: Self.key(url, side)) { image = cached; return }
             let decoded = await Self.decode(url, side: side)

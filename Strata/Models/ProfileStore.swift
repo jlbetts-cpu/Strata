@@ -64,6 +64,64 @@ final class ProfileStore {
 
     private static let nameKey = "profileName"
     private static let bannerKey = "profileBannerByMonth"
+    private static let bannerLayoutKey = "profileBannerLayoutByMonth"
+    private static let usesPhotoKey = "profileUsesPhoto"
+
+    /// **A photograph instead of a head, when you would rather** (the owner,
+    /// 2026-10-16: "there should be a way to add a pfp instead of a head if
+    /// the user wants to"). Kept on this phone; sent to your crews by the
+    /// photo rule and the photo check, as a win's photograph is.
+    var usesPhoto: Bool { UserDefaults.standard.bool(forKey: Self.usesPhotoKey) && photoImage != nil }
+
+    @ObservationIgnored private var photoCache: UIImage?
+    @ObservationIgnored private var photoCacheRead = false
+
+    /// Yours, read once.
+    var photoImage: UIImage? {
+        _ = bannerChanged
+        if !photoCacheRead {
+            photoCacheRead = true
+            photoCache = Self.photoURL.flatMap { try? Data(contentsOf: $0) }.flatMap(UIImage.init(data:))
+        }
+        return photoCache
+    }
+
+    /// The photograph as it is sent: the file's own bytes.
+    var photoData: Data? { usesPhoto ? Self.photoURL.flatMap { try? Data(contentsOf: $0) } : nil }
+
+    /// Takes a photograph as your picture, square and small enough to send.
+    func usePhoto(_ jpeg: Data) {
+        guard let url = Self.photoURL, let square = Self.square(jpeg) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? square.write(to: url, options: .atomic)
+        photoCacheRead = false
+        UserDefaults.standard.set(true, forKey: Self.usesPhotoKey)
+        bannerChanged += 1
+        SocialStore.noteMyselfChanged()
+    }
+
+    /// Back to your head: the photograph goes.
+    func useHead() {
+        UserDefaults.standard.set(false, forKey: Self.usesPhotoKey)
+        removeOldPhoto()
+        photoCacheRead = false
+        bannerChanged += 1
+        SocialStore.noteMyselfChanged()
+    }
+
+    /// The middle square, 600 pixels across.
+    private static func square(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let side = min(image.size.width, image.size.height)
+        let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let out = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 600), format: format).image { _ in
+            image.draw(in: CGRect(x: -crop.minX * 600 / side, y: -crop.minY * 600 / side,
+                                  width: image.size.width * 600 / side, height: image.size.height * 600 / side))
+        }
+        return out.jpegData(compressionQuality: 0.85)
+    }
     private static let handleKey = "profileHandle"
     private static let handleSetKey = "profileHandleSetAt"
 
@@ -107,6 +165,19 @@ final class ProfileStore {
     /// automatic, its latest photographed wins. Kept on this phone only.
     func bannerFiles(for month: String) -> [String] {
         (UserDefaults.standard.dictionary(forKey: Self.bannerKey) as? [String: [String]])?[month] ?? []
+    }
+
+    /// Which arrangement a month's banner takes (`ProfileBanner.layouts`).
+    func bannerLayout(for month: String) -> Int {
+        let index = (UserDefaults.standard.dictionary(forKey: Self.bannerLayoutKey) as? [String: Int])?[month] ?? 0
+        return min(max(index, 0), ProfileBanner.layouts.count - 1)
+    }
+
+    func setBannerLayout(_ index: Int, for month: String) {
+        var all = (UserDefaults.standard.dictionary(forKey: Self.bannerLayoutKey) as? [String: Int]) ?? [:]
+        all[month] = index == 0 ? nil : index
+        UserDefaults.standard.set(all, forKey: Self.bannerLayoutKey)
+        bannerChanged += 1
     }
 
     func setBanner(_ files: [String], for month: String) {
@@ -157,6 +228,8 @@ final class ProfileStore {
     /// head became the picture. Removing a file that is not there does
     /// nothing, so a second call is free.
     func removeOldPhoto() {
+        // Not the photograph you chose to be seen by (`usesPhoto`).
+        guard !usesPhoto else { return }
         guard let url = Self.photoURL, FileManager.default.fileExists(atPath: url.path) else { return }
         try? FileManager.default.removeItem(at: url)
     }
@@ -164,7 +237,9 @@ final class ProfileStore {
     /// Everything, for Reset All Data, which the privacy policy says removes
     /// every photo; an old profile photo left on the phone is one.
     func reset() {
+        UserDefaults.standard.set(false, forKey: Self.usesPhotoKey)
         removeOldPhoto()
+        photoCacheRead = false
         // The one way a name goes: everything is reset, and onboarding asks
         // for one again before anyone sees it.
         name = ""
@@ -172,6 +247,7 @@ final class ProfileStore {
         SocialStore.noteMyselfChanged()
         setBackground(nil)
         UserDefaults.standard.removeObject(forKey: Self.bannerKey)
+        UserDefaults.standard.removeObject(forKey: Self.bannerLayoutKey)
         UserDefaults.standard.removeObject(forKey: Self.handleKey)
         UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
         bannerChanged += 1

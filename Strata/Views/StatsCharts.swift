@@ -176,8 +176,26 @@ struct HourWinsChart: View {
                         .cornerRadius(2)
                 }
             }
-            .chartXSelection(value: $picked)
             .chartXScale(domain: 0...23)
+            // **Read by a tap, as Wins per week is** (the owner, 2026-10-16:
+            // "the time wins needs to act the same as the bottom, where you
+            // can click to read"): a tap anywhere in the plot picks the hour
+            // under it, and again lets it go.
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .onTapGesture { location in
+                            guard let plot = proxy.plotFrame else { return }
+                            let x = location.x - geometry[plot].origin.x
+                            guard let value: Double = proxy.value(atX: x) else { return }
+                            let hour = min(max(Int(value.rounded()), 0), 23)
+                            HapticsEngine.tick()
+                            withAnimation(GridConstants.motionSnappy) { picked = picked == hour ? nil : hour }
+                        }
+                }
+            }
             .chartXAxis {
                 AxisMarks(values: [0, 6, 12, 18]) { value in
                     AxisValueLabel {

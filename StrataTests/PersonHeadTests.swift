@@ -101,7 +101,7 @@ struct HeadSwitchesGoneTests {
         #expect(HeadStore.shared.headForCrews == nil || HeadStore.shared.head != nil)
     }
 
-    @Test("Profile offers no photograph and no placement switches")
+    @Test("Profile offers no placement switches; a chosen photograph is checked before it is sent")
     func profileHasNoPhoto() throws {
         let profile = SourceSweep.code(try SourceSweep.read("Strata/Views/ProfileView.swift"))
         for gone in ["Choose Photo", "Remove Photo", "Use Photo or Initials", "Use as Profile Picture",
@@ -113,8 +113,13 @@ struct HeadSwitchesGoneTests {
         #expect(!profile.contains("Let My Head Onto the Tower"), "the tower switch is back in Profile")
         let crew = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewInfoSheet.swift"))
         #expect(!crew.contains("setShowsHeads"), "the per-crew Heads switch is back")
+        // **A photograph instead of a head, by choice, since 2026-10-16** (the
+        // owner: "there should be a way to add a pfp instead of a head if the
+        // user wants to"). It goes only on the photo rule and through the
+        // photo check, as a win's does; never without them.
         let social = SourceSweep.code(try SourceSweep.read("Strata/Social/SocialStore.swift"))
-        #expect(!social.contains("myPhoto"), "a profile photo is being sent to crews again")
+        #expect(social.contains("if photosAllowed(), let small = await derived(photo), await photoCheck(small)"),
+                "a chosen photograph would reach crews without the photo rule and check")
     }
 }
 
