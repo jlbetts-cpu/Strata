@@ -77,7 +77,6 @@ struct DayAlbumDetailView: View {
         GeometryReader { geo in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    header
                     // The tower is bottom-anchored because a tower stands.
                     // A sentence is not a tower: pushed to the bottom it
                     // hugs the tab bar and reads as a caption for nothing, so
@@ -122,8 +121,12 @@ struct DayAlbumDetailView: View {
             }
         }
         .background { WarmBackground().ignoresSafeArea() }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        // **The day in the middle of the bar**, in two tones, as a crew's
+        // past day and every sheet name themselves (the owner, 2026-10-15:
+        // "the dates in the previous day would like it to be cleaner maybe in
+        // the middle on the header to stay consistent"). It was a large title
+        // on the left with a count under it; the tower counts itself.
+        .sheetTitle(DayTitle.twoTone(forKey: route.dateString), drawn: false)
         // **The bar gets a ground**, the same line and for the same reason as
         // `PhotoCollectionView`, which is the other page off the same shelf.
         //
@@ -183,77 +186,6 @@ struct DayAlbumDetailView: View {
         _ = vm.buildTower(from: logs, filterMode: .day, reactions: SocialStore.reactionsForMyTower)
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // The shared screen title, on one line: "Saturday 5 September"
-            // wrapping to two puts the win count halfway down the screen and
-            // pushes the tower with it. In the owner's face when the whole
-            // date fits in it, SF otherwise (`DynamicScreenTitle`).
-            DynamicScreenTitle(text: title)
-                .foregroundStyle(AppColors.inkPrimary)
-            // **The count is a readout, and it is `CountReadout` now** — one
-            // component where there were four copies of six lines
-            // (`docs/consistency-audit.md` §1.13). Everything it carries was
-            // measured on this page or on the one beside it:
-            //
-            // The design language's §2: counts and indices are the owner's face,
-            // tabular, never abbreviated when they fit. The whole line was SF,
-            // which made the one number on this screen the only count in the app
-            // that was not his digits, sitting directly above a tower whose day
-            // numerals are. `StrataFont.digits`, never `Text("\(n)")`, because
-            // interpolation is a `LocalizedStringKey` and groups 1000 as "1,000"
-            // and the face has no comma. The word stays SF at the subtitle size,
-            // which is the split the tower's header already makes: the count is
-            // the fact and the word is a caption for it.
-            //
-            // **No optical inset, and there is no longer one to pass.** The
-            // reason this page never wanted it is its own — at 15pt the face's
-            // mean left bearing worked out near 1pt, under the size worth
-            // correcting, and pulling the digits left would put them off the 16pt
-            // margin every other band here starts at — and the reason nothing has
-            // it now is that `StrataFont.opticalInset` went to 0 with the drawn
-            // face on 2026-09-30. See `CountReadout`.
-            //
-            // **`inkTertiary`, not `inkQuiet`** — measured off a build, the
-            // ground is rgb(249,247,244), `inkQuiet` composites to
-            // rgb(137,136,134) and gives 3.31:1 where text has to clear 4.5, and
-            // `inkTertiary` lands at rgb(112,111,110) and 4.69:1. The note that
-            // stood here ended "`PhotoCollectionView` draws its own count line
-            // the same way and has the same failure. It is not this file's to
-            // change." It was fixed there, separately, and then the component
-            // took both: that is what stops it drifting a third time.
-            //
-            // **It rolls.** `.numericText()` was on this page and not on the
-            // place collection, drawn from the same template five lines apart.
-            // Deleting a photograph from the viewer calls `reload()` on both, so
-            // the count changes under a finger on both.
-            CountReadout.wins(logs.count)
-            // **Nothing to count, so nothing counted.** On a day with no wins
-            // the readout said "0 wins" and the body under it said "Nothing
-            // logged this day": the same fact twice, one of them as a zero,
-            // which is how a correct screen reads as a broken one. The design
-            // language's §7 wants "how much is here" answered once, and on an
-            // empty day the sentence is the better of the two answers.
-            //
-            // Opacity rather than an `if`, so the box is still reserved and
-            // the title does not sit at a different height on an empty day.
-            // `PhotoCollectionView`'s header does the same.
-            .opacity(logs.isEmpty ? 0 : 1)
-            .accessibilityHidden(logs.isEmpty)
-        }
-        .padding(.horizontal, GridConstants.horizontalPadding)
-    }
-
-    // **`countSize` is deleted.** It was 15 here and 15 in
-    // `PhotoCollectionView`, with a comment on each saying "the two have to stay
-    // the same" — which is a convention rather than a mechanism.
-    // `CountReadout` holds the one 15 now.
-
-    /// "Today", "Yesterday", "Saturday 5 September", or with the year when
-    /// it is another year's. One spelling for every page that names a day
-    /// (`DayTitle`).
     private var title: String { DayTitle.title(forKey: route.dateString) }
 
     // MARK: - The day's tower

@@ -2038,6 +2038,17 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("carousel-4-edit")
     }
 
+    /// **A past day, its date in the middle of the bar** (2026-10-15).
+    func testPastDayHeader() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedWins", "14", "-strataOpenDay", "1"])
+        wait(8); snap("pastday-0")
+        app.terminate()
+        let crews = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                            "-strataSeedWins", "3"])
+        wait(8); snap("pastday-1-heads")
+        _ = crews
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

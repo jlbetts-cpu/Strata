@@ -60,8 +60,10 @@ struct TodayHeads: View {
     /// The breathing room around a head, so Invite and the heads line up.
     private static let inset: CGFloat = 5
     /// The dot, and the page-coloured rim that sets it off the head.
-    private static let dot: CGFloat = 14
-    private static let dotRim: CGFloat = 2.5
+    /// Small, as an online dot is (the owner, 2026-10-15: "I would make
+    /// the online indicator smaller"; it was 14).
+    private static let dot: CGFloat = 10
+    private static let dotRim: CGFloat = 2
 
     var body: some View {
         let people = Self.people(store: store)
@@ -143,7 +145,7 @@ struct TodayHeads: View {
                                 .frame(width: Self.dot, height: Self.dot)
                                 .padding(Self.dotRim)
                                 .background(Circle().fill(WarmBackground.top))
-                                .offset(x: 1, y: 1)
+                                .offset(x: -1, y: -1)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
