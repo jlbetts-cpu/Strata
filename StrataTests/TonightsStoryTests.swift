@@ -172,6 +172,79 @@ struct TonightsStoryTests {
         #expect(world.records(of: .story, in: crew.id).isEmpty)
     }
 
+    @Test("a story this phone posted is taken off from a cold launch, before any refresh")
+    func ledgerSurvivesALaunch() async throws {
+        let suite = "story-cold-\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appending(path: suite)
+        let a = SocialStore(cloud: FakeCrewCloud(world: world, me: jayden), defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        a.isEnabled = { true }
+        let (crew, _) = try await a.createCrew(name: "Roommates")
+        let run = win()
+        await a.postStory(run)
+        // The app again, nothing fetched yet.
+        let again = SocialStore(cloud: FakeCrewCloud(world: world, me: jayden), defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        again.isEnabled = { true }
+        #expect(again.storiesByCrew.isEmpty)
+        #expect(again.isOnStory(run.winID))
+        await again.refresh()
+        await again.withdrawStory(winID: run.winID)
+        #expect(world.records(of: .story, in: crew.id).isEmpty)
+        #expect(!again.isOnStory(run.winID))
+    }
+
+    @Test("an edit that changed nothing a friend sees sends nothing")
+    func sameEditSendsNothing() async throws {
+        let cloud = FakeCrewCloud(world: world, me: jayden)
+        let suite = "story-sig-\(UUID().uuidString)"
+        let a = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!,
+                            directory: FileManager.default.temporaryDirectory.appending(path: suite))
+        a.isEnabled = { true }
+        _ = try await a.createCrew(name: "Roommates")
+        let run = win()
+        await a.postStory(run)
+        let before = cloud.calls
+        await a.updateStory(run)
+        #expect(cloud.calls == before)
+        var renamed = run
+        renamed.title = "Long run"
+        await a.updateStory(renamed)
+        #expect(cloud.calls > before)
+    }
+
+    @Test("a friend's story photo is shown only as their crew photos are")
+    func incomingCheck() async throws {
+        let a = store(jayden), b = store(sam)
+        let (_, link) = try await a.createCrew(name: "Roommates")
+        _ = try await b.accept(CrewInvite(url: link))
+        await a.refresh()
+        let jpeg = try #require(UIGraphicsImageRenderer(size: CGSize(width: 40, height: 40)).image { ctx in
+            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 40))
+        }.jpegData(compressionQuality: 0.8))
+        await a.postStory(win(photo: jpeg))
+        await b.refresh()
+        let tonight = date(CrewDay.string(for: .now, in: .current), 21, in: .current)
+        #expect(b.storyPeople(at: tonight).first?.cover?.win.photo != nil)
+        b.incomingPolicy = { .hide }
+        #expect(b.storyPeople(at: tonight).first?.cover?.win.photo == nil)
+        #expect(b.storyPeople(at: tonight).first?.stories.count == 1)
+    }
+
+    @Test("reactions read after the story's end are kept, not lost")
+    func reactionsAfterTheEnd() async throws {
+        let a = store(jayden), b = store(sam)
+        let (crew, link) = try await a.createCrew(name: "Roommates")
+        _ = try await b.accept(CrewInvite(url: link))
+        await a.refresh()
+        let run = win()
+        await a.postStory(run)
+        await b.refresh()
+        await b.react("👑", to: run.winID, in: crew.id)
+        // Jayden's phone is next opened the following afternoon.
+        a.now = { Date().addingTimeInterval(2 * 86_400) }
+        await a.refresh()
+        #expect(a.reactionsToMyWins()[run.winID]?.map(\.emoji) == ["👑"])
+    }
+
     // MARK: The row
 
     @Test("unwatched first, newest first; then watched; then waiting; never blocked, hidden or you")
@@ -189,6 +262,10 @@ struct TonightsStoryTests {
         let row = StoryPerson.gather(all, crewOrder: [c], me: jayden, blocked: [dan], hidden: [eve: "2026-10-15"],
                                      seen: [benS.id], now: evening, zone: la)
         #expect(row.map(\.profileID) == [cat, ana, ben])
+        // A win you hid stays hidden on their story.
+        let hid = StoryPerson.gather(all, crewOrder: [c], me: jayden, blocked: [dan], hidden: [eve: "2026-10-15"],
+                                     hiddenWins: [catS.id], seen: [benS.id], now: evening, zone: la)
+        #expect(hid.map(\.profileID) == [ana, ben])
         #expect(row.last?.watched == true)
         // Before 8pm the same people wait, and nobody has watched anything.
         let afternoon = StoryPerson.gather(all, crewOrder: [c], me: jayden, blocked: [], hidden: [:],

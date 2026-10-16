@@ -102,7 +102,7 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
     /// The crew each story was read from: where a reaction to it is written.
     let stories: [CrewStory]
     let phase: StoryClock.Phase
-    /// Every story of theirs already watched to its end.
+    /// Every story of theirs already opened on this phone.
     let watched: Bool
 
     var id: UUID { profileID }
@@ -112,17 +112,19 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
 
     /// Friends' stories, gathered from every crew: each story once (a friend
     /// in two crews wrote it to both), only the ones that are waiting or
-    /// open, never anyone blocked or hidden for that night, and never you.
+    /// open, never anyone blocked or hidden for that night, never a win you
+    /// hid, and never you.
     ///
     /// **The order the owner chose** (the spec, 1.4): open and unwatched
     /// first, newest first; then open and watched; then waiting.
     static func gather(_ storiesByCrew: [CrewID: [CrewStory]], crewOrder: [CrewID], me: UUID,
-                       blocked: Set<UUID>, hidden: [UUID: String], seen: Set<UUID>,
+                       blocked: Set<UUID>, hidden: [UUID: String], hiddenWins: Set<UUID> = [], seen: Set<UUID>,
                        now: Date, zone: TimeZone) -> [StoryPerson] {
         var byPerson: [UUID: [UUID: CrewStory]] = [:]
         for crewID in crewOrder {
             for story in storiesByCrew[crewID] ?? [] where story.sender != me
-                && !blocked.contains(story.sender) && hidden[story.sender] != story.day {
+                && !blocked.contains(story.sender) && hidden[story.sender] != story.day
+                && !hiddenWins.contains(story.id) {
                 guard StoryClock.phase(of: story, at: now, in: zone) != .gone else { continue }
                 // The first crew in the list keeps it: the same copy every
                 // time, so a reaction always goes to the same place.

@@ -17,6 +17,10 @@ struct TodayHeads: View {
     @State private var profile: Person?
     /// Tonight's stories being watched (`StoryViewer`).
     @State private var watching: Watching?
+    /// Read in the body, so the row redraws itself each minute and a ring
+    /// lights at 8pm and a preview goes at 9am with nothing else changing
+    /// (the review, 2026-10-15).
+    @State private var minute = 0
 
     struct Watching: Identifiable {
         let people: [StoryPerson]
@@ -84,6 +88,7 @@ struct TodayHeads: View {
     private static let dotRim: CGFloat = 2
 
     var body: some View {
+        let _ = minute
         let stories = store.storyPeople()
         let people = Self.people(store: store, stories: stories)
         let byPerson = Dictionary(uniqueKeysWithValues: stories.map { ($0.profileID, $0) })
@@ -108,6 +113,12 @@ struct TodayHeads: View {
                     .padding(.horizontal, GridConstants.horizontalPadding)
                 }
                 .edgeFade()
+            }
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(60 - Double(Calendar.current.component(.second, from: Date()))))
+                    minute &+= 1
+                }
             }
             .fullScreenCover(item: $watching) { watching in
                 StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil })
@@ -206,7 +217,7 @@ struct TodayHeads: View {
             }
         }
         .accessibilityLabel(logged ? "\(name), \(person.wins == 1 ? "1 win" : "\(person.wins) wins") today" : "\(name), no wins yet today")
-        .accessibilityValue(showing ? (story?.watched == true ? "Story, watched" : "New story")
+        .accessibilityValue(showing ? (story?.watched == true ? "Story" : "New story")
                             : story?.phase == .waiting ? "A story tonight" : "")
         .accessibilityHint(showing ? "Opens their story." : "Opens their profile.")
     }

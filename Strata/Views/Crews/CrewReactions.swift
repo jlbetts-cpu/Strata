@@ -448,6 +448,9 @@ struct CrewReactionsPanel: View {
         .animation(motion, value: myReaction)
         .animation(motion, value: open)
         .onChange(of: open || replying || doodling || choosingSticker || makingSticker) { _, busy in onBusy?(busy) }
+        // Rebuilt for the next page with everything closed: say so, or the
+        // story it sits under waits for ever (the review, 2026-10-15).
+        .onDisappear { onBusy?(false) }
         .alert(mine ? "About Your Win" : "Reply to \(owner)", isPresented: $replying) {
             TextField("Message", text: Binding(get: { draft }, set: {
                 draft = $0

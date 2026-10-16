@@ -36,6 +36,9 @@ struct FriendProfileSheet: View {
     /// Recent Photos, sorted once per change rather than on every draw (a
     /// hold to react redraws the page many times a second).
     @State private var recent: [SharedWin] = []
+    /// Read in the body, so tonight's story joins their tower at 8pm and
+    /// leaves it at 9am with nothing else changing.
+    @State private var minute = 0
     @State private var reporting: SharedWin?
     /// Hold to react and double-tap hearts, as on a crew's tower.
     @State private var reacts = TowerReactions()
@@ -94,6 +97,7 @@ struct FriendProfileSheet: View {
     private var name: String { member.shortName.isEmpty ? "A friend" : member.firstName }
 
     var body: some View {
+        let _ = minute
         let today = wins
         GeometryReader { geo in
             let usable = geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)
@@ -128,6 +132,12 @@ struct FriendProfileSheet: View {
             }
         }
         .task(id: today) { rebuild(today) }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60 - Double(Calendar.current.component(.second, from: Date()))))
+                minute &+= 1
+            }
+        }
         .task(id: photosKey) { recent = Self.recentPhotos(of: member.profileID, store: store) }
         // A reaction given here, or by anyone, shows on its block as it does
         // on the crew's tower (`CrewTowerView` watches the same map).

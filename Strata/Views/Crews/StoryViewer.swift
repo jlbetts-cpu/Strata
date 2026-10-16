@@ -22,11 +22,30 @@ struct StoryViewer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shown: UUID { current ?? start }
+    private var store: SocialStore { SocialStore.shared }
+
+    /// **The people as they stand now**, not as they stood when it opened
+    /// (the review, 2026-10-15): someone blocked or hidden here drops out,
+    /// and a story past its window goes, whatever was tapped. Yours stays.
+    private var live: [StoryPerson] {
+        let now = StoryClock.now(store.now())
+        return people.compactMap { person in
+            if person.profileID == store.me { return person }
+            guard !store.blocked.contains(person.profileID) else { return nil }
+            let stories = person.stories.filter {
+                store.storiesHidden[person.profileID] != $0.day
+                    && StoryClock.phase(of: $0, at: now, in: .current) == .open
+            }
+            return stories.isEmpty ? nil
+                : StoryPerson(profileID: person.profileID, stories: stories, phase: .open, watched: person.watched)
+        }
+    }
 
     var body: some View {
+        let people = live
         TabView(selection: Binding(get: { shown }, set: { current = $0 })) {
             ForEach(people) { person in
-                StoryPage(person: person, isCurrent: shown == person.id,
+                StoryPage(person: person, isCurrent: shown == person.id, dragging: drop > 0,
                           next: { step(from: person.id, by: 1) },
                           back: { step(from: person.id, by: -1) },
                           close: onClose)
@@ -48,10 +67,16 @@ struct StoryViewer: View {
             }
         }))
         .statusBarHidden()
+        // Nobody left to show (all blocked, hidden or past 9am): close.
+        .onChange(of: people.isEmpty) { _, empty in if empty { onClose() } }
+        .onChange(of: people.map(\.id)) { _, ids in
+            if !ids.contains(shown), let first = ids.first { current = first }
+        }
     }
 
     /// The next friend, or the one before; past the last, the viewer closes.
     private func step(from id: UUID, by offset: Int) {
+        let people = live
         guard let i = people.firstIndex(where: { $0.id == id }) else { return }
         let j = i + offset
         if people.indices.contains(j) {
@@ -66,6 +91,8 @@ struct StoryViewer: View {
 private struct StoryPage: View {
     let person: StoryPerson
     let isCurrent: Bool
+    /// Being dragged down to close: the story waits.
+    var dragging = false
     let next: () -> Void
     let back: () -> Void
     let close: () -> Void
@@ -89,7 +116,7 @@ private struct StoryPage: View {
     static let pageLength: TimeInterval = 5
 
     private var paused: Bool {
-        held || busy || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
+        held || busy || dragging || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
     }
 
     private var member: CrewMember? {
@@ -124,11 +151,15 @@ private struct StoryPage: View {
         }
         // Back to the first page not yet watched, as a story resumes.
         .onChange(of: isCurrent, initial: true) { _, now in
+            busy = false
             guard now else { return }
             page = person.stories.firstIndex { !store.storiesSeen.contains($0.id) } ?? 0
             seen()
         }
-        .onChange(of: page) { seen() }
+        .onChange(of: page) {
+            busy = false
+            seen()
+        }
     }
 
     private func seen() {
@@ -283,12 +314,20 @@ private struct StoryPage: View {
     }
 
     /// The tower's reactions, on this story's own crew copy: the bar, Reply
-    /// and Doodle into the crew's chat, and who reacted.
+    /// and Doodle into the crew's chat, and who reacted. **On your own, who
+    /// reacted in every crew it went to** (the review: one crew's copy left
+    /// out a friend who is only in another), as your block on Wins shows.
+    @ViewBuilder
     private var foot: some View {
-        CrewReactionsPanel(winID: story.id, crewID: story.win.crewID, mine: mine,
-                           onDark: scheme == .dark, onBusy: { busy = $0 })
-            .id(story.id)
-            .frame(maxWidth: .infinity)
+        if mine {
+            MyStoryReactions(reactions: store.reactionsToMyWins()[story.id] ?? [])
+                .frame(maxWidth: .infinity, minHeight: 44)
+        } else {
+            CrewReactionsPanel(winID: story.id, crewID: story.win.crewID, mine: false,
+                               onDark: scheme == .dark, onBusy: { busy = $0 })
+                .id(story.id)
+                .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -337,6 +376,40 @@ private struct StoryProgress: View {
         if elapsed >= length {
             done = true
             finished()
+        }
+    }
+}
+
+/// Who reacted to your story, across every crew it went to: their emoji and
+/// their names, read only. Nothing about who opened it, ever.
+private struct MyStoryReactions: View {
+    let reactions: [Reaction]
+
+    var body: some View {
+        if !reactions.isEmpty {
+            let ordered = reactions.sorted { $0.createdAt < $1.createdAt }
+            var emoji: [String] = []
+            let _ = ordered.forEach { if !emoji.contains($0.emoji) { emoji.append($0.emoji) } }
+            let names = ordered.map { CrewReactionsPanel.name($0.profileID, crewID: $0.crewID) }
+            let words = names.count > 3
+                ? "\(names.prefix(2).joined(separator: ", ")) and \(names.count - 2) others"
+                : names.formatted(.list(type: .and))
+            HStack(spacing: 8) {
+                HStack(spacing: -4) {
+                    ForEach(Array(emoji.prefix(3).enumerated()), id: \.offset) { index, e in
+                        Text(e).font(Typography.headerMedium).zIndex(Double(3 - index))
+                    }
+                }
+                Text(words)
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .glassCapsule(onPage: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Reactions: " + zip(names, ordered).map { "\($0) \($1.emoji)" }.joined(separator: ", "))
         }
     }
 }

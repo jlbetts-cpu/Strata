@@ -108,8 +108,8 @@ final class SocialStore {
     /// is the clock's to say (`StoryClock`), and the sweep in `prune` drops
     /// what has gone.
     private(set) var storiesByCrew: [CrewID: [CrewStory]] = [:]
-    /// Stories watched to the end on this phone, kept until their night has
-    /// gone, so a ring goes grey and stays grey.
+    /// Stories opened on this phone, kept until their night has gone, so a
+    /// ring goes grey and stays grey.
     private(set) var storiesSeen: Set<UUID> = []
     /// Friends whose story you hid for tonight, with the night it was.
     private(set) var storiesHidden: [UUID: String] = [:]
@@ -117,6 +117,13 @@ final class SocialStore {
     /// "reactions are copied to the poster's phone when read, so they
     /// outlive the night"). Keyed by the win, with the night they came on.
     @ObservationIgnored private(set) var storyReactionsKept: [UUID: StoryReactionsKept] = [:]
+    /// Your stories as posted from this phone (`StoryLedgerEntry`).
+    @ObservationIgnored var storyLedger: [UUID: StoryLedgerEntry] = [:]
+    /// Bumped when a story is taken off, so a post still waiting on its
+    /// photo check knows not to put it back.
+    @ObservationIgnored var storyGeneration: [UUID: Int] = [:]
+    /// Crews being left: nothing new is written to them meanwhile.
+    @ObservationIgnored var leavingCrews: Set<CrewID> = []
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
     /// yet" and stop saying it.
     private(set) var outboxRevision = 0
@@ -217,6 +224,7 @@ final class SocialStore {
         messagesByCrew = [:]
         storiesByCrew = [:]
         storyReactionsKept = [:]
+        storyLedger = [:]
         unreadChats = []
         outbox = CrewOutbox()
         persistOutbox()
@@ -242,6 +250,8 @@ final class SocialStore {
             .reduce(into: [:]) { out, pair in if let id = UUID(uuidString: pair.key) { out[id] = pair.value } }
         self.storyReactionsKept = (try? Data(contentsOf: directory.appending(path: Self.storyReactionsFile)))
             .flatMap { try? JSONDecoder().decode([UUID: StoryReactionsKept].self, from: $0) } ?? [:]
+        self.storyLedger = (try? Data(contentsOf: directory.appending(path: Self.storyLedgerFile)))
+            .flatMap { try? JSONDecoder().decode([UUID: StoryLedgerEntry].self, from: $0) } ?? [:]
     }
 
     // MARK: Reading
@@ -329,6 +339,17 @@ final class SocialStore {
         for wins in winsByCrew.values {
             for win in wins where win.senderProfileID != me {
                 guard let photo = win.photo, photoVerdicts[photo.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: photo),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[photo.lastPathComponent] = verdict
+                changed = true
+            }
+        }
+        // Their stories' photos, as their crew wins' are (the review,
+        // 2026-10-15: the row and the viewer drew them unchecked).
+        for stories in storiesByCrew.values {
+            for story in stories where story.sender != me {
+                guard let photo = story.win.photo, photoVerdicts[photo.lastPathComponent] == nil,
                       let data = try? Data(contentsOf: photo),
                       let verdict = await incomingCheck(data) else { continue }
                 photoVerdicts[photo.lastPathComponent] = verdict
@@ -1024,6 +1045,8 @@ final class SocialStore {
         // you back. With the note down, anything that fails after it is
         // finished by the next refresh.
         try await cloud.willLeave(crewID)
+        leavingCrews.insert(crewID)
+        defer { leavingCrews.remove(crewID) }
         for win in winsByCrew[crewID] ?? [] where win.senderProfileID == me {
             try await cloud.delete(type: .sharedWin, name: CrewRecords.name(of: win), in: crewID)
         }
@@ -1036,10 +1059,14 @@ final class SocialStore {
         for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == me {
             try? await cloud.delete(type: .message, name: CrewRecords.name(of: message), in: crewID)
         }
-        // And your stories in it.
-        for story in storiesByCrew[crewID] ?? [] where story.sender == me {
-            try? await cloud.delete(type: .story, name: story.id.uuidString, in: crewID)
+        // And your stories in it, whichever this phone posted there.
+        var mine = Set((storiesByCrew[crewID] ?? []).filter { $0.sender == me }.map(\.id))
+        for (winID, entry) in storyLedger where entry.crews.contains(crewID.rawValue) { mine.insert(winID) }
+        for winID in mine {
+            try? await cloud.delete(type: .story, name: winID.uuidString, in: crewID)
+            storyLedger[winID]?.crews.remove(crewID.rawValue)
         }
+        if !mine.isEmpty { persistStoryLedger() }
         // Your score goes with you; left behind it would show nobody, since
         // a crew's people are read from member records alone.
         try? await cloud.delete(type: .score, name: me.uuidString, in: crewID)
@@ -3056,9 +3083,12 @@ final class SocialStore {
     /// app was relaunched (the owner, 2026-10-06: doodles should "work well
     /// in crew"). A friend's phone was already right, since what it unpacks
     /// is named by the record's change tag. `update` removes the old file.
-    private func copy(_ data: Data, to crewID: CrewID, win: UUID) -> URL? {
+    /// `stem`: "story-" for a story's copy, whose name must never begin
+    /// with the win's own id: opening that win's crew record again clears
+    /// every file named for it (the review, 2026-10-15).
+    private func copy(_ data: Data, to crewID: CrewID, win: UUID, stem: String = "") -> URL? {
         let url = directory.appending(
-            path: "Photos/\(crewID.rawValue)/\(win.uuidString)-\(UUID().uuidString.prefix(8)).jpg")
+            path: "Photos/\(crewID.rawValue)/\(stem)\(win.uuidString)-\(UUID().uuidString.prefix(8)).jpg")
         do { try write(data, to: url); return url } catch {
             Self.log.error("photo for \(crewID.rawValue, privacy: .public) not kept: \(error)")
             return nil
@@ -3096,66 +3126,9 @@ final class SocialStore {
     }
 }
 
-// MARK: - Tonight's Story
-
-/// Reactions to one of your stories, as your phone last read them, by crew.
-nonisolated struct StoryReactionsKept: Codable, Equatable, Sendable {
-    /// The night the story was on, for the sweep.
-    var day: String
-    var byCrew: [String: [Reaction]] = [:]
-}
+// MARK: - Tonight's Story: what other screens ask
 
 extension SocialStore {
-    static let storiesSeenKey = "crewStoriesSeen"
-    static let storiesHiddenKey = "crewStoriesHidden"
-    static let storyReactionsFile = "story-reactions.json"
-
-    /// **Puts one of today's wins on Tonight's Story** (R1 to R4): written
-    /// into every crew you are in, sealed with each crew's key, with the
-    /// photo only if you may send one (13 to 15 send the block alone, as
-    /// they do to a crew). Only a win of today, by your own clock.
-    func postStory(_ win: OwnWin) async {
-        guard isEnabled(), !crews.isEmpty else { return }
-        let zone = TimeZone.current
-        let existing = myStoryCopy(of: win.winID)
-        let day = existing?.day ?? CrewDay.string(for: win.createdAt, in: zone)
-        guard existing != nil || StoryClock.canPost(winMadeAt: win.createdAt, at: now(), in: zone),
-              let ends = existing?.endsAt ?? StoryClock.endsAt(of: day, in: zone), now() < ends else { return }
-        let win = withTags(win)
-        let photo = await checkedPhoto(for: win)
-        for crew in crews {
-            var shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crew.id, win: win.winID) })
-            shared.crewDay = day
-            let story = CrewStory(win: shared, endsAt: ends)
-            let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
-            var held = storiesByCrew[crew.id] ?? []
-            held.removeAll { $0.id == story.id }
-            held.append(story)
-            storiesByCrew[crew.id] = held
-            if let was = old?.win.photo, was != shared.photo { try? FileManager.default.removeItem(at: was) }
-            enqueue(.init(crew: crew.id, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(story)))
-        }
-        nudgeLive()
-        await flush()
-    }
-
-    /// An edit to a win on the story: the story changes with it, on the
-    /// night it was posted to.
-    func updateStory(_ win: OwnWin) async { await postStory(win) }
-
-    /// Off the story, from every crew at once (R3).
-    func withdrawStory(winID: UUID) async {
-        guard isEnabled() else { return }
-        for (crewID, stories) in storiesByCrew {
-            guard let story = stories.first(where: { $0.id == winID && $0.sender == me }) else { continue }
-            storiesByCrew[crewID]?.removeAll { $0.id == winID }
-            if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
-            enqueue(.init(crew: crewID, type: .story, name: winID.uuidString, fields: nil))
-        }
-        nudgeLive()
-        await flush()
-    }
-
     /// A win a reaction can land on: one in the crew's list, or a story the
     /// crew holds (Tonight's Story, R10).
     func holdsWinOrStory(_ winID: UUID, in crewID: CrewID) -> Bool {
@@ -3166,20 +3139,117 @@ extension SocialStore {
     /// A story the crew holds, by its win, while it has not ended: what a
     /// reply to it quotes in the chat.
     func storyWin(_ winID: UUID, in crewID: CrewID) -> SharedWin? {
-        storiesByCrew[crewID]?.first { $0.id == winID && now() < $0.endsAt }?.win
+        guard var win = storiesByCrew[crewID]?.first(where: { $0.id == winID && now() < $0.endsAt })?.win else { return nil }
+        if win.senderProfileID != me, let photo = win.photo, !photoIsShown(photo) { win.photo = nil }
+        return win
+    }
+}
+
+// MARK: - Tonight's Story
+
+/// Reactions to one of your stories, as your phone last read them, by crew.
+nonisolated struct StoryReactionsKept: Codable, Equatable, Sendable {
+    /// The night the story was on, for the sweep.
+    var day: String
+    var byCrew: [String: [Reaction]] = [:]
+}
+
+/// **One of your stories, as this phone posted it** (the review, 2026-10-15:
+/// which wins were on a story lived only in what the last refresh read, so a
+/// delete before the first refresh, or a crew that could not be read, left
+/// the story up). Kept on disk, so taking it off reaches every crew it went
+/// to, and an edit that changed nothing is not sent again.
+nonisolated struct StoryLedgerEntry: Codable, Equatable, Sendable {
+    var crews: Set<String>
+    var day: String
+    var endsAt: Date
+    var signature: String
+}
+
+extension SocialStore {
+    static let storiesSeenKey = "crewStoriesSeen"
+    static let storiesHiddenKey = "crewStoriesHidden"
+    static let storyReactionsFile = "story-reactions.json"
+    static let storyLedgerFile = "story-ledger.json"
+    /// Where a kept reaction's sticker is copied, out of the cloud's cache,
+    /// which clears its files when a crew's records are opened again.
+    static let storyStickersFolder = "StoryStickers"
+
+    /// **Puts one of today's wins on Tonight's Story** (R1 to R4): written
+    /// into every crew you are in, sealed with each crew's key, with the
+    /// photo only if you may send one (13 to 15 send the block alone, as
+    /// they do to a crew). Only a win of today, by your own clock.
+    func postStory(_ win: OwnWin) async {
+        guard isEnabled(), !crews.isEmpty else { return }
+        let zone = TimeZone.current
+        let existing = storyLedger[win.winID].flatMap { now() < $0.endsAt ? $0 : nil }
+        let day = existing?.day ?? CrewDay.string(for: win.createdAt, in: zone)
+        guard existing != nil || StoryClock.canPost(winMadeAt: win.createdAt, at: now(), in: zone),
+              let ends = existing?.endsAt ?? StoryClock.endsAt(of: day, in: zone), now() < ends else { return }
+        let win = withTags(win)
+        let signature = Self.signature(win)
+        // An edit that changed nothing a friend sees sends nothing (a note,
+        // another win of the same habit): no new photo to every crew.
+        let targets = crews.filter { !leavingCrews.contains($0.id) }
+        if let existing, existing.signature == signature,
+           Set(targets.map(\.id.rawValue)).isSubset(of: existing.crews) { return }
+        // **Taken off while this waited** (the review: an edit's post waited on
+        // the photo check, a delete landed meanwhile, and the post wrote the
+        // story back for a win that no longer existed).
+        let generation = storyGeneration[win.winID, default: 0]
+        let photo = await checkedPhoto(for: win)
+        guard storyGeneration[win.winID, default: 0] == generation else { return }
+        var sentTo: Set<String> = []
+        for crew in crews where !leavingCrews.contains(crew.id) {
+            var shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crew.id, win: win.winID, stem: "story-") })
+            shared.crewDay = day
+            let story = CrewStory(win: shared, endsAt: ends)
+            let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
+            var held = storiesByCrew[crew.id] ?? []
+            held.removeAll { $0.id == story.id }
+            held.append(story)
+            storiesByCrew[crew.id] = held
+            if let was = old?.win.photo, was != shared.photo { try? FileManager.default.removeItem(at: was) }
+            enqueue(.init(crew: crew.id, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(story)))
+            sentTo.insert(crew.id.rawValue)
+        }
+        storyLedger[win.winID] = StoryLedgerEntry(crews: sentTo.union(existing?.crews ?? []), day: day,
+                                                  endsAt: ends, signature: signature)
+        persistStoryLedger()
+        nudgeLive()
+        await flush()
     }
 
-    /// Whether this win of yours is on a story that has not ended.
-    func isOnStory(_ winID: UUID) -> Bool { myStoryCopy(of: winID) != nil }
+    /// An edit to a win on the story: the story changes with it, on the
+    /// night it was posted to.
+    func updateStory(_ win: OwnWin) async { await postStory(win) }
 
-    private func myStoryCopy(of winID: UUID) -> CrewStory? {
-        let t = now()
-        for crew in crews {
-            if let story = storiesByCrew[crew.id]?.first(where: { $0.id == winID && $0.sender == me && t < $0.endsAt }) {
-                return story
-            }
+    /// Off the story, from every crew it went to, read this time or not (R3).
+    func withdrawStory(winID: UUID) async {
+        guard isEnabled() else { return }
+        storyGeneration[winID, default: 0] &+= 1
+        var crewIDs = Set(storyLedger[winID]?.crews.map(CrewID.init(rawValue:)) ?? [])
+        for (crewID, stories) in storiesByCrew where stories.contains(where: { $0.id == winID && $0.sender == me }) {
+            crewIDs.insert(crewID)
         }
-        return nil
+        for crewID in crewIDs where crew(crewID) != nil {
+            if let story = storiesByCrew[crewID]?.first(where: { $0.id == winID }), let photo = story.win.photo {
+                try? FileManager.default.removeItem(at: photo)
+            }
+            storiesByCrew[crewID]?.removeAll { $0.id == winID }
+            enqueue(.init(crew: crewID, type: .story, name: winID.uuidString, fields: nil))
+        }
+        if storyLedger.removeValue(forKey: winID) != nil { persistStoryLedger() }
+        nudgeLive()
+        await flush()
+    }
+
+    /// Whether this win of yours is on a story that has not ended: the
+    /// ledger first, which this phone keeps, then what the crews hold.
+    func isOnStory(_ winID: UUID) -> Bool {
+        if let entry = storyLedger[winID] { return now() < entry.endsAt }
+        let t = now()
+        return storiesByCrew.values.contains { $0.contains { $0.id == winID && $0.sender == me && t < $0.endsAt } }
     }
 
     /// Your story tonight, each win once, oldest first.
@@ -3191,14 +3261,25 @@ extension SocialStore {
             .sorted { ($0.win.createdAt, $0.id.uuidString) < ($1.win.createdAt, $1.id.uuidString) }
     }
 
-    /// Friends with a story waiting or open, in the row's order.
+    /// Friends with a story waiting or open, in the row's order. **A
+    /// friend's photo is checked here as a crew win's is** (the review: the
+    /// row and the viewer drew it straight, so a 13 to 15 phone with the
+    /// analysis off saw it): unshown, the story is the block.
     func storyPeople(at moment: Date? = nil, in zone: TimeZone = .current) -> [StoryPerson] {
-        StoryPerson.gather(storiesByCrew, crewOrder: crews.compactMap { visible($0.id)?.id }, me: me,
-                           blocked: blocked, hidden: storiesHidden, seen: storiesSeen,
-                           now: moment ?? StoryClock.now(now(), in: zone), zone: zone)
+        let checked = storiesByCrew.mapValues { stories in
+            stories.map { story -> CrewStory in
+                guard story.sender != me, let photo = story.win.photo, !photoIsShown(photo) else { return story }
+                var shown = story
+                shown.win.photo = nil
+                return shown
+            }
+        }
+        return StoryPerson.gather(checked, crewOrder: crews.compactMap { visible($0.id)?.id }, me: me,
+                                  blocked: blocked, hidden: storiesHidden, hiddenWins: hiddenWins, seen: storiesSeen,
+                                  now: moment ?? StoryClock.now(now(), in: zone), zone: zone)
     }
 
-    /// A story watched to its end: its ring goes grey.
+    /// A story opened on this phone: its ring goes grey.
     func markStorySeen(_ id: UUID) {
         guard storiesSeen.insert(id).inserted else { return }
         defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
@@ -3215,34 +3296,63 @@ extension SocialStore {
                      forKey: Self.storiesHiddenKey)
     }
 
-    /// **Copies friends' reactions to your stories onto this phone** while
-    /// the story is on, so they stay on your block after the night, when
-    /// their records have gone (R12). A reaction taken back during the
-    /// night comes off.
+    func persistStoryLedger() {
+        write(json: storyLedger, to: Self.storyLedgerFile, what: "story ledger")
+    }
+
+    private func write<T: Encodable>(json value: T, to file: String, what: String) {
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(value).write(to: directory.appending(path: file), options: .atomic)
+        } catch {
+            Self.log.error("\(what, privacy: .public) not kept: \(error)")
+        }
+    }
+
+    /// **Copies friends' reactions to your stories onto this phone**, so
+    /// they stay on your block after the night, when their records have gone
+    /// (R12). While the story is on, a reaction taken back comes off. After
+    /// its end nothing comes off: a friend's phone clears its reaction once
+    /// the story has gone, and your phone may read that before its own sweep
+    /// (the review: one opened at 1pm lost the night's reactions). A sticker
+    /// is copied out of the cloud's cache, which clears its files.
     func keepStoryReactions() {
         let t = now()
         var changed = false
         for (crewID, stories) in storiesByCrew {
-            for story in stories where story.sender == me && t < story.endsAt {
+            for story in stories where story.sender == me {
                 let theirs = (reactionsByCrew[crewID] ?? []).filter { $0.winID == story.id && $0.profileID != me }
+                    .map(keptCopy)
                 var kept = storyReactionsKept[story.id] ?? StoryReactionsKept(day: story.day)
-                guard kept.byCrew[crewID.rawValue] ?? [] != theirs else { continue }
-                kept.byCrew[crewID.rawValue] = theirs
+                let held = kept.byCrew[crewID.rawValue] ?? []
+                let next: [Reaction]
+                if t < story.endsAt {
+                    next = theirs
+                } else {
+                    next = held + theirs.filter { new in !held.contains { $0.id == new.id } }
+                }
+                guard next != held else { continue }
+                kept.byCrew[crewID.rawValue] = next
                 storyReactionsKept[story.id] = kept
                 changed = true
             }
         }
-        if changed { persistStoryReactions() }
+        if changed { write(json: storyReactionsKept, to: Self.storyReactionsFile, what: "story reactions") }
     }
 
-    private func persistStoryReactions() {
-        let url = directory.appending(path: Self.storyReactionsFile)
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try JSONEncoder().encode(storyReactionsKept).write(to: url, options: .atomic)
-        } catch {
-            Self.log.error("story reactions not kept: \(error)")
+    /// A reaction whose sticker now lives in this phone's own folder.
+    private func keptCopy(_ reaction: Reaction) -> Reaction {
+        guard let sticker = reaction.sketch else { return reaction }
+        let folder = directory.appending(path: Self.storyStickersFolder)
+        guard !sticker.path.hasPrefix(folder.path) else { return reaction }
+        let kept = folder.appending(path: "\(reaction.id.replacingOccurrences(of: "/", with: "-"))-\(sticker.lastPathComponent)")
+        if !FileManager.default.fileExists(atPath: kept.path) {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? FileManager.default.copyItem(at: sticker, to: kept)
         }
+        var copy = reaction
+        copy.sketch = FileManager.default.fileExists(atPath: kept.path) ? kept : nil
+        return copy
     }
 
     /// Kept reactions to your stories, by win, for your tower.
@@ -3251,8 +3361,9 @@ extension SocialStore {
     }
 
     /// **The sweep** (R4), from `prune`: a story past its end leaves every
-    /// phone's list, and the poster's phone deletes its records and its
-    /// photo. What was watched or hidden is forgotten once its night is.
+    /// phone's list, and the poster's phone deletes its records, from every
+    /// crew the ledger says it went to, and its photo. What was opened or
+    /// hidden is forgotten once its night is.
     func sweepStories() {
         let t = now()
         for (crewID, stories) in storiesByCrew {
@@ -3263,6 +3374,16 @@ extension SocialStore {
                 if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
                 enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: nil))
             }
+        }
+        let ended = storyLedger.filter { t >= $0.value.endsAt }
+        if !ended.isEmpty {
+            for (winID, entry) in ended {
+                for raw in entry.crews where crew(CrewID(rawValue: raw)) != nil {
+                    enqueue(.init(crew: CrewID(rawValue: raw), type: .story, name: winID.uuidString, fields: nil))
+                }
+                storyLedger[winID] = nil
+            }
+            persistStoryLedger()
         }
         guard hasFetchedCrews else { return }
         let live = Set(storiesByCrew.values.flatMap { $0.map(\.id) })
@@ -3279,13 +3400,19 @@ extension SocialStore {
         let today = CrewDay.string(for: t, in: .current)
         if let cutoff = CrewDay.oldestKept(today: today, in: .current),
            storyReactionsKept.values.contains(where: { $0.day < cutoff }) {
+            for kept in storyReactionsKept.values where kept.day < cutoff {
+                for sticker in kept.byCrew.values.flatMap({ $0 }).compactMap(\.sketch) {
+                    try? FileManager.default.removeItem(at: sticker)
+                }
+            }
             storyReactionsKept = storyReactionsKept.filter { $0.value.day >= cutoff }
-            persistStoryReactions()
+            write(json: storyReactionsKept, to: Self.storyReactionsFile, what: "story reactions")
         }
     }
 
     /// A photo taken off a story win comes off the story too.
     func removeStoryPhoto(winID: UUID) async {
+        storyGeneration[winID, default: 0] &+= 1
         for (crewID, stories) in storiesByCrew {
             guard var story = stories.first(where: { $0.id == winID && $0.sender == me }), story.win.photo != nil else { continue }
             if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
@@ -3295,6 +3422,8 @@ extension SocialStore {
             storiesByCrew[crewID]?.append(story)
             enqueue(.init(crew: crewID, type: .story, name: winID.uuidString, fields: CrewRecords.fields(story)))
         }
+        // The next edit is sent whole, with the photo gone from its signature.
+        if storyLedger[winID] != nil { storyLedger[winID]?.signature = ""; persistStoryLedger() }
         await flush()
     }
 }
