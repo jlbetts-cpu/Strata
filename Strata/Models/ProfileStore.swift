@@ -66,6 +66,15 @@ final class ProfileStore {
     private static let bannerKey = "profileBannerByMonth"
     private static let bannerLayoutKey = "profileBannerLayoutByMonth"
     private static let usesPhotoKey = "profileUsesPhoto"
+    private static let featuredKey = "profileFeatured"
+
+    /// Your featured wins, by their photographs' files (`FeaturedWins`).
+    var featuredFiles: [String] { UserDefaults.standard.stringArray(forKey: Self.featuredKey) ?? [] }
+
+    func setFeatured(_ files: [String]) {
+        UserDefaults.standard.set(Array(files.prefix(FeaturedWins.prompts.count)), forKey: Self.featuredKey)
+        bannerChanged += 1
+    }
 
     /// **A photograph instead of a head, when you would rather** (the owner,
     /// 2026-10-16: "there should be a way to add a pfp instead of a head if
@@ -248,6 +257,7 @@ final class ProfileStore {
         setBackground(nil)
         UserDefaults.standard.removeObject(forKey: Self.bannerKey)
         UserDefaults.standard.removeObject(forKey: Self.bannerLayoutKey)
+        UserDefaults.standard.removeObject(forKey: Self.featuredKey)
         UserDefaults.standard.removeObject(forKey: Self.handleKey)
         UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
         bannerChanged += 1

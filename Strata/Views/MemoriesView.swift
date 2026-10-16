@@ -1091,6 +1091,12 @@ struct MemoriesView: View {
         }
         .padding(PageCard.inset)
         .pageCard()
+        // **Kept inside its card** (the owner, 2026-10-16: "the banner seems
+        // to glitch the background sometimes when swiping through the
+        // months"): a month slides in and out as the finger went, and since
+        // the calendar went onto a card it slid out past the card's edges and
+        // over the page.
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
 

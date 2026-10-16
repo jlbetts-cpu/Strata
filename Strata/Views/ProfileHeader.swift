@@ -360,6 +360,22 @@ struct YourScoreSheet: View {
                     .listRowInsets(EdgeInsets())
             }
 
+            // **Your featured wins, each under a prompt** (2026-10-16; the
+            // owner: "they make people's profiles captivating ... winning
+            // goes hand in hand with being interesting"). What you did, large,
+            // so the profile says who you are.
+            ForEach(Array(FeaturedWins.pick(from: logs, chosen: profile.featuredFiles).enumerated()), id: \.element.id) { index, log in
+                if let file = log.imageFileName {
+                    Section {
+                        WinCard(fileName: file, title: log.habit?.title,
+                                detail: WinCard.detail(date: log.completedAt ?? log.createdAt, size: log.habit?.blockSize ?? .small),
+                                prompt: FeaturedWins.prompts[index])
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    }
+                }
+            }
+
             // No separate week here (the owner, 2026-10-16: "the wins on the
             // bottom covers the wins this week, so why is there a separate
             // one"): Wins per week below says it, a day or a month too.

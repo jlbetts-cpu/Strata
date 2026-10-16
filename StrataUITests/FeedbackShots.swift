@@ -2063,9 +2063,6 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-month row \(row.exists)")
         if row.exists { row.tap() }
         wait(2); snap("month-1-page")
-        let deep = app.buttons["Deep"].firstMatch
-        if deep.exists { deep.tap() }
-        wait(1.2); snap("month-2-deep")
         app.swipeUp(); wait(1); snap("month-3-scrolled")
     }
 
@@ -2079,7 +2076,7 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-profile open \(open.exists)")
         if open.exists { open.tap() }
         wait(2.5); snap("profile-2-score")
-        app.swipeUp(); wait(1); snap("profile-2b-charts")
+        app.swipeUp(); wait(5); snap("profile-2b-charts")
         let edit = app.buttons["Edit"].firstMatch
         print("PLANNING-profile edit \(edit.exists)")
         if edit.exists { edit.tap() }

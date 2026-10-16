@@ -62,6 +62,7 @@ struct ProfileView: View {
         Form {
             identity
             bannerSection
+            featuredSection
             headSection
             earlierHeadsSection
         }
@@ -183,6 +184,16 @@ struct ProfileView: View {
         Section {
             FormSectionLabel("Banner")
             BannerEditor(month: Date())
+                .listRowSeparator(.hidden)
+        }
+    }
+
+    // MARK: - Featured
+
+    private var featuredSection: some View {
+        Section {
+            FormSectionLabel("Featured wins")
+            FeaturedEditor()
                 .listRowSeparator(.hidden)
         }
     }
