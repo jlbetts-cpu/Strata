@@ -31,12 +31,23 @@ struct PostMyDaySheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: GridConstants.gapSection) {
-                    lineField
-                    picks
-                    Text(TonightsStoryRow.lesson)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
+                // **Two cards, as every page is now** (the owner, 2026-10-16:
+                // "the Tonight's Story section is really ugly and not
+                // organized well"): the line, then the wins, each with its
+                // title inside; when your friends see it, quiet at the foot.
+                VStack(alignment: .leading, spacing: PageCard.gap) {
+                    card {
+                        title(StoryLine.prompt)
+                        lineField
+                    }
+                    card {
+                        title(wins.isEmpty ? "Today's wins" : "Today's wins, up to three")
+                        picks
+                        Text(TonightsStoryRow.lesson)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .padding(.top, GridConstants.gapTight)
+                    }
                 }
                 .padding(.horizontal, hPad)
                 .padding(.top, GridConstants.gapItem)
@@ -66,28 +77,44 @@ struct PostMyDaySheet: View {
     // MARK: The line
 
     private var lineField: some View {
+        // Written on the card itself, no field drawn round it.
         TextField("Line", text: Binding(get: { line }, set: { line = String($0.prefix(StoryLine.limit)) }),
-                  prompt: Text(StoryLine.prompt).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
-            .font(Typography.bodyLarge)
+                  prompt: Text("One line, in your words").foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+            .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)
             .lineLimit(1...3)
             .focused($writing)
             .submitLabel(.done)
-            .padding(.horizontal, GridConstants.gapLabel)
-            .padding(.vertical, GridConstants.gapItem)
-            .frame(minHeight: 56)
-            .glassField()
+            .frame(minHeight: 44, alignment: .leading)
             .accessibilityLabel(StoryLine.prompt)
+    }
+
+    // MARK: The cards
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) { content() }
+            .padding(PageCard.inset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .pageCard()
+    }
+
+    private func title(_ words: String) -> some View {
+        Text(words)
+            .font(Typography.headerSmall)
+            .foregroundStyle(AppColors.inkSecondary)
+            .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: The picks
 
     private var picks: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: GridConstants.gapItem), count: 3)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: GridConstants.spacing * 2), count: 3)
         return VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            Text(wins.isEmpty ? "Log a win today to post your story." : "Up to three of today's wins")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
+            if wins.isEmpty {
+                Text("Log a win today to post your story.")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkPrimary)
+            }
             LazyVGrid(columns: columns, spacing: GridConstants.gapItem) {
                 ForEach(wins, id: \.id) { log in tile(log) }
             }
