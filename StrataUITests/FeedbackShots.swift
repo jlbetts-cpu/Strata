@@ -2059,6 +2059,7 @@ final class FeedbackShots: XCTestCase {
                           "-strataSeedHistory", "20", "-strataSeedRealPhotos", "1"])
         wait(8)
         app.swipeUp(velocity: .slow); wait(1); snap("month-0-row")
+        app.swipeUp(velocity: .slow); wait(1.5); snap("month-0b-cards")
         let row = app.buttons["monthPhotosRow"].firstMatch
         print("PLANNING-month row \(row.exists)")
         if row.exists { row.tap() }
