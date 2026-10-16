@@ -184,6 +184,20 @@ nonisolated enum EveningCheckIn {
 
     static func identifier(for date: Date) -> String { prefix + DateUtils.dateString(from: date) }
 
+    /// **On a night a friend has a story, the evening is 8pm** (the spec,
+    /// 1.2: "the day's one evening cue is sent at 8:00 and says Tonight's
+    /// stories are open"). Still the day's ONE cue, decided by the same rules
+    /// as ever; only its moment and its words change. Never who posted, and
+    /// never who did not.
+    static let storiesLine = "Tonight's stories are open."
+
+    static func storyEvening(now: Date, friendHasStory: Bool, calendar: Calendar = .current) -> Date? {
+        guard friendHasStory,
+              let eight = calendar.date(bySettingHour: StoryClock.opensHour, minute: 0, second: 0, of: now),
+              eight > now else { return nil }
+        return eight
+    }
+
     /// Cleared when a crew is left (`SocialStore.forget`), so its moment
     /// does not outlive it for the rest of the day.
     static let crewEveningKey = "eveningCheckIn.crew"
@@ -242,7 +256,11 @@ nonisolated enum EveningCheckIn {
         // it has been delivered, and today has had its cue.
         if let kept = defaults.dictionary(forKey: scheduledKey), kept["day"] as? String == today,
            let at = kept["at"] as? Double, at <= now.timeIntervalSince1970 { return }
-        let crew = crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
+        let stories = CrewsFlag.isOn
+            ? storyEvening(now: now, friendHasStory: SocialStore.shared.storyPeople(at: now).contains { $0.phase == .waiting })
+                .map { (at: $0, line: storiesLine) }
+            : nil
+        let crew = stories ?? crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,

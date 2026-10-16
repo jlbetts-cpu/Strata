@@ -55,9 +55,17 @@ From `docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`, sections
 | R11 | Yes | ⋯: Hide Their Story, Report, Block; nothing about who watched |
 | R12 | Yes | `reactionStays`: Sam's reaction stays on the block after the story and Sam's record are gone |
 | R13 | Yes | Walk 7b: the story block edged in the evening colour on the friend's profile |
-| R14 | Mostly | Light and dark looked at; VoiceOver labels and an adjustable action on the page; 44pt controls. Reduce Motion: cross-fades; not yet walked with it on |
+| R14 | Yes | Light and dark looked at; VoiceOver labels and an adjustable action on the page; 44pt controls; the whole walk passed with Reduce Motion on in the simulator (the app logged it on) |
 | R15 | Yes | Photos decode off the main thread at the drawn size (`CrewPhotoView`); the segments redraw alone |
 | R16 | Yes | Strings checked against `docs/voice.md` |
 | R17 | Yes | 12 unit tests; one walk covering posting, the row in each state, the viewer, a reaction, a profile |
 
-**Not built yet:** the row on the camera's review (camera changes go to the owner first); the evening cue saying "Tonight's stories are open." on a night with a story; the Locket-style widget preview.
+**The 8pm cue** (spec 1.2) is built: on a night a friend has a story waiting, the day's one evening cue comes at 8:00 and says "Tonight's stories are open." Still one cue a day by the same rules; never who (`EveningCheckIn.storyEvening`, tested).
+
+**The review's twelve findings** (photo check on friends' stories, a ledger of your own, reactions kept after the end, the stuck pause, the row following the clock, and the rest) are fixed in 0a5f56e, with four tests.
+
+**Not built, and why:**
+- The row on the camera's review: camera changes go to the owner first.
+- @names and personal crews (spec slice 1): a new `Handle` record type needs a CloudKit Console deploy, which is his.
+- The double-tap heart (R10): left for his call; it would slow every tap forward.
+- The Locket-style widget preview: later, as the spec says.

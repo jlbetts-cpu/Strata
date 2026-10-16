@@ -78,6 +78,18 @@ struct TonightsStoryTests {
         #expect(!StoryClock.canPost(winMadeAt: date("2026-10-14", 23, in: la), at: now, in: la))
     }
 
+    @Test("a night with a friend's story moves the evening's one cue to 8pm, and says nothing of who")
+    func eveningCue() {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = la
+        let afternoon = date("2026-10-15", 15, in: la)
+        #expect(EveningCheckIn.storyEvening(now: afternoon, friendHasStory: true, calendar: c) == date("2026-10-15", 20, in: la))
+        #expect(EveningCheckIn.storyEvening(now: afternoon, friendHasStory: false, calendar: c) == nil)
+        // Past 8pm there is no moment left to move it to.
+        #expect(EveningCheckIn.storyEvening(now: date("2026-10-15", 20, 5, in: la), friendHasStory: true, calendar: c) == nil)
+        #expect(!EveningCheckIn.storiesLine.contains("!") && !EveningCheckIn.storiesLine.contains("\u{2014}"))
+    }
+
     // MARK: The record
 
     @Test("a story record round-trips, and one without its end is not a story")

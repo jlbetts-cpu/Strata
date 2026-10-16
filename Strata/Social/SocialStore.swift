@@ -2111,7 +2111,16 @@ final class SocialStore {
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
             if messagesByCrew != messages { messagesByCrew = messages }
-            if storiesByCrew != stories { storiesByCrew = stories }
+            if storiesByCrew != stories {
+                let hadStory = storiesByCrew.values.contains { $0.contains { $0.sender != me } }
+                storiesByCrew = stories
+                // A friend's story tonight moves the evening's cue to 8pm
+                // (`EveningCheckIn.storyEvening`): decided again when the
+                // first one arrives.
+                if announces, !hadStory, stories.values.contains(where: { $0.contains { $0.sender != me } }) {
+                    Task { @MainActor in await EveningCheckIn.update(context: SharedModelContainer.shared.mainContext) }
+                }
+            }
             keepStoryReactions()
             if !hasFetchedCrews { hasFetchedCrews = true }
             recordHistory(counted, for: fetched)
