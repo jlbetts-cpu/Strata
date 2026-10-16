@@ -81,8 +81,13 @@ enum StrataTab: String, CaseIterable {
     /// price of being redrawn for every scheme change and of the bar's own
     /// selection never animating; the native bar is the better trade. The
     /// picture is kept for the onboarding's drawing of the bar.
+    /// **Icons only** (the owner, 2026-10-16: "no names under the tab at
+    /// the bottom"). The words come off the bar a third time; the name stays
+    /// for VoiceOver.
     var label: some View {
         Label(rawValue, image: assetName)
+            .labelStyle(.iconOnly)
+            .accessibilityLabel(rawValue)
     }
 
     /// **The tab with the app's dot on it** (2026-10-13). A tab bar badge
@@ -102,6 +107,8 @@ enum StrataTab: String, CaseIterable {
                 Label(rawValue, image: assetName)
             }
         }
+        .labelStyle(.iconOnly)
+        .accessibilityLabel(rawValue)
     }
 
     @MainActor private static var markedCache: [String: UIImage] = [:]

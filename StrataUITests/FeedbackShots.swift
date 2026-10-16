@@ -1738,6 +1738,11 @@ final class FeedbackShots: XCTestCase {
         wait(9); snap("story-0-row-night")
         let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
         print("PLANNING-story head \(story.exists) '\(story.exists ? story.label : "")'")
+        // A hold lifts that head alone, with View Profile.
+        if story.exists { story.press(forDuration: 1.0) }
+        wait(1); snap("story-0b-hold")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        wait(1)
         if story.exists { story.tap() }
         wait(1.5); snap("story-1-viewer")
         let card = app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, 1 of'")).firstMatch
@@ -1746,10 +1751,11 @@ final class FeedbackShots: XCTestCase {
         wait(1); snap("story-2-next-page")
         // Left alone, it goes on to the next friend.
         wait(6); snap("story-3-next-friend")
-        let react = app.buttons["React"].firstMatch
-        print("PLANNING-story react \(react.exists)")
-        if react.exists { react.tap() }
-        wait(1); snap("story-4-bar")
+        let field = app.textFields.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        let fieldView = field.exists ? field : app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        print("PLANNING-story react \(fieldView.exists)")
+        if fieldView.exists { fieldView.tap() }
+        wait(1.2); snap("story-4-bar")
         let fire = app.buttons["🔥"].firstMatch
         if fire.exists { fire.tap() }
         wait(1.5); snap("story-5-reacted")
@@ -1771,8 +1777,19 @@ final class FeedbackShots: XCTestCase {
         app.terminate()
         // Before 8pm: unlit rings, and nothing to open.
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
-                      "-strataSeedStories", "2", "-strataStoryHour", "15"])
+                      "-strataSeedStories", "2", "-strataSeedMyStory", "1", "-strataStoryHour", "15"])
         wait(9); snap("story-8-row-afternoon")
+        // Yours opens before 8pm; nobody else's does.
+        let mineEarly = app.buttons["Your Story"].firstMatch
+        print("PLANNING-story mine early \(mineEarly.exists)")
+        if mineEarly.exists { mineEarly.tap() }
+        wait(1.5); snap("story-8b-mine-early")
+        // A friend's head, waiting, opens their profile and not their story.
+        app.swipeDown(velocity: .fast); wait(1.5)
+        let waiting = app.buttons.matching(NSPredicate(format: "value == 'A story tonight'")).firstMatch
+        print("PLANNING-story waiting \(waiting.exists)")
+        if waiting.exists { waiting.tap() }
+        wait(2); snap("story-8c-waiting-tapped")
         app.terminate()
         // Add a Win, then Send To (2026-10-16): the story on top, the crews.
         app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",

@@ -78,6 +78,8 @@ struct TodayHeads: View {
     }
 
     static let side: CGFloat = 56
+    /// Space the story crest's glass light needs past its circle.
+    private static let glassRoom: CGFloat = 16
     /// The picture inside a story's crest: the crest is the head and its
     /// breathing room, and the ring and glass take the rest.
     static var storyFace: CGFloat { StoryCrestSize.face(in: side + inset * 2) }
@@ -107,8 +109,15 @@ struct TodayHeads: View {
                         if store.crews.contains(where: { $0.members.count < CrewCaps.members }), store.canReply() { invite }
                     }
                     .padding(.horizontal, GridConstants.horizontalPadding)
+                    // Room above and below inside the scroll, so the glass's
+                    // own light is never cut flat by the edge fade's mask (the
+                    // owner, 2026-10-16: "a weird grey line, it should be
+                    // blended into the background"). Taken back outside, so
+                    // the row sits where it did.
+                    .padding(.vertical, Self.glassRoom)
                 }
                 .edgeFade()
+                .padding(.vertical, -Self.glassRoom)
             }
             .task {
                 while !Task.isCancelled {
@@ -161,6 +170,9 @@ struct TodayHeads: View {
                         .padding(.horizontal, Self.inset)
                         .padding(.top, Self.inset)
                 }
+                Text("Invite")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
             }
             .contentShape(Rectangle())
         }
@@ -208,15 +220,33 @@ struct TodayHeads: View {
                     // the app never says who has it open.
                     .opacity(logged || showing ? 1 : 0.45)
                     .animation(GridConstants.motionSnappy, value: logged)
-                // No name under it (the owner, 2026-10-16: "remove the names
-                // under the icons, keep the icons clean"); VoiceOver still says it.
+                // Their name under it. (The owner's "no names under the
+                // icons", 2026-10-16, was the tab bar's, he said after.)
+                Text(name)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(logged || showing ? AppColors.inkPrimary : AppColors.inkTertiary)
+                    .lineLimit(1)
+                    .frame(maxWidth: Self.side + Self.inset * 2)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
-        .contextMenu {
-            if showing {
+        // **A hold lifts that head alone** (the owner, 2026-10-16: "when you
+        // hold for view profile the whole bar highlights when it should just
+        // be that profile"): the system's lift took the row's whole scroll
+        // with it, so the preview is drawn here, the head and the name.
+        .applying(showing) { view in
+            view.contextMenu {
                 Button { profile = person } label: { Label("View Profile", systemImage: "person.crop.circle") }
+            } preview: {
+                VStack(spacing: GridConstants.gapTight) {
+                    PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: 96)
+                    Text(name)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(AppColors.inkPrimary)
+                }
+                .padding(GridConstants.gapWide)
+                .background(WarmBackground.top)
             }
         }
         .accessibilityLabel(logged ? "\(name), \(person.wins == 1 ? "1 win" : "\(person.wins) wins") today" : "\(name), no wins yet today")
@@ -237,6 +267,13 @@ struct TodayHeads: View {
                 StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: []) {
                     StoryBubble(story: me, side: Self.storyFace)
                 }
+                // Whole, never "Your St...": the one name in the row that is
+                // two words, so its column is as wide as the words.
+                Text("Your Story")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .contentShape(Rectangle())
         }
