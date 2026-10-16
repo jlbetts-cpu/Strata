@@ -2053,6 +2053,22 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-user saved \(app.staticTexts["@sam.b"].exists || app.buttons["@sam.b"].exists)")
     }
 
+    /// The month opened: its photographs as cards (2026-10-16).
+    func testMonthPhotos() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedWins", "6", "-strataSeedHead", "1",
+                          "-strataSeedHistory", "20", "-strataSeedRealPhotos", "1"])
+        wait(8)
+        app.swipeUp(velocity: .slow); wait(1); snap("month-0-row")
+        let row = app.buttons["monthPhotosRow"].firstMatch
+        print("PLANNING-month row \(row.exists)")
+        if row.exists { row.tap() }
+        wait(2); snap("month-1-page")
+        let deep = app.buttons["Deep"].firstMatch
+        if deep.exists { deep.tap() }
+        wait(1.2); snap("month-2-deep")
+        app.swipeUp(); wait(1); snap("month-3-scrolled")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])
