@@ -71,11 +71,11 @@ struct FlashbackTests {
         let records = [record("2026-09-12"), record("2026-04-12"), record("2025-10-12"), record("2024-10-12", photo: false)]
         let found = try #require(Flashback.album(records: records, today: today, calendar: calendar, lastUnderAYear: nil))
         #expect(found.album.title == "A year ago today")
-        #expect(found.album.subtitle == "12 OCT 2025")
+        #expect(found.album.subtitle == "12 Oct 2025")
         #expect(found.album.route == .day("2025-10-12"))
         let near = try #require(Flashback.album(records: [records[0], records[1]], today: today, calendar: calendar, lastUnderAYear: nil))
         #expect(near.album.title == "6 months ago today")
-        #expect(near.album.subtitle == "12 APR")
+        #expect(near.album.subtitle == "12 Apr")
     }
 
     // Rubric 3.

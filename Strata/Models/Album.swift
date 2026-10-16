@@ -369,7 +369,9 @@ nonisolated extension Album {
     }
 
     private static func shortDate(_ date: Date) -> String {
-        return Formats.shortDate.string(from: date).uppercased()
+        // As written, never in capitals (the owner, 2026-10-16: "no all
+        // capitals anywhere").
+        return Formats.shortDate.string(from: date)
     }
 
     private static func spelledDate(_ date: Date) -> String {

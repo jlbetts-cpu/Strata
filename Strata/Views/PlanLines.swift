@@ -361,9 +361,7 @@ struct PlanLines: View {
         if !waiting.isEmpty {
             HStack(alignment: .firstTextBaseline) {
                 Text("Earlier")
-                    .font(Typography.sectionLabel)
-                    .kerning(Typography.sectionKerning)
-                    .textCase(.uppercase)
+                    .font(Typography.headerSmall)
                     .foregroundStyle(AppColors.inkSecondary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: GridConstants.gapItem)

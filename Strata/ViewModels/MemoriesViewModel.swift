@@ -121,7 +121,7 @@ final class MemoriesViewModel {
     /// months, on every body. See `Album.Formats`.
     private static func title(for month: Date, calendar: Calendar) -> String {
         let sameYear = calendar.component(.year, from: month) == calendar.component(.year, from: Date())
-        return (sameYear ? Album.Formats.month : Album.Formats.monthYear).string(from: month).uppercased()
+        return (sameYear ? Album.Formats.month : Album.Formats.monthYear).string(from: month)
     }
 
     static let mondayCalendar: Calendar = {

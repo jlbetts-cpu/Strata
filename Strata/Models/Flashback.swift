@@ -90,7 +90,7 @@ nonisolated enum Flashback {
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: today)
         // The shelf's own formatters, so the month reads in the phone's
         // language as every other card's does.
-        return Album.Formats.formatter(sameYear ? "d MMM" : "d MMM yyyy").string(from: date).uppercased()
+        return Album.Formats.formatter(sameYear ? "d MMM" : "d MMM yyyy").string(from: date)
     }
 
     /// The card, as any album on the shelf is one. Its kind is the day, so

@@ -188,7 +188,6 @@ struct SettingsView: View {
                     // 246). `inkQuiet`'s own doc keeps it for glyphs.
                     Text(verbatim: appVersion)
                         .font(Typography.sectionLabel)
-                        .kerning(Typography.sectionKerning)
                         .foregroundStyle(AppColors.inkTertiary)
                 }
                 .frame(maxWidth: .infinity)
