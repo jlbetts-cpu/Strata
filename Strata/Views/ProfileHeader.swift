@@ -81,9 +81,13 @@ struct ProfileTop: View {
             }
             .accessibilityLabel(personHint.isEmpty ? name : "\(name), \(personHint)")
             if !figures.isEmpty {
-                pressable(onFigures, hint: figuresHint) { line }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
+                // Said as "11 score, 8 wins, 1 crew": on the line itself, so
+                // the button inside takes it, never the dots between.
+                pressable(onFigures, hint: figuresHint) {
+                    line
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(figures.map { "\($0.value) \($0.word)" }.joined(separator: ", "))
+                }
             }
         }
         .padding(.top, GridConstants.gapTight)

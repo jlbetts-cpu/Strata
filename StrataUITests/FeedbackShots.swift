@@ -2161,6 +2161,19 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("photos-2-viewer")
     }
 
+    /// **A hold on a photo in Memories** (the interaction audit, 2026-10-15).
+    func testThumbnailMenu() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedWins", "8", "-strataSeedAllPhotos", "1", "-strataSeedRealPhotos", "demo"])
+        wait(8)
+        for _ in 0..<3 { app.swipeUp(); wait(1) }
+        let all = app.buttons.allElementsBoundByIndex
+        for b in all.prefix(30) { print("PLANNING-thumb button '\(b.label)' \(b.frame)") }
+        let cell = app.buttons.matching(NSPredicate(format: "label CONTAINS 'October' AND NOT (label CONTAINS 'Memories')")).firstMatch
+        print("PLANNING-thumb cell \(cell.exists) '\(cell.exists ? cell.label : "")'")
+        if cell.exists { cell.press(forDuration: 1.0) }
+        wait(1.2); snap("thumb-0-menu")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

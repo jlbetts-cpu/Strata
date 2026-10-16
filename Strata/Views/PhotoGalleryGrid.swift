@@ -191,6 +191,15 @@ struct PhotoGalleryGrid: View {
         // above it were two of the three things on the Memories tab that did
         // not, while the album poster between them did).
         .buttonStyle(.pressSurface)
+        // **A hold, as Photos' grid answers one** (the interaction audit,
+        // 2026-10-15): open it, or share the photograph itself, without
+        // opening the viewer first. Delete stays in the viewer, where Undo is.
+        .contextMenu {
+            Button("Open", systemImage: "arrow.up.left.and.arrow.down.right") { onSelect(photo) }
+            ShareLink(item: ImageManager.shared.imageDirectory.appending(path: photo.fileName)) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+        }
         .onAppear { prefetchAhead(of: photo) }
         .accessibilityLabel(photo.spokenName)
         .matchedTransitionSource(id: photo.id, in: transitionNamespace)
