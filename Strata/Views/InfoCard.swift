@@ -25,6 +25,8 @@ struct InfoCard: View {
     /// 2026-10-16, of the carded version: "still a bit not tasteful"). The
     /// smaller words, a lighter stroke on the icons, centred when they fit.
     var quiet = false
+    /// The quiet row's height: 36 under a name, less in a fixed band.
+    var lineHeight: CGFloat = 36
 
     private static let line: CGFloat = 52
     private static let iconWidth: CGFloat = 24
@@ -117,7 +119,7 @@ struct InfoCard: View {
                         .fixedSize()
                 }
                 .padding(.horizontal, GridConstants.gapItem)
-                .frame(minHeight: 36)
+                .frame(minHeight: lineHeight)
                 .accessibilityElement(children: .combine)
             }
         }

@@ -592,11 +592,12 @@ struct PhotoViewer: View {
         // the geocode came back, which resized the photograph you were looking
         // at, and a stage that changes size is worse than 22pt of black.
         VStack(spacing: 2) {
-            Text(caption)
-                .font(Typography.screenSubtitle)
-                // The page's own second ink, light or dark (2026-10-14: the
-                // viewer follows the phone at rest). Both lines share it.
-                .foregroundStyle(AppColors.inkSecondary)
+            // **Facts, organised** (the owner's Hinge pass, 2026-10-16): who,
+            // how big, when, each with its mark and a hairline between, as a
+            // profile's facts sit. Two when three do not fit.
+            InfoCard(chips: captionFacts, quiet: true, lineHeight: 24)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(caption)
             if let place = placeLine {
                 // **Both lines of this caption are now `screenSubtitle`, 15
                 // Medium** (2026-10-01, the type pass). It was 13 Regular here
@@ -626,6 +627,15 @@ struct PhotoViewer: View {
             .accessibilityHidden(current == nil)
     }
 
+
+    private var captionFacts: [InfoCard.Fact] {
+        guard let current else { return [] }
+        var out: [InfoCard.Fact] = []
+        if let who = current.byline { out.append(InfoCard.Fact(icon: "person", text: who)) }
+        out.append(InfoCard.Fact(icon: "square.grid.2x2", text: current.size.effortLabel))
+        out.append(InfoCard.Fact(icon: "clock", text: Self.dayLabel(current.date) + " " + Self.timeLabel(current.date)))
+        return out
+    }
 
     private var caption: String {
         guard let current else { return " " }

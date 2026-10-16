@@ -101,7 +101,7 @@ nonisolated enum YourThree {
     /// Every word a person reads here, in one place, so a test can hold them
     /// to the owner's rules (no long dash; nothing that counts against you).
     nonisolated enum Copy {
-        static let section = "Your Three"
+        static let section = "Your three"
         static let footer = "Small enough for your hardest day. Any of them counts."
         static let empty = "Choose your three"
         static let pickerTitle = "Three for any day"

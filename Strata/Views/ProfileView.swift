@@ -101,6 +101,9 @@ struct ProfileView: View {
         // about 15:1 whichever way round the scheme is.
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Edit Profile", drawn: true)
+        // Hung on the screen, not on its row: a sheet hung inside a form's
+        // row came up unable to take a touch or the keyboard.
+        .sheet(isPresented: $editingHandle) { HandleSheet() }
         .toolbar { doneToolbar }
         // **AFTER `.toolbar`, not before it.** Measured: with the tint applied
         // above, Done still rendered (10, 10, 10). A toolbar item is hosted by
@@ -193,6 +196,19 @@ struct ProfileView: View {
             VStack(spacing: GridConstants.gapItem) {
                 pictureControl
                 nameField
+                // Your username, under your name (`HandleSheet`).
+                if CrewsFlag.isOn {
+                    Button {
+                        HapticsEngine.lightTap()
+                        editingHandle = true
+                    } label: {
+                        Text(store.handle.map { "@" + $0 } ?? "Choose a username")
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(store.handle == nil ? AppColors.inkPrimary : AppColors.inkSecondary)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.pressWord)
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -252,6 +268,8 @@ struct ProfileView: View {
         if !words.isEmpty, words != store.name { store.setName(words) }
         nameDraft = nil
     }
+
+    @State private var editingHandle = false
 
     private var nameField: some View {
         ZStack {

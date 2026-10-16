@@ -12,7 +12,7 @@ struct AlertCheckSection: View {
 
     var body: some View {
         Section {
-            FormSectionLabel("Crew Alerts")
+            FormSectionLabel("Crew alerts")
             row("Allowed", ok: permission == .authorized || permission == .provisional,
                 detail: permissionWords)
             outcomeRow("Registered for alerts", AlertCheck.outcome(.push))

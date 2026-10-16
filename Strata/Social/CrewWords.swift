@@ -103,6 +103,22 @@ nonisolated enum CrewWords {
     /// Lowercased, look-alikes undone, anything not a letter a space.
     private static let swaps: [Character: Character] = ["0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"]
 
+    /// **A username's check** (the username review, 2026-10-16): usernames
+    /// run their words together ("xslurx"), so whole-word matching passes
+    /// them. Every refused term of five letters or more is looked for
+    /// anywhere in the letters; shorter ones only as a whole word or at an
+    /// end, so "tycoon" and "grapes" stay usable.
+    static func isAcceptableHandle(_ handle: String) -> Bool {
+        let words = handle.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: ".", with: " ")
+        guard isAcceptableName(words) else { return false }
+        let letters = fold(handle).replacingOccurrences(of: " ", with: "")
+        for term in foldedRefused.map({ $0.replacingOccurrences(of: " ", with: "") }) {
+            if term.count >= 5, letters.contains(term) { return false }
+            if term.count < 5, letters == term || letters.hasPrefix(term) && letters.count <= term.count + 3 { return false }
+        }
+        return true
+    }
+
     static func fold(_ text: String) -> String {
         let mapped = text.lowercased().folding(options: .diacriticInsensitive, locale: nil)
             .map { swaps[$0] ?? $0 }

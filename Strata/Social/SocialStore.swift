@@ -44,6 +44,10 @@ final class SocialStore {
         }
         // The first word only: a crew needs to know it is Sam, not Sam's
         // surname (spec 4.2, "firstName").
+        store.myHandle = { ProfileStore.shared.handle }
+        store.myHandleSetAt = { ProfileStore.shared.handleSetAt }
+        store.keepMyHandle = { ProfileStore.shared.keepHandle($0, at: $1) }
+        store.forgetMyHandle = { ProfileStore.shared.forgetHandle() }
         store.myFirstName = {
             ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
         }
@@ -151,6 +155,17 @@ final class SocialStore {
     @ObservationIgnored var photosAllowed: () -> Bool = { true }
     /// What you called yourself, for your Member record.
     @ObservationIgnored var myFirstName: () -> String = { "" }
+    /// Your username (`Handle`), told to your crews on your member record.
+    @ObservationIgnored var myHandle: () -> String? = { nil }
+    /// When it was claimed, and where a new one is kept (`ProfileStore`;
+    /// a test's own).
+    @ObservationIgnored var myHandleSetAt: () -> Date? = { nil }
+    @ObservationIgnored var keepMyHandle: (String, Date) -> Void = { _, _ in }
+    @ObservationIgnored var forgetMyHandle: () -> Void = {}
+    /// Friends' usernames that have been checked as theirs (`verifyHandle`),
+    /// by profile, and when; only these are shown.
+    var verifiedHandles: [UUID: String] = [:]
+    @ObservationIgnored var handleChecked: [String: Date] = [:]
     /// Your head, packed to send, or nil for no head.
     @ObservationIgnored var myHeadPack: () async -> Data? = { nil }
     /// **The photo check, for a head** (2026-10-08): every face in the pack
@@ -220,6 +235,12 @@ final class SocialStore {
             defaults.removeObject(forKey: Self.accountKey)
         }
         cloud.reset()
+        // **Another account's username is not this one's** (the username
+        // review): kept, the new account would show @them and write it into
+        // its member records while the claim stays the old account's.
+        forgetMyHandle()
+        verifiedHandles = [:]
+        handleChecked = [:]
         for crew in crews { forget(crew.id) }
         crews = []
         winsByCrew = [:]
@@ -723,7 +744,7 @@ final class SocialStore {
                         timeZoneIdentifier: TimeZone.current.identifier,
                         createdAt: now,
                         photo: nil,
-                        members: [CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now)],
+                        members: [CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now, handle: myHandle())],
                         personal: personal ? true : nil)
         if let picture {
             let file = directory.appending(path: "Photos/\(crew.id.rawValue)/crew-\(UUID().uuidString).jpg")
@@ -824,7 +845,7 @@ final class SocialStore {
                     throw CrewError.unknownCrew
                 }
             }
-            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
+            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now(), handle: myHandle())
             try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
             crew = found
         } catch {
@@ -956,6 +977,7 @@ final class SocialStore {
         hasher.update(data: Data([0]))
         hasher.update(data: Data())
         hasher.update(data: Data(myFirstName().utf8))
+        hasher.update(data: Data((myHandle() ?? "").utf8))
         hasher.update(data: Data(crews.map(\.id.rawValue).sorted().joined(separator: ",").utf8))
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
@@ -1050,6 +1072,7 @@ final class SocialStore {
                 mine.photo = nil
             }
             mine.firstName = myFirstName()
+            mine.handle = myHandle()
             // Held here at once, not only after the next fetch: what this
             // phone shows of you, and what `shareMyselfIfChanged` compares,
             // is what was just sent.
@@ -1853,6 +1876,8 @@ final class SocialStore {
             refreshAgain = false
             await refreshOnce()
         } while refreshAgain
+        await payHandleReleases()
+        await checkHandles()
         if sendsPings {
             writeNoteCache()
             await listenForPings()
@@ -2181,7 +2206,7 @@ final class SocialStore {
     private func repairMissingMembership(in fetched: [Crew]) async {
         for crew in fetched where !crew.isOwner(me) && crew.member(me) == nil && !memberRepairs.contains(crew.id) {
             memberRepairs.insert(crew.id)
-            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
+            let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now(), handle: myHandle())
             do {
                 try await cloud.save(CrewRecords.fields(member), type: .member,
                                      name: CrewRecords.name(of: member), in: crew.id)
@@ -3764,5 +3789,98 @@ extension SocialStore {
             enqueue(.init(crew: crewID, type: .personal, name: name, fields: nil))
         }
         if !tidy.isEmpty { await flush() }
+    }
+}
+
+// MARK: - Your username
+
+extension SocialStore {
+    enum HandleOutcome: Equatable {
+        case saved
+        case same
+        case invalid(String)
+        case taken
+        case tooSoon(Date)
+        case offline
+    }
+
+    /// **Claims a username and makes it yours** (`Handle`). The rules first;
+    /// then once a month; then the public database, first come; then the old
+    /// one is let go and your crews are told (your member record).
+    func setHandle(_ text: String, now: Date = Date()) async -> HandleOutcome {
+        let handle = Handle.normalized(text)
+        let current = myHandle()
+        if handle == current { return .same }
+        if let problem = Handle.problem(handle) { return .invalid(problem) }
+        if current != nil, let next = Handle.nextChange(after: myHandleSetAt(), now: now) { return .tooSoon(next) }
+        do {
+            guard try await cloud.claimHandle(handle) else { return .taken }
+        } catch {
+            return .offline
+        }
+        // Kept first, then the old one let go (the review: let go first, a
+        // phone stopped in between advertised a name anyone could take).
+        keepMyHandle(handle, now)
+        if let old = current, old != handle { oweHandleRelease(old) }
+        await payHandleReleases()
+        // Your crews hear it on your member record.
+        if isEnabled() { await shareMyself() }
+        return .saved
+    }
+}
+
+// MARK: - Usernames, kept honest
+
+extension SocialStore {
+    private static let owedReleasesKey = "crews.owedHandleReleases"
+
+    /// **A username to let go, remembered until it is** (the review: a
+    /// release that failed was never tried again, and the name stayed taken
+    /// for good, Reset All Data's too).
+    func oweHandleRelease(_ handle: String) {
+        var owed = defaults.stringArray(forKey: Self.owedReleasesKey) ?? []
+        if !owed.contains(handle) { owed.append(handle) }
+        defaults.set(owed, forKey: Self.owedReleasesKey)
+    }
+
+    func payHandleReleases() async {
+        let owed = defaults.stringArray(forKey: Self.owedReleasesKey) ?? []
+        guard !owed.isEmpty else { return }
+        var still: [String] = []
+        for handle in owed where handle != myHandle() {
+            if await !cloud.releaseHandle(handle) { still.append(handle) }
+        }
+        defaults.set(still, forKey: Self.owedReleasesKey)
+    }
+
+    /// **A friend's username is shown only once it is theirs** (the review):
+    /// the claim's creator is the account that wrote their member record.
+    /// Checked once a day each. Your own, written by another of your phones,
+    /// is taken up here, so two phones of one account agree.
+    func checkHandles(now: Date = Date()) async {
+        for crew in crews {
+            for member in crew.members {
+                guard let handle = member.handle else {
+                    if member.profileID != me { verifiedHandles[member.profileID] = nil }
+                    continue
+                }
+                let key = "\(member.profileID.uuidString)|\(handle)"
+                if let at = handleChecked[key], now.timeIntervalSince(at) < 86_400 { continue }
+                guard let verdict = await cloud.verifyHandle(handle, of: member.profileID, in: crew.id) else { continue }
+                handleChecked[key] = now
+                if member.profileID == me {
+                    if verdict, myHandle() == nil { keepMyHandle(handle, now) }
+                } else {
+                    verifiedHandles[member.profileID] = verdict ? handle : nil
+                }
+            }
+        }
+    }
+
+    /// What to show after a friend's name: their checked username, or nothing.
+    func shownHandle(of member: CrewMember) -> String? {
+        if member.profileID == me { return myHandle() }
+        guard let handle = member.handle, verifiedHandles[member.profileID] == handle else { return nil }
+        return handle
     }
 }

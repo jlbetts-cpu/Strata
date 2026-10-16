@@ -64,6 +64,16 @@ protocol CrewCloud: AnyObject {
     /// Opens something sealed to this phone's own key.
     func openSealed(_ data: Data, info: Data) -> Data?
     /// Writes a record whole: a key that is absent is cleared.
+    /// **Takes a username for this account** (`Handle`): true when it is
+    /// this account's now, false when someone else has it.
+    func claimHandle(_ handle: String) async throws -> Bool
+    /// Lets one of this account's usernames go: true when it is gone (or
+    /// was never there), false to try again later.
+    @discardableResult func releaseHandle(_ handle: String) async -> Bool
+    /// **Whether a member's username is theirs**: the claim's creator is the
+    /// account that wrote their member record. Nil when it cannot be told.
+    func verifyHandle(_ handle: String, of profileID: UUID, in crew: CrewID) async -> Bool?
+
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws
     func delete(type: CrewRecordType, name: String, in crew: CrewID) async throws
     /// Turns away from a crew just accepted and not joined (the cap was

@@ -92,6 +92,9 @@ nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {
     /// visable in peoples profile"). Nil from a phone on a build before it.
     var score: Int? = nil
     var wins: Int? = nil
+    /// **Their username** (`Handle`), shown as @them. Nil before they chose
+    /// one, or from a build before it.
+    var handle: String? = nil
 
     var id: UUID { profileID }
 

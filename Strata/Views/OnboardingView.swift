@@ -132,6 +132,13 @@ struct OnboardingView: View {
     /// The lock's way past: the Settings switch stays off.
     private static let lockLater = "Not Now"
     @State private var name = ""
+    /// Your username, chosen with your name (`Handle`; the owner, 2026-10-16:
+    /// "they should keep their username from their login"). Claimed on
+    /// Continue; a name someone has stays here with why.
+    @State private var handleText = ProfileStore.shared.handle ?? ""
+    @State private var handleNote: String?
+    @State private var claimingHandle = false
+    @State private var handleSettled = false
     @FocusState private var nameFocused: Bool
     @AppStorage(DailyGoal.defaultsKey) private var dailyGoal = DailyGoal.standard
     @AppStorage(YourThree.defaultsKey) private var threeRaw = ""
@@ -612,6 +619,20 @@ struct OnboardingView: View {
     /// One field, and nothing else on the page. The name a person already
     /// has (a second run of onboarding) is in it.
     private var namePage: some View {
+        VStack(spacing: GridConstants.gapWide) {
+            Spacer(minLength: 0)
+            nameEntry
+            if CrewsFlag.isOn {
+                HandleField(text: $handleText, note: claimingHandle ? "Checking" : handleNote, onSubmit: {
+                    if canAdvance { advance() }
+                })
+                .onChange(of: handleText) { handleNote = nil; handleSettled = false }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var nameEntry: some View {
         TextField("Your name", text: $name, prompt: Text("Your name").foregroundStyle(AppColors.inkTertiary))
             .font(Typography.screenTitle)
             .foregroundStyle(AppColors.inkPrimary)
@@ -1481,7 +1502,11 @@ struct OnboardingView: View {
     private var canAdvance: Bool {
         if step == 1 { return hasDrawn }
         if step == Self.threeStep { return !threePicked.isEmpty }
-        if step == Self.nameStep { return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if step == Self.nameStep {
+            let named = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard CrewsFlag.isOn else { return named }
+            return named && !claimingHandle && Handle.problem(Handle.normalized(handleText)) == nil
+        }
         return true
     }
 
@@ -1508,6 +1533,12 @@ struct OnboardingView: View {
     }
 
     private func advance() {
+        // The username is claimed before the page is left: first come.
+        if step == Self.nameStep, CrewsFlag.isOn, !handleSettled,
+           Handle.normalized(handleText) != (ProfileStore.shared.handle ?? "") {
+            claimHandleThenAdvance()
+            return
+        }
         // **The map page is where the asking belongs.**
         //
         // It is the one screen that has just explained what the permission is
@@ -1534,6 +1565,29 @@ struct OnboardingView: View {
         Analytics.shared.signal(.onboardingStep, [.step(step), .action(.done)])
         guard step < lastStep else { finish(); return }
         withAnimation(GridConstants.motionSnappy) { step = next(after: step) }
+    }
+
+    private func claimHandleThenAdvance() {
+        claimingHandle = true
+        Task {
+            let outcome = await SocialStore.shared.setHandle(handleText)
+            claimingHandle = false
+            switch outcome {
+            case .saved, .same:
+                handleSettled = true
+                advance()
+            case .taken: handleNote = "Taken. Try another."
+            case .invalid(let why): handleNote = why
+            case .tooSoon:
+                handleSettled = true
+                advance()
+            // Said, not skipped (the review): the next Continue goes on, and
+            // it can be chosen in Edit Profile.
+            case .offline:
+                handleNote = "Couldn't reach iCloud. Continue, and choose it later in Edit Profile."
+                handleSettled = true
+            }
+        }
     }
 
     /// The end of the walkthrough. On the first-win page the win is queued

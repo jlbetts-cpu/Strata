@@ -76,6 +76,7 @@ extension DebugHarness {
                                    directory: support.appending(path: "\(i)", directoryHint: .isDirectory))
             made.isEnabled = { true }
             made.myFirstName = { name }
+            made.myHandle = { name.lowercased() }
             return made
         }
         let host = friend("Sam", 0), other = friend("Ana", 1)
@@ -140,6 +141,7 @@ extension DebugHarness {
                 friend.isEnabled = { true }
                 let name = friendNames[(f + c) % friendNames.count]
                 friend.myFirstName = { name }
+                friend.myHandle = { name.lowercased() }
                 friend.now = { Date().addingTimeInterval(-back) }
                 _ = try? await friend.accept(CrewInvite(url: link))
                 friend.now = Date.init

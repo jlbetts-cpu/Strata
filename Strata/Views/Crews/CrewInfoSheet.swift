@@ -59,6 +59,8 @@ struct CrewInfoSheet: View {
                     stripSection
                     CrewStatsSections(crew: crew) { replay = $0 }
                     Section {
+                        // Inside the card, as every section's title is now.
+                        FormSectionLabel(crew.members.count == 1 ? "1 person" : "\(crew.members.count) people")
                         ForEach(members(crew)) { member in
                             memberRow(member, in: crew)
                         }
@@ -73,10 +75,6 @@ struct CrewInfoSheet: View {
                                     .font(Typography.bodyLarge)
                             }
                         }
-                    } header: {
-                        // The page's one header style, as Crew Streak and
-                        // Days above it have.
-                        FormSectionLabel(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
                     } footer: {
                         Text("Everyone here sees the wins sent to this crew.")
                             .formFooter()
@@ -202,7 +200,7 @@ struct CrewInfoSheet: View {
     private var stripSection: some View {
         let frames = strip.map { $0.frames(excluding: StripKeeping.excluded($0.owner, day: $0.day)) } ?? []
         return Section {
-            FormSectionLabel("Today's Strip")
+            FormSectionLabel("Today's strip")
             Button {
                 HapticsEngine.lightTap()
                 showsStrip = true
@@ -491,7 +489,7 @@ struct CrewInfoSheet: View {
         let hidden = store.hiddenWins(in: crewID)
         if !hidden.isEmpty {
             Section {
-                FormSectionLabel("Hidden for You")
+                FormSectionLabel("Hidden for you")
                 ForEach(hidden, id: \.winID) { win in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {

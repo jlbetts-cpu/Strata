@@ -388,7 +388,7 @@ struct SettingsView: View {
             }
 
             Section {
-                FormSectionLabel("Sounds & Haptics")
+                FormSectionLabel("Sounds & haptics")
                 Toggle(isOn: Binding(
                     get: { !SoundEngine.isMuted },
                     set: { SoundEngine.isMuted = !$0 }

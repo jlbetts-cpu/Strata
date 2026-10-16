@@ -56,7 +56,7 @@ struct ProfileHeader: View {
         let _ = store.bannerChanged
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
                    figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true,
-                   banner: banner, chips: chips)
+                   banner: banner, chips: chips, handle: store.handle)
             // **Edit this month's banner** from a hold, as a hold edits
             // everything else here.
             .contextMenu {
@@ -108,6 +108,8 @@ struct ProfileTop: View {
     var banner: [BannerPicture]? = nil
     /// Short facts under the name, Hinge's way (`InfoCard`): yours.
     var chips: [InfoCard.Fact] = []
+    /// @them, under the name, when they have one (`Handle`).
+    var handle: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let headSide: CGFloat = 76
@@ -151,6 +153,12 @@ struct ProfileTop: View {
                             .foregroundStyle(AppColors.inkTertiary)
                             .accessibilityHidden(true)
                     }
+                }
+                if let handle {
+                    Text(verbatim: "@" + handle)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .padding(.top, -GridConstants.gapTight)
                 }
                 if !chips.isEmpty {
                     InfoCard(chips: chips, quiet: true)

@@ -93,7 +93,7 @@ nonisolated enum CrewRecords {
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo", "personal"]
     /// Who it is from and to, and the invitation sealed to `to` alone.
     static let personalKeys: Set<String> = ["from", "sealed", "createdAt"]
-    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
+    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt", "handle"]
     /// Sealed in the item's box like every record (`CrewItemBox`), so the
     /// server's schema does not change.
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
@@ -329,6 +329,7 @@ nonisolated enum CrewRecords {
         ]
         if let head = member.head { fields["head"] = .asset(head) }
         if let photo = member.photo { fields["photo"] = .asset(photo) }
+        if let handle = member.handle { fields["handle"] = .string(handle) }
         return fields
     }
 
@@ -338,7 +339,9 @@ nonisolated enum CrewRecords {
                           firstName: CrewWords.kept(fields["firstName"]?.string ?? ""),
                           head: fields["head"]?.asset,
                           joinedAt: fields["joinedAt"]?.date ?? .distantPast,
-                          photo: fields["photo"]?.asset)
+                          photo: fields["photo"]?.asset,
+                          // Only a username that keeps the rules is shown.
+                          handle: fields["handle"]?.string.map(Handle.normalized).flatMap { Handle.problem($0) == nil ? $0 : nil })
     }
 
     // MARK: Score

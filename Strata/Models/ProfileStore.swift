@@ -64,6 +64,26 @@ final class ProfileStore {
 
     private static let nameKey = "profileName"
     private static let bannerKey = "profileBannerByMonth"
+    private static let handleKey = "profileHandle"
+    private static let handleSetKey = "profileHandleSetAt"
+
+    /// **Your username** (`Handle`), once you have claimed one, and when.
+    var handle: String? { UserDefaults.standard.string(forKey: Self.handleKey) }
+    var handleSetAt: Date? { UserDefaults.standard.object(forKey: Self.handleSetKey) as? Date }
+
+    /// Gone from this phone (another iCloud account signed in).
+    func forgetHandle() {
+        UserDefaults.standard.removeObject(forKey: Self.handleKey)
+        UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
+        bannerChanged += 1
+    }
+
+    /// Kept once the public database has given it to you (`SocialStore.setHandle`).
+    func keepHandle(_ handle: String, at date: Date = Date()) {
+        UserDefaults.standard.set(handle, forKey: Self.handleKey)
+        UserDefaults.standard.set(date, forKey: Self.handleSetKey)
+        bannerChanged += 1
+    }
     private static let backgroundKey = "profileBackground"
     /// The largest the picture is drawn is 88pt — 264px at 3x. 600 leaves
     /// room without holding a camera-sized image in memory for a circle.
@@ -152,6 +172,8 @@ final class ProfileStore {
         SocialStore.noteMyselfChanged()
         setBackground(nil)
         UserDefaults.standard.removeObject(forKey: Self.bannerKey)
+        UserDefaults.standard.removeObject(forKey: Self.handleKey)
+        UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
         bannerChanged += 1
     }
 

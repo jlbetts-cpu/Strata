@@ -5,6 +5,8 @@ import Foundation
 /// phones. Tests make two `FakeCrewCloud`s on one world to play two friends.
 @MainActor
 final class FakeCrewWorld {
+    /// Every username taken, and whose (`claimHandle`).
+    var handles: [String: UUID] = [:]
     struct Zone {
         var owner: UUID
         var participants: Set<UUID>
@@ -64,6 +66,26 @@ final class FakeCrewCloud: CrewCloud {
 
     func openSealed(_ data: Data, info: Data) -> Data? {
         world.agreements[myProfileID].flatMap { CrewSealedNote.open(data, with: $0, info: info) }
+    }
+
+    /// Usernames, first come, as the public database holds them.
+    func claimHandle(_ handle: String) async throws -> Bool {
+        try touch()
+        if let owner = world.handles[handle] { return owner == myProfileID }
+        world.handles[handle] = myProfileID
+        return true
+    }
+
+    @discardableResult
+    func releaseHandle(_ handle: String) async -> Bool {
+        if offline { return false }
+        if world.handles[handle] == myProfileID { world.handles[handle] = nil }
+        return true
+    }
+
+    func verifyHandle(_ handle: String, of profileID: UUID, in crew: CrewID) async -> Bool? {
+        if offline { return nil }
+        return world.handles[handle] == profileID
     }
 
     func prepare() async {}

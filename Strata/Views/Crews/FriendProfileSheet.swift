@@ -215,7 +215,8 @@ struct FriendProfileSheet: View {
                            // This month's, by the rule yours keeps.
                            banner: recent.filter { Calendar.current.isDate($0.createdAt, equalTo: Date(), toGranularity: .month) }
                                .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
-                           chips: chips(today: today.count))
+                           chips: chips(today: today.count),
+                           handle: store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member))
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }

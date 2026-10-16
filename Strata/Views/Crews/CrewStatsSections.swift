@@ -231,7 +231,7 @@ struct CrewStatsSections: View {
     /// Profile, so a break never looks like the record was lost.
     private var streak: some View {
         Section {
-            FormSectionLabel("Crew Streak")
+            FormSectionLabel("Crew streak")
             // The same quiet line as Your day's (2026-10-16).
             InfoCard(chips: [
                 InfoCard.Fact(icon: "flame", text: stats.current == 1 ? "1 day now" : "\(stats.current) days now"),
@@ -256,7 +256,7 @@ struct CrewStatsSections: View {
     /// only a couple of days and the video was the only way to keep one.
     private var days: some View {
         Section {
-            FormSectionLabel("Recent Days")
+            FormSectionLabel("Recent days")
             // **The crew's week, put together** (the owner's Launch Pack,
             // 2026-10-12: "consider a crew weekly or monthly recap"). The
             // replay the app already makes of your own week, of the wins

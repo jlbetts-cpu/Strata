@@ -2780,6 +2780,13 @@ struct MainAppView: View {
         guard resetTower() else { return false }
         // The policy says Reset All Data removes every photo; a
         // profile photo is one, and a head is made of them.
+        // Your username goes back to everyone (`Handle`), before the record
+        // of it here is wiped.
+        // Owed until it is gone, so a failed try is tried again.
+        if CrewsFlag.isOn, let handle = ProfileStore.shared.handle {
+            SocialStore.shared.oweHandleRelease(handle)
+            Task { await SocialStore.shared.payHandleReleases() }
+        }
         ProfileStore.shared.reset()
         HeadStore.shared.delete()
         // Your wins leave every crew with the record.

@@ -43,7 +43,7 @@ struct YourDaySheet: View {
             List {
                 identity
                 Section {
-                    FormSectionLabel("Daily Goal")
+                    FormSectionLabel("Daily goal")
                     HStack(spacing: GridConstants.gapLabel) {
                         Text("Wins a day")
                             .font(Typography.bodyLarge)
@@ -90,7 +90,7 @@ struct YourDaySheet: View {
                 // today's first. A strip that was never developed is not
                 // shown, and a week with none shows only its rings.
                 Section {
-                    FormSectionLabel("This Week")
+                    FormSectionLabel("This week")
                     week
                     if !printed.isEmpty { weekStrips }
                 }

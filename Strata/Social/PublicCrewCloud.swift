@@ -915,6 +915,72 @@ final class PublicCrewCloud: CrewCloud {
 
     private static func suffix() -> String { String(UUID().uuidString.prefix(8)) }
 
+    // MARK: Usernames
+
+    /// **A username is a record with its name, and nothing in it** (2026-10-16).
+    /// The crew items' own type, so the schema does not change; with no
+    /// `crew` it matches no crew's read and no alert's subscription. The
+    /// public database lets only its creator change or delete it, so the
+    /// first account to save it has it: `.ifServerRecordUnchanged` on a new
+    /// record never writes over one that is there.
+    func claimHandle(_ handle: String) async throws -> Bool {
+        let mine = try await me()
+        let id = CKRecord.ID(recordName: Handle.recordName(handle))
+        // Twice at most: a claim let go between the refusal and the read is
+        // free again.
+        for _ in 0..<2 {
+            let record = CKRecord(recordType: Self.recordType, recordID: id)
+            do {
+                let result = try await database.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged)
+                if case .failure(let error)? = result.saveResults[id] { throw error }
+                return true
+            } catch let error as CKError where [.serverRecordChanged, .permissionFailure, .constraintViolation].contains(error.code) {
+                // **Decided by the record, not the error's code** (the
+                // review): whichever refusal the server gives for a name that
+                // is there, its creator says whose it is.
+                let existing: CKRecord
+                if let server = error.serverRecord {
+                    existing = server
+                } else {
+                    do {
+                        existing = try await database.record(for: id)
+                    } catch let missing as CKError where missing.code == .unknownItem {
+                        continue
+                    }
+                }
+                return owner(existing.creatorUserRecordID) == mine
+            }
+        }
+        return false
+    }
+
+    @discardableResult
+    func releaseHandle(_ handle: String) async -> Bool {
+        do {
+            _ = try await database.deleteRecord(withID: CKRecord.ID(recordName: Handle.recordName(handle)))
+            return true
+        } catch let error as CKError where error.code == .unknownItem {
+            return true
+        } catch {
+            Self.log.notice("username not let go: \(error)")
+            return false
+        }
+    }
+
+    func verifyHandle(_ handle: String, of profileID: UUID, in crew: CrewID) async -> Bool? {
+        guard let writer = cache[crew]?["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"]?[Self.creatorKey]?.string,
+              writer != CKCurrentUserDefaultName else { return nil }
+        _ = try? await me()
+        do {
+            let record = try await database.record(for: CKRecord.ID(recordName: Handle.recordName(handle)))
+            return owner(record.creatorUserRecordID) == writer
+        } catch let error as CKError where error.code == .unknownItem {
+            return false
+        } catch {
+            return nil
+        }
+    }
+
     private func crewRecord(_ crew: CrewID) -> RecordFields? {
         cache[crew]?["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"]
     }

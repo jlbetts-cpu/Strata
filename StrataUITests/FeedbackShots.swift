@@ -2034,6 +2034,25 @@ final class FeedbackShots: XCTestCase {
         app.swipeUp(); wait(1.2); snap("fphotos-2")
     }
 
+    /// Usernames: Edit Profile's row, the sheet, a claim (2026-10-16).
+    func testUsername() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "memories",
+                          "-strataSeedWins", "3", "-strataSeedHead", "1", "-strataOpenSheet", "profile"])
+        wait(7); snap("user-0-edit")
+        let row = app.buttons["Choose a username"].firstMatch
+        print("PLANNING-user row \(row.exists)")
+        if row.exists { row.tap() }
+        wait(1.5)
+        let field = app.textFields.firstMatch
+        if field.waitForExistence(timeout: 2) { field.tap() }
+        wait(0.6)
+        app.typeText("Sam.B")
+        wait(0.8); snap("user-1-typed")
+        app.typeText("\n")
+        wait(2.5); snap("user-2-saved")
+        print("PLANNING-user saved \(app.staticTexts["@sam.b"].exists || app.buttons["@sam.b"].exists)")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])
