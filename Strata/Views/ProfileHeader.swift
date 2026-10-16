@@ -189,32 +189,71 @@ struct YourScoreSheet: View {
 
     private var profile: ProfileStore { .shared }
 
+    /// The figures, across the top of the card.
+    private func chips(_ stats: ProfileStats) -> [InfoCard.Fact] {
+        var out = [
+            InfoCard.Fact(icon: "star", text: "\(stats.score) score"),
+            InfoCard.Fact(icon: "flame", text: vm.currentStreak == 1 ? "1 day streak" : "\(vm.currentStreak) day streak"),
+            InfoCard.Fact(icon: "checkmark.circle", text: stats.wins == 1 ? "1 win" : "\(stats.wins) wins"),
+        ]
+        if vm.bestStreak > 1 { out.append(InfoCard.Fact(icon: "trophy", text: "Best \(vm.bestStreak) days")) }
+        if CrewsFlag.isOn {
+            let crews = SocialStore.shared.groupCrewCount
+            out.append(InfoCard.Fact(icon: "person.2", text: crews == 1 ? "1 crew" : "\(crews) crews"))
+        }
+        return out
+    }
+
+    /// The facts about your record, a line each; only the ones that are true
+    /// yet, so a new account is a short card, not a list of zeros.
+    private func facts(_ stats: ProfileStats, entries: [StatsData.Entry]) -> [InfoCard.Fact] {
+        var out: [InfoCard.Fact] = []
+        let perDay = Dictionary(grouping: entries, by: \.day).mapValues(\.count)
+        let met = perDay.values.filter { $0 >= dailyGoal }.count
+        if met > 0 {
+            out.append(InfoCard.Fact(icon: "target", text: met == 1 ? "Reached your goal on 1 day" : "Reached your goal on \(met) days"))
+        }
+        if let best = perDay.max(by: { $0.value < $1.value }), best.value > 1,
+           let date = DateUtils.date(from: best.key) {
+            out.append(InfoCard.Fact(icon: "sparkles",
+                                     text: "Best day, \(best.value) wins on \(date.formatted(.dateTime.month(.wide).day()))"))
+        }
+        if let day = stats.bestDay { out.append(InfoCard.Fact(icon: "calendar", text: "Most wins on \(day)s")) }
+        if stats.photos > 0 {
+            out.append(InfoCard.Fact(icon: "camera", text: stats.photos == 1 ? "1 win with a photo" : "\(stats.photos) wins with a photo"))
+        }
+        if let first = perDay.keys.min(), let date = DateUtils.date(from: first) {
+            out.append(InfoCard.Fact(icon: "leaf", text: "Winning since \(date.formatted(.dateTime.month(.wide).day().year()))"))
+        }
+        return out
+    }
+
     var body: some View {
         let stats = stats
         let entries = entries
         Form {
-            // **You, then your figures** (the owner, 2026-10-16: "the stats
-            // header looks pretty lame ... combine the profile and stats").
-            // Your head alive, your name, and three glass tiles: the score,
-            // the streak, and this week.
+            // **You, then your facts, organised** (the owner, 2026-10-16:
+            // "the stats header looks pretty lame"; then, after Hinge, "organize
+            // information using icons and clean hairline dividers"). Your head
+            // alive and your name; then one card (`InfoCard`): the figures
+            // across the top, sideways when they do not fit, and the facts
+            // about your record a line each.
             Section {
                 VStack(spacing: GridConstants.gapItem) {
-                    PersonHead(person: .me, side: 88, life: .expressive, setting: .disc(.quiet))
+                    PersonHead(person: .me, side: 80, life: .expressive, setting: .disc(.quiet))
                     Text(profile.name.isEmpty ? "Your Name" : profile.name)
                         .font(Typography.headerMedium)
                         .foregroundStyle(profile.name.isEmpty ? AppColors.inkTertiary : AppColors.inkPrimary)
-                    HStack(spacing: GridConstants.gapItem) {
-                        tile(stats.score, "score")
-                        tile(vm.currentStreak, "day streak")
-                        tile(stats.wins, stats.wins == 1 ? "win" : "wins")
-                    }
-                    .padding(.top, GridConstants.gapTight)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
             }
             .listRowBackground(Color.clear)
+
+            Section {
+                InfoCard(chips: chips(stats), rows: facts(stats, entries: entries))
+                    .listRowInsets(EdgeInsets())
+            }
 
             Section {
                 WeekWinsChart(days: StatsData.week(entries, today: Date()), goal: dailyGoal)
@@ -264,32 +303,5 @@ struct YourScoreSheet: View {
         }
         .tint(AppColors.inkPrimary)
         .task { vm.load(context: modelContext) }
-    }
-
-    /// A figure on glass: the number large, what it is under it.
-    private func tile(_ value: Int, _ word: String) -> some View {
-        VStack(spacing: 2) {
-            // Not the tally's 34 (the owner, 2026-10-16: "some text is too
-            // large, I don't like big text like that"): the heading's size.
-            Text(verbatim: StrataFont.digits(value))
-                .font(Typography.headerMedium)
-                .monospacedDigit()
-                .foregroundStyle(AppColors.inkPrimary)
-                .contentTransition(.numericText(value: Double(value)))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(word)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, GridConstants.gapItem)
-        // Flat, with the thin outline the owner likes; glass cast a shadow.
-        .background {
-            let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-            shape.fill(AppColors.quietFill)
-                .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.08), lineWidth: GridConstants.strokeThin))
-        }
     }
 }
