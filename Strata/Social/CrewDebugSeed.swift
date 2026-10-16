@@ -220,6 +220,16 @@ extension DebugHarness {
                 }
             }
         }
+        // `-strataSeedInvited 1`: two people invited from contacts and not yet
+        // in, one with a contact picture, one without.
+        if argument("-strataSeedInvited") != nil, let crew = store.crews.first {
+            let face = UIImage(named: "DemoPhoto8")?.jpegData(compressionQuality: 0.8)
+                .flatMap { ShareDerivative.jpeg(from: $0, longEdge: 120) }
+            InvitedPeople.shared.add(InvitedPerson(id: UUID(), name: "Maya Chen", photo: face,
+                                                   crew: crew.id.rawValue, sentAt: Date()))
+            InvitedPeople.shared.add(InvitedPerson(id: UUID(), name: "Jordan", photo: nil,
+                                                   crew: crew.id.rawValue, sentAt: Date()))
+        }
         // `-strataSeedStories <n>`: n friends on tonight's story, the first
         // with two wins (photos on every other); `-strataSeedMyStory 1` puts
         // one of yours on it too, `-strataStorySeen 1` has the last of them

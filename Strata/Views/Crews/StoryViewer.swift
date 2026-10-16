@@ -2,14 +2,15 @@ import SwiftUI
 
 /// **Tonight's Story, watched** (the spec, 1.4 and 3; the plan, R9 to R11).
 ///
-/// One win a page, full screen, with segments at the top that fill on their
-/// own; a hold pauses, a tap on the right goes on and on the left goes back,
-/// a swipe across goes to the next friend and a swipe down closes. Under the
-/// picture, the block's own label (its name, Quick, Regular or Deep, its
-/// colour), and under that the same reactions a crew's tower has, with Reply
-/// into the crew's chat. On the page, not on black, as every photograph in
-/// the app is shown (`PhotoViewer`), so a story is the tower's blocks seen at
-/// night rather than a second app inside this one.
+/// **As Snapchat and Instagram show a story, and as this app's camera is
+/// framed** (the owner, 2026-10-16: "the story is most of the screen like it
+/// is on the camera, light bottom black top, with the head in the corner with
+/// the name and the bar up top"). One win a page as a card most of the screen
+/// tall under the camera's black band, with the segments, their head and
+/// their name over the top of the picture; under it, on the page, the
+/// block's own label and the tower's reactions, with Reply into the crew's
+/// chat. A hold pauses, a tap on the right goes on and on the left goes back,
+/// a swipe across goes to the next friend and a swipe down closes.
 ///
 /// **Never shown:** who watched, how many, a time, a count of stories.
 struct StoryViewer: View {
@@ -53,6 +54,17 @@ struct StoryViewer: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // **Black above, the page below**, as the camera stands (its
+        // `CameraCard`): the band runs from the top of the screen down behind
+        // the card's top corners.
+        .background(alignment: .top) {
+            GeometryReader { geo in
+                Color.black
+                    .frame(height: geo.safeAreaInsets.top + GridConstants.radiusSurface)
+                    .offset(y: -geo.safeAreaInsets.top)
+            }
+            .allowsHitTesting(false)
+        }
         .background { WarmBackground().ignoresSafeArea() }
         .offset(y: drop)
         .scaleEffect(1 - min(drop, 400) / 4000, anchor: .top)
@@ -130,15 +142,16 @@ private struct StoryPage: View {
     }
 
     var body: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            top
+        VStack(spacing: 0) {
             card
-            label
-            foot
+                .overlay(alignment: .top) { top }
+            VStack(spacing: GridConstants.gapItem) {
+                label
+                foot
+            }
+            .padding(.horizontal, hPad)
+            .padding(.vertical, GridConstants.gapItem)
         }
-        .padding(.horizontal, hPad)
-        .padding(.top, GridConstants.gapTight)
-        .padding(.bottom, GridConstants.gapItem)
         .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: story.win.crewID) }
         .confirmationDialog("Block \(name)?", isPresented: $blocking, titleVisibility: .visible) {
             Button("Block", role: .destructive) {
@@ -177,11 +190,14 @@ private struct StoryPage: View {
 
     // MARK: The top
 
+    /// Over the top of the picture, in white, on a short shade of the
+    /// picture itself so the words read on a bright sky.
     private var top: some View {
         VStack(spacing: GridConstants.gapTight) {
             StoryProgress(count: person.stories.count, index: page, paused: paused,
                           length: Self.pageLength, finished: forward)
                 .id("\(person.id)-\(page)-\(isCurrent)")
+                .padding(.top, GridConstants.gapTight)
             HStack(spacing: GridConstants.gapTight) {
                 Group {
                     if mine {
@@ -193,14 +209,31 @@ private struct StoryPage: View {
                 .accessibilityHidden(true)
                 Text(name)
                     .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkPrimary)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 actions
-                GlassIconButton(systemName: "xmark", onPage: true, accessibilityLabel: "Close story", action: close)
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressWord)
+                .accessibilityLabel("Close story")
             }
-            .buttonStyle(.plain)
         }
+        .padding(.horizontal, GridConstants.gapItem)
+        .padding(.bottom, GridConstants.gapWide)
+        .background {
+            // A shade of the picture, not a surface: it is drawn into the
+            // card and goes with it, so white words read on a bright sky.
+            LinearGradient(colors: [.black.opacity(0.38), .clear], startPoint: .top, endPoint: .bottom)
+                .allowsHitTesting(false)
+        }
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: GridConstants.radiusSurface,
+                                          topTrailingRadius: GridConstants.radiusSurface, style: .continuous))
     }
 
     private var actions: some View {
@@ -228,7 +261,11 @@ private struct StoryPage: View {
                 }
             }
         } label: {
-            GlassIconLabel(systemName: "ellipsis", tint: .primary, onPage: true)
+            Image(systemName: "ellipsis")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("Story actions")
     }
@@ -237,7 +274,8 @@ private struct StoryPage: View {
 
     private var card: some View {
         GeometryReader { geo in
-            let shape = RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+            // The camera's own card (`CameraView`'s `radiusSurface`).
+            let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
             Group {
                 if let url = story.win.photo {
                     CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height,
@@ -350,9 +388,9 @@ private struct StoryProgress: View {
             HStack(spacing: 4) {
                 ForEach(0..<count, id: \.self) { i in
                     GeometryReader { geo in
-                        Capsule().fill(AppColors.inkPrimary.opacity(0.18))
+                        Capsule().fill(Color.white.opacity(0.35))
                             .overlay(alignment: .leading) {
-                                Capsule().fill(AppColors.inkPrimary)
+                                Capsule().fill(Color.white)
                                     .frame(width: geo.size.width * fill(i))
                             }
                     }

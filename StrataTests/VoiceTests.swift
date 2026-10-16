@@ -51,7 +51,9 @@ struct VoiceTests {
         #expect(CrewErrorWords.fullCrew.contains("eight"))
         // An unnamed crew's invite does not read "Join Sam" or "Join New Crew".
         let sharing = try code("Strata/Views/Crews/CrewSharing.swift")
-        #expect(sharing.contains("let title = name.isEmpty ? message : \"Join \\(name) on Some Wins\""))
+        // One `title(for:)` since 2026-10-16, shared by the share sheet and
+        // the text to a chosen contact.
+        #expect(sharing.contains("return name.isEmpty ? message : \"Join \\(name) on Some Wins\""))
         #expect(CrewStats.streakLine(people: 2, waiting: 0) == "You're both in today.")
         #expect(CrewStats.streakLine(people: 8, waiting: 0) == "Everyone's in today.")
     }

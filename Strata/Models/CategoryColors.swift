@@ -557,24 +557,11 @@ enum AppColors {
     /// something is written in.
     static let warmRed = Color(hex: 0xE85D4A)
 
-    /// **The evening colour: Tonight's Story** (the spec, 2026-10-15, 2:
-    /// "one flat colour checked against the six category colours and the
-    /// Social coral. A dusk violet to start; the value is his"). Deeper and
-    /// bluer than Creativity's lavender (0xAF9CFA), so a story ring is never
-    /// read as a block. Ink for the outline, the ring and the words: 5.9:1
-    /// on the page, and a lighter violet on dark, 5.8:1 (measured).
-    static let evening = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.584, green: 0.525, blue: 1.0, alpha: 1)    // #9586FF
-            : UIColor(red: 0.357, green: 0.278, blue: 0.839, alpha: 1)  // #5B47D6
-    })
-    /// Behind white words (the row turned on): white on it reads 6.3:1 light
-    /// and 5.0:1 dark.
-    static let eveningFill = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.420, green: 0.345, blue: 0.910, alpha: 1)  // #6B58E8
-            : UIColor(red: 0.357, green: 0.278, blue: 0.839, alpha: 1)  // #5B47D6
-    })
+    // **The evening colour is deleted** (2026-10-16, the owner: "the color is
+    // not important please remove that"). A story is drawn in ink: the
+    // ring is `DoodleRing` in `drawingInk`, the choice is the ink outline every
+    // primary button wears. For the record, its dark value #9586FF had
+    // measured CIEDE2000 2.8 from Work blue under deuteranopia.
 
     // MARK: - Four colours deleted, 2026-10-01
     //

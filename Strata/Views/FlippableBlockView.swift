@@ -205,12 +205,12 @@ struct FlippableBlockView: View {
                         .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
                 }
             }
-            // Tonight's story, on a friend's profile: an edge in the evening
-            // colour, the ring their head wears in the row (R13).
+            // Tonight's story, on a friend's profile: an ink edge, the line
+            // their head wears in the row (R13; ink since 2026-10-16).
             .overlay {
                 if block.look.onStory {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(AppColors.evening, lineWidth: 2.5)
+                        .strokeBorder(AppColors.drawingInk, lineWidth: 2.6)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }

@@ -3,9 +3,9 @@ import SwiftUI
 /// **Add to Tonight's Story** (the owner, 2026-10-15: the story selector is
 /// "its own row in a different colour and a different spot"; the spec, 2).
 ///
-/// Under the block, at the foot of Add a Win, the last decision on the page.
-/// Off, an outline in the evening colour; on, filled, with the one line that
-/// is the whole lesson under it. Off for every new win and never remembered:
+/// On Edit, under the block (a new win chooses it on Send To). Off, an ink
+/// outline; on, filled ink, with the one line that is the whole lesson under
+/// it. Off for every new win and never remembered:
 /// unlike the crews, a story is a decision each time.
 struct TonightsStoryRow: View {
     @Binding var isOn: Bool
@@ -34,14 +34,17 @@ struct TonightsStoryRow: View {
                         .font(Typography.headerSmall)
                         .lineLimit(1)
                 }
-                .foregroundStyle(isOn ? Color.white : AppColors.evening)
+                // **Ink, no colour of its own** (the owner, 2026-10-16: "the
+                // color is not important please remove that"): an ink outline
+                // off, filled ink on, as the app's primary buttons are.
+                .foregroundStyle(isOn ? WarmBackground.top : AppColors.inkPrimary)
                 .padding(.horizontal, GridConstants.gapWide)
                 .frame(minHeight: 44)
                 .background {
                     if isOn {
-                        Capsule().fill(AppColors.eveningFill)
+                        Capsule().fill(AppColors.inkPrimary)
                     } else {
-                        Capsule().strokeBorder(AppColors.evening, lineWidth: 1.5)
+                        Capsule().strokeBorder(AppColors.inkPrimary, lineWidth: 1.5)
                     }
                 }
                 .contentShape(Capsule())

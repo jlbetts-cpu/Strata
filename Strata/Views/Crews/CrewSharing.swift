@@ -29,7 +29,15 @@ enum CrewSharing {
     /// database). The system share sheet sends `CrewInviteLink`'s page with
     /// a rich preview (the crew's name and your tower), so Messages shows a
     /// card a friend taps to open the app straight into the crew.
-    static func invite(_ crewID: CrewID, card: UIImage? = nil) async {
+    /// The invitation's title: the crew's name when somebody typed one.
+    static func title(for crewID: CrewID) -> String {
+        let name = CrewWords.kept(SocialStore.shared.crew(crewID)?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? message : "Join \(name) on Some Wins"
+    }
+
+    /// `onSent`: told once the sheet says it went (`InvitePicking`, whose
+    /// chosen person then stands on the row as invited).
+    static func invite(_ crewID: CrewID, card: UIImage? = nil, onSent: (() -> Void)? = nil) async {
         let card = card ?? nextCard
         nextCard = nil
         let store = SocialStore.shared
@@ -38,8 +46,7 @@ enum CrewSharing {
             // Only a name somebody typed. An unnamed crew is shown by its
             // people, so a pair's invite read "Join Sam on Some Wins" and a
             // new one "Join New Crew on Some Wins".
-            let name = CrewWords.kept(store.crew(crewID)?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let title = name.isEmpty ? message : "Join \(name) on Some Wins"
+            let title = title(for: crewID)
             let sheet = UIActivityViewController(activityItems: [InviteItem(url: url, title: title, card: card)],
                                                  applicationActivities: nil)
             // **Counted when it went, not when the sheet opened** (the invites
@@ -47,7 +54,10 @@ enum CrewSharing {
             // so the one number that says whether invites work could not be
             // read.
             sheet.completionWithItemsHandler = { _, completed, _, _ in
-                if completed { Analytics.shared.signal(.crewInviteSent) }
+                if completed {
+                    Analytics.shared.signal(.crewInviteSent)
+                    onSent?()
+                }
             }
             present(sheet)
         } catch {

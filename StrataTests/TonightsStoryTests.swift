@@ -90,6 +90,23 @@ struct TonightsStoryTests {
         #expect(!EveningCheckIn.storiesLine.contains("!") && !EveningCheckIn.storiesLine.contains("\u{2014}"))
     }
 
+    @Test("someone invited waits on the row until a person of that name joins, or a week passes")
+    func invitedWaits() {
+        let sent = Date(timeIntervalSince1970: 1_000_000)
+        let crewID = CrewID(rawValue: "c")
+        let maya = InvitedPerson(id: UUID(), name: "Maya Chen", photo: nil, crew: "c", sentAt: sent)
+        let sam = CrewMember(profileID: UUID(), firstName: "Sam", joinedAt: sent.addingTimeInterval(-86_400))
+        var crew = Crew(id: crewID, name: "Roommates", ownerProfileID: sam.profileID, timeZoneIdentifier: "UTC", createdAt: sent, photo: nil, members: [sam])
+        #expect(InvitedPeople.waiting([maya], in: [crew], now: sent.addingTimeInterval(3600)) == [maya])
+        // A week on, it is not news.
+        #expect(InvitedPeople.waiting([maya], in: [crew], now: sent.addingTimeInterval(8 * 86_400)).isEmpty)
+        // Maya joins: off the row, she is a head now.
+        crew.members.append(CrewMember(profileID: UUID(), firstName: "maya", joinedAt: sent.addingTimeInterval(600)))
+        #expect(InvitedPeople.waiting([maya], in: [crew], now: sent.addingTimeInterval(3600)).isEmpty)
+        // A crew that has gone takes its invitations with it.
+        #expect(InvitedPeople.waiting([maya], in: [], now: sent.addingTimeInterval(3600)).isEmpty)
+    }
+
     // MARK: The record
 
     @Test("a story record round-trips, and one without its end is not a story")

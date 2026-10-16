@@ -4,13 +4,12 @@ import SwiftUI
 /// also pretty empty other than the chats", and "I want the app to feel
 /// addicting to win and show your friends").
 ///
-/// Every friend in every crew, once, as their head, **with a dot when they
-/// have a win today**, where an online dot sits (the owner, 2026-10-15: "im
-/// not a big fan of the blocks under ... maybe the indicator can just be
-/// like an online indicator instead"). The ring and then a stand of blocks
-/// came first and went. The dot says only what the crews already share, a
-/// win today, never whether someone has the app open. A press opens their
-/// profile.
+/// Every friend in every crew, once, as their head, **dimmed until they have
+/// a win today** (the owner, 2026-10-16: "the person should be dimmed when
+/// they haven't logged that day at all"). A green dot stood here first and
+/// went the same day: it read as "online", and the app never says who has it
+/// open. Tonight's stories lead the row; a press opens a story, or the
+/// friend's profile.
 struct TodayHeads: View {
     private var store: SocialStore { SocialStore.shared }
     /// The friend whose profile is open (`FriendProfileSheet`).
@@ -81,11 +80,6 @@ struct TodayHeads: View {
     static let side: CGFloat = 56
     /// The breathing room around a head, so Invite and the heads line up.
     private static let inset: CGFloat = 5
-    /// The dot, and the page-coloured rim that sets it off the head.
-    /// Small, as an online dot is (the owner, 2026-10-15: "I would make
-    /// the online indicator smaller"; it was 14).
-    private static let dot: CGFloat = 10
-    private static let dotRim: CGFloat = 2
 
     var body: some View {
         let _ = minute
@@ -96,17 +90,16 @@ struct TodayHeads: View {
         let mine = store.myStory
         if !store.crews.isEmpty {
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                Text("Today")
-                    .font(Typography.sectionLabel)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .padding(.horizontal, GridConstants.horizontalPadding)
-                    .accessibilityAddTraits(.isHeader)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: GridConstants.gapItem) {
                         // **Your Story first**, as yours is in every story
                         // row; it opens any time, as it will look at 8pm.
                         if !mine.isEmpty { yourStory(mine) }
                         ForEach(people) { person in face(person, story: byPerson[person.id], open: open) }
+                        // Invited from outside the app and not yet in.
+                        ForEach(InvitedPeople.shared.waiting(in: store.crews)) { person in
+                            InvitedHead(person: person, side: Self.side, inset: Self.inset)
+                        }
                         // Only where there is room for one more.
                         if store.crews.contains(where: { $0.members.count < CrewCaps.members }), store.canReply() { invite }
                     }
@@ -137,9 +130,20 @@ struct TodayHeads: View {
     /// Into the crew that has the fewest people, where one more counts most.
     private var invite: some View {
         let crew = store.crews.filter { $0.members.count < CrewCaps.members }.min { $0.members.count < $1.members.count }
-        return Button {
-            HapticsEngine.lightTap()
-            if let crew { Task { await CrewSharing.invite(crew.id) } }
+        // **A person, or a link** (2026-10-16): a contact chosen here stands
+        // on the row as invited until they join (`InvitedPeople`); the link
+        // goes anywhere, as before.
+        return Menu {
+            Button {
+                if let crew { InvitePicking.start(crew.id) }
+            } label: {
+                Label("Text a Friend", systemImage: "message")
+            }
+            Button {
+                if let crew { Task { await CrewSharing.invite(crew.id) } }
+            } label: {
+                Label("Share Invite Link", systemImage: "square.and.arrow.up")
+            }
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 VStack(spacing: 0) {
@@ -160,6 +164,7 @@ struct TodayHeads: View {
             }
             .contentShape(Rectangle())
         }
+        .menuStyle(.button)
         .buttonStyle(.press)
         .accessibilityLabel("Invite a friend")
         .accessibilityHint(crew.map { "Shares an invitation to \($0.displayName(excluding: store.me))." } ?? "")
@@ -180,7 +185,7 @@ struct TodayHeads: View {
             VStack(spacing: GridConstants.spacing) {
                 Group {
                     if showing, let story {
-                        StoryBubble(story: story, member: person.member, crew: person.crew, side: Self.side)
+                        StoryBubble(story: story, side: Self.side)
                     } else {
                         PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
                     }
@@ -188,17 +193,11 @@ struct TodayHeads: View {
                     .overlay {
                         if let story { StoryRing(phase: story.phase, watched: story.watched, side: Self.side + Self.inset * 2 - 1) }
                     }
-                    .overlay(alignment: .bottomTrailing) {
-                        if logged && !showing {
-                            Circle()
-                                .fill(HabitCategory.health.style.baseColor)
-                                .frame(width: Self.dot, height: Self.dot)
-                                .padding(Self.dotRim)
-                                .background(Circle().fill(WarmBackground.top))
-                                .offset(x: -1, y: -1)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                    }
+                    // **Dimmed until they log today** (the owner, 2026-10-16:
+                    // "the person should be dimmed when they haven't logged that
+                    // day"). The green dot came out: it read as "online", and
+                    // the app never says who has it open.
+                    .opacity(logged || showing ? 1 : 0.45)
                     .animation(GridConstants.motionSnappy, value: logged)
                     .padding(.horizontal, Self.inset)
                     .padding(.top, Self.inset)
@@ -231,7 +230,7 @@ struct TodayHeads: View {
             watching = Watching(people: [me], start: me.profileID)
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                StoryBubble(story: me, member: nil, crew: nil, side: Self.side)
+                StoryBubble(story: me, side: Self.side)
                     .overlay { StoryRing(phase: .open, watched: false, side: Self.side + Self.inset * 2 - 1) }
                     .padding(.horizontal, Self.inset)
                     .padding(.top, Self.inset)
@@ -251,17 +250,27 @@ struct TodayHeads: View {
     }
 }
 
-/// **The ring round a head with a story** (the spec, 1.4). Before 8pm, thin
-/// and unlit in the evening colour: something is coming tonight, and no
-/// count. From 8pm, lit. Watched, thin and grey.
+/// **The ring round a head with a story**: drawn, in ink, as his pen draws
+/// (the owner, 2026-10-16: "why isn't the outline just a doodle black
+/// outline"). The goal ring's own hand (`DoodleRing`), so every ring in the
+/// app is the same mark. Before 8pm, faint: something is coming tonight,
+/// and no count. From 8pm, the full line. Opened, a clean thin grey circle.
 struct StoryRing: View {
     let phase: StoryClock.Phase
     let watched: Bool
     let side: CGFloat
 
     var body: some View {
-        Circle()
-            .strokeBorder(colour, lineWidth: width)
+        Group {
+            // Opened: a clean line, a true circle (the owner, 2026-10-16:
+            // "the watched should be a clean line"). New or waiting: drawn.
+            if phase == .open && watched {
+                Circle().stroke(colour, lineWidth: width)
+            } else {
+                DoodleRing().stroke(colour, style: StrokeStyle(lineWidth: width, lineCap: .round))
+            }
+        }
+            .padding(width / 2)
             .frame(width: side, height: side)
             .animation(GridConstants.crossFade, value: watched)
             .allowsHitTesting(false)
@@ -270,29 +279,25 @@ struct StoryRing: View {
 
     private var colour: Color {
         switch phase {
-        case .waiting: AppColors.evening.opacity(0.55)
-        case .open: watched ? AppColors.inkTertiary : AppColors.evening
+        case .waiting: AppColors.drawingInk.opacity(0.28)
+        case .open: watched ? AppColors.inkTertiary : AppColors.drawingInk
         case .gone: .clear
         }
     }
 
-    private var width: CGFloat { phase == .open && !watched ? 2.5 : 1.5 }
+    /// His pen's line (~2.6pt) when there is something new; a hairline else.
+    private var width: CGFloat { phase == .open && !watched ? 2.6 : 1.5 }
 }
 
 /// **The head become a preview** (the owner, 2026-10-15: "the friend's
 /// picture turns into a preview of their photo when they have a story"):
-/// a circle cut from their first story photo, with their head small at its
-/// edge; with no photo, the block's own colour and icon. Decoded off the main
+/// a circle cut from their first story photo; with no photo, the block's own
+/// colour and icon. Their name is under it; no head on top (the owner,
+/// 2026-10-16: "there isn't a need for the head on the bottom right"). Decoded off the main
 /// thread at the size it is drawn (`CrewPhotoView`).
 struct StoryBubble: View {
     let story: StoryPerson
-    /// Nil for your own.
-    let member: CrewMember?
-    let crew: CrewID?
     let side: CGFloat
-
-    private var store: SocialStore { SocialStore.shared }
-    static let badge: CGFloat = 24
 
     var body: some View {
         ZStack {
@@ -309,20 +314,6 @@ struct StoryBubble: View {
         }
         .frame(width: side, height: side)
         .clipShape(Circle())
-        // Their head at the corner, where the win dot sits on a plain head,
-        // so the name under it never moves.
-        .overlay(alignment: .bottomTrailing) {
-            Group {
-                if let member, let crew {
-                    PersonHead(person: .member(member, crew: crew, me: store.me), side: Self.badge)
-                } else {
-                    PersonHead(person: .me, side: Self.badge)
-                }
-            }
-            .padding(2)
-            .background(Circle().fill(WarmBackground.top))
-            .offset(x: 6, y: 6)
-        }
         .accessibilityHidden(true)
     }
 }

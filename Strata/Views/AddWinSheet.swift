@@ -184,6 +184,8 @@ struct AddWinSheet: View {
     /// and as it is for a win being edited.
     @State private var onStory = false
     @State private var storyTouched = false
+    /// **Send To** (`SendToPage`), the page after this one for a new win.
+    @State private var choosingRecipients = false
     /// Wins logged today that the crew this sheet came from has not got.
     @State private var earlierToday: [HabitLog] = []
     /// Why a crew plan did not go, in the chat's own words.
@@ -255,6 +257,14 @@ struct AddWinSheet: View {
     }
 
     private var isEditing: Bool { editing != nil }
+
+    /// **A new win chooses who sees it on a page of its own** (the owner,
+    /// 2026-10-16: "another page after where you select who to send it to,
+    /// kinda like Snapchat"): Add becomes Next. Not on Edit, not planning,
+    /// and not without a crew, where there is nobody to choose.
+    private var sendsToPage: Bool {
+        !isEditing && !isPlanning && CrewsFlag.isOn && !SocialStore.shared.crews.isEmpty && crewsCanTakeIt
+    }
 
     /// Tonight's Story takes only today's wins, and only with a friend to
     /// see it.
@@ -471,7 +481,7 @@ struct AddWinSheet: View {
                         if !isPlanning { decisions }
                         // Not on a win too old for any crew's tower: ticked,
                         // it would arrive in a day already gone.
-                        if crewsCanTakeIt, !isPlanning {
+                        if crewsCanTakeIt, !isPlanning, !sendsToPage {
                             HStack(alignment: .center, spacing: GridConstants.gapItem) {
                                 // The one place a win's crews are chosen,
                                 // the camera's included, so the camera's line
@@ -494,11 +504,11 @@ struct AddWinSheet: View {
                                 }
                             }
                             .padding(.top, GridConstants.gapSection)
-                            if !earlierToday.isEmpty, !isPlanning, photo == nil, doodle == nil, title.isEmpty {
-                                earlierTodayRow
-                                    .padding(.top, GridConstants.gapItem)
-                                    .transition(.opacity)
-                            }
+                        }
+                        if crewsCanTakeIt, !isPlanning, !earlierToday.isEmpty, photo == nil, doodle == nil, title.isEmpty {
+                            earlierTodayRow
+                                .padding(.top, GridConstants.gapItem)
+                                .transition(.opacity)
                         }
                         if !isPlanning {
                             subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
@@ -506,7 +516,7 @@ struct AddWinSheet: View {
                         }
                         // **Under the block, at the foot**: the last decision
                         // on the page, in the evening colour (the spec, 2).
-                        if storyCanTakeIt {
+                        if storyCanTakeIt, !sendsToPage {
                             TonightsStoryRow(isOn: Binding(get: { onStory },
                                                            set: { onStory = $0; storyTouched = true }),
                                              hasPhoto: photo != nil)
@@ -542,6 +552,19 @@ struct AddWinSheet: View {
                 .scrollDismissesKeyboard(.immediately)
             }
             .sheetTitle(isEditing ? "Edit" : isPlanning ? planTitle : "Add a win", drawn: true)
+            .navigationDestination(isPresented: $choosingRecipients) {
+                SendToPage(crews: Binding(get: { crewChoice }, set: { crewChoice = $0; crewChoiceTouched = true }),
+                           onStory: Binding(get: { onStory }, set: { onStory = $0; storyTouched = true }),
+                           withPeople: $withPeople,
+                           storyAllowed: storyCanTakeIt, hasPhoto: photo != nil, sending: isSaving) {
+                    Task {
+                        await save()
+                        // A photo or a doodle that could not be kept is said on
+                        // the first page, with its Try Again: go back to it.
+                        if failure != nil { choosingRecipients = false }
+                    }
+                }
+            }
             .toolbar {
                 addWinToolbar
             }
@@ -715,6 +738,8 @@ struct AddWinSheet: View {
                                 // something has been planned; before that it
                                 // is a slip, and the field stays.
                                 if planLine() || plannedHere.isEmpty { titleFocused = true } else { dismiss() }
+                            } else if sendsToPage, failure == nil {
+                                choosingRecipients = true
                             } else {
                                 Task { await save() }
                             }
@@ -1395,13 +1420,17 @@ struct AddWinSheet: View {
                 // nothing typed there is nothing for this to do: the lines
                 // already written are kept, and Done, beside it, leaves.
                 if planLine() { dismiss() }
+            } else if sendsToPage, failure == nil {
+                HapticsEngine.lightTap()
+                titleFocused = false
+                choosingRecipients = true
             } else {
                 Task { await save() }
             }
         } label: {
             // **The verb changes with what the press will do**, as the head
             // maker's Save becomes Try Saving Again. See `AddWinFailure.retry`.
-            Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan" : "Add")).sheetAction()
+            Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan" : sendsToPage ? "Next" : "Add")).sheetAction()
         }
         .buttonStyle(.pressWord)
         .disabled(isPlanning ? !DayComposing.hasWords(title) : !canSave)
