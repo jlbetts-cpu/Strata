@@ -121,11 +121,10 @@ struct ShowTodaysWinsIntent: AppIntent {
         let context = ModelContext(modelContainer)
         let wins = TodaysWins.list(in: context)
         guard !wins.isEmpty else {
-            // The owner's empty-state voice (2026-10-05), in place of "No
-            // wins yet today." over "Nothing on today's tower yet": the
-            // same absence said twice, as a count.
-            return .result(dialog: "Quiet here. Yet.") {
-                IntentMessageSnippet(message: "Quiet here. Yet.")
+            // Plain, as Siri answers a count (2026-10-16: "Quiet here. Yet."
+            // read as not making sense, and said aloud it says less).
+            return .result(dialog: "No wins yet today.") {
+                IntentMessageSnippet(message: "No wins yet today.")
             }
         }
         let dialog: IntentDialog = wins.count == 1 ? "One win today." : "\(wins.count) wins today."

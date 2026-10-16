@@ -206,7 +206,10 @@ struct ChatRestBar: View {
 /// The chat's words that the resting bar shares with the thread.
 enum CrewChatWords {
     static let placeholder = "Message"
-    static let quiet = "Quiet here. Yet."
+    /// **Says what is true** (the owner, 2026-10-16: a note that "quiet
+    /// here. yet" doesn't make sense). The chat clears at midnight, so an
+    /// empty one is a day with no messages yet, and it says so.
+    static let quiet = "No messages today."
 }
 
 /// **The chat, risen from its resting bar** (the owner, 2026-10-14: "it felt
