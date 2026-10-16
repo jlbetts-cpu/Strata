@@ -464,9 +464,14 @@ struct CrewInfoSheet: View {
             Button("Block", role: .destructive) {
                 Task { await CrewSafety.block(member.profileID, from: crewID) }
             }
+            if !isOwner {
+                Button("Block and Leave", role: .destructive) {
+                    Task { await CrewSafety.block(member.profileID, from: crewID, andLeave: true) }
+                }
+            }
         } message: {
-            Text(isOwner ? "You won't see their wins in any crew, and they leave this one. They are not told."
-                         : "You won't see their wins in any crew. They are not told.")
+            Text(isOwner ? "You won't see their wins in any crew, and they leave this one. Some Wins hears about it. They are not told."
+                         : "You won't see their wins in any crew. Some Wins hears about it. They are not told.")
         }
         .confirmationDialog("Remove \(member.shortName.isEmpty ? "this person" : member.shortName) from the crew?",
                             isPresented: Binding(get: { removingMember?.profileID == member.profileID },

@@ -41,6 +41,10 @@ enum CrewSafety {
         case reply(Reaction)
         /// A line in the crew's day chat, or a doodle there.
         case message(CrewMessage)
+        /// **Someone blocked** (the compliance audit, 2026-10-15, §3.1): a
+        /// block is told to Some Wins as a report, so a block of someone
+        /// abusive reaches the developer, as App Review expects.
+        case blocked(CrewMember)
     }
 
     /// A report goes to Some Wins, never to the crew: a `Report` record in the
@@ -93,6 +97,10 @@ enum CrewSafety {
             // A doodle goes with the report as a photo does, so it can be
             // judged.
             photo = message.sketch
+        case .blocked(let member):
+            fields["sender"] = member.profileID.uuidString
+            fields["title"] = "Blocked: " + (member.firstName.isEmpty ? "(no name)" : member.firstName)
+            fields["senderAccount"] = cloud?.account(of: member.profileID, in: crew)
         case .crew(let c):
             fields["title"] = "Crew: " + (c.name.isEmpty ? "(no name)" : c.name)
             fields["senderAccount"] = cloud?.lastEditor(of: crew)
@@ -217,12 +225,24 @@ enum CrewSafety {
 
     /// Blocks someone everywhere. If you started this crew they are also
     /// removed from it; either way they are not told.
-    static func block(_ profileID: UUID, from crew: CrewID) async {
+    /// Blocks someone: hidden from you everywhere, removed from a crew you
+    /// started, and **told to Some Wins** as a report (they are not told).
+    /// `andLeave`: for a crew someone else started, where they would stay
+    /// and keep seeing you, you leave it too (the compliance audit,
+    /// 2026-10-15, §3.1: for a teenager being harassed, Leave was the only
+    /// way out, and it was a second hunt).
+    static func block(_ profileID: UUID, from crew: CrewID, andLeave: Bool = false) async {
         let store = SocialStore.shared
-        store.block(profileID, name: store.crew(crew)?.member(profileID)?.shortName ?? "")
+        let member = store.crew(crew)?.member(profileID)
+        store.block(profileID, name: member?.shortName ?? "")
+        if let member { await report(.blocked(member), in: crew, reason: .harassment) }
         if store.crew(crew)?.isOwner(store.me) == true {
             do { try await store.remove(member: profileID, from: crew) } catch {
                 log.error("blocked member not removed: \(error)")
+            }
+        } else if andLeave {
+            do { try await store.leave(crew) } catch {
+                log.error("left nothing after a block: \(error)")
             }
         }
     }

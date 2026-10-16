@@ -1785,10 +1785,17 @@ struct CrewChatSheet: View {
                 Button("Block", role: .destructive) {
                     Task { await CrewSafety.block(person, from: crewID) }
                 }
+                // In a crew someone else started they stay in it, and can
+                // still see you there: leaving is offered in the same breath.
+                if store.crew(crewID)?.isOwner(store.me) != true {
+                    Button("Block and Leave", role: .destructive) {
+                        Task { await CrewSafety.block(person, from: crewID, andLeave: true) }
+                    }
+                }
             } message: { _ in
                 Text(store.crew(crewID)?.isOwner(store.me) == true
-                     ? "You won't see their wins or words in any crew, and they leave this one. They are not told."
-                     : "You won't see their wins or words in any crew. They are not told.")
+                     ? "You won't see their wins or words in any crew, and they leave this one. Some Wins hears about it. They are not told."
+                     : "You won't see their wins or words in any crew. Some Wins hears about it. They are not told.")
             }
             // His thumbs up and the alert's words (`ReportThanks`): a card,
             // so it is the one thing here at the whole size, after the
