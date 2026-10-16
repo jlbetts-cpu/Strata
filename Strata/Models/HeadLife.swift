@@ -43,10 +43,13 @@ nonisolated struct HeadLife: Equatable, Sendable {
         // faces come round more often; and six moves of its own, a hop, a
         // wiggle, a bop, a peek, a giggle and a curious look round, take a
         // third of the beats between them.
-        beatWeights: [.glance: 0.13, .turn: 0.09, .tilt: 0.07, .smile: 0.09, .down: 0.04, .brow: 0.05,
-                      .sideEye: 0.03, .doubleTake: 0.03, .peoplesEyebrow: 0.03, .eyeRoll: 0.03,
-                      .slowBlink: 0.02, .surprise: 0.03, .wink: 0.04,
-                      .hop: 0.06, .wiggle: 0.06, .bop: 0.05, .peek: 0.04, .giggle: 0.06, .curious: 0.05],
+        // The brows have three moves of their own (2026-10-16, "moving the
+        // eyebrows to emote"): a waggle, one raised, and drawn together.
+        beatWeights: [.glance: 0.12, .turn: 0.08, .tilt: 0.06, .smile: 0.09, .down: 0.03, .brow: 0.05,
+                      .sideEye: 0.02, .doubleTake: 0.03, .peoplesEyebrow: 0.03, .eyeRoll: 0.03,
+                      .slowBlink: 0.01, .surprise: 0.03, .wink: 0.04,
+                      .hop: 0.06, .wiggle: 0.06, .bop: 0.05, .peek: 0.04, .giggle: 0.06, .curious: 0.05,
+                      .browWiggle: 0.025, .skeptic: 0.02, .focus: 0.015],
         // A little sooner between beats than the creator's 1:1 rests.
         beatRest: (GridConstants.headBeatRestExpressive.lowerBound * 0.75)...(GridConstants.headBeatRestExpressive.upperBound * 0.75),
         firstBeat: GridConstants.headFirstBeat,
@@ -64,7 +67,7 @@ nonisolated struct HeadLife: Equatable, Sendable {
     static let calm = HeadLife(
         // Faces only: a head in chrome never moves itself, but it smiles and
         // winks now (2026-10-16, "more playful").
-        beatWeights: [.glance: 0.3, .sideEye: 0.2, .browFlash: 0.25, .smile: 0.15, .wink: 0.1],
+        beatWeights: [.glance: 0.3, .sideEye: 0.2, .browFlash: 0.25, .smile: 0.15, .wink: 0.1, .browWiggle: 0.12],
         beatRest: GridConstants.headBeatRestCalm,
         firstBeat: GridConstants.headBeatRestCalm.lowerBound,
         firstBeatAfterHello: GridConstants.headBeatRestCalm.lowerBound,

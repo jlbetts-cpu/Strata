@@ -78,6 +78,9 @@ struct LivingHeadView: View {
     @State private var incoming: Double = 1
     @State private var shut = false
     @State private var squash: CGFloat = 1
+    /// The eyebrows (`BrowWarpEffect`), and where they are on this photograph.
+    @State private var brows = BrowPose.rest
+    @State private var browSpots: BrowSpots?
     /// Where the eyes rest between beats: on you, or somewhere that is not.
     @State private var rest = CGPoint(x: 0.55, y: 0.12)
     /// Fixational micro-saccades, added on top.
@@ -168,6 +171,7 @@ struct LivingHeadView: View {
             }
         }
         .frame(width: canvas, height: canvas)
+        .modifier(BrowWarpEffect(pose: reduceMotion ? .rest : brows, spots: browSpots, canvas: canvas))
         .offset(y: centring)
         .scaleEffect(x: 1, y: squash, anchor: .bottom)
         .rotation3DEffect(.degrees(yaw), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
@@ -204,6 +208,12 @@ struct LivingHeadView: View {
             // Asleep, nothing is left half done: a take in flight is left to
             // finish, and a kept sticker face stays.
             if !isAwake, !taking, heldFace == nil { settleImmediately() }
+        }
+        .task(id: ObjectIdentifier(rig.face(.neutral).image)) {
+            let neutral = rig.face(.neutral)
+            browSpots = BrowSpots.cached(neutral.image) ?? BrowSpots.above(neutral.eyes)
+            await BrowSpots.read(neutral.image)
+            if let found = BrowSpots.cached(neutral.image) { browSpots = found }
         }
         .task(id: loopKey) { await liveWhileIdle() }
         .task(id: loopKey) { await eyesWhileIdle() }
@@ -657,6 +667,8 @@ struct LivingHeadView: View {
             guard rig.shut(on: expression) != nil, !shut else { return }
             let depth = profile.blinkDepth == nil ? 1 : depth
             Task { @MainActor in await crunchBlink(depth: depth, steps: steps, double: double) }
+        case let .brows(left, right, knit):
+            withAnimation(GridConstants.headHop) { brows = BrowPose(left: left, right: right, knit: knit) }
         case .settle:
             Task { @MainActor in await settleThroughBlink() }
         }
@@ -705,6 +717,7 @@ struct LivingHeadView: View {
             expression = .neutral
             shut = false
             squash = 1
+            brows = .rest
             beatGaze = .zero
             restShare = 1
             yaw = 0

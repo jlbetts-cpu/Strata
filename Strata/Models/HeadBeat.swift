@@ -34,13 +34,14 @@ nonisolated enum HeadBeat {
     nonisolated enum ID: String, CaseIterable, Sendable {
         case glance, turn, tilt, down, brow, browFlash, lift, smile, nod,
              peoplesEyebrow, sideEye, eyeRoll, doubleTake, slowBlink, surprise, wink, hello,
-             hop, wiggle, bop, peek, giggle, curious
+             hop, wiggle, bop, peek, giggle, curious,
+             browWiggle, skeptic, focus
     }
 
     /// Faces a beat cannot do without.
     static func needs(_ id: ID) -> Set<HeadRig.Expression> {
         switch id {
-        case .brow, .browFlash, .peoplesEyebrow, .doubleTake: return [.browsUp]
+        case .peoplesEyebrow, .doubleTake: return [.browsUp]
         case .smile: return [.smile]
         case .surprise: return [.surprised]
         case .wink: return [.wink]
@@ -144,9 +145,11 @@ nonisolated struct HeadDirector: Sendable {
     /// heads with the same faces pick the same way from the same seed.
     var weights: [(HeadBeat.ID, Double)] {
         var w = life.beatWeights
+        // A head without the raised-brows photograph still raises them: the
+        // brow beats move its own brows (`BrowWarp`). Only the two that are
+        // built round that photograph's whole face go.
         if !faces.contains(.browsUp) {
-            if let brow = w[.brow] { w[.lift, default: 0] += brow }
-            for id in [HeadBeat.ID.brow, .browFlash, .peoplesEyebrow, .doubleTake] { w[id] = nil }
+            for id in [HeadBeat.ID.peoplesEyebrow, .doubleTake] { w[id] = nil }
         }
         if !faces.contains(.smile), let smile = w[.smile] {
             w[.nod, default: 0] += smile
@@ -324,10 +327,43 @@ nonisolated struct HeadDirector: Sendable {
             at(1.6, .release)
             pose(1.6)
             end = 1.9
+        case .browWiggle:
+            // Up, down, up, down, quick: the eyebrow waggle.
+            at(0, .look(x: dir * 0.5, y: -0.1))
+            for i in 0..<2 {
+                at(Double(i) * 0.3, .brows(left: Self.browUp, right: Self.browUp))
+                at(Double(i) * 0.3 + 0.15, .brows(left: 0, right: 0))
+            }
+            if faces.contains(.smile) { at(0.6, .face(.smile)) }
+            at(1.1, .settle)
+            at(1.1, .release)
+            end = 1.3
+        case .skeptic:
+            // One brow up, the other down a touch, eyes off to the side: "really".
+            let up = Self.browUp * 1.1, down = -Self.browUp * 0.25
+            at(0, .look(x: dir * 0.6, y: 0))
+            at(0.05, .brows(left: dir > 0 ? up : down, right: dir > 0 ? down : up))
+            pose(0.05, roll: -dir * 2.5)
+            at(1.25, .brows(left: 0, right: 0))
+            at(1.25, .release)
+            pose(1.25)
+            end = 1.5
+        case .focus:
+            // Thinking: the brows draw together, the eyes go down and away.
+            at(0, .look(x: dir * 0.35, y: 0.45))
+            at(0.1, .brows(left: -Self.browUp * 0.2, right: -Self.browUp * 0.2, knit: Self.browUp * 0.45))
+            pose(0.1, roll: dir * 1.5, dip: 0.01)
+            at(1.4, .brows(left: 0, right: 0))
+            if faces.contains(.smile) { at(1.45, .face(.smile)) }
+            at(1.45, .release)
+            pose(1.45)
+            at(2.0, .settle)
+            end = 2.2
         case .brow:
             at(0, .look(x: 0, y: -0.04, keepsRest: true))
-            at(0, .face(.browsUp))
+            if faces.contains(.browsUp) { at(0, .face(.browsUp)) } else { at(0, .brows(left: Self.browUp, right: Self.browUp)) }
             at(0.48, .face(.neutral))
+            at(0.48, .brows(left: 0, right: 0))
             at(0.48, .release)
             end = 0.94
         case .lift:
@@ -338,8 +374,9 @@ nonisolated struct HeadDirector: Sendable {
             pose(0.48)
             end = 0.94
         case .browFlash:
-            at(0, .face(.browsUp))
+            if faces.contains(.browsUp) { at(0, .face(.browsUp)) } else { at(0, .brows(left: Self.browUp, right: Self.browUp)) }
             at(0.22, .face(.neutral))
+            at(0.22, .brows(left: 0, right: 0))
             end = 0.3
         case .smile:
             at(0, .look(x: 0, y: -0.05, keepsRest: true))
@@ -420,6 +457,10 @@ nonisolated struct HeadDirector: Sendable {
         return Self.moments(cues, end: end)
     }
 
+    /// How far a brow rises, as a share of the photograph: about a sixth of
+    /// the way from brow to eye, the height a real eyebrow flash travels.
+    static let browUp: Double = 0.02
+
     /// **The hello**: brows first (240ms), then a wink held 1.6s, or a smile
     /// on a head without one. Beats then wait `firstBeatAfterHello`.
     mutating func greeting() -> [HeadTake.Moment] {
@@ -428,6 +469,10 @@ nonisolated struct HeadDirector: Sendable {
         if faces.contains(.browsUp) {
             cues.append((t, .face(.browsUp)))
             cues.append((t + GridConstants.headHelloBrows, .face(.neutral)))
+            t += 0.4
+        } else {
+            cues.append((t, .brows(left: Self.browUp, right: Self.browUp)))
+            cues.append((t + GridConstants.headHelloBrows, .brows(left: 0, right: 0)))
             t += 0.4
         }
         var end = t

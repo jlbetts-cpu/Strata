@@ -127,12 +127,16 @@ struct HeadDirectorTests {
         }
     }
 
-    @Test("a head with only neutral and shut still moves: lift for brows, nod for a smile")
+    /// It lifted its head in place of raising brows it had no photograph
+    /// of; since 2026-10-16 it raises its own (`BrowWarp`), so the brow beats
+    /// stay and only the two built round that whole face go.
+    @Test("a head with only neutral and shut still moves: its own brows, and a nod for a smile")
     func fallbacksStillMove() {
         let small = HeadDirector(life: .expressive, faces: [.neutral], shutFaces: [.neutral], seed: 1)
         let weights = Dictionary(uniqueKeysWithValues: small.weights)
-        #expect(weights[.lift] != nil && weights[.nod] != nil)
-        #expect(weights[.brow] == nil && weights[.smile] == nil && weights[.wink] == nil)
+        #expect(weights[.brow] != nil && weights[.browWiggle] != nil && weights[.nod] != nil)
+        #expect(weights[.peoplesEyebrow] == nil && weights[.doubleTake] == nil)
+        #expect(weights[.smile] == nil && weights[.wink] == nil)
         let yaw = (weights[.glance] ?? 0) + (weights[.turn] ?? 0)
         let fullYaw = Dictionary(uniqueKeysWithValues: full().weights)
         #expect(yaw / weights.values.reduce(0, +) >= ((fullYaw[.glance] ?? 0) + (fullYaw[.turn] ?? 0)) * 0.9)

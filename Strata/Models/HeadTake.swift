@@ -60,6 +60,10 @@ nonisolated struct HeadTake: Equatable, Sendable {
         case lids(shut: Bool)
         /// A small squash and back, like a breath of laughter.
         case bounce
+        /// **The eyebrows moved** (`BrowWarp`): each brow's lift, and how far
+        /// both inner ends drop (a frown) or rise (worry), as shares of the
+        /// head's photograph. All zero is at rest.
+        case brows(left: Double, right: Double, knit: Double = 0)
         /// **Idle beats only.** The creator's blink on whichever face shows,
         /// if that face has shut eyes: the head squashes to `depth` as the
         /// lids close, gives `GridConstants.headBlinkRelease` back a step
