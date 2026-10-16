@@ -21,3 +21,12 @@ From the owner's notes as he went to bed (2026-10-16, between about 12:30 and 1:
 ## Rules that hold all night
 
 Ink chrome, colour only in blocks and photos; no shadows on chrome; one component per job; no em dashes or exclamation marks; nothing that reads as watching; camera changes go to him first; no new SwiftData stored fields; crew cloud code is reviewed before it ships.
+
+## Status, 2026-10-16 midday (builds 151-152, then main)
+
+- S1-S6: done (personal chats, send feedback, single-head hold incl. Your Story, story viewer, before-8pm rule, Send To).
+- D1 Your Stats: merged into Profile (one sheet from Memories), ink-only charts, InfoCard facts.
+- D2 crest: the count past the goal ("14"), ring closes whole.
+- D3 type scale: TypeSweep fails any bare text style; tallies down to heading size; NoCapitalsTests.
+- D4 screens: no shadows, titles inside cards in sentence case, Hinge-style InfoCard facts (profile, streaks, photo caption), Memories banner card + calendar card, friend profile = same card.
+- Owner adds: story opening as a page with bouncing heads; head personalities removed, six playful moves and moving eyebrows (BrowWarp); tower-to-Memories one block at a time; photo zoom fills the screen; Instagram one-tap share (needs Meta App ID); usernames (unique, monthly change, in setup and Edit Profile; under review).
