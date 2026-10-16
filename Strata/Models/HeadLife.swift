@@ -36,12 +36,19 @@ nonisolated struct HeadLife: Equatable, Sendable {
     var maxYaw: Double
 
     static let expressive = HeadLife(
-        // The creator's six beats keep 80% of the weight in his proportions;
-        // the made head's extras share the other 20%. Yaw moves in 36%.
-        beatWeights: [.glance: 0.208, .turn: 0.152, .tilt: 0.144, .smile: 0.128, .down: 0.096, .brow: 0.072,
-                      .sideEye: 0.04, .doubleTake: 0.03, .peoplesEyebrow: 0.03, .eyeRoll: 0.03,
-                      .slowBlink: 0.03, .surprise: 0.02, .wink: 0.02],
-        beatRest: GridConstants.headBeatRestExpressive,
+        // **One life, and a playful one** (the owner, 2026-10-16: "remove the
+        // personalities and combine them, they all feel the same anyways ...
+        // I wanted some new animations to expand the heads' expressions, make
+        // it more playful"). The creator's looks still lead; the made head's
+        // faces come round more often; and six moves of its own, a hop, a
+        // wiggle, a bop, a peek, a giggle and a curious look round, take a
+        // third of the beats between them.
+        beatWeights: [.glance: 0.13, .turn: 0.09, .tilt: 0.07, .smile: 0.09, .down: 0.04, .brow: 0.05,
+                      .sideEye: 0.03, .doubleTake: 0.03, .peoplesEyebrow: 0.03, .eyeRoll: 0.03,
+                      .slowBlink: 0.02, .surprise: 0.03, .wink: 0.04,
+                      .hop: 0.06, .wiggle: 0.06, .bop: 0.05, .peek: 0.04, .giggle: 0.06, .curious: 0.05],
+        // A little sooner between beats than the creator's 1:1 rests.
+        beatRest: (GridConstants.headBeatRestExpressive.lowerBound * 0.75)...(GridConstants.headBeatRestExpressive.upperBound * 0.75),
         firstBeat: GridConstants.headFirstBeat,
         firstBeatAfterHello: GridConstants.headFirstBeatAfterHello,
         wander: GridConstants.headWanderExpressive,
@@ -55,7 +62,9 @@ nonisolated struct HeadLife: Equatable, Sendable {
         maxYaw: GridConstants.headMaxYaw)
 
     static let calm = HeadLife(
-        beatWeights: [.glance: 0.4, .sideEye: 0.3, .browFlash: 0.3],
+        // Faces only: a head in chrome never moves itself, but it smiles and
+        // winks now (2026-10-16, "more playful").
+        beatWeights: [.glance: 0.3, .sideEye: 0.2, .browFlash: 0.25, .smile: 0.15, .wink: 0.1],
         beatRest: GridConstants.headBeatRestCalm,
         firstBeat: GridConstants.headBeatRestCalm.lowerBound,
         firstBeatAfterHello: GridConstants.headBeatRestCalm.lowerBound,
@@ -68,82 +77,4 @@ nonisolated struct HeadLife: Equatable, Sendable {
         floats: false,
         movesHead: false,
         maxYaw: GridConstants.headMaxYaw)
-}
-
-/// **Your head's personality** (the owner, 2026-10-16: "customizing your
-/// head's personality ... every personality is very expressive and a bit
-/// cute"). Research (Duolingo's idle sets; Thomas and Johnston on timing;
-/// Bitmoji's "one identity, many states"): a personality is timing and what
-/// it reaches for, never a different face. Each one rescales the rests and
-/// reweights the beats of the same life; the photograph is untouched.
-nonisolated enum HeadPersonality: String, CaseIterable, Identifiable, Sendable {
-    case calm, bouncy, cheeky, chill
-
-    var id: String { rawValue }
-
-    var name: String {
-        switch self {
-        case .calm: "Calm"
-        case .bouncy: "Bouncy"
-        case .cheeky: "Cheeky"
-        case .chill: "Chill"
-        }
-    }
-
-    /// What it is like, in a few words, for the picker.
-    var line: String {
-        switch self {
-        case .calm: "Easy, looks around, smiles now and then."
-        case .bouncy: "Quick to smile, nods along, always moving."
-        case .cheeky: "Winks, raised eyebrows, the odd eye roll."
-        case .chill: "Slow blinks, long looks, in no hurry."
-        }
-    }
-
-    static let key = "headPersonality"
-
-    /// Yours, on this phone.
-    static var current: HeadPersonality {
-        HeadPersonality(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .calm
-    }
-
-    /// How long between beats, as a share of the life's own.
-    var restScale: Double {
-        switch self {
-        case .calm: 1
-        case .bouncy: 0.6
-        case .cheeky: 0.8
-        case .chill: 1.5
-        }
-    }
-
-    /// How much more (or less) it reaches for each beat.
-    var weight: [HeadBeat.ID: Double] {
-        switch self {
-        case .calm: [:]
-        case .bouncy: [.smile: 2.2, .nod: 2.5, .lift: 2, .tilt: 1.5, .turn: 1.3, .slowBlink: 0.4, .down: 0.6]
-        case .cheeky: [.wink: 4, .peoplesEyebrow: 4, .sideEye: 3, .eyeRoll: 3, .doubleTake: 2.5, .brow: 2,
-                       .browFlash: 2, .smile: 1.2, .down: 0.5]
-        case .chill: [.slowBlink: 4, .down: 1.6, .glance: 1.3, .turn: 0.6, .smile: 0.8, .surprise: 0.3,
-                      .doubleTake: 0.3, .wink: 0.5]
-        }
-    }
-}
-
-extension HeadLife {
-    /// The same life, as this personality lives it.
-    func personalised(_ personality: HeadPersonality) -> HeadLife {
-        guard personality != .calm else { return self }
-        var life = self
-        for (beat, factor) in personality.weight {
-            if let w = life.beatWeights[beat] { life.beatWeights[beat] = w * factor }
-            else if factor > 1, life.movesHead { life.beatWeights[beat] = 0.02 * factor }
-        }
-        let scale = personality.restScale
-        life.beatRest = (beatRest.lowerBound * scale)...(beatRest.upperBound * scale)
-        life.firstBeat *= min(scale, 1)
-        life.wander = (wander.lowerBound * scale)...(wander.upperBound * scale)
-        if personality == .chill { life.maxYaw *= 0.7 }
-        return life
-    }
 }

@@ -64,15 +64,22 @@ struct HeadDirectorTests {
         }
     }
 
-    @Test("the creator's six beats keep 80% of the weight, and a third of beats turn the head")
+    /// **The mix changed on purpose** (the owner, 2026-10-16: "remove the
+    /// personalities and combine them ... make it more playful"). It was the
+    /// creator's six at 80%; now the six playful moves take about a third, and
+    /// the creator's looks are still the largest single group, so the head
+    /// still reads as looking round rather than performing.
+    @Test("the playful six take a third, the creator's looks still lead, and a quarter turn the head")
     func expressiveMix() {
         let weights = Dictionary(uniqueKeysWithValues: full().weights)
         let total = weights.values.reduce(0, +)
         #expect(abs(total - 1) < 1e-9)
         let core = [HeadBeat.ID.glance, .turn, .tilt, .smile, .down, .brow].compactMap { weights[$0] }.reduce(0, +)
-        #expect(abs(core - 0.8) < 1e-9)
-        let turns = (weights[.glance] ?? 0) + (weights[.turn] ?? 0)
-        #expect(turns >= 0.35, "yaw share \(turns)")
+        let playful = [HeadBeat.ID.hop, .wiggle, .bop, .peek, .giggle, .curious].compactMap { weights[$0] }.reduce(0, +)
+        #expect(abs(playful - 0.32) < 1e-9, "playful share \(playful)")
+        #expect(core > playful, "core \(core) playful \(playful)")
+        let turns = (weights[.glance] ?? 0) + (weights[.turn] ?? 0) + (weights[.curious] ?? 0)
+        #expect(turns >= 0.25, "yaw share \(turns)")
     }
 
     @Test("a turn is 16°, a glance 5°, and the eyes land first")

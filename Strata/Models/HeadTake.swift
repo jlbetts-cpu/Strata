@@ -41,6 +41,9 @@ nonisolated struct HeadTake: Equatable, Sendable {
         case nod
         /// `GridConstants.headTakeEaseBack`: a sleepy droop.
         case droop
+        /// `GridConstants.headHop`: springy, with a little overshoot, for a
+        /// jump, a pop up and a cock of the head.
+        case hop
     }
 
     nonisolated enum Step: Equatable, Sendable {

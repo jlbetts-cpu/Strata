@@ -33,7 +33,8 @@ import Foundation
 nonisolated enum HeadBeat {
     nonisolated enum ID: String, CaseIterable, Sendable {
         case glance, turn, tilt, down, brow, browFlash, lift, smile, nod,
-             peoplesEyebrow, sideEye, eyeRoll, doubleTake, slowBlink, surprise, wink, hello
+             peoplesEyebrow, sideEye, eyeRoll, doubleTake, slowBlink, surprise, wink, hello,
+             hop, wiggle, bop, peek, giggle, curious
     }
 
     /// Faces a beat cannot do without.
@@ -249,6 +250,80 @@ nonisolated struct HeadDirector: Sendable {
             at(back, .release)
             pose(back)
             end = back + 0.5
+        // **The playful six** (2026-10-16). Each is the head's own photograph
+        // moved, squashed and given its faces; nothing is drawn on it.
+        case .hop:
+            // A little jump: crouch, up, land with a squash, a smile if it has one.
+            at(0, .bounce)
+            at(0, .look(x: 0, y: -0.3, keepsRest: true))
+            pose(0.1, dip: -0.075, motion: .hop)
+            if faces.contains(.smile) { at(0.1, .face(.smile)) }
+            pose(0.38, motion: .hop)
+            at(0.46, .bounce)
+            at(0.9, .settle)
+            at(0.9, .release)
+            end = 1.1
+        case .wiggle:
+            // A happy wiggle side to side, quick and getting smaller.
+            if faces.contains(.smile) { at(0, .face(.smile)) }
+            at(0, .look(x: 0, y: -0.05, keepsRest: true))
+            for (i, r) in [6.0, -6, 4.5, -3, 0].enumerated() {
+                pose(Double(i) * 0.13, roll: dir * r, lean: dir * pts(r * 0.25), motion: .nod)
+            }
+            at(0.9, .settle)
+            at(0.9, .release)
+            end = 1.05
+        case .bop:
+            // Nodding along to something only it can hear.
+            at(0, .look(x: dir * 0.2, y: -0.15, keepsRest: true))
+            if faces.contains(.smile) { at(0, .face(.smile)) }
+            for i in 0..<4 {
+                let side = i.isMultiple(of: 2) ? dir : -dir
+                pose(Double(i) * 0.34, roll: side * 4, lean: side * pts(1.5), dip: 0.018, motion: .nod)
+                pose(Double(i) * 0.34 + 0.17, roll: side * 2, dip: 0, motion: .nod)
+            }
+            pose(1.4)
+            at(1.4, .settle)
+            at(1.4, .release)
+            end = 1.6
+        case .peek:
+            // Ducks down out of sight a little, then pops back up, wide-eyed.
+            at(0, .look(x: dir * 0.3, y: 0.6))
+            pose(0, dip: 0.09, motion: .droop)
+            if faces.contains(.surprised) { at(0.6, .face(.surprised)) } else if faces.contains(.browsUp) { at(0.6, .face(.browsUp)) }
+            at(0.6, .look(x: -dir * 0.5, y: -0.1, speed: .snap))
+            pose(0.6, roll: -dir * 2, dip: -0.02, motion: .hop)
+            at(0.65, .bounce)
+            pose(1.15)
+            at(1.25, .settle)
+            at(1.25, .release)
+            end = 1.45
+        case .giggle:
+            // Three quick breaths of laughter, eyes squeezed if it can.
+            at(0, .face(faces.contains(.smile) ? .smile : .neutral))
+            at(0, .look(x: dir * 0.15, y: 0.15, keepsRest: true))
+            for i in 0..<3 {
+                at(Double(i) * 0.17, .bounce)
+                pose(Double(i) * 0.17, roll: dir * Double(2 + i), dip: 0.012, motion: .nod)
+                pose(Double(i) * 0.17 + 0.085, roll: dir * Double(1 + i), motion: .nod)
+            }
+            pose(0.7)
+            at(0.95, .settle)
+            at(0.95, .release)
+            end = 1.1
+        case .curious:
+            // A look one way, the other, then a cock of the head, brows up.
+            at(0, .look(x: dir * 0.75, y: -0.05))
+            pose(0.08, yaw: dir * 8, motion: .turn)
+            at(0.5, .look(x: -dir * 0.75, y: -0.05, speed: .snap))
+            pose(0.55, yaw: -dir * 8, motion: .turn)
+            at(1.0, .look(x: 0.1 * dir, y: -0.2, keepsRest: true))
+            pose(1.0, roll: dir * 6, motion: .hop)
+            if faces.contains(.browsUp) { at(1.0, .face(.browsUp)) }
+            at(1.6, .face(.neutral))
+            at(1.6, .release)
+            pose(1.6)
+            end = 1.9
         case .brow:
             at(0, .look(x: 0, y: -0.04, keepsRest: true))
             at(0, .face(.browsUp))

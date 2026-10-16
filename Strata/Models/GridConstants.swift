@@ -727,6 +727,8 @@ enum GridConstants {
     /// One beat of a nod or a shake: fast enough to read as a gesture,
     /// critically damped.
     static let headNod = Animation.spring(response: 0.14, dampingFraction: 0.9)
+    /// A hop, a pop up, a cock of the head: quick, and over a little.
+    static let headHop = Animation.spring(response: 0.26, dampingFraction: 0.55)
 
     // **`fillSweepDuration` (0.4) and `toggleSwitch` (0.30 / 0.80) are deleted**
     // (2026-10-01), zero call sites. `toggleSwitch`'s doc named its own two
