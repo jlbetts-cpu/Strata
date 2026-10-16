@@ -17,11 +17,22 @@ nonisolated enum MyWinReactions {
     /// line's reactions, which share the record, and a friend's win never
     /// count), never your own, never anyone you blocked. A friend in two of
     /// your crews who reacted in both counts once, with their latest.
+    ///
+    /// `kept`: reactions to your stories, copied onto this phone while the
+    /// story was on (`SocialStore.keepStoryReactions`), so they stay on the
+    /// block after the night (Tonight's Story, R12).
     static func gather(reactionsByCrew: [CrewID: [Reaction]],
                        winsByCrew: [CrewID: [SharedWin]],
+                       kept: [UUID: [Reaction]] = [:],
                        me: UUID,
                        blocked: Set<UUID>) -> [UUID: [Reaction]] {
         var latest: [UUID: [UUID: Reaction]] = [:]
+        for (winID, reactions) in kept {
+            for reaction in reactions where reaction.profileID != me && !blocked.contains(reaction.profileID) {
+                if let held = latest[winID]?[reaction.profileID], held.createdAt >= reaction.createdAt { continue }
+                latest[winID, default: [:]][reaction.profileID] = reaction
+            }
+        }
         for (crewID, reactions) in reactionsByCrew {
             let mine = Set((winsByCrew[crewID] ?? []).filter { $0.senderProfileID == me }.map(\.winID))
             guard !mine.isEmpty else { continue }
@@ -58,7 +69,8 @@ nonisolated enum MyWinReactions {
 extension SocialStore {
     /// Friends' reactions to your wins, every crew at once (`MyWinReactions`).
     func reactionsToMyWins() -> [UUID: [Reaction]] {
-        MyWinReactions.gather(reactionsByCrew: reactionsByCrew, winsByCrew: winsByCrew, me: me, blocked: blocked)
+        MyWinReactions.gather(reactionsByCrew: reactionsByCrew, winsByCrew: winsByCrew, kept: keptStoryReactions,
+                              me: me, blocked: blocked)
     }
 
     /// What a tower of your wins is handed: nothing at all while crews are

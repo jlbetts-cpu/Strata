@@ -67,6 +67,10 @@ nonisolated enum CrewRecordType: String, Codable, Sendable, CaseIterable {
     /// stale copy of it could overwrite a head change still on its way. A
     /// build before it reads past a kind it does not know.
     case score = "Score"
+    /// **One win on Tonight's Story** (2026-10-15), named by the win as its
+    /// crew copy is, but its own kind, so the two never meet: a win can be
+    /// both in the crew and on the story. A build before it reads past it.
+    case story = "Story"
 }
 
 /// The kinds of record a crew zone holds, and EXACTLY what goes in them.
@@ -89,6 +93,9 @@ nonisolated enum CrewRecords {
     /// Sealed in the item's box like every record (`CrewItemBox`), so the
     /// server's schema does not change.
     static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
+    /// A shared win's, and the sealed end. Its `crewDay` is the poster's
+    /// date, the night it belongs to (`CrewStory`).
+    static let storyKeys: Set<String> = sharedWinKeys.union(["endsAt"])
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -102,6 +109,7 @@ nonisolated enum CrewRecords {
         case .reaction: reactionKeys
         case .message: messageKeys
         case .score: scoreKeys
+        case .story: storyKeys
         }
     }
 
@@ -162,6 +170,20 @@ nonisolated enum CrewRecords {
                          photo: fields["photo"]?.asset, cropX: fields["cropX"]?.double,
                          cropY: fields["cropY"]?.double, createdAt: created, updatedAt: updated,
                          withPeople: withPeople(fields["withPeople"]?.string, sender: sender))
+    }
+
+    // MARK: Story
+
+    static func fields(_ story: CrewStory) -> RecordFields {
+        var fields = fields(story.win)
+        fields["endsAt"] = .date(story.endsAt)
+        return fields
+    }
+
+    /// A story needs its end: one without it would never go.
+    static func story(_ fields: RecordFields, crew: CrewID) -> CrewStory? {
+        guard let ends = fields["endsAt"]?.date, let win = sharedWin(fields, crew: crew) else { return nil }
+        return CrewStory(win: win, endsAt: ends)
     }
 
     // MARK: Reaction

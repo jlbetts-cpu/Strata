@@ -103,6 +103,20 @@ final class SocialStore {
     /// screen's chat button carries a dot for it; nothing else does, and
     /// nothing is ever said about who has read what.
     private(set) var unreadChats: Set<CrewID> = []
+    /// **Tonight's stories, as each crew holds them** (`CrewStory`). Yours
+    /// and your friends', waiting, open or past their end: what may be shown
+    /// is the clock's to say (`StoryClock`), and the sweep in `prune` drops
+    /// what has gone.
+    private(set) var storiesByCrew: [CrewID: [CrewStory]] = [:]
+    /// Stories watched to the end on this phone, kept until their night has
+    /// gone, so a ring goes grey and stays grey.
+    private(set) var storiesSeen: Set<UUID> = []
+    /// Friends whose story you hid for tonight, with the night it was.
+    private(set) var storiesHidden: [UUID: String] = [:]
+    /// **Reactions to your stories, kept on this phone** (the spec, 6.4:
+    /// "reactions are copied to the poster's phone when read, so they
+    /// outlive the night"). Keyed by the win, with the night they came on.
+    @ObservationIgnored private(set) var storyReactionsKept: [UUID: StoryReactionsKept] = [:]
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
     /// yet" and stop saying it.
     private(set) var outboxRevision = 0
@@ -201,6 +215,8 @@ final class SocialStore {
         winsByCrew = [:]
         reactionsByCrew = [:]
         messagesByCrew = [:]
+        storiesByCrew = [:]
+        storyReactionsKept = [:]
         unreadChats = []
         outbox = CrewOutbox()
         persistOutbox()
@@ -221,6 +237,11 @@ final class SocialStore {
         let hidden = defaults.dictionary(forKey: CrewChoicesSync.Table.hidden.rawValue) as? CrewChoicesSync.Entries ?? [:]
         self.hiddenWins = Set(hidden.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
         self.tagAnswers = defaults.dictionary(forKey: Self.tagAnswersKey) as? [String: Bool] ?? [:]
+        self.storiesSeen = Set((defaults.stringArray(forKey: Self.storiesSeenKey) ?? []).compactMap(UUID.init(uuidString:)))
+        self.storiesHidden = (defaults.dictionary(forKey: Self.storiesHiddenKey) as? [String: String] ?? [:])
+            .reduce(into: [:]) { out, pair in if let id = UUID(uuidString: pair.key) { out[id] = pair.value } }
+        self.storyReactionsKept = (try? Data(contentsOf: directory.appending(path: Self.storyReactionsFile)))
+            .flatMap { try? JSONDecoder().decode([UUID: StoryReactionsKept].self, from: $0) } ?? [:]
     }
 
     // MARK: Reading
@@ -1015,6 +1036,10 @@ final class SocialStore {
         for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == me {
             try? await cloud.delete(type: .message, name: CrewRecords.name(of: message), in: crewID)
         }
+        // And your stories in it.
+        for story in storiesByCrew[crewID] ?? [] where story.sender == me {
+            try? await cloud.delete(type: .story, name: story.id.uuidString, in: crewID)
+        }
         // Your score goes with you; left behind it would show nobody, since
         // a crew's people are read from member records alone.
         try? await cloud.delete(type: .score, name: me.uuidString, in: crewID)
@@ -1088,6 +1113,8 @@ final class SocialStore {
     func update(_ win: OwnWin) async {
         guard isEnabled() else { return }
         let holding = crews(holding: win.winID)
+        // A win on tonight's story changes there too (R3), crews or none.
+        if isOnStory(win.winID) { await updateStory(win) }
         guard !holding.isEmpty else { return }
         guard sent[win.winID]?.signature != Self.signature(win) else { return }
         let win = withTags(win)
@@ -1143,6 +1170,8 @@ final class SocialStore {
     /// Deleting a win deletes every copy of it, everywhere.
     func deleteEverywhere(winID: UUID) async {
         guard isEnabled() else { return }
+        // Off tonight's story as well, at once (R3).
+        if isOnStory(winID) { await withdrawStory(winID: winID) }
         for crewID in crews(holding: winID) {
             winsByCrew[crewID]?.removeAll { $0.winID == winID }
             enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: nil))
@@ -1155,6 +1184,7 @@ final class SocialStore {
     /// photo removal rule (CLAUDE.md) is that a photo is never the win.
     func removePhotoEverywhere(winID: UUID) async {
         guard isEnabled() else { return }
+        if isOnStory(winID) { await removeStoryPhoto(winID: winID) }
         for crewID in crews(holding: winID) {
             guard var shared = winsByCrew[crewID]?.first(where: { $0.winID == winID }) else { continue }
             if let photo = shared.photo { try? FileManager.default.removeItem(at: photo) }
@@ -1569,8 +1599,7 @@ final class SocialStore {
         // crew tower"). It was refused. Nobody is told of it: a reaction's
         // ping goes to the win's owner, and never from the owner to
         // themselves (`pingIfNew`).
-        guard isEnabled(), let crew = crew(crewID),
-              winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true else { return }
+        guard isEnabled(), let crew = crew(crewID), holdsWinOrStory(winID, in: crewID) else { return }
         // Too fast is dropped quietly: the reaction already showing stays.
         guard paced(.reaction, in: crew, item: winID) == nil else { return }
         Analytics.shared.signal(.crewReaction)
@@ -1613,8 +1642,7 @@ final class SocialStore {
     /// does; an emoji after it replaces it.
     @discardableResult
     func react(sticker png: Data, to winID: UUID, in crewID: CrewID) async -> ReplyOutcome {
-        guard isEnabled(), let crew = crew(crewID),
-              winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true,
+        guard isEnabled(), let crew = crew(crewID), holdsWinOrStory(winID, in: crewID),
               photosAllowed() else { return .notAllowed }
         if let held = paced(.reaction, in: crew, item: winID) { return held }
         let side = CGFloat(Reaction.stickerSide)
@@ -1892,6 +1920,7 @@ final class SocialStore {
         var wins: [SharedWin]?
         var reactions: [Reaction]
         var messages: [CrewMessage]
+        var stories: [CrewStory]
     }
 
     private func held(in crew: Crew) async -> Held {
@@ -1936,10 +1965,24 @@ final class SocialStore {
                 messages.append(mine)
             }
         }
+        // Stories, the same way again: a failed fetch keeps what was held.
+        var stories = (try? await cloud.fetchStories(in: crew.id)) ?? storiesByCrew[crew.id] ?? []
+        for entry in outbox.entries where entry.crew == crew.id && entry.type == .story {
+            stories.removeAll { $0.id.uuidString == entry.name }
+            if let fields = entry.fields, let mine = CrewRecords.story(fields, crew: crew.id) { stories.append(mine) }
+        }
+        stories = stories.filter { people.contains($0.sender) }
+            .map { story -> CrewStory in
+                var story = story
+                story.win.withPeople.removeAll { !people.contains($0) }
+                return story
+            }
+            .sorted { ($0.win.createdAt, $0.id.uuidString) < ($1.win.createdAt, $1.id.uuidString) }
         return Held(wins: wins,
                     reactions: reactions.filter { people.contains($0.profileID) }.sorted { $0.id < $1.id },
                     messages: messages.filter { people.contains($0.senderProfileID) }
-                        .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) })
+                        .sorted { ($0.createdAt, $0.messageID.uuidString) < ($1.createdAt, $1.messageID.uuidString) },
+                    stories: stories)
     }
 
     /// **In a fixed order**, members, wins and reactions alike. A fetch
@@ -1977,6 +2020,8 @@ final class SocialStore {
         if winsByCrew[crewID] != wins { winsByCrew[crewID] = wins }
         if reactionsByCrew[crewID] != held.reactions { reactionsByCrew[crewID] = held.reactions }
         if messagesByCrew[crewID] != held.messages { messagesByCrew[crewID] = held.messages }
+        if storiesByCrew[crewID] != held.stories { storiesByCrew[crewID] = held.stories }
+        keepStoryReactions()
         if let counted = held.wins { recordHistory([crewID: counted], for: [crew]) }
         recomputeUnread()
         prune()
@@ -1998,8 +2043,10 @@ final class SocialStore {
             var counted: [CrewID: [SharedWin]] = [:]
             var reactions: [CrewID: [Reaction]] = [:]
             var messages: [CrewID: [CrewMessage]] = [:]
+            var stories: [CrewID: [CrewStory]] = [:]
             for crew in fetched {
                 let held = await held(in: crew)
+                stories[crew.id] = held.stories
                 wins[crew.id] = held.wins ?? winsByCrew[crew.id] ?? []
                 counted[crew.id] = held.wins
                 reactions[crew.id] = held.reactions
@@ -2028,6 +2075,7 @@ final class SocialStore {
                 wins[crew.id] = winsByCrew[crew.id] ?? []
                 reactions[crew.id] = reactionsByCrew[crew.id]
                 messages[crew.id] = messagesByCrew[crew.id]
+                stories[crew.id] = storiesByCrew[crew.id]
             }
             let merged = (fetched.map(withEdits) + crews.filter { unread.contains($0.id) })
                 .sorted { $0.createdAt < $1.createdAt }
@@ -2036,6 +2084,8 @@ final class SocialStore {
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
             if messagesByCrew != messages { messagesByCrew = messages }
+            if storiesByCrew != stories { storiesByCrew = stories }
+            keepStoryReactions()
             if !hasFetchedCrews { hasFetchedCrews = true }
             recordHistory(counted, for: fetched)
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
@@ -2199,6 +2249,7 @@ final class SocialStore {
     /// older goes, and so do the oldest photos past `photoCap`. Whoever opens
     /// the crew next does the deleting.
     func prune() {
+        sweepStories()
         for crew in crews {
             let today = CrewDay.string(for: now(), in: crew.timeZone)
             guard var cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) else { continue }
@@ -2225,6 +2276,9 @@ final class SocialStore {
             // reactions were orphans of no win, deleted the moment they came.
             let live = Set((winsByCrew[crew.id] ?? []).filter { $0.crewDay >= cutoff }.map(\.winID))
                 .union((messagesByCrew[crew.id] ?? []).filter { $0.crewDay >= today }.map(\.messageID))
+                // A story's reactions live while it does; the poster's phone
+                // has kept its own copy by then (`keepStoryReactions`).
+                .union((storiesByCrew[crew.id] ?? []).filter { now() < $0.endsAt }.map(\.id))
             let orphans = (reactionsByCrew[crew.id] ?? []).filter { !live.contains($0.winID) }
             if !orphans.isEmpty, winsByCrew[crew.id] != nil {
                 reactionsByCrew[crew.id]?.removeAll { !live.contains($0.winID) }
@@ -2532,7 +2586,8 @@ final class SocialStore {
             if await leave(ping, key: key) { remember(people.union(heard), toldAbout: winID) }
             return
         case .reaction:
-            guard let owner = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID,
+            guard let owner = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID
+                    ?? storiesByCrew[crewID]?.first(where: { $0.id == winID })?.sender,
                   owner != me else { return }
             ping[CrewPingRecord.kind] = CrewPingRecord.Kind.reaction.rawValue
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
@@ -2540,7 +2595,9 @@ final class SocialStore {
         // The chat's ping is its own (`pingMessage`); a crew's record and a
         // member's are not news (joining is, and says so itself: `pingJoined`),
         // and nor is a score.
-        case .crew, .member, .message, .score:
+        // A story is not news either: its friends learn of it at 8pm, from
+        // the row, never from a ping (the spec, 1.2: "no new notification").
+        case .crew, .member, .message, .score, .story:
             return
         }
         await leave(ping, key: key)
@@ -2940,6 +2997,9 @@ final class SocialStore {
         }
         reactionsByCrew[crewID] = nil
         messagesByCrew[crewID] = nil
+        for story in storiesByCrew.removeValue(forKey: crewID) ?? [] where story.sender == me {
+            if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
+        }
         unreadChats.remove(crewID)
         history[crewID] = nil
         unread.remove(crewID)
@@ -3033,5 +3093,202 @@ final class SocialStore {
                   createdAt: win.createdAt,
                   updatedAt: win.updatedAt,
                   withPeople: Array(people.prefix(CrewCaps.withPeople)))
+    }
+}
+
+// MARK: - Tonight's Story
+
+/// Reactions to one of your stories, as your phone last read them, by crew.
+nonisolated struct StoryReactionsKept: Codable, Equatable, Sendable {
+    /// The night the story was on, for the sweep.
+    var day: String
+    var byCrew: [String: [Reaction]] = [:]
+}
+
+extension SocialStore {
+    static let storiesSeenKey = "crewStoriesSeen"
+    static let storiesHiddenKey = "crewStoriesHidden"
+    static let storyReactionsFile = "story-reactions.json"
+
+    /// **Puts one of today's wins on Tonight's Story** (R1 to R4): written
+    /// into every crew you are in, sealed with each crew's key, with the
+    /// photo only if you may send one (13 to 15 send the block alone, as
+    /// they do to a crew). Only a win of today, by your own clock.
+    func postStory(_ win: OwnWin) async {
+        guard isEnabled(), !crews.isEmpty else { return }
+        let zone = TimeZone.current
+        let existing = myStoryCopy(of: win.winID)
+        let day = existing?.day ?? CrewDay.string(for: win.createdAt, in: zone)
+        guard existing != nil || StoryClock.canPost(winMadeAt: win.createdAt, at: now(), in: zone),
+              let ends = existing?.endsAt ?? StoryClock.endsAt(of: day, in: zone), now() < ends else { return }
+        let win = withTags(win)
+        let photo = await checkedPhoto(for: win)
+        for crew in crews {
+            var shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crew.id, win: win.winID) })
+            shared.crewDay = day
+            let story = CrewStory(win: shared, endsAt: ends)
+            let old = storiesByCrew[crew.id]?.first { $0.id == story.id }
+            var held = storiesByCrew[crew.id] ?? []
+            held.removeAll { $0.id == story.id }
+            held.append(story)
+            storiesByCrew[crew.id] = held
+            if let was = old?.win.photo, was != shared.photo { try? FileManager.default.removeItem(at: was) }
+            enqueue(.init(crew: crew.id, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(story)))
+        }
+        nudgeLive()
+        await flush()
+    }
+
+    /// An edit to a win on the story: the story changes with it, on the
+    /// night it was posted to.
+    func updateStory(_ win: OwnWin) async { await postStory(win) }
+
+    /// Off the story, from every crew at once (R3).
+    func withdrawStory(winID: UUID) async {
+        guard isEnabled() else { return }
+        for (crewID, stories) in storiesByCrew {
+            guard let story = stories.first(where: { $0.id == winID && $0.sender == me }) else { continue }
+            storiesByCrew[crewID]?.removeAll { $0.id == winID }
+            if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
+            enqueue(.init(crew: crewID, type: .story, name: winID.uuidString, fields: nil))
+        }
+        nudgeLive()
+        await flush()
+    }
+
+    /// A win a reaction can land on: one in the crew's list, or a story the
+    /// crew holds (Tonight's Story, R10).
+    func holdsWinOrStory(_ winID: UUID, in crewID: CrewID) -> Bool {
+        winsByCrew[crewID]?.contains(where: { $0.winID == winID }) == true
+            || storiesByCrew[crewID]?.contains(where: { $0.id == winID }) == true
+    }
+
+    /// Whether this win of yours is on a story that has not ended.
+    func isOnStory(_ winID: UUID) -> Bool { myStoryCopy(of: winID) != nil }
+
+    private func myStoryCopy(of winID: UUID) -> CrewStory? {
+        let t = now()
+        for crew in crews {
+            if let story = storiesByCrew[crew.id]?.first(where: { $0.id == winID && $0.sender == me && t < $0.endsAt }) {
+                return story
+            }
+        }
+        return nil
+    }
+
+    /// Your story tonight, each win once, oldest first.
+    var myStory: [CrewStory] {
+        let t = now()
+        var seen: Set<UUID> = []
+        return crews.flatMap { storiesByCrew[$0.id] ?? [] }
+            .filter { $0.sender == me && t < $0.endsAt && seen.insert($0.id).inserted }
+            .sorted { ($0.win.createdAt, $0.id.uuidString) < ($1.win.createdAt, $1.id.uuidString) }
+    }
+
+    /// Friends with a story waiting or open, in the row's order.
+    func storyPeople(at moment: Date? = nil, in zone: TimeZone = .current) -> [StoryPerson] {
+        StoryPerson.gather(storiesByCrew, crewOrder: crews.compactMap { visible($0.id)?.id }, me: me,
+                           blocked: blocked, hidden: storiesHidden, seen: storiesSeen,
+                           now: moment ?? StoryClock.now(now(), in: zone), zone: zone)
+    }
+
+    /// A story watched to its end: its ring goes grey.
+    func markStorySeen(_ id: UUID) {
+        guard storiesSeen.insert(id).inserted else { return }
+        defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
+    }
+
+    /// Hide Their Story, for the night it is on (R11). Their head stays.
+    func hideStory(of profileID: UUID, day: String) {
+        storiesHidden[profileID] = day
+        persistStoriesHidden()
+    }
+
+    private func persistStoriesHidden() {
+        defaults.set(Dictionary(uniqueKeysWithValues: storiesHidden.map { ($0.key.uuidString, $0.value) }),
+                     forKey: Self.storiesHiddenKey)
+    }
+
+    /// **Copies friends' reactions to your stories onto this phone** while
+    /// the story is on, so they stay on your block after the night, when
+    /// their records have gone (R12). A reaction taken back during the
+    /// night comes off.
+    func keepStoryReactions() {
+        let t = now()
+        var changed = false
+        for (crewID, stories) in storiesByCrew {
+            for story in stories where story.sender == me && t < story.endsAt {
+                let theirs = (reactionsByCrew[crewID] ?? []).filter { $0.winID == story.id && $0.profileID != me }
+                var kept = storyReactionsKept[story.id] ?? StoryReactionsKept(day: story.day)
+                guard kept.byCrew[crewID.rawValue] ?? [] != theirs else { continue }
+                kept.byCrew[crewID.rawValue] = theirs
+                storyReactionsKept[story.id] = kept
+                changed = true
+            }
+        }
+        if changed { persistStoryReactions() }
+    }
+
+    private func persistStoryReactions() {
+        let url = directory.appending(path: Self.storyReactionsFile)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(storyReactionsKept).write(to: url, options: .atomic)
+        } catch {
+            Self.log.error("story reactions not kept: \(error)")
+        }
+    }
+
+    /// Kept reactions to your stories, by win, for your tower.
+    var keptStoryReactions: [UUID: [Reaction]] {
+        storyReactionsKept.mapValues { $0.byCrew.values.flatMap { $0 } }
+    }
+
+    /// **The sweep** (R4), from `prune`: a story past its end leaves every
+    /// phone's list, and the poster's phone deletes its records and its
+    /// photo. What was watched or hidden is forgotten once its night is.
+    func sweepStories() {
+        let t = now()
+        for (crewID, stories) in storiesByCrew {
+            let gone = stories.filter { t >= $0.endsAt }
+            guard !gone.isEmpty else { continue }
+            storiesByCrew[crewID]?.removeAll { t >= $0.endsAt }
+            for story in gone where story.sender == me {
+                if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
+                enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: nil))
+            }
+        }
+        guard hasFetchedCrews else { return }
+        let live = Set(storiesByCrew.values.flatMap { $0.map(\.id) })
+        if !storiesSeen.isSubset(of: live) {
+            storiesSeen.formIntersection(live)
+            defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
+        }
+        let yesterday = CrewDay.day(CrewDay.string(for: t, in: .current), offsetBy: -1, in: .current) ?? ""
+        if storiesHidden.values.contains(where: { $0 < yesterday }) {
+            storiesHidden = storiesHidden.filter { $0.value >= yesterday }
+            persistStoriesHidden()
+        }
+        // Kept reactions last as long as a crew keeps a win's (two weeks).
+        let today = CrewDay.string(for: t, in: .current)
+        if let cutoff = CrewDay.oldestKept(today: today, in: .current),
+           storyReactionsKept.values.contains(where: { $0.day < cutoff }) {
+            storyReactionsKept = storyReactionsKept.filter { $0.value.day >= cutoff }
+            persistStoryReactions()
+        }
+    }
+
+    /// A photo taken off a story win comes off the story too.
+    func removeStoryPhoto(winID: UUID) async {
+        for (crewID, stories) in storiesByCrew {
+            guard var story = stories.first(where: { $0.id == winID && $0.sender == me }), story.win.photo != nil else { continue }
+            if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
+            story.win.photo = nil
+            story.win.updatedAt = now()
+            storiesByCrew[crewID]?.removeAll { $0.id == winID }
+            storiesByCrew[crewID]?.append(story)
+            enqueue(.init(crew: crewID, type: .story, name: winID.uuidString, fields: CrewRecords.fields(story)))
+        }
+        await flush()
     }
 }

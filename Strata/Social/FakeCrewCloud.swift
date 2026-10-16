@@ -166,6 +166,12 @@ final class FakeCrewCloud: CrewCloud {
         return world.records(of: .message, in: crew).values.compactMap { CrewRecords.message($0, crew: crew) }
     }
 
+    func fetchStories(in crew: CrewID) async throws -> [CrewStory] {
+        try touch()
+        guard world.zones[crew]?.participants.contains(myProfileID) == true else { throw CrewError.unknownCrew }
+        return world.records(of: .story, in: crew).values.compactMap { CrewRecords.story($0, crew: crew) }
+    }
+
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws {
         try touch()
         if let saveError { throw saveError }

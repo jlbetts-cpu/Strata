@@ -657,6 +657,12 @@ final class PublicCrewCloud: CrewCloud {
         }
     }
 
+    func fetchStories(in crew: CrewID) async throws -> [CrewStory] {
+        records(.story, in: crew).compactMap { fields in
+            CrewRecords.story(fields, crew: crew).flatMap { keep(fields, from: $0.sender, in: crew) ? $0 : nil }
+        }
+    }
+
     func fetchReactions(in crew: CrewID) async throws -> [Reaction] {
         records(.reaction, in: crew).compactMap { fields in
             CrewRecords.reaction(fields, crew: crew).flatMap { keep(fields, from: $0.profileID, in: crew) ? $0 : nil }
@@ -1695,6 +1701,9 @@ final class PublicCrewCloud: CrewCloud {
         switch type {
         case .crew: "crew-picture-\(tag)"
         case .reaction: "reaction-\(name)-\(tag)"
+        // Its own family: a story's photo and the same win's crew copy
+        // share a name, and a new file of one family clears the old ones.
+        case .story: "story-\(name)-\(tag)"
         default: "\(name)-\(tag)"
         }
     }
@@ -1703,6 +1712,7 @@ final class PublicCrewCloud: CrewCloud {
         switch type {
         case .crew: "crew-picture-"
         case .reaction: "reaction-\(name)-"
+        case .story: "story-\(name)-"
         default: "\(name)-"
         }
     }
