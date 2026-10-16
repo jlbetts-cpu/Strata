@@ -165,8 +165,11 @@ struct CrewReactionTests {
         // A win that is not in this crew is still nothing to answer.
         #expect(await a.reply("x", to: UUID(), in: crew.id) == .notAllowed)
         let panel = SourceSweep.code((try? SourceSweep.read("Strata/Views/Crews/CrewReactions.swift")) ?? "")
-        #expect(!panel.contains("if !mine {\n                            replyChip(\"Reply\")"))
-        #expect(panel.contains("replyChip(\"Reply\")") && panel.contains("replyChip(\"Doodle\")"))
+        // The chips carry their marks since 2026-10-16 (the carousel drawn as
+        // the crew's hold), so the pin reads the call's start: still offered,
+        // still not behind `!mine`.
+        #expect(!panel.contains("if !mine {\n                            replyChip(\"Reply\""))
+        #expect(panel.contains("replyChip(\"Reply\",") && panel.contains("replyChip(\"Doodle\","))
     }
 
     @Test func aWithdrawnWinTakesItsReactionsWithIt() async throws {
