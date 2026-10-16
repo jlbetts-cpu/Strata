@@ -259,7 +259,11 @@ struct TodayHeads: View {
                         // the number of notches the number of win stories").
                         storyCrest(person, story: story, showing: showing, order: order)
                     } else {
-                        PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side)
+                        // Alive, as chrome is (`.calm`: glances and brow flashes,
+                        // never a stare), not a photograph of a head (the owner,
+                        // 2026-10-16: "rather than just being there").
+                        PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: Self.side,
+                                   life: .calm)
                             .padding(.horizontal, Self.inset)
                             .padding(.top, Self.inset)
                     }

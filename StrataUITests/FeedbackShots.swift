@@ -1849,6 +1849,19 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-post end \(app.staticTexts["That's everyone tonight."].exists)")
     }
 
+    /// **Your head's personality** in Edit Profile (2026-10-16).
+    func testHeadPersonality() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedWins", "4", "-strataSeedHead", "1"])
+        wait(7)
+        let head = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Edit Profile'")).firstMatch
+        if head.exists { head.tap() }
+        wait(2.5); snap("persona-0-edit")
+        let cheeky = app.buttons["Cheeky"].firstMatch
+        print("PLANNING-persona cheeky \(cheeky.exists)")
+        if cheeky.exists { cheeky.tap() }
+        wait(1.5); snap("persona-1-cheeky")
+    }
+
     /// A new win sent to a crew says where it went (2026-10-15).
     func testSentToCrew() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",

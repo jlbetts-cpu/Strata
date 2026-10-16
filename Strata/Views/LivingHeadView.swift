@@ -46,6 +46,8 @@ struct LivingHeadView: View {
     /// file, so every head — made or bundled — sits in the middle.
     let side: CGFloat
     var liveliness: Liveliness = .calm
+    /// How this head lives (`HeadPersonality`): yours is the one you chose.
+    var personality: HeadPersonality = .calm
     /// Brows, then a wink (or a smile) when it first appears.
     var greets = false
     /// **A face to wear and keep.** Nil is the normal head, which lives on its
@@ -145,7 +147,7 @@ struct LivingHeadView: View {
         LoopKey(reduceMotion: reduceMotion, awake: awake, rig: ObjectIdentifier(rig.face(.neutral).image))
     }
 
-    private var profile: HeadLife { liveliness == .calm ? .calm : .expressive }
+    private var profile: HeadLife { (liveliness == .calm ? HeadLife.calm : .expressive).personalised(personality) }
     private var awake: Bool { scenePhase == .active && onScreen && headsAwake }
     private var step: Duration { .seconds(GridConstants.headStep) }
 
@@ -289,7 +291,7 @@ struct LivingHeadView: View {
     /// The same seed gives the same life on any head (`-strataHeadSeed`).
     private var director: HeadDirector {
         get {
-            let key = "\(liveliness)|\(rig.expressions)|\(rig.shutFaces.map(\.rawValue).sorted())|\(String(describing: lookTarget))"
+            let key = "\(liveliness)|\(personality.rawValue)|\(rig.expressions)|\(rig.shutFaces.map(\.rawValue).sorted())|\(String(describing: lookTarget))"
             if let director = life.director, life.key == key { return director }
             #if DEBUG
             let seed = DebugHarness.headSeed

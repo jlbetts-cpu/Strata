@@ -60,6 +60,7 @@ struct ProfileView: View {
         // is changing who you are: the picture, the name, the heads.
         Form {
             identity
+            if heads.head != nil { personalitySection }
             headSection
             earlierHeadsSection
         }
@@ -172,6 +173,34 @@ struct ProfileView: View {
         scroller.scrollTo(Self.headAnchor, anchor: .top)
     }
     #endif
+
+    // MARK: - Personality
+
+    @AppStorage(HeadPersonality.key) private var personalityRaw = HeadPersonality.calm.rawValue
+
+    /// **How your head lives** (`HeadPersonality`): four ways, chosen here,
+    /// seen at once on the head above it, which plays the one you pick.
+    private var personalitySection: some View {
+        let chosen = HeadPersonality(rawValue: personalityRaw) ?? .calm
+        return Section {
+            GlassChoiceBar(items: HeadPersonality.allCases, chosen: chosen,
+                           title: { $0.name }, spoken: { $0.name },
+                           choose: { picked in
+                               HapticsEngine.tick()
+                               withAnimation(GridConstants.motionSnappy) { personalityRaw = picked.rawValue }
+                           }, fills: true)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Personality")
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+        } header: {
+            FormSectionLabel("Personality")
+        } footer: {
+            Text(chosen.line)
+                .formFooter()
+                .contentTransition(.opacity)
+        }
+    }
 
     // MARK: - Identity
 

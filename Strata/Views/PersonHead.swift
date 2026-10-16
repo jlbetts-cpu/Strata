@@ -183,6 +183,13 @@ struct PersonHead: View {
         }
     }
 
+    /// Yours lives as you chose (`HeadPersonality`); a friend's, for now, calm.
+    @AppStorage(HeadPersonality.key) private var personalityRaw = HeadPersonality.calm.rawValue
+    private var personality: HeadPersonality {
+        if case .me = person { return HeadPersonality(rawValue: personalityRaw) ?? .calm }
+        return .calm
+    }
+
     @ViewBuilder
     private func face(_ rig: HeadRig?, side s: CGFloat) -> some View {
         Group {
@@ -191,9 +198,9 @@ struct PersonHead: View {
                 case .still:
                     HeadStill(rig: rig, side: s)
                 case .calm:
-                    LivingHeadView(rig: rig, side: s, liveliness: .calm, take: take, traceID: traceID)
+                    LivingHeadView(rig: rig, side: s, liveliness: .calm, personality: personality, take: take, traceID: traceID)
                 case .expressive:
-                    LivingHeadView(rig: rig, side: s, liveliness: .expressive, take: take, traceID: traceID)
+                    LivingHeadView(rig: rig, side: s, liveliness: .expressive, personality: personality, take: take, traceID: traceID)
                 }
             } else {
                 HeadPlaceholder(colour: HeadIdentity.colour(of: person),
