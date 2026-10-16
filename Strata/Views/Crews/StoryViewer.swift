@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 
 /// **Tonight's Story, watched** (the spec, 1.4 and 3; the plan, R9 to R11).
@@ -324,7 +325,7 @@ private struct StoryPage: View {
                 } label: {
                     Label("Hide Their Story", systemImage: "eye.slash")
                 }
-                Button(role: .destructive) { reporting = story.win } label: {
+                Button(role: .destructive) { reporting = isWords ? wordsReported : story.win } label: {
                     Label("Report", systemImage: "exclamationmark.bubble")
                 }
                 Button(role: .destructive) { blocking = true } label: {
@@ -335,6 +336,18 @@ private struct StoryPage: View {
             StoryGlyph.label("ellipsis", tint: .white)
         }
         .accessibilityLabel("Story actions")
+    }
+
+    /// **The words page, reportable** (the review, 2026-10-16): as a win the
+    /// report already knows how to carry, its title their three lines and
+    /// its picture the page's drawing, so no new kind of report is needed.
+    private var wordsReported: SharedWin {
+        var win = story.win
+        let lines = [person.line.map { "\(StoryLine.high): \($0)" }, person.low.map { "\(StoryLine.low): \($0)" },
+                     person.buffalo.map { "\(StoryLine.buffalo): \($0)" }].compactMap { $0 }
+        win.title = "Story page. " + lines.joined(separator: " / ")
+        win.photo = person.wordsArt
+        return win
     }
 
     // MARK: The picture
@@ -978,12 +991,18 @@ struct StoryWordsPage<Picture: View, Art: View>: View {
     @ViewBuilder var picture: (CGSize) -> Picture
     @ViewBuilder var art: (CGSize) -> Art
 
-    /// The page's shape, the story card's: the editor draws at it, so the
-    /// ink lands where it was put on any phone.
+    /// The page's shape, the story card's: the editor draws at it.
     static var aspect: CGFloat { 9 / 16 }
+    /// **The page is laid out once, at this size, and scaled to the card**
+    /// (the review, 2026-10-16: on a friend's taller card the words wrapped
+    /// differently and a circle drawn round one missed it). The words and
+    /// the ink scale together, filling the card as a photograph does, so
+    /// what you drew round a word is round it on every phone.
+    static var page: CGSize { CGSize(width: 360, height: 640) }
 
     var body: some View {
         GeometryReader { geo in
+            let k = max(geo.size.width / Self.page.width, geo.size.height / Self.page.height)
             ZStack {
                 Color(white: 0.09)
                 if hasPicture {
@@ -992,20 +1011,26 @@ struct StoryWordsPage<Picture: View, Art: View>: View {
                         .clipped()
                     Color.black.opacity(0.45)
                 }
-                VStack(alignment: .leading, spacing: GridConstants.gapSection) {
-                    Spacer(minLength: 0)
-                    if let high { row(StoryLine.high, high) }
-                    if let low { row(StoryLine.low, low) }
-                    if let buffalo { row(StoryLine.buffalo, buffalo) }
-                    Spacer(minLength: 0)
+                ZStack {
+                    VStack(alignment: .leading, spacing: GridConstants.gapSection) {
+                        Spacer(minLength: 0)
+                        if let high { row(StoryLine.high, high) }
+                        if let low { row(StoryLine.low, low) }
+                        if let buffalo { row(StoryLine.buffalo, buffalo) }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, GridConstants.gapWide + 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    art(Self.page)
+                        .frame(width: Self.page.width, height: Self.page.height)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                .padding(.horizontal, GridConstants.gapWide + 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                art(geo.size)
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+                .frame(width: Self.page.width, height: Self.page.height)
+                .scaleEffect(k)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
+            .clipped()
         }
     }
 
@@ -1044,9 +1069,22 @@ struct StoryArtImage: View {
         }
         .task(id: url) {
             guard let url else { image = nil; return }
-            image = await Task.detached(priority: .userInitiated) {
-                (try? Data(contentsOf: url)).flatMap(UIImage.init(data:))
-            }.value
+            image = await Task.detached(priority: .userInitiated) { Self.decode(url) }.value
         }
+    }
+
+    /// **Never decoded whole** (the review, 2026-10-16): a friend's file could
+    /// claim a huge size; read through ImageIO at no more than the page's
+    /// own longest edge, as `CrewPhotoView` reads a photo.
+    nonisolated static func decode(_ url: URL) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1600,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
     }
 }

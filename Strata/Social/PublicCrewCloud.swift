@@ -2113,6 +2113,11 @@ nonisolated enum CrewItemBox {
         var fields = try JSONDecoder().decode(RecordFields.self, from: json)
         let names = (fields[slotKey]?.string ?? "").split(separator: ",").map(String.init)
         fields[slotKey] = nil
+        // **A file is only ever one that came with the record** (the review,
+        // 2026-10-16). `seal` never writes a file into the box's words, so
+        // one found there was put there by hand, naming a file on this phone
+        // to be drawn as theirs: dropped.
+        for (name, value) in fields { if case .asset = value { fields[name] = nil } }
         for (index, name) in names.enumerated() where index < slots.count {
             let slot = slots[index]
             guard let source = assets[slot] else { continue }

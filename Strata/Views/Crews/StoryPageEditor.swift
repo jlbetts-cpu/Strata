@@ -25,8 +25,9 @@ struct StoryPageEditor: View {
     let photos: [HabitLog]
     /// The photograph behind, as chosen.
     let photo: UUID?
-    /// The photograph, and the page's picture by name, or nil for none.
-    let done: (UUID?, String?) -> Void
+    /// The photograph, the page's picture by name (nil for none), and the
+    /// wins whose photographs are in its strip.
+    let done: (UUID?, String?, [UUID]) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -35,9 +36,10 @@ struct StoryPageEditor: View {
     @State private var behind: UUID?
     @State private var printing = false
     @State private var noStrip = false
+    @State private var stripWins: Set<UUID> = []
 
     init(high: String, low: String, buffalo: String, day: String, photos: [HabitLog], photo: UUID?,
-         done: @escaping (UUID?, String?) -> Void) {
+         done: @escaping (UUID?, String?, [UUID]) -> Void) {
         self.high = high
         self.low = low
         self.buffalo = buffalo
@@ -49,6 +51,7 @@ struct StoryPageEditor: View {
         let drawing = draft.flatMap { try? PKDrawing(data: $0.drawing) } ?? PKDrawing()
         _ink = State(initialValue: InkController(drawing: drawing, stickers: draft?.stickers ?? []))
         _behind = State(initialValue: photo)
+        _stripWins = State(initialValue: Set(draft?.stripWins ?? []))
     }
 
     private var chosen: HabitLog? { behind.flatMap { id in photos.first { $0.id == id } } }
@@ -68,10 +71,10 @@ struct StoryPageEditor: View {
         .padding(.bottom, GridConstants.gapTight)
         .background { Color.black.ignoresSafeArea() }
         .environment(\.colorScheme, .dark)
-        .alert("No photos today yet", isPresented: $noStrip) {
+        .alert("No photos for a strip yet", isPresented: $noStrip) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("A win with a photo makes tonight's strip.")
+            Text("Pick a win with a photo for tonight's story, and it makes the strip.")
         }
     }
 
@@ -137,13 +140,22 @@ struct StoryPageEditor: View {
         }
     }
 
-    /// Tonight's strip, as the booth prints it (your picks of the day's
-    /// photographs, on your paper), put on the page as a sticker.
+    /// Tonight's strip, as the booth prints it, on your paper, put on the
+    /// page as a sticker. **Only tonight's story photographs, each checked**
+    /// (the review, 2026-10-16): the day's other pictures, or one the check
+    /// held back, never ride out inside the page.
     private func addStrip() async {
         printing = true
         defer { printing = false }
         let strip = await PhotoStrip.mine(day: day, context: modelContext)
-        let frames = strip.frames(excluding: StripKeeping.excluded(.me, day: day))
+        let story = Set(photos.map(\.id))
+        var frames: [PhotoStrip.Frame] = []
+        for frame in strip.frames(excluding: StripKeeping.excluded(.me, day: day))
+        where story.contains(frame.id) && !frame.isDoodle {
+            guard let jpeg = frame.picture.jpegData(compressionQuality: 0.8),
+                  await SocialStore.shared.photoCheck(jpeg) else { continue }
+            frames.append(frame)
+        }
         guard !frames.isEmpty else { noStrip = true; return }
         let renderer = ImageRenderer(content: StripView(frames: frames, day: day, signature: strip.signature,
                                                         paper: StripKeeping.paper(for: .dark), width: 200,
@@ -151,6 +163,7 @@ struct StoryPageEditor: View {
         renderer.scale = 3
         renderer.isOpaque = false
         guard let image = renderer.uiImage, let name = StoryPageFiles.addSticker(image) else { return }
+        stripWins.formUnion(frames.map(\.id))
         HapticsEngine.success()
         ink.place(name, aspect: image.size)
     }
@@ -159,10 +172,13 @@ struct StoryPageEditor: View {
 
     private func finish() {
         let canvas = ink.canvasSize
+        // A strip taken off the page takes its wins with it.
+        let strips = ink.stickers.filter { $0.name.hasPrefix(StoryPageFiles.prefix) }
+        let wins = strips.isEmpty ? [] : Array(stripWins)
         StoryPageFiles.keep(.init(drawing: ink.drawing.dataRepresentation(), stickers: ink.stickers,
-                                  width: canvas.width, height: canvas.height), on: day)
+                                  width: canvas.width, height: canvas.height, stripWins: wins), on: day)
         let art = StoryPageFiles.keepArt(drawing: ink.drawing, stickers: ink.stickers, canvas: canvas)
-        done(chosen?.id, art)
+        done(chosen?.id, art, wins)
         dismiss()
     }
 }

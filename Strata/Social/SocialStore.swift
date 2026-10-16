@@ -3361,11 +3361,7 @@ extension SocialStore {
     func setStoryLine(_ raw: String, on day: String) async -> ReplyOutcome {
         let line = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit))
         guard line.isEmpty || CrewWords.isAcceptable(line) else { return .refusedWords }
-        var lines = defaults.dictionary(forKey: Self.storyLinesKey) as? [String: String] ?? [:]
-        lines[day] = line.isEmpty ? nil : line
-        // Only the last few nights are worth keeping.
-        if lines.count > 7 { for key in lines.keys.sorted().dropLast(7) { lines[key] = nil } }
-        defaults.set(lines, forKey: Self.storyLinesKey)
+        keepStoryLine(line, on: day)
         let t = now()
         for (crewID, stories) in storiesByCrew {
             for story in stories where story.sender == me && story.day == day && t < story.endsAt {
@@ -3381,9 +3377,19 @@ extension SocialStore {
         return .sent
     }
 
+    /// The line kept for the night, and nothing sent.
+    func keepStoryLine(_ line: String, on day: String) {
+        var lines = defaults.dictionary(forKey: Self.storyLinesKey) as? [String: String] ?? [:]
+        lines[day] = line.isEmpty ? nil : line
+        // Only the last few nights are worth keeping.
+        if lines.count > 7 { for key in lines.keys.sorted().dropLast(7) { lines[key] = nil } }
+        defaults.set(lines, forKey: Self.storyLinesKey)
+    }
+
     /// Off the story, from every crew it went to, read this time or not (R3).
     func withdrawStory(winID: UUID) async {
         guard isEnabled() else { return }
+        dropStoryArt(holding: winID)
         storyGeneration[winID, default: 0] &+= 1
         var crewIDs = Set(storyLedger[winID]?.crews.map(CrewID.init(rawValue:)) ?? [])
         for (crewID, stories) in storiesByCrew where stories.contains(where: { $0.id == winID && $0.sender == me }) {
@@ -3608,6 +3614,7 @@ extension SocialStore {
     /// A photo taken off a story win comes off the story too.
     func removeStoryPhoto(winID: UUID) async {
         storyGeneration[winID, default: 0] &+= 1
+        dropStoryArt(holding: winID)
         for (crewID, stories) in storiesByCrew {
             guard var story = stories.first(where: { $0.id == winID && $0.sender == me }), story.win.photo != nil else { continue }
             if let photo = story.win.photo { try? FileManager.default.removeItem(at: photo) }
@@ -3951,45 +3958,60 @@ extension SocialStore {
         return words
     }
 
-    /// **Your high, low and buffalo for tonight**, onto every story of yours
-    /// that is up; each checked as every word a crew sees is, and cut to one
-    /// line. Empty takes one off.
-    @discardableResult
-    /// The page's picture as a file, if it is there and photos may go.
+    /// The page's picture as a file: only the one that passed the check,
+    /// only where photos may go, and only if it is still here.
     func storyArt(_ words: StoryWords) -> URL? {
-        guard let name = words.art, photosAllowed() else { return nil }
+        guard let name = words.art, name == words.artChecked, photosAllowed() else { return nil }
         let url = StoryPageFiles.directory.appending(path: name)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
-    func setStoryWords(_ raw: StoryWords, on day: String) async -> ReplyOutcome {
-        func clean(_ s: String) -> String { String(s.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
-        let words = StoryWords(high: clean(raw.high), low: clean(raw.low), buffalo: clean(raw.buffalo),
-                               photo: raw.photo, art: raw.art)
-        for text in [words.low, words.buffalo] where !text.isEmpty && !CrewWords.isAcceptable(text) {
-            return .refusedWords
-        }
-        // The page's picture is checked as a doodle is before it leaves, and
-        // goes only where photos may (it can carry the photo strip).
-        if let url = storyArt(words) {
-            guard photosAllowed() else { return .notAllowed }
-            guard let png = try? Data(contentsOf: url), await photoCheck(png) else { return .refusedSketch }
-        }
+    private func keepStoryWords(_ words: StoryWords, on day: String) {
         var all = (defaults.data(forKey: Self.storyWordsKey)).flatMap { try? JSONDecoder().decode([String: StoryWords].self, from: $0) } ?? [:]
         all[day] = words
         if all.count > 7 { for key in all.keys.sorted().dropLast(7) { all[key] = nil } }
         defaults.set(try? JSONEncoder().encode(all), forKey: Self.storyWordsKey)
-        // The high goes the line's own way (and its own check).
-        let outcome = await setStoryLine(words.high, on: day)
-        guard outcome != .refusedWords else { return outcome }
+    }
+
+    /// **Your high, low and buffalo for tonight**, onto every story of yours
+    /// that is up; each checked as every word a crew sees is, and cut to one
+    /// line. Empty takes one off. Nothing is kept until all of it passes,
+    /// and each story is written once (the review, 2026-10-16: the line went
+    /// first and the rest after, twice the upload).
+    @discardableResult
+    func setStoryWords(_ raw: StoryWords, on day: String) async -> ReplyOutcome {
+        func clean(_ s: String) -> String { String(s.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit)) }
+        var words = StoryWords(high: clean(raw.high), low: clean(raw.low), buffalo: clean(raw.buffalo),
+                               photo: raw.photo, art: raw.art, artChecked: nil, artWins: raw.artWins)
+        for text in [words.high, words.low, words.buffalo] where !text.isEmpty && !CrewWords.isAcceptable(text) {
+            return .refusedWords
+        }
+        // The page's picture is checked as a doodle is before it leaves, and
+        // goes only where photos may (it can carry the photo strip). Checked
+        // once: an unchanged picture keeps its verdict.
+        if let name = words.art {
+            guard photosAllowed() else { return .notAllowed }
+            let before = storyWords(on: day)
+            if before.art == name, before.artChecked == name {
+                words.artChecked = name
+            } else {
+                let url = StoryPageFiles.directory.appending(path: name)
+                guard let png = try? Data(contentsOf: url), await photoCheck(png) else { return .refusedSketch }
+                words.artChecked = name
+            }
+        }
+        keepStoryWords(words, on: day)
+        keepStoryLine(words.high, on: day)
         let t = now()
         for (crewID, stories) in storiesByCrew {
             for story in stories where story.sender == me && story.day == day && t < story.endsAt {
                 var changed = story
+                changed.line = words.high.isEmpty ? nil : words.high
                 changed.low = words.low.isEmpty ? nil : words.low
                 changed.buffalo = words.buffalo.isEmpty ? nil : words.buffalo
                 changed.wordsPhoto = words.photo
                 changed.wordsArt = storyArt(words)
+                guard changed != story else { continue }
                 storiesByCrew[crewID]?.removeAll { $0.id == story.id }
                 storiesByCrew[crewID]?.append(changed)
                 enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(changed)))
@@ -3998,5 +4020,29 @@ extension SocialStore {
         nudgeLive()
         await flush()
         return .sent
+    }
+
+    /// **The page's picture goes when a photograph in its strip does** (the
+    /// review, 2026-10-16: a photo taken off a story win comes off the story
+    /// too). Called as a win is withdrawn or loses its photo.
+    func dropStoryArt(holding winID: UUID) {
+        var all = (defaults.data(forKey: Self.storyWordsKey)).flatMap { try? JSONDecoder().decode([String: StoryWords].self, from: $0) } ?? [:]
+        for (day, words) in all where words.art != nil && (words.artWins ?? []).contains(winID) {
+            var dropped = words
+            dropped.art = nil
+            dropped.artChecked = nil
+            dropped.artWins = nil
+            all[day] = dropped
+            for (crewID, stories) in storiesByCrew {
+                for story in stories where story.sender == me && story.day == day && story.wordsArt != nil {
+                    var changed = story
+                    changed.wordsArt = nil
+                    storiesByCrew[crewID]?.removeAll { $0.id == story.id }
+                    storiesByCrew[crewID]?.append(changed)
+                    enqueue(.init(crew: crewID, type: .story, name: story.id.uuidString, fields: CrewRecords.fields(changed)))
+                }
+            }
+        }
+        defaults.set(try? JSONEncoder().encode(all), forKey: Self.storyWordsKey)
     }
 }

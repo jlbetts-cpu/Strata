@@ -151,6 +151,47 @@ struct TonightsStoryTests {
         #expect(world.records(of: .story, in: second.id)[run.winID.uuidString] == nil)
     }
 
+    @Test("refused words keep nothing, not even the lines that passed")
+    func refusedWordsKeepNothing() async throws {
+        let a = store(jayden)
+        _ = try await a.createCrew(name: "Roommates")
+        let day = CrewDay.string(for: .now, in: .current)
+        #expect(await a.setStoryWords(StoryWords(high: "k y s", low: "Missed the bus", buffalo: ""), on: day) == .refusedWords)
+        #expect(a.storyWords(on: day).low.isEmpty)
+    }
+
+    @Test("the page's picture goes once checked, never if held back, and goes when a photo in its strip comes off")
+    func pageArt() async throws {
+        let a = store(jayden)
+        let (crew, _) = try await a.createCrew(name: "Roommates")
+        let run = win(photo: UIImage(systemName: "star")!.jpegData(compressionQuality: 0.8))
+        await a.postStory(run)
+        let day = CrewDay.string(for: .now, in: .current)
+        let name = "page-art-test-\(UUID().uuidString).png"
+        try FileManager.default.createDirectory(at: StoryPageFiles.directory, withIntermediateDirectories: true)
+        let file = StoryPageFiles.directory.appending(path: name)
+        try UIImage(systemName: "star")!.pngData()!.write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let words = StoryWords(high: "Ran", art: name, artWins: [run.winID])
+        // Held back: nothing kept, nothing sent.
+        a.photoCheck = { _ in false }
+        #expect(await a.setStoryWords(words, on: day) == .refusedSketch)
+        #expect(a.storyWords(on: day).high.isEmpty)
+        #expect(a.myStory.first?.wordsArt == nil)
+        // Passed: on the record, as its sketch.
+        a.photoCheck = { _ in true }
+        #expect(await a.setStoryWords(words, on: day) == .sent)
+        #expect(a.myStory.first?.wordsArt != nil)
+        #expect(world.records(of: .story, in: crew.id)[run.winID.uuidString]?["sketch"] != nil)
+        // The strip's photo comes off the story, and the page's picture with it.
+        await a.removeStoryPhoto(winID: run.winID)
+        #expect(a.storyWords(on: day).art == nil)
+        #expect(a.myStory.first?.wordsArt == nil)
+        // Someone who may not send photographs sends no page.
+        a.photosAllowed = { false }
+        #expect(await a.setStoryWords(words, on: day) == .notAllowed)
+    }
+
     @Test("deleting the win takes it off the story")
     func deleteTakesItOff() async throws {
         let a = store(jayden)

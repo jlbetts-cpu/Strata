@@ -25,6 +25,8 @@ enum StoryPageFiles {
         var stickers: [InkSticker]
         var width: Double
         var height: Double
+        /// The wins whose photographs are in a strip on the page.
+        var stripWins: [UUID]? = nil
     }
 
     private static var cache: [String: UIImage] = [:]

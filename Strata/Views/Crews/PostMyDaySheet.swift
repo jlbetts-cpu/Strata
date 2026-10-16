@@ -24,7 +24,10 @@ struct PostMyDaySheet: View {
     /// it, and its ink and stickers as one picture.
     @State private var photo: UUID?
     @State private var art: String?
+    @State private var artWins: [UUID] = []
     @State private var editing = false
+    @State private var pageRefused = false
+    @State private var notSent = false
     @FocusState private var field: Field?
     enum Field { case high, low, buffalo }
     @State private var posting = false
@@ -72,7 +75,8 @@ struct PostMyDaySheet: View {
                                 .padding(.top, GridConstants.gapTight)
                         }
                     }
-                    if hasWords {
+                    // Only where photos may go: the page leaves as a picture.
+                    if (hasWords || art != nil), store.photosAllowed() {
                         card { yourPage }
                             .transition(.opacity)
                     }
@@ -99,6 +103,16 @@ struct PostMyDaySheet: View {
                 }
             }
             .alert("Try other words", isPresented: $refused) { Button("OK", role: .cancel) {} }
+            .alert("That page stays with you", isPresented: $pageRefused) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Something on it can't be sent. Change the page and post again.")
+            }
+            .alert("Your story didn't post", isPresented: $notSent) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your words are kept. Try again in a moment.")
+            }
         }
         .task { load() }
     }
@@ -191,9 +205,10 @@ struct PostMyDaySheet: View {
         .accessibilityIdentifier("editPage")
         .fullScreenCover(isPresented: $editing) {
             StoryPageEditor(high: line, low: low, buffalo: buffalo, day: today, photos: photoWins,
-                            photo: chosenPhoto?.id) { chosen, made in
+                            photo: chosenPhoto?.id) { chosen, made, wins in
                 photo = chosen
                 art = made
+                artWins = wins
             }
         }
     }
@@ -312,6 +327,7 @@ struct PostMyDaySheet: View {
         buffalo = words.buffalo
         photo = words.photo
         art = words.art
+        artWins = words.artWins ?? []
         // What is on the story already; else a guess: the photographs,
         // newest first, or the latest win.
         let on = wins.filter { store.isOnStory($0.id) }.map(\.id)
@@ -337,9 +353,17 @@ struct PostMyDaySheet: View {
     private func post() async {
         posting = true
         defer { posting = false }
-        let words = StoryWords(high: line, low: low, buffalo: buffalo, photo: chosenPhoto?.id, art: art)
-        let outcome = await store.setStoryWords(words, on: today)
-        guard outcome != .refusedWords else { refused = true; return }
+        let words = StoryWords(high: line, low: low, buffalo: buffalo, photo: chosenPhoto?.id, art: art,
+                               artWins: artWins.isEmpty ? nil : artWins)
+        // **Nothing says it posted unless it did** (the review, 2026-10-16:
+        // a held-back page dropped all three lines while the sheet said "On
+        // tonight's story").
+        switch await store.setStoryWords(words, on: today) {
+        case .sent: break
+        case .refusedWords: refused = true; return
+        case .refusedSketch: pageRefused = true; return
+        default: notSent = true; return
+        }
         keepInJournal(words)
         let chosen = Set(picked)
         for log in wins {

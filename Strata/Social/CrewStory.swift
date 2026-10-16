@@ -200,6 +200,12 @@ nonisolated struct StoryWords: Codable, Equatable, Sendable {
     /// stickers, a file in `StoryPageFiles`.
     var photo: UUID? = nil
     var art: String? = nil
+    /// This phone's own notes, never sent: the art that passed the photo
+    /// check (only that one may go, `SocialStore.storyArt`), and the wins
+    /// whose photographs are in its strip, so the page's picture goes when
+    /// one of them comes off the story.
+    var artChecked: String? = nil
+    var artWins: [UUID]? = nil
 }
 
 
