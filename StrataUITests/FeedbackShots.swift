@@ -2016,6 +2016,28 @@ final class FeedbackShots: XCTestCase {
         wait(1); snap("menus-5-plan")
     }
 
+    /// **A Wins block opens its carousel** (the owner, 2026-10-15: "it should
+    /// function the same as in crew like you press it to view the carousel
+    /// and if they want to edit it just press the three dots").
+    func testWinsCarousel() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataSeedTodayPhotos", "2"])
+        wait(7); snap("carousel-0-tower")
+        let blocks = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'win' OR label CONTAINS[c] 'photo'")).allElementsBoundByIndex
+        for b in blocks.prefix(8) { print("PLANNING-carousel block '\(b.label)' \(b.frame)") }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Your win, Walk'")).firstMatch.tap()
+        wait(2); snap("carousel-1-open")
+        let buttons = app.buttons.allElementsBoundByIndex.prefix(14).map { "'\($0.label)'" }.joined(separator: " ")
+        print("PLANNING-carousel buttons \(buttons)")
+        app.swipeLeft(); wait(1.2); snap("carousel-2-next")
+        let more = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'more' OR label CONTAINS[c] 'actions'")).firstMatch
+        print("PLANNING-carousel more \(more.exists) '\(more.exists ? more.label : "")'")
+        if more.exists { more.tap() }
+        wait(1); snap("carousel-3-menu")
+        let edit = app.buttons["Edit"].firstMatch
+        if edit.exists { edit.tap() }
+        wait(2); snap("carousel-4-edit")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

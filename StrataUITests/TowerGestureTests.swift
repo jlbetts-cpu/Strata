@@ -119,8 +119,10 @@ final class TowerGestureTests: XCTestCase {
         let block = app.staticTexts["Walk"].firstMatch
         XCTAssertTrue(block.waitForExistence(timeout: 30))
         block.tap()
-        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 10)
-                      || app.textFields.firstMatch.waitForExistence(timeout: 10),
+        // The carousel since 2026-10-15 (the owner: "it should function the
+        // same as in crew like you press it to view the carousel"), with
+        // Edit in its ⋯; it was the edit sheet.
+        XCTAssertTrue(app.buttons["Close photo"].waitForExistence(timeout: 10),
                       "tapping a block opened nothing")
     }
 

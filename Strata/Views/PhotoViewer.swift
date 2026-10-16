@@ -468,7 +468,10 @@ struct PhotoViewer: View {
             }
             // Your own win: the same sheet a block opens, answers filled in,
             // over the photograph. Not a friend's, and not a crew's copy.
-            if crew == nil, current?.block == nil {
+            // **A block without a photograph too** (2026-10-15: on Wins a tap
+            // opens the carousel now, as in a crew, so Edit has to reach
+            // every win in it).
+            if crew == nil {
                 Button { edit() } label: {
                     Label("Edit", systemImage: "pencil")
                 }
@@ -526,11 +529,21 @@ struct PhotoViewer: View {
                     }
                 }
             } else {
-                Button(role: .destructive) {
-                    HapticsEngine.warning()
-                    confirmingDelete = true
-                } label: {
-                    Label("Remove Photo", systemImage: "trash")
+                // Your own: a photograph can come off its win, and any win
+                // can go, as the Edit sheet deletes it (2026-10-15: a block
+                // with no photograph was offered Remove Photo).
+                if current?.block == nil {
+                    Button(role: .destructive) {
+                        HapticsEngine.warning()
+                        confirmingDelete = true
+                    } label: {
+                        Label("Remove Photo", systemImage: "photo.badge.minus")
+                    }
+                }
+                if let current, ownLog(for: current) != nil {
+                    Button(role: .destructive) { deleteWin(current) } label: {
+                        Label("Delete Win", systemImage: "trash")
+                    }
                 }
             }
         } label: {
@@ -724,6 +737,11 @@ struct PhotoViewer: View {
 
     private func edit() {
         guard let name = current?.fileName else { return }
+        if let id = GalleryPhoto.winID(in: name) {
+            let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == id })
+            editingLog = try? modelContext.fetch(descriptor).first
+            return
+        }
         let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.imageFileName == name })
         do {
             editingLog = try modelContext.fetch(descriptor).first
@@ -735,10 +753,19 @@ struct PhotoViewer: View {
     /// Your own win, from a crew's viewer: the win itself, on your tower and
     /// in every crew (`CrewSync` sees the rows go). Undo puts it back and
     /// sends it to the crews that had it, which a plain undo would not.
+    /// Your win behind what is shown: a crew's copy by its id, a block of
+    /// yours by its stand-in name, a photograph by its file.
+    private func ownLog(for shown: GalleryPhoto) -> HabitLog? {
+        if let id = UUID(uuidString: shown.id) ?? GalleryPhoto.winID(in: shown.fileName) {
+            return try? modelContext.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == id })).first
+        }
+        let name = shown.fileName
+        return try? modelContext.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.imageFileName == name })).first
+    }
+
     private func deleteWin(_ shown: GalleryPhoto) {
-        guard let winID = UUID(uuidString: shown.id),
-              let log = try? modelContext.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == winID })).first,
-              let habit = log.habit else { return }
+        guard let log = ownLog(for: shown), let habit = log.habit else { return }
+        let winID = log.id
         let crews = SocialStore.shared.crews(holding: winID)
         let pending: WinDeletion.Pending
         do {

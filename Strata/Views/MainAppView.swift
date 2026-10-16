@@ -200,6 +200,12 @@ struct MainAppView: View {
     /// The block whose edit sheet is open. It also hides that block on the
     /// tower while the sheet is up (`AnimatedBlockView`).
     @State private var expandedBlockID: UUID? = nil
+    /// **A block, pressed: the carousel** (the owner, 2026-10-15: "in the
+    /// wins there is no way to view the photo carousel like its purely an
+    /// edit screen ... it should function the same as in crew like you press
+    /// it to view the carousel and if they want to edit it just press the
+    /// three dots"). The gallery name of the block opened (`towerGallery`).
+    @State private var viewingOnTower: String?
 
     @State private var showTowerConfetti = false
 
@@ -2104,6 +2110,13 @@ struct MainAppView: View {
             // `CameraPickerView`, which is `UIImagePickerController` — the
             // stock iOS camera, with none of this app's chrome. The sheet uses
             // the app's own viewfinder.
+            .fullScreenCover(item: Binding(get: { viewingOnTower.map(TowerViewed.init) },
+                                           set: { viewingOnTower = $0?.id })) { shown in
+                PhotoViewer(photos: towerGallery, startAt: shown.id,
+                            onClose: { viewingOnTower = nil },
+                            onDelete: { _ in repackTower() },
+                            onWinChanged: { repackTower() })
+            }
             .sheet(item: Binding(
                 get: {
                     expandedBlockID.flatMap { id in
@@ -2121,6 +2134,29 @@ struct MainAppView: View {
                     onDeleted: { repackTower() }
                 )
             }
+    }
+
+    private struct TowerViewed: Identifiable { let id: String }
+
+    /// Today's wins as the carousel shows them, in the order they were won:
+    /// photographs, and the rest as their blocks.
+    private var towerGallery: [GalleryPhoto] {
+        towerVM.placedBlocks
+            .filter { !$0.isSkipped && $0.log != nil }
+            .sorted { ($0.log?.completedAt ?? .distantPast) < ($1.log?.completedAt ?? .distantPast) }
+            .compactMap { block in
+                guard let log = block.log else { return nil }
+                let title = block.look.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                return GalleryPhoto(fileName: Self.galleryName(of: block),
+                                    title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
+                                    date: log.completedAt ?? .now, dateString: block.look.dateString,
+                                    size: block.look.blockSize,
+                                    block: block.look.imageFileName == nil ? block.look.displayCategory : nil)
+            }
+    }
+
+    private static func galleryName(of block: PlacedBlock) -> String {
+        block.look.imageFileName ?? GalleryPhoto.blockName(for: block.log?.id ?? block.id)
     }
 
     private func recomputeTimelineHabits(logsByDate: [String: [HabitLog]]) {
@@ -3784,11 +3820,10 @@ struct MainAppView: View {
                 cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
                 reduceMotion: reduceMotion, colorScheme: colorScheme,
                 onTapExpandBlock: { id in
-                    // The release of a long press is not a tap, and a tap
-                    // while arranging is not a request to edit.
-                    withAnimation(GridConstants.crossFade) {
-                        expandedBlockID = id
-                    }
+                    // The carousel, at this block, as a crew's tower opens
+                    // one; Edit is in its ⋯ (`PhotoViewer`).
+                    guard let block = towerVM.placedBlocks.first(where: { $0.id == id }) else { return }
+                    viewingOnTower = Self.galleryName(of: block)
                 },
                 liftedBlockID: nil
             )

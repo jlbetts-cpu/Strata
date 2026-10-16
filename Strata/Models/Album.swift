@@ -467,6 +467,15 @@ extension Album {
 /// One photograph in the gallery, and what it was of.
 nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     var id: String { fileName }
+
+    /// **One of your blocks without a photograph, in the carousel** (the
+    /// Wins tower, 2026-10-15): its stand-in name carries the win's own id,
+    /// so the viewer's Edit can find it.
+    static func blockName(for log: UUID) -> String { "win-" + log.uuidString }
+    static func winID(in name: String) -> UUID? {
+        name.hasPrefix("win-") ? UUID(uuidString: String(name.dropFirst(4))) : nil
+    }
+
     let fileName: String
     /// The win's title, or nil when the win was never named. A win logged in
     /// one tap has no name and its block draws no text; the gallery does the
