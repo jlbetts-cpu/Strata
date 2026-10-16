@@ -621,7 +621,8 @@ struct DaySheet: View {
                     // The chat's own empty line, in its type and ink (the
                     // consistency pass, 2026-10-15): it was the one empty
                     // page that spoke a size down and two greys quieter.
-                    EmptyPageLine("Nothing written. Yet.")
+                    EmptyPageLine("Nothing written yet", icon: "book.closed",
+                                  detail: "A line about the day goes here.")
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }

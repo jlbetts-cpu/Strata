@@ -101,7 +101,7 @@ struct DayAlbumDetailView: View {
                         // 2026-10-15: "it should be centered"). The title is
                         // in the bar now, so nothing under it to hang from.
                         Spacer(minLength: GridConstants.gapWide)
-                        EmptyPageLine("Nothing logged this day.")
+                        EmptyPageLine("Nothing logged this day", icon: "calendar")
                         Spacer(minLength: GridConstants.gapWide)
                     } else {
                         Spacer(minLength: GridConstants.gapWide)

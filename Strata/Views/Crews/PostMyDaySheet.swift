@@ -41,12 +41,21 @@ struct PostMyDaySheet: View {
                         lineField
                     }
                     card {
-                        title(wins.isEmpty ? "Today's wins" : "Today's wins, up to three")
-                        picks
-                        Text(TonightsStoryRow.lesson)
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(AppColors.inkSecondary)
-                            .padding(.top, GridConstants.gapTight)
+                        if wins.isEmpty {
+                            // **Nothing to post yet, said plainly** (the owner,
+                            // 2026-10-16: "add the empty state for when you had
+                            // no wins today in the tonight story").
+                            EmptyPageLine("No wins today yet", icon: "square.stack",
+                                          detail: "Log a win, and it can go on tonight's story.")
+                                .padding(.vertical, GridConstants.gapWide)
+                        } else {
+                            title("Today's wins, up to three")
+                            picks
+                            Text(TonightsStoryRow.lesson)
+                                .font(Typography.screenSubtitle)
+                                .foregroundStyle(AppColors.inkSecondary)
+                                .padding(.top, GridConstants.gapTight)
+                        }
                     }
                 }
                 .padding(.horizontal, hPad)
@@ -110,11 +119,6 @@ struct PostMyDaySheet: View {
     private var picks: some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: GridConstants.spacing * 2), count: 3)
         return VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            if wins.isEmpty {
-                Text("Log a win today to post your story.")
-                    .font(Typography.bodyLarge)
-                    .foregroundStyle(AppColors.inkPrimary)
-            }
             LazyVGrid(columns: columns, spacing: GridConstants.gapItem) {
                 ForEach(wins, id: \.id) { log in tile(log) }
             }

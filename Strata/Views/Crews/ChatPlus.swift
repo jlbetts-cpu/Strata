@@ -639,7 +639,7 @@ struct CrewStripSendSheet: View {
     @State private var picture: UIImage?
     @State private var looked = false
 
-    static let empty = "No photos today. Yet."
+    static let empty = "No photos today"
     static let addWord = "Add a Win"
 
     /// Today's strip as the chat shows it, or nil on a day with no picture.
@@ -740,7 +740,8 @@ struct CrewMemorySheet: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     if let items, items.isEmpty {
                         // The page's one sentence, as every empty page says its own.
-                        EmptyPageLine("Nothing sent here with a photo. Yet.")
+                        EmptyPageLine("No photos yet", icon: "photo",
+                                      detail: "Photos sent to this chat will show up here.")
                             .frame(minHeight: geo.size.height)
                     } else {
                         LazyVGrid(columns: Self.columns, spacing: GridConstants.gapTight) {

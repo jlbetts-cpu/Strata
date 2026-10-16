@@ -555,7 +555,8 @@ struct CrewChatSheet: View {
                             // **And that the chat is today's** (M6): without
                             // it a morning's empty chat reads as lost lines.
                             VStack(spacing: GridConstants.gapTight) {
-                                EmptyPageLine(CrewChatWords.quiet)
+                                EmptyPageLine(CrewChatWords.quiet, icon: "bubble.left",
+                                              detail: "The chat clears at midnight.")
                                 clearsLine(crew)
                             }
                             .frame(maxWidth: .infinity, minHeight: geo.size.height)

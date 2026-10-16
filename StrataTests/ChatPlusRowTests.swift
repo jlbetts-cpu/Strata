@@ -111,7 +111,7 @@ struct ChatPlusRowTests {
 
     @Test("the strip's empty page says one thing and offers one way on")
     func emptyStrip() throws {
-        #expect(CrewStripSendSheet.empty == "No photos today. Yet.")
+        #expect(CrewStripSendSheet.empty == "No photos today")
         #expect(CrewStripSendSheet.addWord == "Add a Win")
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
         #expect(chat.contains("addWin: { afterSheet { addingWin = true } }"), "the strip's Add a Win goes somewhere else")

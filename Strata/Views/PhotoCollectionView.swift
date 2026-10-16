@@ -177,7 +177,8 @@ struct PhotoCollectionView: View {
     /// In the middle of the page, as every empty page says it (2026-10-15:
     /// it was the one that sat top left).
     private var emptyLine: some View {
-        EmptyPageLine("No photos here. Yet.")
+        EmptyPageLine("No photos here", icon: "photo.on.rectangle",
+                      detail: "Wins you photograph here will show up.")
             .frame(minHeight: 420)
     }
 

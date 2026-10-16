@@ -74,7 +74,7 @@ struct MemoriesShelf: View {
     /// 2.3 cards show, so the third still peeks and says the row scrolls.
     /// (132 was turned down once as too loud, when the shelf stood under the
     /// calendar with nothing to be measured against.)
-    static let albumWidth: CGFloat = 132
+    static let albumWidth: CGFloat = 152
 
     /// Hold a card: take it off the shelf. `never` is every album of its
     /// kind. Nil where a shelf is only for looking.

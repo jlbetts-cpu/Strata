@@ -2080,6 +2080,16 @@ final class FeedbackShots: XCTestCase {
         wait(0.3); snap("bar-5-in")
     }
 
+    /// Tonight's Story with no wins today: its empty state (2026-10-16).
+    func testStoryNoWins() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedWins", "0", "-strataSeedStories", "2", "-strataStoryHour", "21"])
+        wait(9)
+        let add = app.buttons["Add to Tonight's Story"].firstMatch
+        if add.exists { add.tap() }
+        wait(1.5); snap("nowins-1-sheet")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])

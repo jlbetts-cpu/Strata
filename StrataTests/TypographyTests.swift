@@ -238,6 +238,9 @@ enum TypeSweep {
         ("ProfileAvatar.swift", ".font(.system(size: side * 0.42, weight: .medium))"),
         ("IconStyle.swift", "content.font(.system(size: size, weight: weight, design: design))"),
         ("StrataMark.swift", ".font(.system(size: points, weight: Typography.titleWeight, design: .default))"),
+        // An empty state's outline picture: an SF Symbol at a light stroke,
+        // as Muse draws its own (the owner, 2026-10-16). Not type.
+        ("EmptyPageLine.swift", ".font(.system(size: 40, weight: .light))"),
         // A recipient's and a pick's tick: an SF Symbol at Title 2.
         ("SendToPage.swift", ".font(.title2)"),
         ("PostMyDaySheet.swift", ".font(.title2)"),

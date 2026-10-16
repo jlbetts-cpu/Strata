@@ -158,7 +158,11 @@ extension View {
 /// How far a card's contents sit from its edge: its radius less the radius
 /// of the tiles inside it, so their corners run concentric.
 enum PageCard {
-    static let inset: CGFloat = GridConstants.radiusSurface - GridConstants.cornerRadius
+    /// **Air inside every card** (the owner, 2026-10-16: "in the containers it
+    /// should feel like the text and images aren't cramped, like they have
+    /// air to breathe"): 16, the page's own margin, so what is inside a card
+    /// sits as far from its edge as the card sits from the screen's.
+    static let inset: CGFloat = GridConstants.gapLabel
     /// **Between one card and the next, everywhere** (the owner, 2026-10-16:
     /// "I liked the spacing between containers in Memories before ... the
     /// profile and everything has to feel consistent with Memories and vice
