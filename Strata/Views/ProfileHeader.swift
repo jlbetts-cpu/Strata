@@ -189,14 +189,13 @@ struct YourScoreSheet: View {
 
     private var profile: ProfileStore { .shared }
 
-    /// The figures, across the top of the card.
+    /// The figures, across the top of the card, short as Hinge's are.
     private func chips(_ stats: ProfileStats) -> [InfoCard.Fact] {
         var out = [
-            InfoCard.Fact(icon: "star", text: "\(stats.score) score"),
             InfoCard.Fact(icon: "flame", text: vm.currentStreak == 1 ? "1 day streak" : "\(vm.currentStreak) day streak"),
             InfoCard.Fact(icon: "checkmark.circle", text: stats.wins == 1 ? "1 win" : "\(stats.wins) wins"),
+            InfoCard.Fact(icon: "star", text: "Score \(stats.score)"),
         ]
-        if vm.bestStreak > 1 { out.append(InfoCard.Fact(icon: "trophy", text: "Best \(vm.bestStreak) days")) }
         if CrewsFlag.isOn {
             let crews = SocialStore.shared.groupCrewCount
             out.append(InfoCard.Fact(icon: "person.2", text: crews == 1 ? "1 crew" : "\(crews) crews"))
@@ -204,26 +203,30 @@ struct YourScoreSheet: View {
         return out
     }
 
-    /// The facts about your record, a line each; only the ones that are true
-    /// yet, so a new account is a short card, not a list of zeros.
+    /// **Who you are as a winner, a few words a line** (2026-10-16; the
+    /// owner: "the lines were short ... research what information should be
+    /// in there because it is your profile"). A profile's lines are traits,
+    /// not reports (Hinge's "Christian", "Monogamy"; Bitmoji's one identity):
+    /// when you win, your best day, your goal, your best run, your photos,
+    /// and since when. Only the ones that are true yet.
     private func facts(_ stats: ProfileStats, entries: [StatsData.Entry]) -> [InfoCard.Fact] {
         var out: [InfoCard.Fact] = []
-        let perDay = Dictionary(grouping: entries, by: \.day).mapValues(\.count)
-        let met = perDay.values.filter { $0 >= dailyGoal }.count
-        if met > 0 {
-            out.append(InfoCard.Fact(icon: "target", text: met == 1 ? "Reached your goal on 1 day" : "Reached your goal on \(met) days"))
+        if entries.count >= 3, let peak = StatsData.peakHour(StatsData.hours(entries, today: Date(), days: 60)) {
+            switch peak {
+            case 5..<12: out.append(InfoCard.Fact(icon: "sunrise", text: "Morning person"))
+            case 12..<17: out.append(InfoCard.Fact(icon: "sun.max", text: "Afternoon person"))
+            case 17..<21: out.append(InfoCard.Fact(icon: "sunset", text: "Evening person"))
+            default: out.append(InfoCard.Fact(icon: "moon", text: "Night owl"))
+            }
         }
-        if let best = perDay.max(by: { $0.value < $1.value }), best.value > 1,
-           let date = DateUtils.date(from: best.key) {
-            out.append(InfoCard.Fact(icon: "sparkles",
-                                     text: "Best day, \(best.value) wins on \(date.formatted(.dateTime.month(.wide).day()))"))
-        }
-        if let day = stats.bestDay { out.append(InfoCard.Fact(icon: "calendar", text: "Most wins on \(day)s")) }
+        if let day = stats.bestDay { out.append(InfoCard.Fact(icon: "calendar", text: "Best on \(day)s")) }
+        out.append(InfoCard.Fact(icon: "target", text: "Goal \(dailyGoal) a day"))
+        if vm.bestStreak > 1 { out.append(InfoCard.Fact(icon: "trophy", text: "Best run \(vm.bestStreak) days")) }
         if stats.photos > 0 {
-            out.append(InfoCard.Fact(icon: "camera", text: stats.photos == 1 ? "1 win with a photo" : "\(stats.photos) wins with a photo"))
+            out.append(InfoCard.Fact(icon: "camera", text: stats.photos == 1 ? "1 photo" : "\(stats.photos) photos"))
         }
-        if let first = perDay.keys.min(), let date = DateUtils.date(from: first) {
-            out.append(InfoCard.Fact(icon: "leaf", text: "Winning since \(date.formatted(.dateTime.month(.wide).day().year()))"))
+        if let first = entries.map(\.day).min(), let date = DateUtils.date(from: first) {
+            out.append(InfoCard.Fact(icon: "clock", text: "Since \(date.formatted(.dateTime.month(.abbreviated).year()))"))
         }
         return out
     }
@@ -258,21 +261,12 @@ struct YourScoreSheet: View {
             Section {
                 WeekWinsChart(days: StatsData.week(entries, today: Date()), goal: dailyGoal)
                     .padding(.vertical, GridConstants.gapTight)
-            } header: {
-                FormSectionLabel("This Week")
-            } footer: {
-                // One week on this page, the chart's own seven days: a
-                // calendar-week comparison under it said a different number.
-                Text("Drag across to read a day.")
-                    .formFooter()
             }
 
             if !entries.isEmpty {
                 Section {
                     HourWinsChart(hours: StatsData.hours(entries, today: Date()))
                         .padding(.vertical, GridConstants.gapTight)
-                } header: {
-                    FormSectionLabel("When You Win")
                 }
             }
 

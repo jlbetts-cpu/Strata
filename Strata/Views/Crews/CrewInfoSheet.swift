@@ -202,6 +202,7 @@ struct CrewInfoSheet: View {
     private var stripSection: some View {
         let frames = strip.map { $0.frames(excluding: StripKeeping.excluded($0.owner, day: $0.day)) } ?? []
         return Section {
+            FormSectionLabel("Today's Strip")
             Button {
                 HapticsEngine.lightTap()
                 showsStrip = true
@@ -226,8 +227,6 @@ struct CrewInfoSheet: View {
             }
             .buttonStyle(.press)
             .disabled(frames.isEmpty)
-        } header: {
-            FormSectionLabel("Today's Strip")
         }
         .listRowSeparator(.hidden)
     }
@@ -238,6 +237,7 @@ struct CrewInfoSheet: View {
     @ViewBuilder
     private var notifications: some View {
         Section {
+            FormSectionLabel("Notifications")
             if systemOff {
                 Button {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
@@ -280,8 +280,6 @@ struct CrewInfoSheet: View {
             }
             .tint(AppColors.switchTrack)
             .disabled(store.isMuted(crewID))
-        } header: {
-            FormSectionLabel("Notifications")
         } footer: {
             Text(store.isMuted(crewID) ? "Nothing from this crew until the mute ends. Its wins still arrive."
                                        : "A notification for every win, and for reactions to yours.")
@@ -493,6 +491,7 @@ struct CrewInfoSheet: View {
         let hidden = store.hiddenWins(in: crewID)
         if !hidden.isEmpty {
             Section {
+                FormSectionLabel("Hidden for You")
                 ForEach(hidden, id: \.winID) { win in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -518,8 +517,6 @@ struct CrewInfoSheet: View {
                         .buttonStyle(.pressWord)
                     }
                 }
-            } header: {
-                FormSectionLabel("Hidden for You")
             } footer: {
                 Text("Only you stopped seeing these. Nobody in the crew was told.")
                     .formFooter()
@@ -533,6 +530,7 @@ struct CrewInfoSheet: View {
     private var blockedSection: some View {
         if !store.blocked.isEmpty {
             Section {
+                FormSectionLabel("Blocked")
                 ForEach(store.blocked.sorted { store.blockedName($0) < store.blockedName($1) }, id: \.self) { id in
                     HStack {
                         Text(store.blockedName(id))
@@ -551,8 +549,6 @@ struct CrewInfoSheet: View {
                         .buttonStyle(.pressWord)
                     }
                 }
-            } header: {
-                FormSectionLabel("Blocked")
             } footer: {
                 Text("Blocked people stay hidden from you in every crew.")
                     .formFooter()

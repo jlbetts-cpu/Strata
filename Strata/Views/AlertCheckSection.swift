@@ -12,6 +12,7 @@ struct AlertCheckSection: View {
 
     var body: some View {
         Section {
+            FormSectionLabel("Crew Alerts")
             row("Allowed", ok: permission == .authorized || permission == .provisional,
                 detail: permissionWords)
             outcomeRow("Registered for alerts", AlertCheck.outcome(.push))
@@ -31,8 +32,6 @@ struct AlertCheckSection: View {
                     .foregroundStyle(AppColors.inkPrimary)
             }
             .disabled(checking)
-        } header: {
-            FormSectionLabel("Crew Alerts")
         } footer: {
             Text("A friend's win reaches this phone closed only when every row says Yes. Only on TestFlight.")
                 .formFooter()

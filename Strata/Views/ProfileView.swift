@@ -354,6 +354,10 @@ struct ProfileView: View {
     /// Head" over a folder full of faces.
     private var headSection: some View {
         Section {
+            // The title inside the section (2026-10-16), and the scroll anchor
+            // with it: the one view here that exists in every branch.
+            FormSectionLabel(heads.entries.count > 1 ? "Your heads" : "Your head")
+                .id(Self.headAnchor)
             if heads.entries.isEmpty {
                 Button {
                     HapticsEngine.lightTap()
@@ -510,13 +514,6 @@ struct ProfileView: View {
                     }
                 }
             }
-        } header: {
-            // The id is on the HEADER, not on a row: scrolling here puts the
-            // label at the top of the viewport with the picker directly under
-            // it, which is the framing screen 19 wants, and it is the one view
-            // in this section that exists in every branch.
-            FormSectionLabel(heads.entries.count > 1 ? "Your heads" : "Your head")
-                .id(Self.headAnchor)
         } footer: {
             // **Nil in the one-head case, so the section has no footer at
             // all**, which is why this is `if let` and not a `Text` of an

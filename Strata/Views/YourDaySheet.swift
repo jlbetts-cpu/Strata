@@ -43,6 +43,7 @@ struct YourDaySheet: View {
             List {
                 identity
                 Section {
+                    FormSectionLabel("Daily Goal")
                     HStack(spacing: GridConstants.gapLabel) {
                         Text("Wins a day")
                             .font(Typography.bodyLarge)
@@ -71,8 +72,6 @@ struct YourDaySheet: View {
                         GoalHistoryChart(history: history, goal: goal)
                             .padding(.vertical, GridConstants.gapTight)
                     }
-                } header: {
-                    FormSectionLabel("Daily Goal")
                 } footer: {
                     // "...and prints the day's strip" was untrue of a day with
                     // no photos; onboarding's line was fixed for the same on
@@ -91,13 +90,13 @@ struct YourDaySheet: View {
                 // today's first. A strip that was never developed is not
                 // shown, and a week with none shows only its rings.
                 Section {
+                    FormSectionLabel("This Week")
                     week
                     if !printed.isEmpty { weekStrips }
-                } header: {
-                    FormSectionLabel("This Week")
                 }
                 .listRowSeparator(.hidden)
                 Section {
+                    FormSectionLabel("Streak")
                     HStack(alignment: .top, spacing: GridConstants.gapWide) {
                         StreakFigure(value: Streaks.current(among: counts.keys, restsPerWeek: Streaks.Rest.profile),
                                      label: "Current")
@@ -105,8 +104,6 @@ struct YourDaySheet: View {
                                      label: "Best")
                     }
                     .padding(.vertical, GridConstants.gapTight)
-                } header: {
-                    FormSectionLabel("Streak")
                 } footer: {
                     Text("A day off a week won't break it.")
                         .formFooter()
@@ -190,6 +187,7 @@ struct YourDaySheet: View {
     private var yourThree: some View {
         let done = YourThree.done(three, titlesToday: titlesToday)
         return Section {
+            FormSectionLabel(YourThree.Copy.section)
             if three.isEmpty {
                 Button { HapticsEngine.lightTap(); choosingThree = true } label: {
                     HStack(spacing: GridConstants.gapLabel) {
@@ -226,8 +224,6 @@ struct YourDaySheet: View {
                     .accessibilityHint("Changes your three.")
                 }
             }
-        } header: {
-            FormSectionLabel(YourThree.Copy.section)
         } footer: {
             Text(YourThree.Copy.footer)
                 .formFooter()

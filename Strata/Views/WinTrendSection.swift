@@ -68,6 +68,7 @@ struct WinTrendSection: View {
         let summary = summaries[unit] ?? WinTrend.Summary(kind: .empty)
         let bars = self.bars[unit] ?? []
         return Section {
+            FormSectionLabel("Wins per \(unit.name)")
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                 // **No control until there is something to switch between**
                 // (2026-10-02, design review `profile.md` #3). Over no data
@@ -121,8 +122,6 @@ struct WinTrendSection: View {
                 }
             }
             .padding(.vertical, GridConstants.gapTight)
-        } header: {
-            FormSectionLabel("Wins per \(unit.name)")
         }
     }
 

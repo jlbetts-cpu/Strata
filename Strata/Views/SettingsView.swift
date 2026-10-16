@@ -223,6 +223,7 @@ struct SettingsView: View {
             // MARK: - Section 1: Notifications
 
             Section {
+                FormSectionLabel("Notifications")
                 // **One black down the column.** Measured off the built
                 // screen: a row whose label is inked `AppColors.inkPrimary`
                 // renders (38, 38, 38) and a row left to the platform renders
@@ -355,8 +356,6 @@ struct SettingsView: View {
                         await PastWinReminder.schedule(context: modelContext)
                     }
                 }
-            } header: {
-                FormSectionLabel("Notifications")
             } footer: {
                 // Not also `&& notificationsEnabled`: a refusal turns that
                 // switch off, so the way to iOS Settings could never show.
@@ -390,6 +389,7 @@ struct SettingsView: View {
             }
 
             Section {
+                FormSectionLabel("Sounds & Haptics")
                 Toggle(isOn: Binding(
                     get: { !SoundEngine.isMuted },
                     set: { SoundEngine.isMuted = !$0 }
@@ -412,8 +412,6 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.switchTrack)
-            } header: {
-                FormSectionLabel("Sounds & Haptics")
             }
 
             // MARK: - Replays
@@ -422,6 +420,7 @@ struct SettingsView: View {
             // or a month, so without this nobody could see what one looks like until
             // then. The preview is the real replay on sample wins, not a video of one.
             Section {
+                FormSectionLabel("Replays")
                 // The ink is on the rows, not the Section: on the Section it
                 // also inked the header, which then read darker and heavier
                 // than every other heading on the screen.
@@ -433,13 +432,12 @@ struct SettingsView: View {
                     Label { Text("Preview Your Month") } icon: { SettingsIcon(systemName: "calendar") }
                 }
                 .foregroundStyle(AppColors.inkPrimary)
-            } header: {
-                FormSectionLabel("Replays")
             }
 
             // MARK: - Camera
 
             Section {
+                FormSectionLabel("Camera").id(Self.cameraAnchor)
                 Toggle(isOn: $savesToCameraRoll) {
                     Label {
                         Text("Save to Photos")
@@ -489,8 +487,6 @@ struct SettingsView: View {
                 }
                 .tint(AppColors.switchTrack)
                 .disabled(location.isDenied)
-            } header: {
-                FormSectionLabel("Camera").id(Self.cameraAnchor)
             } footer: {
                 Text(storageLine)
                     .formFooter()
@@ -525,6 +521,7 @@ struct SettingsView: View {
             // drawing, as a row, because a hidden gesture needs a second way
             // in. See `MonthDrawingSettingsView`.
             Section {
+                FormSectionLabel("Memories")
                 NavigationLink {
                     MonthDrawingSettingsView()
                         .glassBackButton()
@@ -551,8 +548,6 @@ struct SettingsView: View {
                         }
                     }
                 }
-            } header: {
-                FormSectionLabel("Memories")
             }
 
             // MARK: - Journal
@@ -563,6 +558,7 @@ struct SettingsView: View {
             // the person's own iCloud and a lock nobody asked for is a door
             // between them and their own words. See `JournalLock`.
             Section {
+                FormSectionLabel("Journal").id(Self.journalAnchor)
                 Toggle(isOn: $locksJournal) {
                     Label {
                         Text("Lock Journal")
@@ -602,8 +598,6 @@ struct SettingsView: View {
                         if !(await JournalLock.shared.mayTurnOff()) { keptLocked = true; locksJournal = true }
                     }
                 }
-            } header: {
-                FormSectionLabel("Journal").id(Self.journalAnchor)
             }
 
             // MARK: - How Strata works
@@ -636,6 +630,7 @@ struct SettingsView: View {
             // MARK: - Section 3: Data
 
             Section {
+                FormSectionLabel("Data").id(Self.dataAnchor)
                 Button {
                     HapticsEngine.lightTap()
                     exportData()
@@ -731,8 +726,6 @@ struct SettingsView: View {
                 } message: {
                     Text("This permanently deletes every win, photo, drawing and sticker, your name and profile photo, and your head. It cannot be undone.")
                 }
-            } header: {
-                FormSectionLabel("Data").id(Self.dataAnchor)
             } footer: {
                 // Said where the two rows are, because the fear this answers is
                 // "will restoring wipe what I have now".
@@ -761,6 +754,7 @@ struct SettingsView: View {
             // MARK: - Section 4: Support
 
             Section {
+                FormSectionLabel("Support")
                 // **An address that receives mail.** This was
                 // support@strataapp.co, and strataapp.co has no MX record and
                 // no A record — checked with dig on 2026-09-13 — so every
@@ -810,8 +804,6 @@ struct SettingsView: View {
                         }
                     }
                 }
-            } header: {
-                FormSectionLabel("Support")
             }
 
             // MARK: - Section 5: Legal
@@ -909,13 +901,12 @@ struct SettingsView: View {
 
             #if DEBUG
             Section {
+                FormSectionLabel("Debug")
                 Button(role: .destructive) {
                     runReset()
                 } label: {
                     Label("Reset All Data", systemImage: "trash")
                 }
-            } header: {
-                FormSectionLabel("Debug")
             }
 
             #endif
@@ -1405,12 +1396,17 @@ struct FormSectionLabel: View {
 
     init(_ text: String) { self.text = text }
 
+    /// **Inside its container, in plain case** (the owner, 2026-10-16: "all
+    /// those capitals ... add it in the container, and that goes for the rest
+    /// of the app; I think it looks more tasteful"; after Hinge, where "the
+    /// information you need is found in the container, not out of it"). It
+    /// is the section's first row now, the heading's weight in the quiet ink,
+    /// with no rule under it.
     var body: some View {
         Text(text)
-            .font(Typography.sectionLabel)
-            .kerning(Typography.sectionKerning)
-            .textCase(.uppercase)
+            .font(Typography.headerSmall)
             .foregroundStyle(AppColors.inkSecondary)
+            .listRowSeparator(.hidden)
     }
 }
 

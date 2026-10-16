@@ -231,13 +231,12 @@ struct CrewStatsSections: View {
     /// Profile, so a break never looks like the record was lost.
     private var streak: some View {
         Section {
+            FormSectionLabel("Crew Streak")
             HStack(alignment: .top, spacing: GridConstants.gapWide) {
                 StreakFigure(value: stats.current, label: "Current")
                 StreakFigure(value: stats.best, label: "Best")
             }
             .padding(.vertical, GridConstants.gapTight)
-        } header: {
-            FormSectionLabel("Crew Streak")
         } footer: {
             Text(streakLine).formFooter()
         }
@@ -256,6 +255,7 @@ struct CrewStatsSections: View {
     /// only a couple of days and the video was the only way to keep one.
     private var days: some View {
         Section {
+            FormSectionLabel("Recent Days")
             // **The crew's week, put together** (the owner's Launch Pack,
             // 2026-10-12: "consider a crew weekly or monthly recap"). The
             // replay the app already makes of your own week, of the wins
@@ -327,8 +327,6 @@ struct CrewStatsSections: View {
                     .contentShape(Rectangle())
                 }
             }
-        } header: {
-            FormSectionLabel("Recent Days")
         } footer: {
             Text("Wins stay for two weeks. Play a day or a week to save it as a video.")
                 .formFooter()

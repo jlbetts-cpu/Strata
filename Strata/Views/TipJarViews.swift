@@ -29,6 +29,7 @@ struct TipJarSection: View {
 
     private var section: some View {
         Section {
+            FormSectionLabel(TipJar.Copy.section)
             ForEach(jar.products, id: \.id) { product in
                 Button {
                     Task {
@@ -50,8 +51,6 @@ struct TipJarSection: View {
                 .disabled(jar.isPurchasing)
                 .accessibilityLabel("\(TipJar.name(of: product.id)), \(product.displayPrice)")
             }
-        } header: {
-            FormSectionLabel(TipJar.Copy.section)
         } footer: {
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
                 // His thumbs up over the thanks, the moment a tip goes
