@@ -1731,6 +1731,21 @@ final class FeedbackShots: XCTestCase {
     /// **Tonight's Story** (2026-10-15): the row before 8pm and after, the
     /// viewer paging, a reaction, a swipe down, your own story, and the row
     /// on Add a Win, on and off.
+    /// The night's opening with a crowd: heads shrink and wrap, the rest a count.
+    func testStoryOpeningCrowd() {
+        for n in [3, 12] {
+            let app = launch(["-strataCrews", "1", "-strataSeedCrew", "\(n + 1)", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                              "-strataSeedStories", "\(n)", "-strataStoryHour", "21", "-strataStorySeen", "1", "-strataReplayOpening", "1"])
+            wait(9)
+            let story = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
+            if story.exists { story.tap() }
+            wait(0.5); snap("crowd-\(n)-a")
+            wait(1.4); snap("crowd-\(n)-b")
+            wait(0.5); snap("crowd-\(n)-c")
+            app.terminate()
+        }
+    }
+
     func testTonightsStory() {
         let night = ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
                      "-strataSeedStories", "3", "-strataSeedMyStory", "1", "-strataStoryHour", "21"]
@@ -1744,12 +1759,14 @@ final class FeedbackShots: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
         wait(1)
         if story.exists { story.tap() }
-        // The night's opening comes first, once a night; Open begins it.
-        wait(0.4); snap("story-1a-opening-start")
-        wait(1.6); snap("story-1b-opening")
-        let open = app.buttons["Open"].firstMatch
-        print("PLANNING-story opening \(open.exists)")
-        if open.exists { open.tap() }
+        // The night's opening comes first, once a night: a page of its own,
+        // the heads dropping in; a tap begins, or it goes on by itself.
+        wait(0.3); snap("story-1a-opening-start")
+        wait(0.35); snap("story-1a2-opening")
+        wait(0.35); snap("story-1a3-opening")
+        wait(0.8); snap("story-1b-opening")
+        print("PLANNING-story opening \(app.buttons["Open"].exists ? "button" : "page")")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).tap()
         wait(1.5); snap("story-1-viewer")
         let card = app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, 1 of'")).firstMatch
         print("PLANNING-story card \(card.exists) '\(card.exists ? card.label : "")'")

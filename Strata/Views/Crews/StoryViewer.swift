@@ -97,9 +97,9 @@ struct StoryViewer: View {
         .statusBarHidden()
         .overlay {
             if opening {
-                StoryOpening(people: people.filter { $0.profileID != store.me }) {
+                StoryOpening(people: people.filter { $0.profileID != store.me }, close: onClose) {
                     openedNight = Self.night(of: people) ?? ""
-                    withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.5)) { opening = false }
+                    withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.4)) { opening = false }
                 }
                 .transition(.opacity)
             }
@@ -424,6 +424,8 @@ private struct StoryProgress: View {
     let index: Int
     let paused: Bool
     let length: TimeInterval
+    /// White over a photograph; ink over the opening's page.
+    var ink: Color = .white
     let finished: () -> Void
 
     @State private var elapsed: TimeInterval = 0
@@ -435,9 +437,9 @@ private struct StoryProgress: View {
             HStack(spacing: 4) {
                 ForEach(0..<count, id: \.self) { i in
                     GeometryReader { geo in
-                        Capsule().fill(Color.white.opacity(0.35))
+                        Capsule().fill(ink.opacity(0.25))
                             .overlay(alignment: .leading) {
-                                Capsule().fill(Color.white)
+                                Capsule().fill(ink)
                                     .frame(width: geo.size.width * fill(i))
                             }
                     }
@@ -647,17 +649,141 @@ private struct StoryEnd: View {
     }
 }
 
-/// **The night's opening** (2026-10-16): the date, "Tonight", every friend's
-/// crest with its ring closing in turn as the row's does at 8pm, how many
-/// shared the best of today, and Open. A ritual you take part in makes what
-/// follows better (Vohs et al. 2013), so it waits for your tap.
+/// **The night's opening, a story page of its own** (2026-10-16; the owner,
+/// of the first version with its Open button: "what is the point of this
+/// having a button, lay it out like a story with the bar on top, and the
+/// animation should involve their heads, all bouncing around").
+///
+/// Framed as every page is, the bar at the top filling, and when it is full
+/// the first friend's story follows with nothing to press; a tap goes on at
+/// once. On the card, everyone who shared tonight drops in one after
+/// another, lands with a little squash and a tap under the finger, and keeps
+/// hopping, each to its own time, their names under them. A ritual you are
+/// in makes what follows better (Vohs et al. 2013); this one asks nothing of
+/// you but to watch it start.
 private struct StoryOpening: View {
     let people: [StoryPerson]
+    let close: () -> Void
     let begin: () -> Void
-    @State private var held = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var landed = 0
     private var store: SocialStore { SocialStore.shared }
-    private static let side: CGFloat = 80
-    private static let most = 4
+    private let hPad = GridConstants.horizontalPadding
+    /// **Any number of friends** (the owner, 2026-10-16: "make sure the head
+    /// works with a lot of people"): up to three a row at full size, then
+    /// four and five a row, smaller, and past fifteen the rest as a count.
+    /// Live heads up to six; quieter ones beyond, so a big night stays smooth.
+    private static let most = 15
+    private var columns: Int { people.count <= 3 ? max(people.count, 1) : people.count <= 8 ? 4 : 5 }
+    private var side: CGFloat {
+        let room: CGFloat = 340
+        let fit = (room - CGFloat(columns - 1) * GridConstants.gapWide) / CGFloat(columns)
+        return min(88, fit)
+    }
+    private var shownCount: Int { people.count > Self.most ? Self.most - 1 : people.count }
+    /// How long the page stands before the first story.
+    static let length: TimeInterval = 3.8
+
+    var body: some View {
+        VStack(spacing: 0) {
+            card
+            Text(people.count == 1 ? "1 friend shared the best of today" : "\(people.count) friends shared the best of today")
+                .font(Typography.headerSmall)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(.horizontal, hPad)
+                .padding(.vertical, GridConstants.gapTight)
+        }
+        .background(alignment: .top) {
+            GeometryReader { geo in
+                Color.black
+                    .frame(height: geo.safeAreaInsets.top + GridConstants.radiusSurface)
+                    .offset(y: -geo.safeAreaInsets.top)
+            }
+            .allowsHitTesting(false)
+        }
+        .background { WarmBackground().ignoresSafeArea() }
+        .task {
+            for i in 0..<shownCount {
+                // Quicker the more there are, so fifteen land in about two seconds.
+                try? await Task.sleep(for: .milliseconds(i == 0 ? 250 : (shownCount > 6 ? 110 : 180)))
+                withAnimation(reduceMotion ? GridConstants.crossFade : .spring(duration: 0.55, bounce: 0.45)) { landed = i + 1 }
+            }
+        }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: landed)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tonight. \(people.count == 1 ? "1 friend" : "\(people.count) friends") shared the best of today.")
+        .accessibilityAction(named: "Begin") { begin() }
+    }
+
+    private var card: some View {
+        let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+        return ZStack {
+            // Opaque: the camera's black band runs behind the card's top.
+            shape.fill(WarmBackground.top)
+            shape.fill(AppColors.quietFill)
+            VStack(spacing: GridConstants.gapSection) {
+                VStack(spacing: GridConstants.gapTight) {
+                    Text(weekday + " night")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                    Text("Tonight")
+                        .font(Typography.screenTitle)
+                        .foregroundStyle(AppColors.inkPrimary)
+                }
+                // Room for a hop above the heads, so no head ever reaches the
+                // words (the owner: "I don't like how the head is interacting
+                // with the text, like overlapping").
+                heads
+                    .padding(.top, side * BouncingHead<EmptyView>.hop)
+            }
+            .padding(.horizontal, hPad)
+        }
+        .overlay(alignment: .top) { top }
+        .contentShape(shape)
+        .onTapGesture { begin() }
+    }
+
+    /// The bar, then a close, as a page's top is.
+    private var top: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            StoryProgress(count: 1, index: 0, paused: false, length: Self.length, ink: AppColors.inkPrimary, finished: begin)
+                .padding(.top, GridConstants.gapTight)
+            HStack {
+                Spacer(minLength: 0)
+                GlassIconButton(systemName: "xmark", accessibilityLabel: "Close story", action: close)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, GridConstants.gapItem)
+    }
+
+    /// Rows of `columns`, the last row centred, and a count for the rest.
+    private var heads: some View {
+        let shown = Array(people.prefix(shownCount).enumerated())
+        let rest = people.count - shownCount
+        let rows = stride(from: 0, to: shown.count, by: columns).map { Array(shown[$0..<min($0 + columns, shown.count)]) }
+        return VStack(spacing: side < 70 ? GridConstants.gapItem : GridConstants.gapWide) {
+            ForEach(rows.indices, id: \.self) { r in
+                HStack(alignment: .top, spacing: GridConstants.gapWide) {
+                    ForEach(rows[r], id: \.element.id) { index, person in
+                        BouncingHead(person: person, side: side, index: index, landed: index < landed,
+                                     still: reduceMotion, name: name(person)) { head(person, live: index < 6) }
+                    }
+                    if r == rows.count - 1, rest > 0 {
+                        Text(verbatim: "+\(rest)")
+                            .font(Typography.headerMedium)
+                            .foregroundStyle(AppColors.inkSecondary)
+                            .frame(width: side, height: side)
+                            .background(Circle().fill(AppColors.quietFill))
+                            .opacity(landed >= shownCount ? 1 : 0)
+                            .accessibilityLabel("and \(rest) more")
+                    }
+                }
+            }
+        }
+    }
 
     /// The stories' own night, not the clock's: after midnight it is still
     /// the evening they were from.
@@ -672,61 +798,72 @@ private struct StoryOpening: View {
         return member.shortName.isEmpty ? "A friend" : member.shortName
     }
 
-    var body: some View {
-        VStack(spacing: GridConstants.gapSection) {
-            Spacer()
-            VStack(spacing: GridConstants.gapTight) {
-                Text(weekday + " night")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkSecondary)
-                Text("Tonight")
-                    .font(Typography.screenTitle)
-                    .foregroundStyle(AppColors.inkPrimary)
-            }
-            // Names under the heads, as in the row.
-            HStack(alignment: .top, spacing: GridConstants.gapItem) {
-                ForEach(Array(people.prefix(Self.most).enumerated()), id: \.element.id) { index, person in
-                    VStack(spacing: GridConstants.gapTight) {
-                        StoryCrest(story: person, side: Self.side, seen: [], held: held, order: index) {
-                            head(person)
-                        } picture: {
-                            StoryBubble(story: person, side: StoryCrestSize.face(in: Self.side))
-                        }
-                        Text(name(person))
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(AppColors.inkSecondary)
-                            .lineLimit(1)
-                            .frame(maxWidth: Self.side)
-                    }
-                }
-            }
-            .padding(.vertical, GridConstants.gapItem)
-            Text(people.count == 1 ? "1 friend shared the best of today" : "\(people.count) friends shared the best of today")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .multilineTextAlignment(.center)
-            Spacer()
-            PrimaryCapsule(title: "Open", action: begin)
-                .padding(.horizontal, GridConstants.horizontalPadding)
-                .padding(.bottom, GridConstants.gapItem)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background { WarmBackground().ignoresSafeArea() }
-        .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: held)
-        .task {
-            try? await Task.sleep(for: .milliseconds(500))
-            held = false
-        }
-        .accessibilityElement(children: .contain)
-    }
-
     @ViewBuilder
-    private func head(_ person: StoryPerson) -> some View {
+    private func head(_ person: StoryPerson, live: Bool) -> some View {
         let crew = person.stories.first?.win.crewID
         if let crew, let member = store.crew(crew)?.member(person.profileID) {
-            PersonHead(person: .member(member, crew: crew, me: store.me), side: StoryCrestSize.face(in: 76))
+            PersonHead(person: .member(member, crew: crew, me: store.me), side: side,
+                       life: live ? .expressive : .calm, setting: .free)
         } else {
-            Color.clear
+            Circle().fill(AppColors.inkTertiary.opacity(0.3)).frame(width: side, height: side)
+        }
+    }
+}
+
+/// **A head that dropped in and keeps hopping**: from above the card on a
+/// bouncy spring, then a hop of its own every second or so, squashing as it
+/// lands, each head to a slightly different time so they never march. Its
+/// name stays put underneath.
+private struct BouncingHead<Head: View>: View {
+    let person: StoryPerson
+    let side: CGFloat
+    let index: Int
+    let landed: Bool
+    let still: Bool
+    let name: String
+    @ViewBuilder let head: () -> Head
+
+    private struct Hop { var y: CGFloat = 0; var squash: CGFloat = 1 }
+    /// How high a hop goes, as a share of the head.
+    static var hop: CGFloat { 0.24 }
+
+    var body: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            head()
+                .frame(width: side, height: side)
+                .keyframeAnimator(initialValue: Hop(), repeating: !still && landed) { content, hop in
+                    content
+                        .scaleEffect(x: 2 - hop.squash, y: hop.squash, anchor: .bottom)
+                        .offset(y: hop.y)
+                } keyframes: { _ in
+                    // A rest of its own first, so no two heads hop together.
+                    let rest = 0.35 + Double((index * 37) % 7) * 0.09
+                    KeyframeTrack(\.y) {
+                        LinearKeyframe(0, duration: rest)
+                        SpringKeyframe(-side * Self.hop, duration: 0.24, spring: .snappy)
+                        CubicKeyframe(0, duration: 0.2)
+                        SpringKeyframe(-side * 0.08, duration: 0.14, spring: .snappy)
+                        CubicKeyframe(0, duration: 0.12)
+                    }
+                    KeyframeTrack(\.squash) {
+                        LinearKeyframe(1, duration: rest)
+                        CubicKeyframe(0.9, duration: 0.06)
+                        CubicKeyframe(1.06, duration: 0.18)
+                        CubicKeyframe(1, duration: 0.2)
+                        CubicKeyframe(0.92, duration: 0.05)
+                        CubicKeyframe(1, duration: 0.21)
+                    }
+                }
+                // In where it stands, popping up from small: nothing falls
+                // past the words above.
+                .scaleEffect(landed || still ? 1 : 0.2, anchor: .bottom)
+                .opacity(landed ? 1 : 0)
+            Text(name)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+                .lineLimit(1)
+                .frame(maxWidth: side + GridConstants.gapWide)
+                .opacity(landed ? 1 : 0)
         }
     }
 }
