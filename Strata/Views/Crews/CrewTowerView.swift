@@ -202,6 +202,10 @@ struct CrewTowerView: View {
         // folds it back.
         .overlay { fanOverlay }
         .toolbar(.hidden, for: .navigationBar)
+        // **Back with a swipe, from anywhere**, as a conversation on
+        // Instagram goes back (`SwipeBackKeeper`): with the bar hidden the
+        // page had no swipe back at all, edge or otherwise.
+        .swipesBackFromAnywhere(unless: { [reacts] in reacts.reacting != nil })
         .onDisappear {
             if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil }
             chatAside.cancel()

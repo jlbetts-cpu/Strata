@@ -884,10 +884,13 @@ final class SocialStore {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    /// **Your score, told to your crews when it changes** (2026-10-15): on
-    /// your member record with your name and head, so a friend's profile
-    /// shows it. Settled for a few seconds first, so a run of wins is one
-    /// write, and only when the numbers moved since the last one sent.
+    /// **Your score, told to your crews when it changes** (2026-10-15), on
+    /// its own small record (`CrewRecordType.score`), so a friend's profile
+    /// shows it. Never on the member record: that carries your head, and the
+    /// review found writing it after every win re-sent the head to every crew
+    /// and could overwrite a head change still on its way. Settled for a few
+    /// seconds first, so a run of wins is one write, and only where the
+    /// numbers moved.
     func noteMyScore(_ tally: WinsScore.Tally, settle: Duration = .seconds(3)) {
         guard isEnabled(), !crews.isEmpty else { return }
         scoreSoon?.cancel()
@@ -896,14 +899,14 @@ final class SocialStore {
             guard !Task.isCancelled else { return }
             var changed = false
             for crew in crews {
-                guard var mine = crew.member(me), mine.score != tally.score || mine.wins != tally.wins else { continue }
-                mine.score = tally.score
-                mine.wins = tally.wins
+                guard let mine = crew.member(me), mine.score != tally.score || mine.wins != tally.wins else { continue }
                 if let i = crews.firstIndex(where: { $0.id == crew.id }),
                    let j = crews[i].members.firstIndex(where: { $0.profileID == me }) {
-                    crews[i].members[j] = mine
+                    crews[i].members[j].score = tally.score
+                    crews[i].members[j].wins = tally.wins
                 }
-                enqueue(.init(crew: crew.id, type: .member, name: CrewRecords.name(of: mine), fields: CrewRecords.fields(mine)))
+                enqueue(.init(crew: crew.id, type: .score, name: me.uuidString,
+                              fields: CrewRecords.scoreFields(profileID: me, score: tally.score, wins: tally.wins)))
                 changed = true
             }
             if changed { await flush() }
@@ -1008,6 +1011,9 @@ final class SocialStore {
         for message in messagesByCrew[crewID] ?? [] where message.senderProfileID == me {
             try? await cloud.delete(type: .message, name: CrewRecords.name(of: message), in: crewID)
         }
+        // Your score goes with you; left behind it would show nobody, since
+        // a crew's people are read from member records alone.
+        try? await cloud.delete(type: .score, name: me.uuidString, in: crewID)
         try await cloud.delete(type: .member, name: me.uuidString, in: crewID)
         try await cloud.leave(crewID)
         forget(crewID)
@@ -2526,8 +2532,9 @@ final class SocialStore {
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
             key = Self.pingKey(winID: winID, carriesLine: fields["line"]?.string.map { !$0.isEmpty } ?? false)
         // The chat's ping is its own (`pingMessage`); a crew's record and a
-        // member's are not news (joining is, and says so itself: `pingJoined`).
-        case .crew, .member, .message:
+        // member's are not news (joining is, and says so itself: `pingJoined`),
+        // and nor is a score.
+        case .crew, .member, .message, .score:
             return
         }
         await leave(ping, key: key)

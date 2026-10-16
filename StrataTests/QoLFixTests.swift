@@ -22,7 +22,8 @@ struct QoLFixTests {
         #expect(!chat.contains("pingsLive"),
                 "the chat's alerts wait on pings again, and the chat leaves no ping")
         let store = try code("Strata/Social/SocialStore.swift")
-        #expect(store.contains("case .crew, .member, .message:\n            return"),
+        // `.score` since 2026-10-15: a score is not news either.
+        #expect(store.contains("case .crew, .member, .message, .score:\n            return"),
                 "the chat leaves a ping now; the gate above can be reconsidered")
     }
 

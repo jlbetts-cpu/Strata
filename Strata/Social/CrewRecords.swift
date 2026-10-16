@@ -61,6 +61,12 @@ nonisolated enum CrewRecordType: String, Codable, Sendable, CaseIterable {
     case reaction = "Reaction"
     /// A line in the crew's day chat (2026-10-05).
     case message = "CrewMessage"
+    /// **Your score and wins, on a record of their own** (2026-10-15), named
+    /// by your profile as your member record is. Not on the member record:
+    /// writing that after every win re-sent your head to every crew, and a
+    /// stale copy of it could overwrite a head change still on its way. A
+    /// build before it reads past a kind it does not know.
+    case score = "Score"
 }
 
 /// The kinds of record a crew zone holds, and EXACTLY what goes in them.
@@ -79,10 +85,10 @@ nonisolated enum CrewRecords {
         "withPeople",
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
-    /// `score` and `wins` since 2026-10-15. Sealed in the item's box with the
-    /// rest (`CrewItemBox`), so the server's schema does not change; a build
-    /// before them reads past them.
-    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt", "score", "wins"]
+    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
+    /// Sealed in the item's box like every record (`CrewItemBox`), so the
+    /// server's schema does not change.
+    static let scoreKeys: Set<String> = ["profileID", "score", "wins"]
     static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt", "line", "sketch"]
     /// The day chat's line: words, or a doodle, and the win it answers.
     static let messageKeys: Set<String> = ["messageID", "senderProfileID", "crewDay", "text",
@@ -95,6 +101,7 @@ nonisolated enum CrewRecords {
         case .sharedWin: sharedWinKeys
         case .reaction: reactionKeys
         case .message: messageKeys
+        case .score: scoreKeys
         }
     }
 
@@ -271,8 +278,6 @@ nonisolated enum CrewRecords {
         ]
         if let head = member.head { fields["head"] = .asset(head) }
         if let photo = member.photo { fields["photo"] = .asset(photo) }
-        if let score = member.score { fields["score"] = .int(score) }
-        if let wins = member.wins { fields["wins"] = .int(wins) }
         return fields
     }
 
@@ -282,9 +287,36 @@ nonisolated enum CrewRecords {
                           firstName: CrewWords.kept(fields["firstName"]?.string ?? ""),
                           head: fields["head"]?.asset,
                           joinedAt: fields["joinedAt"]?.date ?? .distantPast,
-                          photo: fields["photo"]?.asset,
-                          // A count, never below nothing whatever a record claims.
-                          score: fields["score"]?.int.map { max(0, $0) },
-                          wins: fields["wins"]?.int.map { max(0, $0) })
+                          photo: fields["photo"]?.asset)
+    }
+
+    // MARK: Score
+
+    static func scoreFields(profileID: UUID, score: Int, wins: Int) -> RecordFields {
+        ["profileID": .uuid(profileID), "score": .int(score), "wins": .int(wins)]
+    }
+
+    /// A count, within reason whatever a record claims: never below nothing,
+    /// and no more than a lifetime of wins at the deepest size could make.
+    static func score(_ fields: RecordFields) -> (profileID: UUID, score: Int, wins: Int)? {
+        guard let id = fields["profileID"]?.uuid, let score = fields["score"]?.int,
+              let wins = fields["wins"]?.int else { return nil }
+        let limit = 1_000_000
+        return (id, min(max(0, score), limit * 3), min(max(0, wins), limit))
+    }
+
+    /// Each member's score from its own record, where one is filed under
+    /// their profile and passes `keep` (the writer is who it claims).
+    static func withScores(_ members: [CrewMember], from records: [String: RecordFields],
+                           keep: (RecordFields, UUID) -> Bool = { _, _ in true }) -> [CrewMember] {
+        members.map { member in
+            var member = member
+            if let fields = records["\(CrewRecordType.score.rawValue)/\(member.profileID.uuidString)"],
+               let counted = score(fields), counted.profileID == member.profileID, keep(fields, member.profileID) {
+                member.score = counted.score
+                member.wins = counted.wins
+            }
+            return member
+        }
     }
 }

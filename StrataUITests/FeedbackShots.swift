@@ -2049,6 +2049,42 @@ final class FeedbackShots: XCTestCase {
         _ = crews
     }
 
+    /// **Back with a swipe from anywhere** (the owner, 2026-10-15, from
+    /// Instagram): from the middle of a crew's page, and from its edge.
+    func testSwipeBack() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3"])
+        wait(7)
+        func open() {
+            app.buttons.matching(NSPredicate(format: "label CONTAINS 'Roommates'")).firstMatch.tap()
+            wait(3)
+        }
+        open(); snap("swipe-0-crew")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.35))
+            .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.37)),
+                   withVelocity: XCUIGestureVelocity(1200), thenHoldForDuration: 0)
+        wait(1.5); snap("swipe-1-middle")
+        print("PLANNING-swipe middle back on list: \(app.staticTexts["Today"].firstMatch.exists)")
+        if !app.staticTexts["Today"].firstMatch.exists { app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch.tap(); wait(2) }
+        open()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+            .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)),
+                   withVelocity: XCUIGestureVelocity(1200), thenHoldForDuration: 0)
+        wait(1.5); snap("swipe-2-edge")
+        print("PLANNING-swipe edge back on list: \(app.staticTexts["Today"].firstMatch.exists)")
+        // The slot drawn out sideways must still size the block, not go back.
+        open()
+        let slot = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'log a win' OR label CONTAINS[c] 'add a win'")).firstMatch
+        print("PLANNING-swipe slot \(slot.exists) '\(slot.exists ? slot.label : "")'")
+        if slot.exists {
+            let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.3, thenDragTo: start.withOffset(CGVector(dx: 90, dy: 0)),
+                        withVelocity: XCUIGestureVelocity(300), thenHoldForDuration: 0.5)
+        }
+        wait(2); snap("swipe-3-slot")
+        print("PLANNING-swipe still in crew after slot: \(!app.staticTexts["Today"].firstMatch.exists)")
+    }
+
     /// **Catch Up** (2026-10-15): back after days away.
     func testCatchUp() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataOpenCrew", "0",

@@ -699,7 +699,9 @@ final class PublicCrewCloud: CrewCloud {
             fields["name"] = edit["name"]
             fields["photo"] = edit["photo"]
         }
-        let members = memberRecords(in: crew).map(\.member)
+        let members = CrewRecords.withScores(memberRecords(in: crew).map(\.member), from: records) { fields, profile in
+            keep(fields, from: profile, in: crew)
+        }
         return CrewRecords.crew(fields, id: crew, members: members)
     }
 

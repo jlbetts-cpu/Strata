@@ -169,7 +169,10 @@ struct ReplayView: View {
                         onDelete: { _ in
                             viewing = nil
                             onPhotoDeleted?()
-                        })
+                        },
+                        // Delete Win from its ⋯ (found by review, 2026-10-15):
+                        // the page under it reloads, as for a photo.
+                        onWinChanged: { onPhotoDeleted?() })
                 .navigationTransition(.zoom(sourceID: "replayBlockPhoto", in: photoTransition))
         }
     }

@@ -1156,8 +1156,11 @@ struct MainAppView: View {
         guard let id = deepLinkHabitID, towerVM.hasBuiltOnce else { return }
         deepLinkHabitID = nil
         if let block = towerVM.placedBlocks.last(where: { $0.habit?.id == id }) {
-            withAnimation(GridConstants.crossFade) {
-                expandedBlockID = block.id
+            // As a tap opens it: the carousel at it (2026-10-15).
+            if block.isSkipped {
+                withAnimation(GridConstants.crossFade) { expandedBlockID = block.id }
+            } else {
+                viewingOnTower = Self.galleryName(of: block)
             }
         } else if let habit = habits.first(where: { $0.id == id }) {
             editingHabit = habit
@@ -3827,6 +3830,12 @@ struct MainAppView: View {
                     // The carousel, at this block, as a crew's tower opens
                     // one; Edit is in its ⋯ (`PhotoViewer`).
                     guard let block = towerVM.placedBlocks.first(where: { $0.id == id }) else { return }
+                    // A skipped block is not in the carousel: its own sheet,
+                    // as before (found by review, 2026-10-15).
+                    if block.isSkipped {
+                        withAnimation(GridConstants.crossFade) { expandedBlockID = id }
+                        return
+                    }
                     viewingOnTower = Self.galleryName(of: block)
                 },
                 liftedBlockID: nil

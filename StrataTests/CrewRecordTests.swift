@@ -42,9 +42,9 @@ struct CrewRecordTests {
             for key in forbidden { #expect(!CrewRecords.keys(of: type).contains(key), "\(type) has \(key)") }
         }
         // `photo` since 2026-10-02: a profile photo, for someone with no head.
-        // `score` and `wins` since 2026-10-15: counts your own phone keeps,
-        // for a friend's profile, sealed in the box with the rest.
-        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt", "score", "wins"])
+        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt"])
+        // Your score on its own record since 2026-10-15, not on this one.
+        #expect(CrewRecords.scoreKeys == ["profileID", "score", "wins"])
         #expect(CrewRecords.crewKeys == ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"])
     }
 

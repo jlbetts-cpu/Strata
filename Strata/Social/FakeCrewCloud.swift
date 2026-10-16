@@ -143,7 +143,7 @@ final class FakeCrewCloud: CrewCloud {
             let members = world.records(of: .member, in: id).values
                 .compactMap(CrewRecords.member)
                 .filter { zone.participants.contains($0.profileID) }
-            return CrewRecords.crew(fields, id: id, members: members)
+            return CrewRecords.crew(fields, id: id, members: CrewRecords.withScores(members, from: zone.records))
         }
         .sorted { $0.createdAt < $1.createdAt }
     }

@@ -105,6 +105,9 @@ struct CrewChatSheet: View {
     /// What the + menu's things open (`ChatPlusMenu`).
     @State private var pickingPhoto = false
     @State private var pickedPhoto: PhotosPickerItem?
+    /// A photo on its way: one at a time (a second pick while the first is
+    /// checked and sent would send it twice).
+    @State private var sendingPhoto = false
     @State private var planning = false
     @State private var choosingSticker = false
     @State private var makingSticker = false
@@ -237,12 +240,20 @@ struct CrewChatSheet: View {
             // is, through the same photo check (`sendPicture`).
             .photosPicker(isPresented: $pickingPhoto, selection: $pickedPhoto, matching: .images)
             .onChange(of: pickedPhoto) { _, item in
-                guard let item else { return }
+                guard let item, !sendingPhoto else { return }
                 pickedPhoto = nil
+                sendingPhoto = true
                 Task {
+                    defer { sendingPhoto = false }
+                    // **Said, not swallowed** (found by review, 2026-10-15):
+                    // a photo that will not open, or that the check keeps,
+                    // gets the photo's own sentence, never "Try other words".
                     guard let data = try? await item.loadTransferable(type: Data.self),
-                          let jpeg = ShareDerivative.jpeg(from: data) else { return }
-                    answer(await store.sendPicture(jpeg, caption: "", in: crewID))
+                          let jpeg = ShareDerivative.jpeg(from: data) else { pictureRefused = true; return }
+                    switch await store.sendPicture(jpeg, caption: "", in: crewID) {
+                    case .refusedSketch, .notAllowed, .refusedWords: pictureRefused = true
+                    case let other: answer(other)
+                    }
                 }
             }
             .sheet(item: $profileOf) { member in
