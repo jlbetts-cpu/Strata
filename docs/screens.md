@@ -121,6 +121,8 @@ chat's face menu, or Profile in the crew card's member menu.
 - Their tower today: only what they shared with you, on the lattice.
   Hold a block to react, double-tap for a heart, tap to open it.
   Nothing shared yet is the bare lattice.
+- Recent Photos under it: their shared photographs from the days your
+  crews keep, in a grid; a press opens the carousel.
 
 **Crew chat (a native sheet).**
 - At rest the crew stands on a flush bar: the newest line as itself (a
@@ -144,7 +146,8 @@ chat's face menu, or Profile in the crew card's member menu.
 - Rename the crew.
 - Hidden wins, with Show Again.
 - Leave the crew, or Remove from Crew for a member (if you started the
-  crew).
+  crew). Block also tells Some Wins; in a crew you did not start, Block
+  and Leave does both.
 - Report, followed by a thanks card with a thumbs up.
 - Crew rules and the age gate.
 
