@@ -534,17 +534,29 @@ struct ProfileView: View {
     /// Undo, and a hold deletes it for good (`EarlierHeadsRow`).
     @ViewBuilder
     private var earlierHeadsSection: some View {
+        // **Folded away** (the owner, 2026-10-16: "collapse other information
+        // like the previous heads ... anything unnecessary and not useful the
+        // user shouldn't be there by default"). One row; open, the heads.
         if !heads.earlierEntries.isEmpty {
             Section {
-                EarlierHeadsRow(entries: heads.earlierEntries) { EarlierHeads.bringBack($0) }
-            } header: {
-                FormSectionLabel(EarlierHeads.title)
+                DisclosureGroup(isExpanded: $showsEarlierHeads) {
+                    EarlierHeadsRow(entries: heads.earlierEntries) { EarlierHeads.bringBack($0) }
+                        .padding(.top, GridConstants.gapTight)
+                } label: {
+                    Text(EarlierHeads.title)
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkPrimary)
+                }
             } footer: {
-                Text(EarlierHeads.footer)
-                    .formFooter()
+                if showsEarlierHeads {
+                    Text(EarlierHeads.footer)
+                        .formFooter()
+                }
             }
         }
     }
+
+    @State private var showsEarlierHeads = false
 
     /// **Nothing, when there is one head** (cut 6, `docs/copy-audit.md`,
     /// 2026-10-01): labelled rows do not need a sentence saying what they do.

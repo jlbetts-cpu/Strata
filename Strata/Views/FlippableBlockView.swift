@@ -131,11 +131,8 @@ struct FlippableBlockView: View {
             // `.carried` is the one rung that is meant to be seen, because here
             // the shadow IS the information: the gap between the block and the
             // page is what the gesture is about. See `Elevation`.
-            .shadow(
-                color: isLifted ? Elevation.carried.color(in: colorScheme) : .clear,
-                radius: isLifted ? Elevation.carried.radius : 0,
-                y: isLifted ? Elevation.carried.y : 0
-            )
+            // No shadow under it (the owner, 2026-10-16: "shadows make design
+            // look cheaper"): the lift is its scale alone.
             // No dimming of the other blocks.
             //
             // That was here to make the lift legible when a 6% scale was the

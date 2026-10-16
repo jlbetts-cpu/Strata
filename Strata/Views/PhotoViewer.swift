@@ -415,6 +415,7 @@ struct PhotoViewer: View {
         }
         .scrollIndicators(.hidden)
         .scrollDisabled(isZoomed)
+        .scrollClipDisabled(isZoomed)
         .frame(height: max(size.height, 1))
     }
 
@@ -1128,12 +1129,17 @@ struct PhotoPage: View {
         // picture is inside its box by `printInset` on every side.
         // `contentShape` below restores the full rectangle to the finger, so
         // pinch and pan are unchanged.
-        .clipped()
+        // **Clipped only at rest** (the owner, 2026-10-16: "the zoom still
+        // cuts off on the top and bottom, it should be able to be zoomed using
+        // the whole screen"). A pinch hides the chrome (`onZoomIn`), so once
+        // the picture is magnified there is nothing left over it to protect
+        // and it may fill the screen; the deck lets it (`scrollClipDisabled`).
+        .modifier(ClipAtRest(atRest: scale <= 1.01))
         // A fade, and only a fade. The picture arriving by appearing is the
         // one moment a viewer can look cheap.
         .animation(GridConstants.motionSnappy, value: image != nil)
         .contentShape(Rectangle())
-        .gesture(magnify)
+
         // **The pan is only attached while zoomed in.**
         //
         // It used to be a `simultaneousGesture` at all times, guarded by
@@ -1150,6 +1156,12 @@ struct PhotoPage: View {
         // `.gesture(cond ? g : nil)` still installs one — the MODIFIER has to
         // be conditional, not the gesture. That is what `panWhenZoomed` does.
         .panWhenZoomed(zoomed ? pan : nil)
+        // **The pinch goes OUTSIDE the pan's switch** (2026-10-16, the owner:
+        // "be able to be zoomed out"). `panWhenZoomed` is an if/else, so
+        // zooming in rebuilt everything inside it, and a pinch attached in
+        // there never began again: you could pinch in once and never back
+        // out. Out here it survives the switch, alongside the pan.
+        .gesture(PinchZoom(changed: pinched, ended: pinchEnded))
         // The single tap waits for a second, as Photos' does.
         .gesture(doubleTap.exclusively(before: TapGesture(count: 1).onEnded { onTap() }))
         .onChange(of: zoomed) { _, now in onZoomChanged(now) }
@@ -1163,21 +1175,23 @@ struct PhotoPage: View {
 
     // MARK: - Gestures
 
-    private var magnify: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                scale = min(committedScale * value.magnification, Self.maxScale)
-                if value.magnification > 1.02 { onZoomIn() }
-            }
-            .onEnded { _ in
-                if scale <= 1.01 {
-                    reset(animated: true)
-                } else {
-                    committedScale = scale
-                    withAnimation(GridConstants.motionSnappy) { clampOffset() }
-                    committedOffset = offset
-                }
-            }
+    private func pinched(_ magnification: CGFloat) {
+        let raw = committedScale * magnification
+        // **Out, too, and back** (the owner: "be able to be zoomed out"):
+        // under 1x the picture gives, half as much as the fingers, and
+        // springs back to fit when they lift.
+        scale = raw < 1 ? max(1 - (1 - raw) * 0.5, 0.6) : min(raw, Self.maxScale)
+        if magnification > 1.02 { onZoomIn() }
+    }
+
+    private func pinchEnded() {
+        if scale <= 1.01 {
+            reset(animated: true)
+        } else {
+            committedScale = scale
+            withAnimation(GridConstants.motionSnappy) { clampOffset() }
+            committedOffset = offset
+        }
     }
 
     private var pan: some Gesture {
@@ -1349,5 +1363,13 @@ extension View {
         opacity(hidden ? 0 : 1)
             .allowsHitTesting(!hidden)
             .accessibilityHidden(hidden)
+    }
+}
+
+/// The page's clip, only while the picture fits (`PhotoPage`).
+private struct ClipAtRest: ViewModifier {
+    let atRest: Bool
+    func body(content: Content) -> some View {
+        content.clipShape(Rectangle().scale(atRest ? 1 : 40))
     }
 }

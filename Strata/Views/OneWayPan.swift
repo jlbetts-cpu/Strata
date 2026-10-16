@@ -114,3 +114,35 @@ struct SwipeToReply: ViewModifier {
             }))
     }
 }
+
+/// **A pinch that always gets its two fingers** (2026-10-16). SwiftUI's
+/// `MagnifyGesture` beside the zoomed photograph's pan lost every two-finger
+/// touch to the pan: you could pinch in once and never back out (the owner:
+/// "be able to be zoomed out"). UIKit's pinch, told it may run with anything,
+/// is the one Photos uses.
+struct PinchZoom: UIGestureRecognizerRepresentable {
+    /// The fingers' spread against where they began: 1 is unchanged.
+    var changed: (CGFloat) -> Void
+    var ended: () -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPinchGestureRecognizer {
+        let pinch = UIPinchGestureRecognizer()
+        pinch.delegate = context.coordinator
+        return pinch
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPinchGestureRecognizer, context: Context) {
+        switch recognizer.state {
+        case .began, .changed: changed(recognizer.scale)
+        case .ended, .cancelled, .failed: ended()
+        default: break
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+}

@@ -203,12 +203,17 @@ struct MemoriesView: View {
                     // **You, at the top: Memories is your profile** (the
                     // owner, 2026-10-15). Your head, your name and your
                     // score, then your months.
-                    ProfileHeader(onEdit: { openProfile?() }, onScore: { showsScore = true })
+                    // **One press, one place** (the owner, 2026-10-16: "combine
+                    // the profile and stats, and instead of a chevron be like
+                    // the liquid glass in the Wins middle and the crew"): your
+                    // head on glass and your name in the glass caption open
+                    // Profile, your stats and Edit together.
+                    ProfileHeader(onOpen: { showsScore = true })
                         // **Hung on what is pressed** (the owner, 2026-10-16:
                         // "pressing the chevron in the stats doesn't do
                         // anything"). It hung on the month's illustration,
                         // which only some months have and a scroll unloads.
-                        .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet() } }
+                        .sheet(isPresented: $showsScore) { NavigationStack { YourScoreSheet(resetAllData: { resetAllData?() ?? false }) } }
                         .padding(.horizontal, GridConstants.horizontalPadding)
                     if !pageIsUndecided || pageIsEmpty {
                         monthTower

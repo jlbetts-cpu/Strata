@@ -440,7 +440,8 @@ struct AnimatedBlockView: View, Equatable {
                 content
                     .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
                     .brightness(flashBrightness)
-                    .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
+                    // The landing's shadow is gone (2026-10-16, "shadows make
+                    // design look cheaper"); the wobble and the flash land it.
             } else {
                 content
             }

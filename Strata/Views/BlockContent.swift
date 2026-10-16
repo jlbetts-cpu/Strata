@@ -47,8 +47,12 @@ private struct TitleShadow: ViewModifier {
             // **This is the dial that carries a block's legibility now**, and
             // it is the one to reach for if a title ever reads badly in
             // daylight. See `CategoryStyle.text`.
-            color: .black.opacity(onPhoto ? Legibility.ink : Legibility.ink * 0.62),
-            radius: Legibility.radius * (onPhoto ? 1 : 0.7),
+            // **None over flat colour** (the owner, 2026-10-16: "shadows make
+            // design look cheaper"). The colour is the app's own and white
+            // reads on it; only a photograph, which can be anything, keeps
+            // the halo.
+            color: .black.opacity(onPhoto ? Legibility.ink : 0),
+            radius: onPhoto ? Legibility.radius : 0,
             x: 0, y: Legibility.y)
     }
 }

@@ -255,9 +255,8 @@ private struct StoryPage: View {
                 // and every viewer's close (the owner, 2026-10-16: "the
                 // reactions and buttons should feel the same").
                 actions
-                GlassIconButton(systemName: "xmark", accessibilityLabel: "Close story", action: close)
+                StoryGlyph(systemName: "xmark", tint: .white, label: "Close story", action: close)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapWide)
@@ -296,7 +295,7 @@ private struct StoryPage: View {
                 }
             }
         } label: {
-            GlassIconLabel(systemName: "ellipsis", tint: .primary)
+            StoryGlyph.label("ellipsis", tint: .white)
         }
         .accessibilityLabel("Story actions")
     }
@@ -752,9 +751,8 @@ private struct StoryOpening: View {
                 .padding(.top, GridConstants.gapTight)
             HStack {
                 Spacer(minLength: 0)
-                GlassIconButton(systemName: "xmark", accessibilityLabel: "Close story", action: close)
+                StoryGlyph(systemName: "xmark", tint: AppColors.inkSecondary, label: "Close story", action: close)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, GridConstants.gapItem)
     }
@@ -865,5 +863,30 @@ private struct BouncingHead<Head: View>: View {
                 .frame(maxWidth: side + GridConstants.gapWide)
                 .opacity(landed ? 1 : 0)
         }
+    }
+}
+
+/// **A story's own buttons: the glyph alone** (the owner, 2026-10-16: "the x
+/// button is too noticeable"). Glass circles on a story drew a bright disc,
+/// and its shadow, over the photograph; every story app since Snapchat's
+/// puts a bare glyph there. A 44pt target round a quiet mark.
+struct StoryGlyph: View {
+    let systemName: String
+    let tint: Color
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) { Self.label(systemName, tint: tint) }
+            .buttonStyle(.press)
+            .accessibilityLabel(label)
+    }
+
+    static func label(_ systemName: String, tint: Color) -> some View {
+        Image(systemName: systemName)
+            .font(Typography.headerMedium)
+            .foregroundStyle(tint)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
     }
 }

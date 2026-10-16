@@ -665,9 +665,18 @@ final class FeedbackShots: XCTestCase {
                           "-strataCrewFaces", "none"])
         wait(9)
         let block = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Morning run'")).firstMatch
-        if block.exists { block.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)).tap() }
+        if block.exists { block.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.62)).tap() }
         wait(3); snap("zoom-open")
-        app.buttons["Close photo"].firstMatch.tap()
+        // Pinched in, the picture has the whole screen (2026-10-16).
+        app.pinch(withScale: 3, velocity: 2)
+        wait(1.5); snap("zoom-in")
+        app.pinch(withScale: 1.8, velocity: 1)
+        wait(1.5); snap("zoom-more")
+        app.pinch(withScale: 0.5, velocity: -1)
+        wait(1.5); snap("zoom-back")
+        app.doubleTap()
+        wait(1.5); snap("zoom-doubletap")
+        if app.buttons["Close photo"].firstMatch.exists { app.buttons["Close photo"].firstMatch.tap() }
         wait(2); snap("zoom-closed")
     }
 
@@ -1982,15 +1991,19 @@ final class FeedbackShots: XCTestCase {
     /// Edit Profile and Settings from the gear.
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
-                          "-strataSeedWins", "6"])
+                          "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])
         wait(7); snap("profile-1-page")
-        let score = app.buttons.matching(NSPredicate(format: "label CONTAINS ' score'")).firstMatch
-        if score.exists { score.tap() }
+        // One place since 2026-10-16: the head and its glass caption open
+        // Profile, your stats with Edit in the corner.
+        let open = app.buttons.matching(NSPredicate(format: "label CONTAINS 'profile and stats'")).firstMatch
+        print("PLANNING-profile open \(open.exists)")
+        if open.exists { open.tap() }
         wait(2.5); snap("profile-2-score")
-        app.swipeDown(velocity: .fast); wait(1.5)
-        let head = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Edit Profile'")).firstMatch
-        if head.exists { head.tap() }
-        wait(2.5); snap("profile-3-edit")
+        app.swipeUp(); wait(1); snap("profile-2b-charts")
+        let edit = app.buttons["Edit"].firstMatch
+        print("PLANNING-profile edit \(edit.exists)")
+        if edit.exists { edit.tap() }
+        wait(2); snap("profile-3-edit")
         app.swipeDown(velocity: .fast); wait(1.5)
         let gear = app.buttons["Settings"].firstMatch
         if gear.exists { gear.tap() }

@@ -251,16 +251,13 @@ struct YourDaySheet: View {
                 // should be clear how many wins you got for that day"): the
                 // number in the tally's size, what it is under it; the ring
                 // above already says how near the goal it is.
-                VStack(spacing: 0) {
-                    Text(verbatim: "\(winsToday)")
-                        .font(Typography.tally)
-                        .monospacedDigit()
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .contentTransition(.numericText(value: Double(winsToday)))
-                    Text(winsToday == 1 ? "win today" : "wins today")
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
-                }
+                // One line at the heading's size (2026-10-16: "I don't like
+                // big text like that").
+                Text(winsToday == 1 ? "1 win today" : "\(winsToday) wins today")
+                    .font(Typography.headerMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .contentTransition(.numericText(value: Double(winsToday)))
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)

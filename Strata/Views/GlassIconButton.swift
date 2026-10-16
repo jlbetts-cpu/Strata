@@ -283,6 +283,16 @@ extension View {
     /// effect reacts to the press, which is the affordance being bought here.
     /// The deployment target is 18.0, so the fallback is not optional.
     /// The bubble's glass: the page recipe, with no system press response.
+    /// The page's still glass in a rounded rectangle: a figure tile.
+    @ViewBuilder
+    func stillGlassRoundedRect(cornerRadius r: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(GlassRecipe.onPageStill, in: .rect(cornerRadius: r, style: .continuous))
+        } else {
+            self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: r, style: .continuous))
+        }
+    }
+
     @ViewBuilder
     func stillGlassCircle() -> some View {
         if #available(iOS 26.0, *) {

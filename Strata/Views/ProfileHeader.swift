@@ -10,8 +10,7 @@ import SwiftData
 /// the fold, everything else a press away. A press on your head opens Edit
 /// Profile; a press on the score opens Your Score.
 struct ProfileHeader: View {
-    var onEdit: () -> Void
-    var onScore: () -> Void
+    var onOpen: () -> Void
 
     /// Every logged win, read live, so a delete lowers the score in the same
     /// moment the block leaves the tower (`WinsScore`).
@@ -22,13 +21,8 @@ struct ProfileHeader: View {
     var body: some View {
         // Once a pass: each read faults every log's win (the review).
         let tally = WinsScore.tally(logs.compactMap { $0.habit?.blockSize })
-        let crews = CrewsFlag.isOn ? SocialStore.shared.groupCrewCount : nil
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
-                   figures: [ProfileTop.Figure(tally.score, "score"),
-                             ProfileTop.Figure(tally.wins, tally.wins == 1 ? "win" : "wins")]
-                       + (crews.map { [ProfileTop.Figure($0, $0 == 1 ? "crew" : "crews")] } ?? []),
-                   onPerson: onEdit, personHint: "Edit Profile",
-                   onFigures: onScore, figuresHint: "Opens your stats.")
+                   figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true)
             // Any change here, an older win deleted too, reaches your crews.
             .onChange(of: tally, initial: true) { _, now in
                 if CrewsFlag.isOn { SocialStore.shared.noteMyScore(now) }
@@ -64,6 +58,9 @@ struct ProfileTop: View {
     var personHint: String = ""
     var onFigures: (() -> Void)? = nil
     var figuresHint: String = ""
+    /// **Yours, on glass** (2026-10-16): the head in a glass bubble and the
+    /// name in the glass caption, as the Wins middle and a crew's are.
+    var glass = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let headSide: CGFloat = 76
@@ -71,12 +68,21 @@ struct ProfileTop: View {
     var body: some View {
         VStack(spacing: GridConstants.gapTight) {
             pressable(onPerson, hint: personHint) {
-                VStack(spacing: GridConstants.gapTight) {
-                    PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
-                    Text(name)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
-                        .lineLimit(1)
+                if glass {
+                    VStack(spacing: GridConstants.spacing) {
+                        PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.clear))
+                            .stillGlassCircle()
+                        CrestCaption(text: name, chevron: true)
+                            .padding(.vertical, 7)
+                    }
+                } else {
+                    VStack(spacing: GridConstants.gapTight) {
+                        PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
+                        Text(name)
+                            .font(Typography.headerMedium)
+                            .foregroundStyle(nameIsPrompt ? AppColors.inkTertiary : AppColors.inkPrimary)
+                            .lineLimit(1)
+                    }
                 }
             }
             .accessibilityLabel(personHint.isEmpty ? name : "\(name), \(personHint)")
@@ -154,18 +160,13 @@ struct ProfileTop: View {
 /// last, the streak, and the record so far. How the score is counted is one
 /// quiet line under it. Opened from the figures line under your name.
 struct YourScoreSheet: View {
+    /// For Settings, reached through Edit.
+    var resetAllData: () -> Bool = { false }
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<HabitLog> { $0.completed }) private var logs: [HabitLog]
     @State private var vm = ProfileViewModel()
     @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
-
-    private func figures(_ stats: ProfileStats) -> String {
-        let week = stats.thisWeek == 1 ? "1 win this week" : "\(stats.thisWeek) wins this week"
-        let streak = vm.currentStreak == 1 ? "1 day streak" : "\(vm.currentStreak) day streak"
-        let best = vm.bestStreak == 1 ? "best 1 day" : "best \(vm.bestStreak) days"
-        return [week, streak, best].joined(separator: " \u{00B7} ")
-    }
 
     private var stats: ProfileStats {
         ProfileStats.make(logs.compactMap { log in
@@ -186,37 +187,32 @@ struct YourScoreSheet: View {
         }
     }
 
+    private var profile: ProfileStore { .shared }
+
     var body: some View {
         let stats = stats
         let entries = entries
-        let colours = StatsData.colours(entries, today: Date())
         Form {
+            // **You, then your figures** (the owner, 2026-10-16: "the stats
+            // header looks pretty lame ... combine the profile and stats").
+            // Your head alive, your name, and three glass tiles: the score,
+            // the streak, and this week.
             Section {
-                VStack(spacing: GridConstants.gapTight) {
-                    VStack(spacing: 0) {
-                        Text(verbatim: StrataFont.digits(stats.score))
-                            .font(Typography.tally)
-                            .foregroundStyle(AppColors.inkPrimary)
-                            .contentTransition(.numericText(value: Double(stats.score)))
-                        Text("score")
-                            .font(Typography.screenSubtitle)
-                            .foregroundStyle(AppColors.inkSecondary)
+                VStack(spacing: GridConstants.gapItem) {
+                    PersonHead(person: .me, side: 88, life: .expressive, setting: .disc(.quiet))
+                    Text(profile.name.isEmpty ? "Your Name" : profile.name)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(profile.name.isEmpty ? AppColors.inkTertiary : AppColors.inkPrimary)
+                    HStack(spacing: GridConstants.gapItem) {
+                        tile(stats.score, "score")
+                        tile(vm.currentStreak, "day streak")
+                        tile(stats.wins, stats.wins == 1 ? "win" : "wins")
                     }
-                    // The week, the streak and the best, one quiet line, as
-                    // a profile states its figures (`ProfileTop`).
-                    Text(figures(stats))
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
-                        .multilineTextAlignment(.center)
+                    .padding(.top, GridConstants.gapTight)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
-            } footer: {
-                Text(stats.wins == 0 ? "Your first win starts it." : "Quick is 1, Regular 2, Deep 3.")
-                    .formFooter()
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
             }
             .listRowBackground(Color.clear)
 
@@ -226,7 +222,9 @@ struct YourScoreSheet: View {
             } header: {
                 FormSectionLabel("This Week")
             } footer: {
-                Text(stats.thisWeek + stats.lastWeek > 0 ? stats.weekCompared : "Drag across to read a day.")
+                // One week on this page, the chart's own seven days: a
+                // calendar-week comparison under it said a different number.
+                Text("Drag across to read a day.")
                     .formFooter()
             }
 
@@ -239,25 +237,21 @@ struct YourScoreSheet: View {
                 }
             }
 
-            if !colours.isEmpty {
-                Section {
-                    ColourRingChart(colours: colours)
-                        .padding(.vertical, GridConstants.gapTight)
-                } header: {
-                    FormSectionLabel("What You Win At")
-                } footer: {
-                    Text("The last 30 days. Tap a colour.")
-                        .formFooter()
-                }
-            }
-
             WinTrendSection(bars: vm.barsByUnit, summaries: vm.summaryByUnit, unitRaw: $unitRaw)
         }
         .listSectionSpacing(GridConstants.gapPage)
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
-        .sheetTitle("Your Stats", drawn: true)
+        .sheetTitle("Profile", drawn: true)
         .toolbar {
+            BareToolbarItem(placement: .cancellationAction) {
+                NavigationLink {
+                    ProfileView(onResetAllData: resetAllData)
+                } label: {
+                    Text("Edit").sheetAction(.cancel)
+                }
+                .buttonStyle(.pressWord)
+            }
             BareToolbarItem(placement: .confirmationAction) {
                 Button {
                     HapticsEngine.lightTap()
@@ -270,5 +264,32 @@ struct YourScoreSheet: View {
         }
         .tint(AppColors.inkPrimary)
         .task { vm.load(context: modelContext) }
+    }
+
+    /// A figure on glass: the number large, what it is under it.
+    private func tile(_ value: Int, _ word: String) -> some View {
+        VStack(spacing: 2) {
+            // Not the tally's 34 (the owner, 2026-10-16: "some text is too
+            // large, I don't like big text like that"): the heading's size.
+            Text(verbatim: StrataFont.digits(value))
+                .font(Typography.headerMedium)
+                .monospacedDigit()
+                .foregroundStyle(AppColors.inkPrimary)
+                .contentTransition(.numericText(value: Double(value)))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(word)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, GridConstants.gapItem)
+        // Flat, with the thin outline the owner likes; glass cast a shadow.
+        .background {
+            let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+            shape.fill(AppColors.quietFill)
+                .overlay(shape.strokeBorder(AppColors.inkPrimary.opacity(0.08), lineWidth: GridConstants.strokeThin))
+        }
     }
 }
