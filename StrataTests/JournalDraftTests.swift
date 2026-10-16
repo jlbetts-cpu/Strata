@@ -13,6 +13,18 @@ struct JournalDraftTests {
         #expect(JournalDraftRules.clean("Too short.") == nil)
     }
 
+    @Test("a run of stops ends once, and an emoji leaves nothing behind")
+    func leftovers() {
+        #expect(JournalDraftRules.clean("I finally finished the essay... and went to sleep early that night.")
+                == "I finally finished the essay. and went to sleep early that night.")
+        #expect(JournalDraftRules.clean("Who knew a walk could fix the whole afternoon?! I did, after class.")
+                == "Who knew a walk could fix the whole afternoon? I did, after class.")
+        #expect(JournalDraftRules.clean("I ran 5 miles 1\u{FE0F}\u{20E3} with Sam after class and felt good.")
+                == "I ran 5 miles 1 with Sam after class and felt good.")
+        #expect(JournalDraftRules.clean("Long day of studying\u{2026} then dinner at home with my roommates.")
+                == "Long day of studying. then dinner at home with my roommates.")
+    }
+
     @Test("a long answer is cut at its last whole sentence")
     func long() throws {
         let sentence = "I walked to class and read twenty pages on the way there."

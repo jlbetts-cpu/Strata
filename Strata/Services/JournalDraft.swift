@@ -76,6 +76,9 @@ nonisolated enum JournalDraftRules {
         var text = String(String.UnicodeScalarView(raw.unicodeScalars.filter {
             !($0.properties.isEmojiPresentation || ($0.properties.isEmoji && $0.value > 0x238C))
                 && !"\"“”`*#".unicodeScalars.contains($0)
+                // What an emoji is built from: the variation selector, the
+                // joiner and the keycap's frame (a "1️⃣" left "1" and these).
+                && ![0xFE0F, 0x200D, 0x20E3].contains($0.value)
         }))
         text = text.replacingOccurrences(of: " \u{2014} ", with: ", ")
             .replacingOccurrences(of: "\u{2014}", with: ", ")
@@ -85,7 +88,9 @@ nonisolated enum JournalDraftRules {
             // What an emoji left behind: "with Sam ." is "with Sam."
             .replacingOccurrences(of: " .", with: ".")
             .replacingOccurrences(of: " ,", with: ",")
-            .replacingOccurrences(of: "..", with: ".")
+            .replacingOccurrences(of: "\u{2026}", with: ".")
+        // A run of stops is one: "..." and "?!" (now "?.") end once.
+        text = text.replacingOccurrences(of: #"([.?])[.?]+"#, with: "$1", options: .regularExpression)
         let words = text.split(separator: " ")
         guard words.count >= minWords else { return nil }
         if words.count > maxWords {
@@ -156,7 +161,7 @@ enum PhotoThings {
         var scores: [String: Float] = [:]
         for name in fileNames.prefix(8) {
             guard let image = await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: 360,
-                                                                       countsAsForeground: false),
+                                                                       lane: .prefetch, countsAsForeground: false),
                   let cg = image.cgImage else { continue }
             let found = await Task.detached(priority: .utility) { () -> [(String, Float)] in
                 let request = VNClassifyImageRequest()

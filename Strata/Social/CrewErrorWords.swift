@@ -13,7 +13,7 @@ import os
 /// what you were doing: a full iCloud is YOURS when you start a crew and the
 /// starter's when you join one. CloudKit's text still reaches the log.
 nonisolated enum CrewErrorWords {
-    enum Doing: Equatable { case starting, joining, inviting }
+    enum Doing: Equatable { case starting, joining, inviting, leaving }
 
     private static let log = Logger(subsystem: "Strata", category: "crews.words")
 
@@ -37,6 +37,7 @@ nonisolated enum CrewErrorWords {
         case .starting: "The crew couldn't be started. Check your connection and try again."
         case .joining: "This crew couldn't be opened. Check your connection and tap the link again."
         case .inviting: "The invite couldn't be made. Check your connection and try again."
+        case .leaving: "You're still in this crew. Check your connection and try Leave again."
         }
     }
 

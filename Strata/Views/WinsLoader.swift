@@ -26,7 +26,9 @@ struct WinsLoader: View {
     static let colours: [HabitCategory] = HabitCategory.selectable
 
     var body: some View {
-        TimelineView(.animation(paused: false)) { context in
+        // Under Reduce Motion the frame holds a whole round, so it is drawn
+        // once a round, not every frame for nothing.
+        TimelineView(.animation(minimumInterval: reduceMotion ? Self.round : nil, paused: false)) { context in
             let frame = Self.frame(at: context.date.timeIntervalSinceReferenceDate)
             ring(frame)
         }

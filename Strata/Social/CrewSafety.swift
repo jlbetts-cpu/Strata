@@ -223,19 +223,26 @@ enum CrewSafety {
         }
     }
 
-    /// Blocks someone everywhere. If you started this crew they are also
-    /// removed from it; either way they are not told.
     /// Blocks someone: hidden from you everywhere, removed from a crew you
     /// started, and **told to Some Wins** as a report (they are not told).
     /// `andLeave`: for a crew someone else started, where they would stay
     /// and keep seeing you, you leave it too (the compliance audit,
     /// 2026-10-15, §3.1: for a teenager being harassed, Leave was the only
     /// way out, and it was a second hunt).
-    static func block(_ profileID: UUID, from crew: CrewID, andLeave: Bool = false) async {
+    ///
+    /// `reported`: the Block offered after a report, which already told us;
+    /// a second record would file one incident twice, the second always as
+    /// harassment (the 2026-10-15 review). Someone already blocked is not
+    /// reported again either. The report goes alongside the removal, never
+    /// ahead of it: on a weak signal it held the blocked person in your crew.
+    static func block(_ profileID: UUID, from crew: CrewID, andLeave: Bool = false, reported: Bool = false) async {
         let store = SocialStore.shared
         let member = store.crew(crew)?.member(profileID)
+        let already = store.blocked.contains(profileID)
         store.block(profileID, name: member?.shortName ?? "")
-        if let member { await report(.blocked(member), in: crew, reason: .harassment) }
+        let filing = Task { @MainActor in
+            if let member, !already, !reported { _ = await report(.blocked(member), in: crew, reason: .harassment) }
+        }
         if store.crew(crew)?.isOwner(store.me) == true {
             do { try await store.remove(member: profileID, from: crew) } catch {
                 log.error("blocked member not removed: \(error)")
@@ -243,7 +250,9 @@ enum CrewSafety {
         } else if andLeave {
             do { try await store.leave(crew) } catch {
                 log.error("left nothing after a block: \(error)")
+                CrewRouter.shared.joinProblem = CrewErrorWords.say(error, while: .leaving)
             }
         }
+        await filing.value
     }
 }

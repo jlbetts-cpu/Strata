@@ -15,13 +15,17 @@ struct OneWayPan: UIGestureRecognizerRepresentable {
     var allows: () -> Bool = { true }
     /// How far along its way the finger has gone, never less than nothing.
     var changed: (CGFloat) -> Void
-    /// How far it went, and how fast it was going, when it let go.
+    /// How far it went, and how fast it was going, when it let go. A pan
+    /// the system cancels (a call, Control Center) ends at nothing, so it
+    /// springs back and never replies or closes.
     var ended: (_ distance: CGFloat, _ speed: CGFloat) -> Void
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
 
     func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
         let pan = UIPanGestureRecognizer()
+        // One finger: a pinch drifting down is a zoom, never a close.
+        pan.maximumNumberOfTouches = 1
         pan.delegate = context.coordinator
         context.coordinator.way = way
         context.coordinator.allows = allows
@@ -39,8 +43,10 @@ struct OneWayPan: UIGestureRecognizerRepresentable {
         switch recognizer.state {
         case .changed:
             changed(max(0, along))
-        case .ended, .cancelled, .failed:
+        case .ended:
             ended(max(0, along), way == .down ? speed.y : speed.x)
+        case .cancelled, .failed:
+            ended(0, 0)
         default:
             break
         }

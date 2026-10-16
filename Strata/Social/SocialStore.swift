@@ -447,6 +447,10 @@ final class SocialStore {
     /// People you blocked. Their wins, heads and names disappear from every
     /// crew on this phone, and they are not told (spec 9.2).
     private(set) var blocked: Set<UUID> = []
+    /// Crews this phone left or ended by its own hand, so the tower that
+    /// closes behind it does not say "This crew has ended." to the person
+    /// who just chose to go (the 2026-10-15 review: Block and Leave did).
+    @ObservationIgnored private(set) var leftByChoice: Set<CrewID> = []
     private static let blockedKey = "crews.blocked"
     /// The iCloud user the crews on this phone belong to.
     static let accountKey = "crews.account"
@@ -1016,6 +1020,7 @@ final class SocialStore {
         try? await cloud.delete(type: .score, name: me.uuidString, in: crewID)
         try await cloud.delete(type: .member, name: me.uuidString, in: crewID)
         try await cloud.leave(crewID)
+        leftByChoice.insert(crewID)
         forget(crewID)
     }
 
@@ -1025,6 +1030,7 @@ final class SocialStore {
         guard let crew = crew(crewID) else { throw CrewError.unknownCrew }
         guard crew.isOwner(me) else { throw CrewError.notOwner }
         try await cloud.endCrew(crewID)
+        leftByChoice.insert(crewID)
         forget(crewID)
     }
 

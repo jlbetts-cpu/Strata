@@ -1803,7 +1803,7 @@ struct CrewChatSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .reportThanks($reported, message: "Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.") { person in
                 store.blocked.contains(person) ? nil
-                    : ("Block \(name(of: person))", { Task { await CrewSafety.block(person, from: crewID) } })
+                    : ("Block \(name(of: person))", { Task { await CrewSafety.block(person, from: crewID, reported: true) } })
             }
     }
 }

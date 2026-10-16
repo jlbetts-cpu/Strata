@@ -31,6 +31,11 @@ struct FriendProfileSheet: View {
     /// What the viewer pages through: today's tower, or the recent photos,
     /// whichever was pressed.
     @State private var viewerWins: [SharedWin] = []
+    /// Whether the viewer was opened from Recent Photos, which reads newest first.
+    @State private var viewerNewest = false
+    /// Recent Photos, sorted once per change rather than on every draw (a
+    /// hold to react redraws the page many times a second).
+    @State private var recent: [SharedWin] = []
     @State private var reporting: SharedWin?
     /// Hold to react and double-tap hearts, as on a crew's tower.
     @State private var reacts = TowerReactions()
@@ -46,6 +51,21 @@ struct FriendProfileSheet: View {
     }
 
     private var wins: [SharedWin] { Self.today(of: member.profileID, store: store) }
+
+    /// Everyone in every crew you share with them, for "Sam with Ana" on a
+    /// win from any of those crews.
+    private var everyName: [UUID: String] {
+        var names: [UUID: String] = [:]
+        for crew in together { for m in crew.members where names[m.profileID] == nil { names[m.profileID] = m.shortName } }
+        return names
+    }
+
+    /// What Recent Photos depends on, counted without sorting: a win that
+    /// arrives, a photo that passes its check, a win hidden, a block.
+    private var photosKey: [Int] {
+        together.map { crew in (store.winsByCrew[crew.id] ?? []).reduce(0) { $0 + ($1.photo == nil ? 1 : 1_000) } }
+            + [store.hiddenWins.count, store.blocked.count]
+    }
 
     /// What they shared today in the crews you share, each crew's today by
     /// its own clock (`store.today`, which also reads the test clock), once
@@ -98,13 +118,16 @@ struct FriendProfileSheet: View {
             }
         }
         .task(id: today) { rebuild(today) }
+        .task(id: photosKey) { recent = Self.recentPhotos(of: member.profileID, store: store) }
         // A reaction given here, or by anyone, shows on its block as it does
         // on the crew's tower (`CrewTowerView` watches the same map).
         .onChange(of: together.map { store.reactionsByCrew[$0.id] }) { _, _ in rebuild(wins) }
         .fullScreenCover(item: Binding(get: { viewing.map(Viewed.init) }, set: { viewing = $0?.id })) { shown in
             let shownWins = viewerWins
             let crew = shownWins.first { $0.winID.uuidString == shown.id }?.crewID ?? crewID
-            PhotoViewer(photos: CrewGallery.photos(shownWins, crew: store.crew(crew), me: store.me), startAt: shown.id,
+            PhotoViewer(photos: CrewGallery.photos(shownWins, crew: store.crew(crew), me: store.me,
+                                                   names: everyName, newestFirst: viewerNewest),
+                        startAt: shown.id,
                         onClose: { viewing = nil },
                         crew: crew,
                         onReport: { photo in
@@ -181,6 +204,7 @@ struct FriendProfileSheet: View {
                                 if reacts.reacting != nil { reacts.close(); return }
                                 guard !reacts.justHeld else { return }
                                 viewerWins = today
+                                viewerNewest = false
                                 viewing = id.uuidString
                             },
                             liftedBlockID: nil,
@@ -219,7 +243,6 @@ struct FriendProfileSheet: View {
     /// in the carousel. Nothing they did not share, and nothing you hid.
     @ViewBuilder
     private func photos(width: CGFloat) -> some View {
-        let recent = Self.recentPhotos(of: member.profileID, store: store)
         if !recent.isEmpty {
             let gap = GridConstants.spacing
             let side = floor((width - gap * 2) / 3)
@@ -233,6 +256,7 @@ struct FriendProfileSheet: View {
                         Button {
                             HapticsEngine.lightTap()
                             viewerWins = recent
+                            viewerNewest = true
                             viewing = win.winID.uuidString
                         } label: {
                             if let url = win.photo {

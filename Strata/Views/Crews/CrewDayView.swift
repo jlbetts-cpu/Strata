@@ -171,10 +171,14 @@ struct CrewDayView: View {
 /// as their blocks, each with who sent it.
 enum CrewGallery {
     @MainActor
-    static func photos(_ wins: [SharedWin], crew: Crew?, me: UUID) -> [GalleryPhoto] {
+    /// `names`: who is who across more than one crew (a friend's profile
+    /// pages through every crew you share); `newestFirst`: the order of a
+    /// grid that runs newest first, so the carousel pages the way it reads.
+    static func photos(_ wins: [SharedWin], crew: Crew?, me: UUID,
+                       names known: [UUID: String]? = nil, newestFirst: Bool = false) -> [GalleryPhoto] {
         // The same line the block says, "Sam with Ana" on a shared win.
-        let names = Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) })
-        return wins.sorted { $0.createdAt < $1.createdAt }.map { win in
+        let names = known ?? Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) })
+        return wins.sorted { newestFirst ? $0.createdAt > $1.createdAt : $0.createdAt < $1.createdAt }.map { win in
             return GalleryPhoto(fileName: win.winID.uuidString,
                                 title: win.title.isEmpty ? nil : win.title,
                                 date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
@@ -223,7 +227,7 @@ struct CrewReportAnchor: View {
             .reportThanks($reported, message: "Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.") { win in
                 guard win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) else { return nil }
                 let name = store.crew(crewID)?.member(win.senderProfileID)?.shortName ?? ""
-                return ("Block \(name.isEmpty ? "Them" : name)", { Task { await CrewSafety.block(win.senderProfileID, from: crewID) } })
+                return ("Block \(name.isEmpty ? "Them" : name)", { Task { await CrewSafety.block(win.senderProfileID, from: crewID, reported: true) } })
             }
     }
 }

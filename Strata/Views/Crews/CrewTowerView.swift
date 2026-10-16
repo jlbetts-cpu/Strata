@@ -205,7 +205,9 @@ struct CrewTowerView: View {
         // **Back with a swipe, from anywhere**, as a conversation on
         // Instagram goes back (`SwipeBackKeeper`): with the bar hidden the
         // page had no swipe back at all, edge or otherwise.
-        .swipesBackFromAnywhere(unless: { [reacts] in reacts.reacting != nil })
+        // Never while a line is held to react, or a head is being carried (a
+        // head dragged right would otherwise take the page with it).
+        .swipesBackFromAnywhere(unless: { [reacts, parking] in reacts.reacting != nil || parking.dragging != nil })
         .onDisappear {
             if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil }
             chatAside.cancel()
@@ -228,8 +230,11 @@ struct CrewTowerView: View {
         .onChange(of: store.crew(crewID) == nil) { _, gone in
             guard gone else { return }
             leave()
-            // Said by the list, once the crew and its chat have gone.
-            CrewRouter.shared.joinProblem = "This crew has ended."
+            // Said by the list, once the crew and its chat have gone; never
+            // to the person who just left or ended it themselves.
+            if !store.leftByChoice.contains(crewID) {
+                CrewRouter.shared.joinProblem = "This crew has ended."
+            }
         }
         .onAppear {
             CrewNotifications.visibleCrew = crewID

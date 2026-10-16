@@ -292,6 +292,11 @@ struct DaySheet: View {
     @State private var picking = false
     /// The mark's picker (`StickerPicker`) is open.
     @State private var choosingMark = false
+    /// The picker opened from the sticker on the page, so its arrow points
+    /// at the sticker rather than at the + at the foot.
+    @State private var choosingStuckMark = false
+    /// Write My Day could not write: said once, where the words would be.
+    @State private var draftMissed = false
     /// New Sticker's photos, opened once the popover has gone.
     @State private var choosingPhoto = false
     /// Suggest's question: the placeholder on an empty note, a faded line
@@ -612,7 +617,7 @@ struct DaySheet: View {
             // chat's is "Quiet here. Yet."). Gone the moment there is a word,
             // a question or a sketch, and never in the way of a tap.
             .overlay {
-                if isEmpty && question == nil && sketchName == nil && !winNotesShown {
+                if isEmpty && question == nil && sketchName == nil && !winNotesShown && !drafting && !draftMissed {
                     // The chat's own empty line, in its type and ink (the
                     // consistency pass, 2026-10-15): it was the one empty
                     // page that spoke a size down and two greys quieter.
@@ -702,6 +707,13 @@ struct DaySheet: View {
                 writingLine
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .transition(.opacity)
+            } else if draftMissed {
+                Text("Your day couldn't be written just now. Try again in a moment.")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .transition(.opacity)
             }
             if let question, !isEmpty {
                 questionLine(question)
@@ -757,6 +769,9 @@ struct DaySheet: View {
             .accessibilityLabel("Note")
             .accessibilityHint(isEmpty ? (question ?? "") : "")
             .padding(.horizontal, GridConstants.horizontalPadding - 5)
+            // Room for the sticker in the corner, so it never sits on words
+            // or takes a tap meant for them (the 2026-10-15 review).
+            .padding(.trailing, symbol == nil ? 0 : Self.tapTarget)
     }
 
     /// While Write My Day writes: the app's loader and one quiet line.
@@ -780,7 +795,12 @@ struct DaySheet: View {
             withAnimation(motion) { drafting = false }
             // Only into a note still empty: a word typed meanwhile is theirs.
             guard let entry, isEmpty else {
-                if entry == nil { HapticsEngine.warning() }
+                if entry == nil {
+                    HapticsEngine.warning()
+                    withAnimation(motion) { draftMissed = true }
+                    try? await Task.sleep(for: .seconds(4))
+                    withAnimation(motion) { draftMissed = false }
+                }
                 return
             }
             withAnimation(motion) { text = entry }
@@ -994,7 +1014,7 @@ struct DaySheet: View {
         if let symbol {
             Button {
                 HapticsEngine.lightTap()
-                choosingMark = true
+                choosingStuckMark = true
             } label: {
                 Group {
                     if let name = StickerStore.name(in: symbol), let image = StickerStore.shared.image(name) {
@@ -1012,6 +1032,8 @@ struct DaySheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press)
+            .modifier(MarkPicking(symbol: $symbol, choosingMark: $choosingStuckMark, picking: $picking,
+                                  choosingPhoto: $choosingPhoto, save: save, hostsEmojiField: false))
             .padding(.trailing, GridConstants.horizontalPadding)
             .contextMenu {
                 Button("Remove", systemImage: "xmark", role: .destructive) {
@@ -1129,6 +1151,9 @@ private struct MarkPicking: ViewModifier {
     @Binding var picking: Bool
     @Binding var choosingPhoto: Bool
     let save: () -> Void
+    /// One picker hangs on the + and one on the sticker; only one of them
+    /// carries the emoji keyboard's field.
+    var hostsEmojiField = true
 
     func body(content: Content) -> some View {
         content
@@ -1155,13 +1180,15 @@ private struct MarkPicking: ViewModifier {
                 .presentationCompactAdaptation(.popover)
             }
             .background {
-                EmojiField(isActive: $picking) { picked in
-                    // The same one again takes it off.
-                    symbol = picked == symbol ? nil : picked
-                    save()
+                if hostsEmojiField {
+                    EmojiField(isActive: $picking) { picked in
+                        // The same one again takes it off.
+                        symbol = picked == symbol ? nil : picked
+                        save()
+                    }
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
                 }
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
             }
     }
 }
