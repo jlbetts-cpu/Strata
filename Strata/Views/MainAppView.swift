@@ -1086,6 +1086,8 @@ struct MainAppView: View {
         .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
         })
+        .overlay { cameraBarSkin }
+        .animation(.easeOut(duration: 0.18), value: selectedTab == .camera)
         .overlay {
             if let handoffLogs {
                 DayHandoffLayer(logs: handoffLogs, modelContext: modelContext) {
@@ -1930,6 +1932,16 @@ struct MainAppView: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
             }
+        }
+    }
+
+    /// The bar drawn in black over the camera (`CameraTabBarSkin`), off until
+    /// the owner has seen it.
+    @ViewBuilder
+    var cameraBarSkin: some View {
+        if CameraTabBarSkin.isOn, selectedTab == .camera {
+            CameraTabBarSkin()
+                .transition(.opacity.animation(.easeOut(duration: 0.18)))
         }
     }
 

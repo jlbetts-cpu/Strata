@@ -206,3 +206,80 @@ enum StrataTab: String, CaseIterable {
     // bar, which passed it for Memories and so could never fill that glyph.
     // A shorthand whose only user was a bug.
 }
+
+
+/// **The bar in black over the camera, drawn** (the owner, 2026-10-16: "I
+/// really want the bottom tabs to be black when you are on the camera, but I
+/// hate the way it glitches the tabs and takes a while to come back").
+///
+/// The bar is the system's Liquid Glass and it samples what is behind it;
+/// told to go dark it lags most of a second coming back, and that was the
+/// jank. So the real bar stays as it is everywhere, and on the camera a
+/// drawing of it in black stands exactly over it, measured from the real
+/// one: its shape, its four pictures, the pill on the camera. It takes no
+/// touch, so every tap is the real bar's. Leaving the camera it fades in a
+/// fifth of a second over a bar that is already light, so nothing lags.
+///
+/// **Off until the owner has seen it** (his rule: camera changes go to him
+/// first): `-strataDarkCameraBar` turns it on.
+struct CameraTabBarSkin: View {
+    @State private var bar: CGRect?
+    @State private var tabs: [(tab: StrataTab, button: CGRect, picture: CGRect)] = []
+
+    static var isOn: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-strataDarkCameraBar")
+        #else
+        return false
+        #endif
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let origin = geo.frame(in: .global).origin
+            if let bar {
+                ZStack(alignment: .topLeading) {
+                    Capsule()
+                        .fill(Color(white: 0.1))
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: GridConstants.strokeThin))
+                        .frame(width: bar.width, height: bar.height)
+                        .offset(x: bar.minX - origin.x, y: bar.minY - origin.y)
+                    ForEach(tabs, id: \.tab) { item in
+                        if item.tab == .camera {
+                            Capsule()
+                                .fill(Color.white.opacity(0.16))
+                                .frame(width: item.button.width, height: item.button.height)
+                                .offset(x: item.button.minX - origin.x, y: item.button.minY - origin.y)
+                        }
+                        Image(item.tab.assetName)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(Color.white.opacity(item.tab == .camera ? 1 : 0.6))
+                            .frame(width: item.picture.width, height: item.picture.height)
+                            .offset(x: item.picture.minX - origin.x, y: item.picture.minY - origin.y)
+                    }
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        // Again until the bar is there: opening on the camera, it is laid
+        // out a moment after this view.
+        .task {
+            for _ in 0..<20 {
+                measure()
+                if bar != nil, tabs.count == StrataTab.allCases.count { return }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    private func measure() {
+        bar = TabGlyph.barFrame()
+        tabs = StrataTab.allCases.compactMap { tab in
+            TabGlyph.frames(of: tab).map { (tab, $0.button, $0.picture) }
+        }
+    }
+}

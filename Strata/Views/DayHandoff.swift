@@ -72,6 +72,24 @@ enum TabGlyph {
 
     static func index(of tab: StrataTab) -> Int { StrataTab.allCases.firstIndex(of: tab) ?? 0 }
 
+    /// The bar's own glass shape, in the window: the widest visible view
+    /// inside the tab bar.
+    static func barFrame() -> CGRect? {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        for window in windows {
+            guard let bar = first(in: window, where: { $0 is UITabBar && !$0.isHidden }) else { continue }
+            let platter = bar.subviews.filter { !$0.isHidden && $0.alpha > 0.01 }.max { $0.bounds.width < $1.bounds.width }
+            return platter.map { $0.convert($0.bounds, to: nil) }
+        }
+        return nil
+    }
+
+    /// A tab's button (the pill's place) and its picture, in the window.
+    static func frames(of tab: StrataTab) -> (button: CGRect, picture: CGRect)? {
+        guard let image = pictures(at: index(of: tab)).first, let button = image.superview else { return nil }
+        return (button.convert(button.bounds, to: nil), image.convert(image.bounds, to: nil))
+    }
+
     /// The tab's picture, in the window.
     static func frame(of tab: StrataTab) -> CGRect? {
         guard let image = pictures(at: index(of: tab)).first else { return nil }

@@ -2067,6 +2067,19 @@ final class FeedbackShots: XCTestCase {
         app.swipeUp(); wait(1); snap("month-3-scrolled")
     }
 
+    /// The black bar over the camera and the way back (2026-10-16 prototype).
+    func testCameraBar() {
+        let app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3", "-strataDarkCameraBar"])
+        wait(6); snap("bar-0-camera")
+        app.tabBars.buttons["Wins"].firstMatch.tap()
+        snap("bar-1-leaving")
+        wait(0.25); snap("bar-2-left")
+        wait(0.8); snap("bar-3-settled")
+        app.tabBars.buttons["Camera"].firstMatch.tap()
+        snap("bar-4-entering")
+        wait(0.3); snap("bar-5-in")
+    }
+
     func testProfileOnMemories() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "3", "-strataStartTab", "memories",
                           "-strataSeedWins", "6", "-strataSeedHead", "1", "-strataSeedHistory", "20"])
