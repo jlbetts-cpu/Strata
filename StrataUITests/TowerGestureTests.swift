@@ -754,7 +754,9 @@ final class TowerGestureTests: XCTestCase {
     @MainActor
     func testDrawingOutOfTheShutterAndLettingGo() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-strataStartTab", "camera"]
+        // The self-timer is remembered, and a walk that left it on 10s made
+        // the shot wait past this test's deadline (measured 2026-10-17).
+        app.launchArguments = ["-strataStartTab", "camera", "-cameraTimerSeconds", "0"]
         app.launch()
 
         let shutter = app.buttons["Take photo"]
@@ -765,6 +767,7 @@ final class TowerGestureTests: XCTestCase {
 
         // Out to the side is "medium" — 70pt clears GridConstants.slotStep.
         let start = shutter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        // Drawn out and rested until the rim fills (`HoldLock`).
         start.press(forDuration: 0.15,
                     thenDragTo: start.withOffset(CGVector(dx: 70, dy: 0)),
                     withVelocity: .slow, thenHoldForDuration: 1.5)

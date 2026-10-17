@@ -51,15 +51,10 @@ struct NextSlotButton: View {
     /// How far the finger has been dragged from where it went down.
     @State private var drawn: CGFloat = 0
     @State private var lastSize: BlockSize = .small
-    /// Where the hold armed, and where the finger last came to rest.
+    /// Where the hold armed.
     @State private var start: CGPoint = .zero
-    @State private var anchor: CGPoint = .zero
-    /// The edge filling round, 0 to 1, while the finger rests at one size.
-    @State private var fill: CGFloat = 0
-    /// Filled: letting go now drops the block.
-    @State private var locked = false
-    /// Which fill is running, so one that was restarted stays quiet.
-    @State private var lockRun = 0
+    /// The rest that chooses a size (`HoldLock`), shared with the shutter.
+    @State private var lock = HoldLock()
 
     /// The gesture's maths lives in `BlockSizeDraw`.
     ///
@@ -242,11 +237,7 @@ struct NextSlotButton: View {
             // **The lock, filling round the edge** in the block's colour.
             // Quiet: the edge the slot already has, drawn over by degrees,
             // never a ring or a badge of its own.
-            shape.inset(by: GridConstants.strokeMedium / 2)
-                .trim(from: 0, to: fill)
-                .stroke(previewCategory.style.baseColor,
-                        style: StrokeStyle(lineWidth: GridConstants.strokeMedium, lineCap: .round))
-                .opacity(isDown ? 1 : 0)
+            HoldLockEdge(shape: shape, fill: lock.fill, color: previewCategory.style.baseColor, showing: isDown)
 
             Image(systemName: "plus")
                 .iconSize(plusSize, relativeTo: .body, weight: .medium)
@@ -319,7 +310,8 @@ struct NextSlotButton: View {
     /// Drawing the block out of the slot, **on purpose** (the owner,
     /// 2026-10-16: "I constantly resize or move blocks by accident and have to
     /// undo, and it's never on purpose. I like the interaction, but it needs to
-    /// be intentional").
+    /// be intentional"). The rest that locks a size is `HoldLock`, which the
+    /// camera's shutter shares.
     ///
     /// Three beats, and only the last one writes anything:
     ///
@@ -330,7 +322,7 @@ struct NextSlotButton: View {
     ///     Deep block and drop it on release, which is what it used to do.
     ///  2. **Preview.** Drag and the slot shows the size live, with a soft
     ///     tick on each crossing. Nothing is decided.
-    ///  3. **Lock.** Hold still at a size for `lockTime` and the slot's edge
+    ///  3. **Lock.** Hold still at a size for `HoldLock.rest` and the slot's edge
     ///     fills round in the block's colour, ticking softly as it goes, and
     ///     locks with a firm one. Move or change size and the fill starts over.
     ///
@@ -347,23 +339,14 @@ struct NextSlotButton: View {
         }
     }
 
-    /// How long the finger rests at one size before it is chosen. See the
-    /// launch pass log, "Intentional drawing": past a reflex and a brush,
-    /// inside the second that keeps a hold feeling like one action.
-    static let lockTime: Double = 0.45
-    /// How far a resting finger may wander and still be resting. A real hand
-    /// trembles a few points; this is the same allowance the arm has.
-    static let stillSlack: CGFloat = SlotHold.slack
-
     private func armed(at point: CGPoint) {
         isDown = true
         start = point
-        anchor = point
         drawn = 0
         lastSize = .small
         HapticsEngine.tick()
         withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
-        restartLock()
+        lock.begin(at: point)
     }
 
     private func moved(to point: CGPoint) {
@@ -382,47 +365,18 @@ struct NextSlotButton: View {
                 // not choosing. The firm one is kept for the lock.
                 HapticsEngine.tick()
                 withAnimation(GridConstants.slotSnap) { onSizeChanged(next) }
-                anchor = point
-                restartLock()
+                lock.moved(to: point, sizeChanged: true)
                 return
             }
         }
-        if hypot(point.x - anchor.x, point.y - anchor.y) > Self.stillSlack {
-            anchor = point
-            restartLock()
-        }
-    }
-
-    /// The fill starts again from empty, and the lock with it.
-    private func restartLock() {
-        lockRun += 1
-        let run = lockRun
-        locked = false
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) { fill = 0 }
-        withAnimation(.linear(duration: Self.lockTime)) { fill = 1 }
-        Task { @MainActor in
-            // Two soft ticks on the way round, then the firm one.
-            for _ in 0..<2 {
-                try? await Task.sleep(for: .seconds(Self.lockTime / 3))
-                guard run == lockRun, isDown else { return }
-                HapticsEngine.surface()
-            }
-            try? await Task.sleep(for: .seconds(Self.lockTime / 3))
-            guard run == lockRun, isDown else { return }
-            locked = true
-            HapticsEngine.snap()
-        }
+        lock.moved(to: point, sizeChanged: false)
     }
 
     private func letGo() {
         guard isDown else { return }
-        guard locked else { springBack(); return }
+        guard lock.locked else { springBack(); return }
         isDown = false
-        lockRun += 1
-        locked = false
-        withAnimation(GridConstants.crossFade) { fill = 0 }
+        lock.end()
         let size: BlockSize = reduceMotion ? .small : lastSize
         // The lock already gave the firm haptic; the drop needs no second.
         fire(size: size, velocity: 0, felt: false)
@@ -439,10 +393,8 @@ struct NextSlotButton: View {
     private func springBack() {
         guard isDown else { return }
         isDown = false
-        lockRun += 1
-        locked = false
+        lock.end()
         withAnimation(GridConstants.slotSnap) {
-            fill = 0
             drawn = 0
             charge = 0
             if lastSize != .small { onSizeChanged(.small) }
