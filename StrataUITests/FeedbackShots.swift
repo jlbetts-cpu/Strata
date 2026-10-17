@@ -731,6 +731,22 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("own-3-reacted")
     }
 
+    /// **Edit Tonight's Story from your story** (the owner, 2026-10-16).
+    func testEditMyStory() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedWins", "3", "-strataSeedStories", "1", "-strataSeedMyStory", "1", "-strataStoryHour", "21"])
+        wait(10)
+        let yours = app.buttons["Your Story"].firstMatch
+        print("PLANNING-edit yours \(yours.exists)")
+        if yours.exists { yours.tap() }
+        wait(1.5); snap("edit-0-mine")
+        let edits = app.buttons.matching(identifier: "Edit Tonight's Story").allElementsBoundByIndex
+        print("PLANNING-edit buttons \(edits.count) \(edits.map { "\($0.frame) \($0.isHittable)" })")
+        if let edit = edits.first(where: { $0.isHittable }) { edit.press(forDuration: 0.12) }
+        wait(1.5); snap("edit-1-sheet")
+        print("PLANNING-edit sheet \(app.buttons["Post"].exists || app.buttons["Update"].exists)")
+    }
+
     /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
     /// to react reply should pop up as an option and the chat should pop up").
     func testReplyFromHold() {

@@ -182,7 +182,16 @@ struct TodayHeads: View {
                     .presentationBackground { WarmBackground().ignoresSafeArea() }
             }
             .fullScreenCover(item: $watching) { watching in
-                StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil })
+                StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil },
+                            onEdit: {
+                                self.watching = nil
+                                // After the cover has gone: UIKit drops a sheet
+                                // asked for while another is still leaving.
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(450))
+                                    composing = true
+                                }
+                            })
             }
             .sheet(item: $profile) { person in
                 NavigationStack {

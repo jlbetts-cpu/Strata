@@ -577,7 +577,9 @@ struct CrewReactionsPanel: View {
             .glassCapsule(onPage: !onDark, carriesType: true)
             .contentShape(Capsule())
         }
-        .buttonStyle(.pressSurface)
+        // Plain, as the panel's own face is: a scaling press on interactive
+        // glass cancelled the tap on a phone (2026-10-05).
+        .buttonStyle(.plain)
         .accessibilityLabel(word)
     }
 

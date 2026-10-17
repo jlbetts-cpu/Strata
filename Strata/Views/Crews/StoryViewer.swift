@@ -27,6 +27,11 @@ struct StoryViewer: View {
     /// one by one, then a tap opens it. Held while it shows.
     @AppStorage("crews.storyOpenedNight") private var openedNight = ""
     @State private var opening = false
+    /// **Edit, from your own story** (the owner, 2026-10-16): the viewer
+    /// closes and Tonight's Story opens where the row opens it. Presented from
+    /// inside the viewer it came up and went at once (filmed, 2026-10-16),
+    /// so it is the row's own sheet, the one that works.
+    var onEdit: (() -> Void)? = nil
     /// The page after everyone: "That's everyone tonight."
     private static let endID = UUID(uuidString: "00000000-0000-0000-0000-00000000E0D0")!
     /// Whether this is friends' stories (an end card) or only your own.
@@ -58,6 +63,7 @@ struct StoryViewer: View {
         TabView(selection: Binding(get: { shown }, set: { current = $0 })) {
             ForEach(people) { person in
                 StoryPage(person: person, isCurrent: shown == person.id && !opening, dragging: drop > 0,
+                          edit: { onEdit?() },
                           next: { step(from: person.id, by: 1) },
                           back: { step(from: person.id, by: -1) },
                           close: onClose)
@@ -152,6 +158,8 @@ private struct StoryPage: View {
     let isCurrent: Bool
     /// Being dragged down to close: the story waits.
     var dragging = false
+    /// Opens Tonight's Story over your own story, to change it.
+    var edit: () -> Void = {}
     let next: () -> Void
     let back: () -> Void
     let close: () -> Void
@@ -317,6 +325,9 @@ private struct StoryPage: View {
     private var actions: some View {
         Menu {
             if mine {
+                Button { edit() } label: {
+                    Label("Edit Tonight's Story", systemImage: "pencil")
+                }
                 Button(role: .destructive) {
                     let id = story.id
                     Task { await store.withdrawStory(winID: id) }
@@ -495,8 +506,30 @@ private struct StoryPage: View {
     @ViewBuilder
     private var foot: some View {
         if mine {
-            MyStoryReactions(reactions: store.reactionsToMyWins()[story.id] ?? [])
-                .frame(maxWidth: .infinity, minHeight: 44)
+            // **Edit, from the story itself** (the owner, 2026-10-16: "why is
+            // there no option to edit tonight's story from the story itself").
+            // Tonight's Story opens over it: the wins, the three lines and
+            // your page; what changes shows here as soon as it is posted.
+            HStack(spacing: GridConstants.gapTight) {
+                Button {
+                    HapticsEngine.lightTap()
+                    edit()
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.onDarkStrong)
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(minHeight: 44)
+                        .glassCapsule(carriesType: true)
+                        .contentShape(Capsule())
+                }
+                // Plain, as the reaction panel's face is: a scaling press on
+                // interactive glass cancelled the tap (2026-10-05).
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit Tonight's Story")
+                MyStoryReactions(reactions: store.reactionsToMyWins()[story.id] ?? [])
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
         } else if store.canReply() {
             StoryReplyBar(story: story, name: name, busy: { busy = $0 })
                 .id(story.id)
