@@ -811,6 +811,31 @@ final class SocialStore {
     /// Group crews only: a personal chat never counts toward a cap, a count,
     /// an invitation or a story's fan-out.
     var groupCrews: [Crew] { crews.filter { !$0.isPersonal } }
+
+    /// **The other person in a message thread** (`isPersonal`): who is in it
+    /// with you, or, before they have joined, who you started it with,
+    /// named as the crew you share names them.
+    func directFriend(_ crewID: CrewID) -> CrewMember? {
+        guard let crew = crew(crewID), crew.isPersonal else { return nil }
+        if let other = crew.members.first(where: { $0.profileID != me }) { return other }
+        guard let started = personalStarted.first(where: { $0.value.crew == crewID.rawValue }),
+              let friend = UUID(uuidString: started.key) else { return nil }
+        return groupCrews.lazy.compactMap { $0.member(friend) }.first
+    }
+
+    /// Everyone you share a crew with, once each, for a new message: not
+    /// you, not anyone blocked, named as a crew names them.
+    var messageablePeople: [(member: CrewMember, crew: CrewID)] {
+        var seen: Set<UUID> = [me]
+        var out: [(member: CrewMember, crew: CrewID)] = []
+        for crew in groupCrews {
+            for member in crew.members where !seen.contains(member.profileID) && !blocked.contains(member.profileID) {
+                seen.insert(member.profileID)
+                out.append((member, crew.id))
+            }
+        }
+        return out.sorted { $0.member.firstName.localizedCaseInsensitiveCompare($1.member.firstName) == .orderedAscending }
+    }
     var groupCrewCount: Int { groupCrews.count }
 
     /// `personalFrom`: the friend a personal chat's invitation came from. The
@@ -1379,6 +1404,11 @@ final class SocialStore {
     func messages(in crewID: CrewID) -> [CrewMessage] {
         guard let crew = crew(crewID) else { return [] }
         let today = CrewDay.string(for: now(), in: crew.timeZone)
+        // **A message to one person keeps** (the owner, 2026-10-16: "I need
+        // just a way to message individuals"): a crew's chat is today's, a
+        // conversation is the two weeks the cloud holds, as Messages keeps
+        // what was said.
+        let oldest = crew.isPersonal ? (CrewDay.oldestKept(today: today, in: crew.timeZone) ?? today) : today
         let people = Set(crew.members.map(\.profileID))
         return (messagesByCrew[crewID] ?? [])
             .filter { message in
@@ -1387,7 +1417,7 @@ final class SocialStore {
                 // reads this list (the chat, its dot, its alerts, a line's
                 // reactions) ever meets one. Nothing shows them any more.
                 !message.isToss
-                    && message.crewDay == today && people.contains(message.senderProfileID)
+                    && message.crewDay >= oldest && message.crewDay <= today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
                     // Hidden for you (`hide`): a line's id shares the set a
                     // win's does, synced the same way to your other phones.

@@ -269,6 +269,18 @@ extension DebugHarness {
                 }
             }
         }
+        // `-strataSeedDM 1`: Sam starts a message thread with you and says
+        // two things, yesterday and today, so a conversation can be seen.
+        if argument("-strataSeedDM") != nil, let sam = friends.first {
+            await sam.refresh()
+            if let dm = await sam.startPersonal(with: store.me) {
+                await sam.send("Saw your run, so proud of you", in: dm.id)
+                await store.refresh()
+                await sam.refresh()
+                await sam.send("Want to go again tomorrow?", in: dm.id)
+                await store.refresh()
+            }
+        }
         // `-strataCrewDoodle seed`: two friends doodle on your newest win, so
         // a doodle in the chat can be photographed (doodles are chat lines
         // since 2026-10-05).

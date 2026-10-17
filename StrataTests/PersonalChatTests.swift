@@ -39,6 +39,41 @@ struct PersonalChatTests {
         return (a, b, c, crew, story)
     }
 
+    @Test("New Message: everyone you share a crew with, once, not you, not blocked; the thread names them before they join")
+    func newMessage() async throws {
+        let (a, b, _, _, _) = try await setUp()
+        #expect(Set(a.messageablePeople.map(\.member.profileID)) == [sam, ana])
+        a.block(ana, name: "Ana")
+        #expect(a.messageablePeople.map(\.member.profileID) == [sam])
+        let dm = try #require(await a.startPersonal(with: sam))
+        // Before Sam has joined, the thread is still Sam's.
+        #expect(a.directFriend(dm.id)?.profileID == sam)
+        // A second start opens the same one.
+        #expect(await a.startPersonal(with: sam)?.id == dm.id)
+        await b.refresh()
+        #expect(b.directFriend(dm.id)?.profileID == jayden)
+        // A message thread is never a crew to send wins or plans to.
+        #expect(!a.groupCrews.contains { $0.id == dm.id })
+    }
+
+    @Test("a message thread keeps two weeks of lines; a crew's chat is today's")
+    func threadKeepsDays() async throws {
+        let (a, b, _, crew, _) = try await setUp()
+        let dm = try #require(await a.startPersonal(with: sam))
+        await b.refresh()
+        await b.send("yesterday's", in: dm.id)
+        await b.send("crew yesterday", in: crew.id)
+        await a.refresh()
+        // A day later, by the store's clock.
+        let tomorrow = Date().addingTimeInterval(86_400)
+        a.now = { tomorrow }
+        #expect(a.messages(in: dm.id).map(\.text).contains("yesterday's"))
+        #expect(!a.messages(in: crew.id).map(\.text).contains("crew yesterday"))
+        // Past two weeks, gone from the thread too.
+        a.now = { Date().addingTimeInterval(86_400 * 16) }
+        #expect(!a.messages(in: dm.id).map(\.text).contains("yesterday's"))
+    }
+
     @Test("a reply makes a personal chat, the friend joins it, and the line says what it answers")
     func replyLandsInPersonalChat() async throws {
         let (a, b, _, crew, story) = try await setUp()

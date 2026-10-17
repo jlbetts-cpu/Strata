@@ -747,6 +747,33 @@ final class FeedbackShots: XCTestCase {
         print("PLANNING-edit sheet \(app.buttons["Post"].exists || app.buttons["Update"].exists)")
     }
 
+    /// **Messages to one person** (the owner, 2026-10-16): the thread in
+    /// the list, opened as a conversation, New Message, and Message on a
+    /// friend's profile.
+    func testDirectMessages() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedDM", "1", "-strataSeedWins", "2"])
+        wait(12); snap("dm-0-list")
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sam'")).allElementsBoundByIndex
+        print("PLANNING-dm rows \(row.map(\.label))")
+        let thread = row.last { $0.label.contains("proud") || $0.label.contains("tomorrow") }
+        if let thread { thread.tap() } else { row.last?.tap() }
+        wait(2.5); snap("dm-1-thread")
+        let fields = (app.textFields.allElementsBoundByIndex + app.textViews.allElementsBoundByIndex).filter { $0.isHittable }
+        print("PLANNING-dm fields \(fields.map { "\($0.label)|\($0.placeholderValue ?? "")" })")
+        if let field = fields.last { field.tap(); wait(0.6); app.typeText("Yes, 7am?") }
+        let send = app.buttons["Send"].firstMatch
+        if send.exists { send.tap() }
+        wait(1.5); snap("dm-2-sent")
+        let back = app.buttons["Back"].firstMatch
+        if back.exists { back.tap() }
+        wait(1.5)
+        let compose = app.buttons["New Message"].firstMatch
+        print("PLANNING-dm compose \(compose.exists)")
+        if compose.exists { compose.tap() }
+        wait(1.5); snap("dm-3-new")
+    }
+
     /// **Reply from the hold** (the owner, 2026-10-14: "when you are holding
     /// to react reply should pop up as an option and the chat should pop up").
     func testReplyFromHold() {

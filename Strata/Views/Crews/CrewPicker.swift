@@ -24,7 +24,7 @@ struct CrewPicker: View {
     private var store: SocialStore { SocialStore.shared }
 
     var body: some View {
-        if CrewsFlag.isOn, !store.crews.isEmpty {
+        if CrewsFlag.isOn, !store.groupCrews.isEmpty {
             VStack(alignment: onDark ? .center : .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     // `gapWide` between choices now there is no capsule to
@@ -36,7 +36,7 @@ struct CrewPicker: View {
                         // click crews"). First, and only when there is more
                         // than one crew to choose: with one, it is that crew.
                         if store.groupCrewCount > 1, !single { everyCrew }
-                        ForEach(store.crews) { crew in
+                        ForEach(store.groupCrews) { crew in
                             chip(crew)
                         }
                     }

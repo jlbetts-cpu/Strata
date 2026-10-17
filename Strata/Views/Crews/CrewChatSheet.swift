@@ -221,7 +221,7 @@ struct CrewChatSheet: View {
             .undoLine()
             composer
         }
-            .safeAreaInset(edge: .top, spacing: 0) { if !atRest { topCards(messages) } }
+            .safeAreaInset(edge: .top, spacing: 0) { if !atRest, !isDirect { topCards(messages) } }
             // The emoji keyboard for "+" on a held line, as a win's "+" opens
             // it. Here, not on `body`, which is at the type-checker's ceiling.
             .background { emojiPicker }
@@ -290,7 +290,9 @@ struct CrewChatSheet: View {
     /// bar, as before.
     @ViewBuilder
     private func framed(_ page: some View, name: String) -> some View {
-        if close != nil {
+        if direct {
+            page
+        } else if close != nil {
             // **As a bar, so lines leave under it softly** (2026-10-15): in a
             // plain stack the thread was clipped flat at the header's foot,
             // and the bottom of a bubble showed as a hard dark sliver under
@@ -329,9 +331,13 @@ struct CrewChatSheet: View {
     /// **In the crew's persistent native sheet** (2026-10-15): the crew sets
     /// its heights and keeps it up; this view brings only its content.
     var native = false
+    /// **The whole page of a message thread to one person**
+    /// (`DirectChatView`, 2026-10-16): no frame of its own, the thread's
+    /// header is the page's.
+    var direct = false
 
     init(crewID: CrewID, startsWriting: Bool = false, startsWith: ChatPlusRow.Choice? = nil, visible: Bool = true,
-         answeringWin: UUID? = nil, native: Bool = false,
+         answeringWin: UUID? = nil, native: Bool = false, direct: Bool = false,
          close: (() -> Void)? = nil, reopen: (() -> Void)? = nil,
          onOpenWin: @escaping (UUID) -> Void = { _ in }, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
@@ -341,6 +347,7 @@ struct CrewChatSheet: View {
         self.visible = visible
         self.answeringWin = answeringWin
         self.native = native
+        self.direct = direct
         self.reopen = reopen
         self.onOpenWin = onOpenWin
         self.onAddWin = onAddWin
@@ -555,9 +562,14 @@ struct CrewChatSheet: View {
                             // **And that the chat is today's** (M6): without
                             // it a morning's empty chat reads as lost lines.
                             VStack(spacing: GridConstants.gapTight) {
-                                EmptyPageLine(CrewChatWords.quiet, icon: "bubble.left",
-                                              detail: "The chat clears at midnight.")
-                                clearsLine(crew)
+                                if isDirect {
+                                    EmptyPageLine("Say hi", icon: "bubble.left",
+                                                  detail: "Just between the two of you. Messages stay two weeks.")
+                                } else {
+                                    EmptyPageLine(CrewChatWords.quiet, icon: "bubble.left",
+                                                  detail: "The chat clears at midnight.")
+                                    clearsLine(crew)
+                                }
                             }
                             .frame(maxWidth: .infinity, minHeight: geo.size.height)
                         } else {
@@ -566,6 +578,11 @@ struct CrewChatSheet: View {
                                 clearsLine(crew)
                                     .padding(.bottom, GridConstants.gapItem)
                                 ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                                    // A conversation runs over days: each
+                                    // day starts under its own date, small.
+                                    if isDirect, index == 0 || messages[index - 1].crewDay != message.crewDay {
+                                        dayLine(message.crewDay)
+                                    }
                                     row(message, after: index > 0 ? messages[index - 1] : nil,
                                         reactions: shownReactions(message, lines: reactions), crew: crew)
                                         // **The held line alone in focus**, as
@@ -714,7 +731,9 @@ struct CrewChatSheet: View {
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 if mine {
                     Spacer(minLength: Self.otherSide)
-                } else {
+                } else if !isDirect {
+                    // Two of you: their face and name are the page's header,
+                    // so the lines go without them, as Messages' do.
                     Group {
                         if opensRun, let member, let crew {
                             faceMenu(member, crew: crew)
@@ -725,7 +744,7 @@ struct CrewChatSheet: View {
                     .frame(width: Self.faceSide, height: Self.faceSide)
                 }
                 VStack(alignment: mine ? .trailing : .leading, spacing: GridConstants.spacing) {
-                    if !mine, opensRun {
+                    if !mine, opensRun, !isDirect {
                         Text(name(of: message.senderProfileID))
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkTertiary)
@@ -881,7 +900,37 @@ struct CrewChatSheet: View {
 
     /// "Today's chat clears at midnight.", or at this phone's time for the
     /// crew's midnight when the two differ (M6). Quiet, in the app only.
+    /// A conversation's day, over its first line: "Today", "Yesterday", or
+    /// the weekday and date.
+    private func dayLine(_ day: String) -> some View {
+        let date = DateUtils.date(from: day) ?? store.now()
+        let words: String = Calendar.current.isDateInToday(date) ? "Today"
+            : Calendar.current.isDateInYesterday(date) ? "Yesterday"
+            : date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+        return Text(words)
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(AppColors.inkTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, GridConstants.gapTight)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// A message thread to one person (`Crew.isPersonal`).
+    private var isDirect: Bool { store.crew(crewID)?.isPersonal == true }
+
+    @ViewBuilder
     private func clearsLine(_ crew: Crew?) -> some View {
+        if crew?.isPersonal == true {
+            Text("Messages stay two weeks.")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkTertiary)
+                .frame(maxWidth: .infinity)
+        } else {
+            crewClearsLine(crew)
+        }
+    }
+
+    private func crewClearsLine(_ crew: Crew?) -> some View {
         Text(ChatClears.line(crewZone: crew?.timeZone ?? .current, here: .current, now: store.now()))
             .font(Typography.screenSubtitle)
             .foregroundStyle(AppColors.inkTertiary)
@@ -1312,7 +1361,9 @@ struct CrewChatSheet: View {
             HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 // Strip and a sticker are photographs: not offered to
                 // someone who may not send one. Their third is Doodle.
-                ChatPlusMenu(choices: store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos) { choice in
+                ChatPlusMenu(choices: isDirect
+                             ? (store.photosAllowed() ? ChatPlusRow.Choice.direct : ChatPlusRow.Choice.directWithoutPhotos)
+                             : (store.photosAllowed() ? ChatPlusRow.Choice.offered : ChatPlusRow.Choice.withoutPhotos)) { choice in
                     choose(choice)
                 }
                 // The hint in the resting bar's own ink, so the word does not

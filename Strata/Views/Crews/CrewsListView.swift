@@ -22,6 +22,7 @@ struct CrewsListView: View {
     @State private var startsCrew = false
     @State private var atCap = false
     @State private var leaving: Crew?
+    @State private var composing = false
     @State private var problem: String?
     private var store: SocialStore { SocialStore.shared }
 
@@ -56,9 +57,15 @@ struct CrewsListView: View {
                     // **One way to a new crew: New Crew, top right** (the
                     // owner, 2026-10-14, "Merge into one"). At the cap it still
                     // answers, with why (the crews audit, 2026-10-08).
+                    // **New Message, with New Crew at its top** (the owner,
+                    // 2026-10-16: "I need just a way to message individuals",
+                    // and he approved the recommended way in): the one
+                    // compose button, as Messages has, for a person or a crew.
                     if age.opensCrews, CrewsFlag.osSupportsCrews {
                         GlassIconButton(systemName: "square.and.pencil", onPage: true,
-                                        accessibilityLabel: CrewLine.newCrew, action: newCrew)
+                                        accessibilityLabel: "New Message") {
+                            if store.messageablePeople.isEmpty || !store.canReply() { newCrew() } else { composing = true }
+                        }
                     }
                 }
             }
@@ -136,11 +143,12 @@ struct CrewsListView: View {
                                        systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash") {
                                     store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
                                 }
-                                Button(crew.isOwner(store.me) ? "End Crew" : "Leave Crew",
-                                       systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { leaving = crew }
+                                Button(crew.isPersonal ? "Delete Chat" : crew.isOwner(store.me) ? "End Crew" : "Leave Crew",
+                                       systemImage: crew.isPersonal ? "trash" : "rectangle.portrait.and.arrow.right",
+                                       role: .destructive) { leaving = crew }
                             }
                             .swipeActions(edge: .trailing) {
-                                Button(crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
+                                Button(crew.isPersonal ? "Delete" : crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
                                 Button {
                                     store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
                                 } label: {
@@ -265,10 +273,10 @@ struct CrewsListView: View {
             Color.clear.frame(width: 1, height: 1)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-        .confirmationDialog(leaving.map { $0.isOwner(store.me) ? "End this crew for everyone?" : "Leave this crew?" } ?? "",
+        .confirmationDialog(leaving.map { $0.isPersonal ? "Delete this chat?" : $0.isOwner(store.me) ? "End this crew for everyone?" : "Leave this crew?" } ?? "",
                             isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } }),
                             titleVisibility: .visible, presenting: leaving) { crew in
-            Button(crew.isOwner(store.me) ? "End Crew" : "Leave Crew", role: .destructive) {
+            Button(crew.isPersonal ? "Delete Chat" : crew.isOwner(store.me) ? "End Crew" : "Leave Crew", role: .destructive) {
                 Task {
                     do {
                         if crew.isOwner(store.me) { try await store.end(crew.id) } else { try await store.leave(crew.id) }
@@ -278,6 +286,19 @@ struct CrewsListView: View {
                 }
             }
         }
+        }
+        .sheet(isPresented: $composing) {
+            NewMessageSheet(newCrew: {
+                composing = false
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    newCrew()
+                }
+            }, opened: { id in
+                composing = false
+                open(id)
+            })
+            .presentationBackground { WarmBackground().ignoresSafeArea() }
         }
         .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
@@ -303,10 +324,16 @@ struct CrewsListView: View {
             }
             .frame(width: NewsDot.side, height: NewsDot.side)
             .animation(NewsDot.motion(reduceMotion: reduceMotion), value: unread)
-            CrewFaces(crew: crew, me: store.me, side: 56)
+            // A message thread is the one person in it (`directFriend`).
+            let friend = crew.isPersonal ? store.directFriend(crew.id) : nil
+            if let friend {
+                PersonHead(person: .member(friend, crew: crew.id, me: store.me), side: 56)
+            } else {
+                CrewFaces(crew: crew, me: store.me, side: 56)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(crew.displayName(excluding: store.me))
+                    Text(friend.map { $0.shortName.isEmpty ? "A friend" : $0.shortName } ?? crew.displayName(excluding: store.me))
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
@@ -316,7 +343,7 @@ struct CrewsListView: View {
                     // name, from three days on. Not the win count at the
                     // end of the row the owner had removed: a streak is the
                     // crew's together, and under three it says nothing.
-                    let streak = CrewStats.current(for: crew, store: store)
+                    let streak = crew.isPersonal ? 0 : CrewStats.current(for: crew, store: store)
                     if streak >= 3 {
                         HStack(spacing: 2) {
                             Image(systemName: "flame.fill").imageScale(.small)
@@ -364,12 +391,20 @@ struct CrewsListView: View {
     /// who is in it.
     static func preview(_ latest: CrewActivity?, in crew: Crew, me: UUID) -> String {
         guard let latest else {
+            if crew.isPersonal { return "Say hi." }
             let count = crew.members.count
             return count <= 1 ? "Just you so far." : "No wins yet today."
         }
-        return latest.preview(name: { id in
+        let said = latest.preview(name: { id in
             (crew.member(id)?.shortName).flatMap { $0.isEmpty ? nil : $0 } ?? "A friend"
         }, me: me)
+        // Between two people the row is already their name: their line goes
+        // without it, as Messages shows a conversation.
+        if crew.isPersonal, let friend = crew.members.first(where: { $0.profileID != me }) {
+            let prefix = (friend.shortName.isEmpty ? "A friend" : friend.shortName) + ": "
+            if said.hasPrefix(prefix) { return String(said.dropFirst(prefix.count)) }
+        }
+        return said
     }
 
     /// Whether the newest thing in a crew is said in its chat: a line, or a
@@ -459,8 +494,8 @@ struct CrewsListView: View {
     /// The top row's crew (the one with the newest news) unless one is
     /// already chosen and still yours.
     private func choosePlanCrew() {
-        guard planCrews.isEmpty || !planCrews.isSubset(of: Set(store.crews.map(\.id))) else { return }
-        planCrews = store.crews.max { (store.activity(in: $0.id)?.date ?? .distantPast)
+        guard planCrews.isEmpty || !planCrews.isSubset(of: Set(store.groupCrews.map(\.id))) else { return }
+        planCrews = store.groupCrews.max { (store.activity(in: $0.id)?.date ?? .distantPast)
             < (store.activity(in: $1.id)?.date ?? .distantPast) }.map { [$0.id] } ?? []
     }
 
@@ -794,10 +829,17 @@ struct CrewDestinations: ViewModifier {
                 case .list:
                     CrewsListView { path.append(.crew($0)) }
                 case .crew(let id):
-                    CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
-                                  onAddWin: { addWin(id) },
-                                  onLogWin: { logWin(id, $0, $1) },
-                                  onPlanned: { planned(id, $0, $1) })
+                    // **A message thread opens as one** (2026-10-16): the
+                    // conversation, never a tower. The same route, so the
+                    // list, a tapped notification and a reply all land right.
+                    if SocialStore.shared.crew(id)?.isPersonal == true {
+                        DirectChatView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } })
+                    } else {
+                        CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
+                                      onAddWin: { addWin(id) },
+                                      onLogWin: { logWin(id, $0, $1) },
+                                      onPlanned: { planned(id, $0, $1) })
+                    }
                 }
             }
             .onChange(of: router.open) { _, crew in

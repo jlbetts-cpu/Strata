@@ -88,7 +88,7 @@ struct SendToPage: View {
     private var crewList: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             if store.groupCrewCount > 1 { everyCrew }
-            ForEach(store.crews) { crew in
+            ForEach(store.groupCrews) { crew in
                 row(on: crews.contains(crew.id),
                     label: crew.displayName(excluding: store.me),
                     hint: "") {

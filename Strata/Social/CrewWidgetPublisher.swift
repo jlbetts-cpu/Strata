@@ -82,7 +82,7 @@ final class CrewWidgetPublisher {
         let store = SocialStore.shared
         guard store.hasFetchedCrews else { return nil }
         let me = store.me
-        let crews = store.crews.map { crew -> CrewWidgetSnapshot.Crew in
+        let crews = store.groupCrews.map { crew -> CrewWidgetSnapshot.Crew in
             // One day for the wins and the file, from the store's clock.
             let day = CrewDay.string(for: store.now(), in: crew.timeZone)
             let today = store.wins(in: crew.id, on: day)

@@ -40,6 +40,10 @@ enum ChatPlusRow {
         /// needed to be a successful chat"): every chat people use leads its
         /// + with a photo, and this one had no way to send one.
         static let offered: [Choice] = [.win, .photo, .plan, .sticker, .strip]
+        /// **To one person** (2026-10-16): a message, not the crew's tower, so
+        /// no Win and no Plan; a photo, a sticker, a strip.
+        static let direct: [Choice] = [.photo, .sticker, .strip]
+        static let directWithoutPhotos: [Choice] = [.doodle]
         /// Strip is photographs, and so is a sticker: not offered to
         /// someone who may not send one.
         static let withoutPhotos: [Choice] = [.win, .plan, .doodle]

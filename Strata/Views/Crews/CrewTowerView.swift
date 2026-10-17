@@ -356,33 +356,7 @@ struct CrewTowerView: View {
         // every 12 once three asks found nothing, and quick again the
         // moment you post, say or react. Waited out in single seconds so a
         // nudge is heard at once, and never by cancelling a request.
-        .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
-            var pace = CrewLivePace()
-            // **A push reads the crew at once** (2026-10-10): the loop
-            // below asked every three seconds whether or not anything had
-            // happened. It still asks, as the fallback, but once pushes are
-            // seen to arrive it asks far less (`CrewLivePace`).
-            store.liveCrew = crewID
-            defer { if store.liveCrew == crewID { store.liveCrew = nil } }
-            // The pushes already answered: kept across asks, so one that
-            // lands while an ask is out is seen at the top of the next wait
-            // rather than forgotten.
-            var answered = store.livePush
-            while !Task.isCancelled {
-                let nudge = store.liveNudge
-                var waited: TimeInterval = 0
-                var byPush = false
-                while waited < pace.interval, !Task.isCancelled {
-                    if store.livePush != answered { answered = store.livePush; byPush = true; break }
-                    try? await Task.sleep(for: .seconds(1))
-                    waited += 1
-                    if store.liveNudge != nudge { pace.nudged(); break }
-                }
-                guard !Task.isCancelled else { return }
-                pace.asked(changed: await store.refreshLive(crewID), byPush: byPush)
-            }
-        }
+        .modifier(CrewLiveSync(crewID: crewID))
         // The chat updates while it is open from the live sync above: the
         // store is observed, and `refreshLive` keeps running under a sheet.
         // **The chat rises from its bar as part of this page** (`ChatDrawer`,

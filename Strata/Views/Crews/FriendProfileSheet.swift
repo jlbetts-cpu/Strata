@@ -42,6 +42,8 @@ struct FriendProfileSheet: View {
     @State private var reporting: SharedWin?
     /// Hold to react and double-tap hearts, as on a crew's tower.
     @State private var reacts = TowerReactions()
+    @State private var startingMessage = false
+    @State private var messageFailed = false
     private var store: SocialStore { SocialStore.shared }
     private let spacing = GridConstants.spacing
     private let columns = GridConstants.columnCount
@@ -95,6 +97,42 @@ struct FriendProfileSheet: View {
     }
 
     private var name: String { member.shortName.isEmpty ? "A friend" : member.firstName }
+
+    /// **Message them** (the owner, 2026-10-16: "a way to message
+    /// individuals"): your conversation with them, started if there is none,
+    /// opened in Crews as a message thread.
+    private var messageButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            startingMessage = true
+            Task {
+                let crew = await store.startPersonal(with: member.profileID)
+                startingMessage = false
+                guard let crew else { messageFailed = true; return }
+                dismiss()
+                try? await Task.sleep(for: .milliseconds(400))
+                CrewRouter.shared.open = crew.id
+            }
+        } label: {
+            HStack(spacing: GridConstants.spacing + 2) {
+                if startingMessage { ProgressView().controlSize(.small) } else { Image(systemName: "bubble.left") }
+                Text("Message")
+            }
+            .font(Typography.headerSmall)
+            .foregroundStyle(AppColors.inkPrimary)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .glassCapsule(onPage: true, carriesType: true)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(startingMessage)
+        .accessibilityLabel("Message \(name)")
+        .alert("That didn't start", isPresented: $messageFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("They may need the latest Some Wins. Try again in a moment.")
+        }
+    }
 
     var body: some View {
         let _ = minute
@@ -217,6 +255,7 @@ struct FriendProfileSheet: View {
                                .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
                            chips: chips(today: today.count),
                            handle: store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member))
+                if member.profileID != store.me, store.canReply() { messageButton }
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }
