@@ -115,7 +115,9 @@ final class MapGestureTests: XCTestCase {
         app.launch()
 
         // The viewer's caption names the photograph, so it is what changing.
-        let caption = app.staticTexts.matching(
+        // Any element: the facts became a row (`InfoCard`), and the spoken
+        // caption rides on its container rather than a text (2026-10-17).
+        let caption = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", "·")
         ).firstMatch
         XCTAssertTrue(caption.waitForExistence(timeout: 45), "the photo viewer never opened")
@@ -190,7 +192,9 @@ final class MapGestureTests: XCTestCase {
         XCTAssertTrue(slot.isHittable, "the slot is in the tree but not on screen")
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let end = start.withOffset(CGVector(dx: 160, dy: 0))
-        start.press(forDuration: 0.5, thenDragTo: end)
+        // Rest to arm, draw, rest until the edge fills (`HoldLock`,
+        // 2026-10-17): a drag let go at once springs back by design.
+        start.press(forDuration: 1.0, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1.0)
         Thread.sleep(forTimeInterval: 3)
 
         XCTAssertTrue(next.isEnabled,
@@ -230,7 +234,8 @@ final class MapGestureTests: XCTestCase {
         let slot = app.descendants(matching: .any)["Log a win"]
         XCTAssertTrue(slot.waitForExistence(timeout: 15), "no slot on the tutorial page")
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.5, thenDragTo: start.withOffset(CGVector(dx: 160, dy: 0)))
+        start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 160, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 1.0)
         Thread.sleep(forTimeInterval: 2)
 
         XCTAssertTrue(app.buttons["What Else"].waitForExistence(timeout: 15), "no What else button")
@@ -246,12 +251,17 @@ final class MapGestureTests: XCTestCase {
         // shows "Go On" instead. (It said "One More Thing", as the next page
         // did; the voice pass of 2026-10-12 made this one "Go On" and that
         // one "Two More Things", which is how many pages follow it.)
-        let onFromHead = app.buttons.matching(NSPredicate(
+        // **Bring your people comes first when crews are on** (2026-10-16,
+        // the launch pass): its Go On, then the head page's. Up to two pages
+        // of "Later"/"Go On" before the thank-you page.
+        let onward = app.buttons.matching(NSPredicate(
             format: "label == %@ OR label == %@", "Later", "Go On")).firstMatch
-        XCTAssertTrue(onFromHead.waitForExistence(timeout: 15),
+        XCTAssertTrue(onward.waitForExistence(timeout: 15),
                       "no head page. On screen: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label))")
-        onFromHead.tap()
-        Thread.sleep(forTimeInterval: 2)
+        for _ in 0..<2 where !app.buttons["Two More Things"].exists && onward.exists {
+            onward.tap()
+            Thread.sleep(forTimeInterval: 2)
+        }
 
         XCTAssertTrue(app.buttons["Two More Things"].waitForExistence(timeout: 15), "no thank-you page")
         app.buttons["Two More Things"].tap()
@@ -266,16 +276,19 @@ final class MapGestureTests: XCTestCase {
         let nameField = app.textFields["Your name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 15), "no name page")
         nameField.tap()
+        // A name can arrive from your other phone through iCloud (profile
+        // sync, 2026-10-16), and the simulator's iCloud store keeps one from
+        // earlier runs: cleared, so this still asks what an empty name does.
+        let already = (nameField.value as? String) ?? ""
+        if !already.isEmpty, already != "Your name" {
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: already.count))
+        }
         app.typeText("\n")
         Thread.sleep(forTimeInterval: 1)
         XCTAssertTrue(nameField.exists, "the page was left with no name written")
         app.typeText("Sam\n")
-        // Lock Journal, the last page since 2026-10-14 (the owner: "I would
-        // have it in the onboarding"). Not Now leaves the switch off and
-        // opens the app, as a first run most often will.
-        let notNow = app.buttons["Not Now"]
-        XCTAssertTrue(notNow.waitForExistence(timeout: 15), "no Lock Journal page")
-        notNow.tap()
+        // Your name is the last page again (2026-10-16, the launch pass: the
+        // journal lock left onboarding for Settings); its Start opens the app.
         dismissSystemAlerts(app)
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
         // tower. A shorter wait catches the loading skeleton.
@@ -322,7 +335,9 @@ final class MapGestureTests: XCTestCase {
         ]
         app.launch()
 
-        let caption = app.staticTexts.matching(
+        // Any element: the facts became a row (`InfoCard`), and the spoken
+        // caption rides on its container rather than a text (2026-10-17).
+        let caption = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", "·")
         ).firstMatch
         XCTAssertTrue(caption.waitForExistence(timeout: 45), "the photo viewer never opened")

@@ -410,6 +410,9 @@ struct GoalCrest: View {
                 CrestCaption(text: DailyGoal.caption(wins: shown, goal: goal))
                     // A 44pt target round the capsule, as the crew's has.
                     .padding(.vertical, 7)
+                    // And 44 across: past the goal it is one digit, and "6"
+                    // measured 34 wide (the touch walk, 2026-10-17).
+                    .frame(minWidth: 44)
                     .contentShape(Rectangle())
                     // Away with the ring while it is out (`RingMoment`):
                     // the count is under it there, counting up.
