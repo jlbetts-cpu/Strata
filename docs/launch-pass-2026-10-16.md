@@ -101,7 +101,7 @@ Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs
 
 ### Best ideas not on the list, ranked
 1. **A crew's week, in a card, on the crew's Sunday night** (build first): the week's photos as a strip and who showed up, in the chat, once. It is the "end of a crew's week" moment the brief names, and the personal replay already knows how to make one. (c; b: Strava clubs' weekly summary, BeReal's recap)
-2. **The first reaction someone ever gets, made to land**: a one-time note on Activity's first item ("Your first cheer"), the moment that brings a person back. (c)
+2. **The first reaction someone ever gets, made to land**: a one-time note on Activity's first item ("Your first cheer"), the moment that brings a person back. (c) **Built 2026-10-17 (`FirstCheer`)**: once ever, on a clear tower, a tip card names who cheered which win and opens Activity. Titled "You got a cheer", not "first": the feed looks back a week, so for anyone with older cheers the app cannot know which was first.
 3. **"Everyone showed up today"**: the crest closes in the crew's colour the first time every member has a win on the same day. Quiet, once a day, no names for who did not. (c)
 4. **A late joiner's welcome**: someone joining after the crew's first week gets the last few days' photos as a strip in their first look, so they meet the crew, not an empty tower. (c)
 5. **Invite from the tower's empty cells** for a crew of one: the faint cells say "Room for a friend" and are the Invite. (c)
