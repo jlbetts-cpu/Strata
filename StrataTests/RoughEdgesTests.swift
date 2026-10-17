@@ -54,7 +54,8 @@ struct RoughEdgesTests {
         #expect(day.contains("canTapBlock: { $0.look.imageFileName != nil || $0.log?.habit != nil }"))
         #expect(day.contains("editingLog = block.log"))
         let sheet = try body(of: ".sheet(item: $editingLog) { log in", until: "private struct PhotoID", in: day)
-        #expect(sheet.contains("editing: log.habit"))
+        // `win:` since 2026-10-18 (the edit sheet needs a win to edit).
+        #expect(sheet.contains("win: habit"))
         #expect(sheet.contains("onSaved: { _ in reload() }"), "the page does not reload after a save")
         #expect(sheet.contains("onDeleted: { reload() }"), "the page does not reload after a delete")
     }

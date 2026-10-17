@@ -133,7 +133,9 @@ struct YourThreeTests {
         // plan is handed your three and the day on the page.
         #expect(day.contains("onThree: onThree, scope: planScope,"))
         let main = SourceSweep.code(try SourceSweep.read("Strata/Views/MainAppView.swift"))
-        #expect(main.contains("pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)"),
+        // The camera card since 2026-10-18 (one way into Add a Win): opened
+        // on the block with the words written, as a plan line is.
+        #expect(main.contains("pendingOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,\n                                               colour: colour ?? nextWinCategory, title: three.title, words: true)"),
                 "a press opens Add with it written, as a plan line does")
     }
 }
