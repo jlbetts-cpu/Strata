@@ -835,6 +835,16 @@ private struct StoryReplyBar: View {
                     .focused($writing)
                     .submitLabel(.send)
                     .onSubmit(send)
+                    // **The blue Send key sends** (the stories standard,
+                    // rule 5): on a field that can grow, the key only typed a
+                    // new line under the reply (filmed, 2026-10-17). A story
+                    // reply is one line; the chat keeps Return for lines.
+                    .onChange(of: text) { _, typed in
+                        guard typed.contains("\n") else { return }
+                        text = typed.replacingOccurrences(of: "\n", with: " ")
+                            .trimmingCharacters(in: .whitespaces)
+                        send()
+                    }
                     .padding(.horizontal, GridConstants.gapLabel)
                     .padding(.vertical, GridConstants.gapTight)
                     .frame(minHeight: GlassIconButton.defaultSide)

@@ -113,7 +113,11 @@ struct PersonPage: View {
         .onChange(of: thread == nil) { _, gone in if gone { showsChat = false } }
         .fullScreenCover(isPresented: $watching) {
             if let story {
-                StoryViewer(people: [story], start: story.profileID, onClose: { watching = false })
+                // Their head in their story opens their profile, as it does
+                // from the row; here the profile is under it (the stories
+                // standard, layers: one way back, always the same).
+                StoryViewer(people: [story], start: story.profileID, onClose: { watching = false },
+                            onProfile: { _, _ in watching = false })
             }
         }
         .alert("That didn't start", isPresented: $failed) {

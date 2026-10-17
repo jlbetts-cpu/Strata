@@ -228,4 +228,40 @@ final class StoryStandardTests: XCTestCase {
         print("STORYSTD closed \(!self.card(app).exists)")
         XCTAssertFalse(self.card(app).exists, "a swipe down did not close the story")
     }
+
+    /// **Layers** (the launch pass, 3½): a story, then its person, then the
+    /// story again from their head and back onto them, and the reply sent
+    /// from the story waiting in the conversation underneath. Looked at.
+    func testStoryProfileAndChatAreLayersOfOnePlace() {
+        let app = night()
+        openFirstStory(app)
+        let field = app.textFields.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        let view = field.exists ? field : app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        view.tap()
+        app.typeText("That view though\n")
+        Thread.sleep(forTimeInterval: 1.0)
+        snap("std-layer-1-replied")
+        // Their name opens them.
+        let name = app.buttons.matching(NSPredicate(format: "label == 'Ana'")).firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 3), "no name on the story")
+        name.tap()
+        Thread.sleep(forTimeInterval: 2.5)
+        snap("std-layer-2-person")
+        let reply = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'That view though'")).firstMatch
+        print("STORYSTD layer reply-on-page \(reply.exists)")
+        XCTAssertTrue(reply.exists, "the reply sent from the story is not in your conversation with them")
+        // Their story again, from the ring on their head (its label is their name).
+        let head = app.buttons.matching(NSPredicate(format: "label == 'Ana'")).firstMatch
+        XCTAssertTrue(head.exists, "no head on their page")
+        head.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("std-layer-3-story-over-person")
+        XCTAssertTrue(card(app).exists, "their head did not play their story")
+        let again = app.buttons.matching(NSPredicate(format: "label == 'Ana'")).firstMatch
+        if again.exists { again.tap() }
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("std-layer-4-back-on-person")
+        print("STORYSTD layer back-on-page \(!card(app).exists)")
+        XCTAssertFalse(card(app).exists, "their name in their story did not bring you back to them")
+    }
 }
