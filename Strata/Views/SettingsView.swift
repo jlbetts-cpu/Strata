@@ -28,6 +28,7 @@ struct SettingsView: View {
 
     // MARK: - Notification State
 
+    @AppStorage(QuickPost.key) private var quickPost = false
     @AppStorage(TabNames.key) private var tabNamesShown = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
@@ -409,6 +410,17 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+
+                // Post in one press, to the crews you sent to last (`QuickPost`).
+                Toggle(isOn: $quickPost) {
+                    Label {
+                        Text("Quick Post")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "paperplane")
                     }
                 }
                 .tint(AppColors.switchTrack)

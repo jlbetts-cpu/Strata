@@ -1224,6 +1224,7 @@ struct AddWinSheet: View {
                     // press the block. A new win still takes the colour the
                     // tower has least of, so nothing has to be chosen.
                     sizeControl
+                    if QuickPost.on, sendsToPage { recipientsChip }
         }
         // `gapSection`, not `gapPage`: the name and what the block is are one
         // win being described, and 64 set "Walk" adrift above its own
@@ -1420,7 +1421,7 @@ struct AddWinSheet: View {
                 // nothing typed there is nothing for this to do: the lines
                 // already written are kept, and Done, beside it, leaves.
                 if planLine() { dismiss() }
-            } else if sendsToPage, failure == nil {
+            } else if sendsToPage, failure == nil, !QuickPost.on {
                 HapticsEngine.lightTap()
                 titleFocused = false
                 choosingRecipients = true
@@ -1430,7 +1431,8 @@ struct AddWinSheet: View {
         } label: {
             // **The verb changes with what the press will do**, as the head
             // maker's Save becomes Try Saving Again. See `AddWinFailure.retry`.
-            Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan" : sendsToPage ? "Next" : "Add")).sheetAction()
+            Text(failure?.retry ?? (isEditing ? "Save" : isPlanning ? "Plan"
+                                    : sendsToPage ? (QuickPost.on ? "Post" : "Next") : "Add")).sheetAction()
         }
         .buttonStyle(.pressWord)
         .disabled(isPlanning ? !DayComposing.hasWords(title) : !canSave)
@@ -1897,6 +1899,35 @@ struct AddWinSheet: View {
     /// (2026-09-09). They are right that this is the one place a name helps:
     /// the shapes tell you the geometry, the words tell you what the geometry
     /// is FOR, and "Deep" is the thing you are actually choosing.
+    /// **Who sees it, said, and a tap to change** (`QuickPost`): the usual
+    /// crews, remembered, so posting is the title and Post.
+    private var recipientsChip: some View {
+        let store = SocialStore.shared
+        let names = store.groupCrews.filter { crewChoice.contains($0.id) }.map { $0.displayName(excluding: store.me) }
+        let words = names.isEmpty ? "Just you" : names.count == 1 ? names[0] : "\(names[0]) and \(names.count - 1) more"
+        return Button {
+            HapticsEngine.lightTap()
+            titleFocused = false
+            choosingRecipients = true
+        } label: {
+            HStack(spacing: GridConstants.spacing) {
+                Text("To")
+                    .foregroundStyle(AppColors.inkSecondary)
+                Text(words + (onStory ? ", and tonight's story" : ""))
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.forward")
+                    .foregroundStyle(AppColors.inkTertiary)
+            }
+            .font(Typography.headerSmall)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel("Sending to \(words)")
+        .accessibilityHint("Choose who sees it.")
+    }
+
     private var sizeControl: some View {
         // **The platform's control for three exclusive options.**
         //
@@ -2646,4 +2677,16 @@ private struct NoScrollEdgeEffect: ViewModifier {
             content
         }
     }
+}
+
+
+/// **Posting that costs nothing** (the owner's posting add-on: "the fastest
+/// path is one thing: a photo or a few words, and done ... size, colour and
+/// crews should default sensibly so nobody has to choose"). On, the add
+/// sheet's button is Post, which sends to the crews you sent to last; a "To"
+/// line under the size changes it. Off (the default) keeps Next and Send To.
+/// A switch because it changes how posting feels; for the owner's call.
+enum QuickPost {
+    static let key = "quickPost"
+    static var on: Bool { UserDefaults.standard.bool(forKey: key) }
 }

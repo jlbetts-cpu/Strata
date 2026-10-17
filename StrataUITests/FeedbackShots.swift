@@ -694,6 +694,21 @@ final class FeedbackShots: XCTestCase {
         wait(2.5); snap("planner-2-shared")
     }
 
+    /// Quick Post, on (the posting add-on; off by default).
+    func testQuickPost() {
+        let app = launch(["-quickPost", "YES", "-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
+                          "-strataSeedWins", "2", "-strataOpenSheet", "add"])
+        wait(9)
+        let name = (app.textFields.allElementsBoundByIndex + app.textViews.allElementsBoundByIndex).first { $0.isHittable }
+        name?.tap(); wait(0.5)
+        app.typeText("Ate something green")
+        wait(1); snap("quick-0-add")
+        let post = app.buttons["Post"].firstMatch
+        print("PLANNING-quick post \(post.exists)")
+        if post.exists { post.tap() }
+        wait(3); snap("quick-1-posted")
+    }
+
     /// Show Tab Names, on (the launch pass, 5½; off by default).
     func testTabNames() {
         let app = launch(["-tabNamesShown", "YES", "-strataSeedWins", "3", "-strataStartTab", "tower"])

@@ -35,7 +35,14 @@ nonisolated enum WinIdeas {
     static let usualDays = 2
 
     /// Small ones, in the voice of someone saying what they did.
+    ///
+    /// **Tiny, real and a little funny first** (the owner's posting add-on:
+    /// "nothing is too small ... people post what they see others post
+    /// first"): the row says a half-formed thing counts before anyone types.
     static let small: [WinIdea] = [
+        WinIdea(title: "Ate something green", category: .health),
+        WinIdea(title: "Answered one email", category: .work),
+        WinIdea(title: "Got up on the second alarm", category: .mindfulness),
         WinIdea(title: "Drank some water", category: .health),
         WinIdea(title: "Made my bed", category: .mindfulness),
         WinIdea(title: "Replied to a message", category: .social),
