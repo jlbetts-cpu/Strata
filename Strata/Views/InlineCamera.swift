@@ -101,6 +101,10 @@ struct AddWinOpening: Identifiable, Equatable {
     var colour: HabitCategory
     /// Opened from a crew's tower: that crew, and only that crew.
     var crews: Set<CrewID>? = nil
+    /// From a plan line's box: its words, its size, and the line to tick.
+    var title = ""
+    var size: BlockSize = .small
+    var planItemID: UUID? = nil
 
     static func == (a: Self, b: Self) -> Bool { a.id == b.id }
 
@@ -1009,6 +1013,9 @@ struct InlineCameraCard: View {
         if !standsOnBar { barTop = nil }
         recipients = opening.crews ?? CrewChoice.load()
         colour = opening.colour
+        if !opening.title.isEmpty { title = opening.title }
+        size = opening.size
+        if opening.planItemID != nil { colourChosen = opening.colour != .unlabeled }
         HapticsEngine.lightTap()
         if mode == .lens {
             Task {

@@ -908,7 +908,19 @@ struct MainAppView: View {
     private func planned(_ crew: CrewID?, _ item: PlanItem, _ action: PlannedAction) {
         planCrew = crew
         switch action {
-        case .camera: if stillThere(item), !alreadyWon(item) { capturingPlan = item }
+        case .camera:
+            guard stillThere(item), !alreadyWon(item) else { return }
+            // **The camera card, with the line's words on it** (2026-10-17:
+            // one camera everywhere a photo is taken).
+            if CameraFirst.on, inlineOpening == nil {
+                withTransaction(Self.still) {
+                    inlineOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                                  colour: item.category, crews: crew.map { [$0] },
+                                                  title: PlanTime.title(item.text), size: item.size, planItemID: item.id)
+                }
+            } else {
+                capturingPlan = item
+            }
         case .library: if stillThere(item), !alreadyWon(item) { pickingPlan = item }
         case .log: logPlanned(item)
         case .edit: editingPlan = item
@@ -2829,17 +2841,26 @@ struct MainAppView: View {
                 quickAdding = true
             }
         case .drop(let win)?:
-            logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
-                   undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
-                   with: win.with, story: win.story, window: win.window, zoom: win.zoom)
+            let made = logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
+                              undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
+                              with: win.with, story: win.story, window: win.window, zoom: win.zoom)
+            // A plan line photographed from its box: the line is done, and
+            // the win remembers it, as the add sheet does for a plan.
+            if let made, let line = opening.planItemID {
+                made.planItemID = line
+                WinIdeas.winMade(made, from: line, named: win.title, context: modelContext)
+                setPlanItemDone(line, true)
+                try? modelContext.save()
+            }
         }
     }
 
+    @discardableResult
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false,
                         title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil,
                         undoable: Bool = false, colour: HabitCategory? = nil, colourChosen: Bool = false,
                         note: String? = nil, with people: [UUID] = [], story: Bool = false,
-                        window: CGPoint = .zero, zoom: CGFloat = 1) {
+                        window: CGPoint = .zero, zoom: CGFloat = 1) -> Habit? {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
@@ -2922,8 +2943,10 @@ struct MainAppView: View {
             // the tower identically. No refresh here: appending to pendingDrops
             // starts the cascade, and the cascade refreshes.
             pendingDrops.append(win.habit)
+            return win.habit
         } catch {
             winSaveFailed = true
+            return nil
         }
     }
 
