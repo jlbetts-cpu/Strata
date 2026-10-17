@@ -151,6 +151,29 @@ struct TonightsStoryTests {
         #expect(world.records(of: .story, in: second.id)[run.winID.uuidString] == nil)
     }
 
+    @Test("the words page has its own seen: watched only once it is, and new words light the ring again")
+    func wordsPageSeen() {
+        let day = "2026-10-15"
+        let tonight = date(day, 21, in: la)
+        var run = story(sam, day: day, made: date(day, 18, in: la))
+        run.low = "Missed the bus"
+        let c = CrewID(rawValue: "c")
+        func person(_ seen: Set<UUID>, _ s: CrewStory) -> StoryPerson {
+            StoryPerson.gather([c: [s]], crewOrder: [c], me: jayden, blocked: [], hidden: [:], seen: seen,
+                               now: tonight, zone: la).first!
+        }
+        let before = person([run.id], run)
+        #expect(!before.watched)
+        let key = try! #require(before.wordsKey)
+        #expect(person([run.id, key], run).watched)
+        // A changed page is a new page.
+        run.low = "Missed two buses"
+        #expect(!person([run.id, key], run).watched)
+        // No words, no page to watch.
+        run.low = nil
+        #expect(person([run.id], run).wordsKey == nil && person([run.id], run).watched)
+    }
+
     @Test("refused words keep nothing, not even the lines that passed")
     func refusedWordsKeepNothing() async throws {
         let a = store(jayden)

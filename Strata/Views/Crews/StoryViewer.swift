@@ -185,6 +185,17 @@ private struct StoryPage: View {
         return storyIndex >= w ? storyIndex + 1 : storyIndex
     }
     private var story: CrewStory { person.stories[min(storyIndex(page), person.stories.count - 1)] }
+    /// What each page is, by its mark for "seen": a story's id, or the
+    /// words page's own (`StoryPerson.wordsKey`).
+    private var keys: [UUID] {
+        (0..<pageCount).map { p in
+            p == wordsIndex ? (person.wordsKey ?? UUID()) : person.stories[min(storyIndex(p), person.stories.count - 1)].id
+        }
+    }
+    /// The page on screen, by what it is, so a page arriving or a picture's
+    /// check landing mid-story never moves you off it (the review,
+    /// 2026-10-16).
+    @State private var showing: UUID?
     private let hPad = GridConstants.horizontalPadding
 
     /// How long a page stands before the next.
@@ -228,18 +239,28 @@ private struct StoryPage: View {
         .onChange(of: isCurrent, initial: true) { _, now in
             busy = false
             guard now else { return }
-            page = pageOf(person.stories.firstIndex { !store.storiesSeen.contains($0.id) } ?? 0)
+            // The first page not yet watched, the words page among them.
+            page = keys.firstIndex { !store.storiesSeen.contains($0) } ?? 0
+            showing = (keys.indices.contains(page) ? keys[page] : nil)
             seen()
         }
         .onChange(of: page) {
             busy = false
+            showing = (keys.indices.contains(page) ? keys[page] : nil)
             seen()
+        }
+        .onChange(of: keys) { _, now in
+            guard let showing, let at = now.firstIndex(of: showing) else {
+                page = min(page, max(now.count - 1, 0))
+                return
+            }
+            if at != page { page = at }
         }
     }
 
     private func seen() {
         guard isCurrent, !mine else { return }
-        store.markStorySeen(story.id)
+        if isWords, let key = person.wordsKey { store.markStorySeen(key) } else { store.markStorySeen(story.id) }
     }
 
     private func forward() {

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// **Tonight's Story** (the spec, `docs/superpowers/specs/2026-10-15-stories-and-friends-design.md`,
@@ -136,6 +137,21 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
         return stories.first { $0.id == id }?.win.photo
     }
     var wordsArt: URL? { stories.lazy.compactMap(\.wordsArt).first }
+    /// **The words page's own mark for "seen"** (the review, 2026-10-16):
+    /// made from what it says, so a page written or changed after you
+    /// watched their photographs is new again, and lights their ring.
+    var wordsKey: UUID? {
+        guard hasWords else { return nil }
+        let said = [profileID.uuidString, line ?? "", low ?? "", buffalo ?? "",
+                    wordsArt?.lastPathComponent ?? "", wordsPicture?.lastPathComponent ?? ""].joined(separator: "\u{1F}")
+        let digest = Array(SHA256.hash(data: Data(said.utf8)))
+        return UUID(uuid: (digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+                           digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]))
+    }
+    /// Every story, and the words page if there is one, already opened here.
+    static func isWatched(_ person: StoryPerson, seen: Set<UUID>) -> Bool {
+        person.stories.allSatisfy { seen.contains($0.id) } && (person.wordsKey.map(seen.contains) ?? true)
+    }
     /// The first photograph, the picture the head becomes at 8pm.
     var cover: CrewStory? { stories.first { $0.win.photo != nil } ?? stories.first }
 
@@ -165,8 +181,9 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
             let open = ordered.contains { StoryClock.phase(of: $0, at: now, in: zone) == .open }
             // Before 8pm nothing is shown, so nothing can be watched yet.
             let shown = open ? ordered.filter { StoryClock.phase(of: $0, at: now, in: zone) == .open } : ordered
-            return StoryPerson(profileID: sender, stories: shown, phase: open ? .open : .waiting,
-                               watched: open && shown.allSatisfy { seen.contains($0.id) })
+            let person = StoryPerson(profileID: sender, stories: shown, phase: open ? .open : .waiting, watched: false)
+            return StoryPerson(profileID: sender, stories: shown, phase: person.phase,
+                               watched: open && isWatched(person, seen: seen))
         }
         return people.sorted { a, b in
             let rank: (StoryPerson) -> Int = { $0.phase == .open ? ($0.watched ? 1 : 0) : 2 }
