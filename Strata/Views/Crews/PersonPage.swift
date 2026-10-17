@@ -23,6 +23,12 @@ struct PersonPage: View {
     @State private var opening: ChatRestBar.Opening = .reading
     @State private var starting = false
     @State private var failed = false
+    /// Their story, played over their page (the launch pass, 3½: "the story
+    /// plays on top, their profile sits underneath").
+    @State private var watching = false
+    private var story: StoryPerson? {
+        store.storyPeople().first { $0.profileID == friend && $0.phase == .open }
+    }
     private var store: SocialStore { SocialStore.shared }
 
     /// Who they are, as the crew you share names them.
@@ -87,6 +93,11 @@ struct PersonPage: View {
             }
         }
         .onChange(of: showsChat) { _, up in NativeChatPresence.shared.up = up }
+        .fullScreenCover(isPresented: $watching) {
+            if let story {
+                StoryViewer(people: [story], start: story.profileID, onClose: { watching = false })
+            }
+        }
         .alert("That didn't start", isPresented: $failed) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -94,8 +105,31 @@ struct PersonPage: View {
         }
     }
 
-    /// The way back, and a small line that always says who this is.
+    /// The way back, a small line that always says who this is, and their
+    /// story when it is open, to watch over this page.
     private var top: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            topBar
+            if let story {
+                Button {
+                    HapticsEngine.lightTap()
+                    watching = true
+                } label: {
+                    Label(story.watched ? "Watch \(name)'s story again" : "Watch \(name)'s story", systemImage: "play.circle")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(minHeight: 44)
+                        .glassCapsule(onPage: true, carriesType: true)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, GridConstants.spacing)
+            }
+        }
+    }
+
+    private var topBar: some View {
         ZStack {
             HStack {
                 GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Back", action: onBack)

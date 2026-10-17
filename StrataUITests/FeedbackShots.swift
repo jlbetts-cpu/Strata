@@ -840,7 +840,8 @@ final class FeedbackShots: XCTestCase {
     /// friend's profile.
     func testDirectMessages() {
         let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
-                          "-strataSeedDM", "1", "-strataSeedWins", "2"])
+                          "-strataSeedDM", "1", "-strataSeedWins", "2", "-strataSeedStories", "2", "-strataStoryHour", "21",
+                          "-strataStorySeen", "1"])
         wait(12); snap("dm-0-list")
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sam'")).allElementsBoundByIndex
         print("PLANNING-dm rows \(row.map(\.label))")
