@@ -129,5 +129,10 @@ Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs
 5. Put it in Strata/Social/InstagramShare.swift, `static let appID = "<ID>"`. The Share to Instagram button appears once it is set.
 6. Test on a phone with Instagram. If Instagram says the app is not supported, switch the Meta app to Live (it needs the policy URL from step 3).
 
+## Second reader, rounds three and four (2026-10-17)
+Fixed: a kept chat photo posting to a crew nobody named; the camera running after the card went; a chat camera starting location; a snap encoded on the main thread; expired chat photos left on disk; "did it" on the wrong day; Reset's leaving lost offline (now kept and retried); blocking from a page silently removing someone from a group you run; a dead conversation after an unblock; a blank sheet after blocking; a plan line lost in the full sheet.
+Not fixed, low: a shareMyself on a 1.5s timer can land a blank member record in a crew being ended by its owner (only matters if Reset ended crews, which it no longer does).
+
 ## Waiting for your call
+- **Reset All Data and crews you started.** Built: Reset leaves every crew you joined, and keeps crews you started for the people in them, without your wins or name. Ending them would delete their tower and chat too. Recommend keeping it this way; App Review wants your data gone, and it is.
 - Show Tab Names on by default (recommended).
