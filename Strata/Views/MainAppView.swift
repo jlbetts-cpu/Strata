@@ -232,6 +232,10 @@ struct MainAppView: View {
     @State private var inlineOpening: AddWinOpening?
     /// Today's photos, several onto the tower at once (`QuickAddSheet`).
     @State private var quickAdding = false
+    /// The first cheer's words while its cue shows (`FirstCheer`), and
+    /// Activity opened from it.
+    @State private var firstCheer: String?
+    @State private var showsActivity = false
     /// The planned win whose camera is open, and the one being changed.
     @State private var capturingPlan: PlanItem?
     @State private var pickingPlan: PlanItem?
@@ -758,6 +762,7 @@ struct MainAppView: View {
                                 && winDraft == nil) { event in
             if event.phase == .ended { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
         }
+        .sheet(isPresented: $showsActivity) { ActivitySheet() }
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet { wins in
                 // One after another, so each lands as its own block.
@@ -1273,14 +1278,18 @@ struct MainAppView: View {
             let note = shownNote.flatMap { $0.headline == line ? $0 : nil }
             let teaches = line == DayOneHint.drawOut || line == PlannedHint.line || line == WinNote.hintLine || note != nil
             let photos = line == QuickAddCue.line
+            let cheer = line == FirstCheer.title
             TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title
                         : line == PlannedHint.line ? PlannedHint.title
                         : line == WinNote.hintLine ? WinNote.hintTitle : line,
-                    message: note?.detail ?? (photos ? QuickAddCue.detail : teaches ? line : WinCue.tapToAdd),
-                    mark: note != nil ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
+                    message: note?.detail ?? (cheer ? (firstCheer ?? "") : photos ? QuickAddCue.detail
+                                              : teaches ? line : WinCue.tapToAdd),
+                    mark: note != nil || cheer ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
                     onTap: teaches ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
-                        if photos { quickAdding = true } else { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
+                        if cheer { showsActivity = true }
+                        else if photos { quickAdding = true }
+                        else { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
                     },
                     close: { withAnimation(GridConstants.cueOut) { winCue = nil } })
                 .accessibilityHint(teaches ? "" : "Adds a win.")
@@ -1348,6 +1357,21 @@ struct MainAppView: View {
                     WinNote.markHintShown()
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = WinNote.hintLine }
                     try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
+                // **The first cheer**, once ever (`FirstCheer`).
+                if ringIsClear, let words = FirstCheer.due() {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    await Self.waitForLaunchToFinish()
+                    await Self.waitForRing()
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
+                    FirstCheer.markShown()
+                    firstCheer = words
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = FirstCheer.title }
+                    HapticsEngine.success()
+                    try? await Task.sleep(for: .seconds(12))
                     withAnimation(GridConstants.cueOut) { winCue = nil }
                     return
                 }

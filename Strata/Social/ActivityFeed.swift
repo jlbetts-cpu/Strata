@@ -238,3 +238,27 @@ extension SocialStore {
         }
     }
 }
+
+/// **The first cheer anyone ever gets, made to land** (the launch pass's
+/// ranked ideas, 2: "the first reaction someone ever gets ... the moment
+/// that brings a person back"). Once ever, on a clear tower: the earliest
+/// cheer in the week the feed keeps, who and on which win, and a tap opens
+/// Activity.
+@MainActor
+enum FirstCheer {
+    /// True whether or not it is the first they ever had: the feed looks back a
+    /// week, so the app cannot know, and a tester with cheers already must
+    /// not be told this is their first.
+    static let title = "You got a cheer"
+    private static let shownKey = "firstCheer.shown"
+
+    /// The words, when there is a first cheer to show and it has not been.
+    static func due() -> String? {
+        let store = SocialStore.shared
+        guard CrewsFlag.isOn, !UserDefaults.standard.bool(forKey: shownKey),
+              let item = store.activityFeed().last(where: { $0.kind == .reacted && !$0.id.hasPrefix("rp-") }) else { return nil }
+        return store.names(item.people, in: item.crewID) + " " + item.words + "."
+    }
+
+    static func markShown() { UserDefaults.standard.set(true, forKey: shownKey) }
+}
