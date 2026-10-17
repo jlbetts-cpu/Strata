@@ -292,7 +292,10 @@ final class SocialStore {
         let keyed = Dictionary(uniqueKeysWithValues: history.map { ($0.key.rawValue, $0.value) })
         if !keyed.isEmpty { try? JSONEncoder().encode(keyed).write(to: aside.appending(path: "history.json"), options: .atomic) }
         history = [:]
-        for name in ["outbox.json"] {
+        // The unsent lines, and the photographs they point at (the second
+        // reader, 2026-10-17): the outbox names its photos by file, and the
+        // wipe that follows deletes the folder they are in.
+        for name in ["outbox.json", "Photos"] {
             let from = directory.appending(path: name), to = aside.appending(path: name)
             guard FileManager.default.fileExists(atPath: from.path) else { continue }
             try? FileManager.default.removeItem(at: to)
@@ -319,9 +322,27 @@ final class SocialStore {
             let keyed = Dictionary(uniqueKeysWithValues: next.map { ($0.key.rawValue, $0.value) })
             try? JSONEncoder().encode(keyed).write(to: directory.appending(path: "history.json"), options: .atomic)
         }
-        if outbox.entries.isEmpty {
-            let kept = CrewOutbox.load(from: aside.appending(path: "outbox.json"))
-            if !kept.entries.isEmpty { outbox = kept; persistOutbox() }
+        // Photographs first, where the kept lines expect them; none written
+        // since is replaced.
+        let keptPhotos = aside.appending(path: "Photos")
+        if let crewsKept = try? FileManager.default.contentsOfDirectory(at: keptPhotos, includingPropertiesForKeys: nil) {
+            for crewFolder in crewsKept {
+                let into = directory.appending(path: "Photos/\(crewFolder.lastPathComponent)")
+                try? FileManager.default.createDirectory(at: into, withIntermediateDirectories: true)
+                for file in (try? FileManager.default.contentsOfDirectory(at: crewFolder, includingPropertiesForKeys: nil)) ?? [] {
+                    let target = into.appending(path: file.lastPathComponent)
+                    if !FileManager.default.fileExists(atPath: target.path) { try? FileManager.default.copyItem(at: file, to: target) }
+                }
+            }
+        }
+        // Merged, not skipped when lines were written since: a line queued
+        // now is newer than the same record's kept one, so it stays.
+        let kept = CrewOutbox.load(from: aside.appending(path: "outbox.json"))
+        if !kept.entries.isEmpty {
+            var merged = kept
+            for entry in outbox.entries { merged.put(entry) }
+            outbox = merged
+            persistOutbox()
         }
         try? FileManager.default.removeItem(at: aside)
     }

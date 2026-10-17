@@ -72,6 +72,30 @@ struct CrewLaunchTests {
         #expect(store.history[crew.id]?.days["2026-09-01"] != nil)
     }
 
+    /// The second reader, 2026-10-17: the outbox was set aside but the
+    /// photographs its lines point at were deleted with the folder.
+    @Test("signing out and back in keeps the photographs unsent lines point at")
+    func queuedPhotosSurviveSignOut() async throws {
+        let world = FakeCrewWorld()
+        let suite = "launch-\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appending(path: suite).appending(path: "crews")
+        let cloud = FakeCrewCloud(world: world, me: UUID())
+        let store = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        store.isEnabled = { true }
+        let (crew, _) = try await store.createCrew(name: "Roommates")
+        await store.refresh()
+        let folder = dir.appending(path: "Photos/\(crew.id.rawValue)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let photo = folder.appending(path: "crew-queued.jpg")
+        try Data([1, 2, 3]).write(to: photo)
+        cloud.signedIn = .signedOut
+        await store.accountChanged()
+        #expect(!FileManager.default.fileExists(atPath: photo.path), "the wipe did not run, so this proves nothing")
+        cloud.signedIn = .signedIn("fake-account")
+        await store.accountChanged()
+        #expect(FileManager.default.fileExists(atPath: photo.path), "a queued photograph was lost across sign-out")
+    }
+
     @Test("a phone that never saw an account shows nothing from the cache")
     func noAccountNoSeed() async throws {
         let world = FakeCrewWorld()
