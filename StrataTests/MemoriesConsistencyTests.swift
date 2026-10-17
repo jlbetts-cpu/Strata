@@ -161,8 +161,11 @@ struct MemoriesConsistencyTests {
         // the crew's Heads switch went.
         // Twelve since later that day: Let My Head Onto the Tower went too
         // (the owner: "no need to have the option of letting head on tower").
-        #expect(rowTints.count == 12,
-                "there are \(rowTints.count) switches in the app and there were 12; a new one needs the token too")
+        // Fifteen since 2026-10-17: Show Tab Names and Quick Post (the
+        // launch pass, both off, his call in the morning) and Add Wins with
+        // the Camera (on, his ask). All three wear the token.
+        #expect(rowTints.count == 15,
+                "there are \(rowTints.count) switches in the app and there were 15; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
@@ -358,7 +361,9 @@ struct MemoriesConsistencyTests {
             "DaySheet.swift": "the emoji disc is `glassCircle(onPage:)`, as `GlassIconButton` is; the CrewReactions reason (2026-10-06 audit)",
             "MakeYourHead.swift": "the pill is `glassCapsule(onPage:)`, interactive glass; the CrewReactions reason (2026-10-11)",
             "GoalRing.swift": "the goal's caption is `CrestCaption`, the crew name's own `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06)",
-            "FriendProfileSheet.swift": "Message is `glassCapsule(onPage:)`, interactive glass; the CrewReactions reason (2026-10-16)"
+            "FriendProfileSheet.swift": "Message is `glassCapsule(onPage:)`, interactive glass; the CrewReactions reason (2026-10-16)",
+            "PersonPage.swift": "Watch their story is `glassCapsule(onPage:)`, interactive glass; the CrewReactions reason (2026-10-16)",
+            "InlineCamera.swift": "every label is interactive glass (`inlineGlass`, `glassCapsule`); the CrewReactions reason (2026-10-17)"
         ]
         let unexplained = Self.hits(".buttonStyle(.plain)").filter { hit in
             !exempt.keys.contains { hit.hasPrefix($0 + ":") }

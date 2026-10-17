@@ -77,5 +77,13 @@ Found and fixed:
 11. A person's page skipped the crews gate: it goes through it.
 Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs a withdraw path); the duplicate-merge fix has no end-to-end test (it needs the shared store's save notifications). Checked sound: no schema change, no new server, blocked people unreachable, no presence or read receipts.
 
+## 4. Friends from contacts: researched, not built
+- Apple's own route, CloudKit user discoverability (find iCloud users by email or phone in your contacts), was deprecated in iOS 17 and returns nothing for new apps. (a: CKContainer discoverAllIdentities / userDiscoverability deprecation)
+- Every other route means sending your contacts' numbers or hashes off the phone to be matched: a server, or the shared crew database, both of which the brief rules out. Hashed phone numbers are reversible by brute force (the number space is small), so hashing is not privacy. (a: published attacks on hashed contact discovery; c)
+- So there is no switch to flip. Recommend: keep invites as links sent from Messages (the preview card is already there), and make the invite itself the friend request. An App Clip so a link opens straight into joining is still the best next step (`docs/invites-research-2026-10-13.md`).
+
+## The drop moment
+- Checked, not changed: a block lands with its own sound, haptic and settle every time, and the inline camera hands it over while the card folds back into the slot it is falling toward. (c)
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).

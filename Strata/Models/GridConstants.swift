@@ -539,6 +539,25 @@ enum GridConstants {
     /// the time your eye has moved to it.
     static let mapFade = Animation.easeOut(duration: 0.3)
 
+    // MARK: The inline camera card (2026-10-17)
+
+    /// **The card opening out of what you tapped.** One soft spring and
+    /// nothing else: no fade on the window, no second stage. A little bounce,
+    /// as the system's own sheets and the Dynamic Island settle, because the
+    /// card is a thing arriving; a quarter of what `bouncy` gives, because it
+    /// is the moment people see most and it must never wobble.
+    static var cardOpen: Animation { calm(.spring(duration: 0.42, bounce: 0.12)) }
+    /// Back into the slot: the same path, no bounce, a touch quicker. A thing
+    /// put away does not overshoot where it goes.
+    static var cardClose: Animation { calm(.spring(duration: 0.34, bounce: 0)) }
+    /// The card's face over the slot, in over the first third of the open, so
+    /// the morph never looks washed out midway.
+    static let cardFaceIn = Animation.easeOut(duration: 0.14)
+    /// And out over the last of the close, so what reaches the slot is the
+    /// slot and not a tiny picture that then vanishes.
+    static let cardFaceOut = Animation.easeIn(duration: 0.16).delay(0.14)
+
+
     // **`progressFill` (0.25 / 0.70) and `cascadeReveal` (0.50 / 0.65) are
     // deleted** (2026-10-01), zero call sites each.
     //

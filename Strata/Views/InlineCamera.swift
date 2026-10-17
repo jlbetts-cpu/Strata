@@ -604,7 +604,7 @@ struct InlineCameraCard: View {
         } else {
             naming = true
         }
-        withAnimation(.easeOut(duration: 0.14)) { shown = true }
+        withAnimation(GridConstants.cardFaceIn) { shown = true }
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) { open = true }
     }
 
@@ -672,7 +672,7 @@ struct InlineCameraCard: View {
         if case .drop = result { done(result) }
         // The face dissolves over the last of the way, so what reaches the
         // slot is the slot and not a tiny picture that then vanishes.
-        withAnimation(.easeIn(duration: 0.16).delay(0.14)) { shown = false }
+        withAnimation(GridConstants.cardFaceOut) { shown = false }
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardClose) {
             open = false
             drag = 0
@@ -719,18 +719,4 @@ private extension View {
                 .environment(\.colorScheme, .dark)
         }
     }
-}
-
-// MARK: - Motion
-
-extension GridConstants {
-    /// **The card opening out of what you tapped.** One soft spring and
-    /// nothing else: no fade on the window, no second stage. A little bounce,
-    /// as the system's own sheets and the Dynamic Island settle, because the
-    /// card is a thing arriving; a quarter of what `bouncy` gives, because it
-    /// is the moment people see most and it must never wobble.
-    static var cardOpen: Animation { calm(.spring(duration: 0.42, bounce: 0.12)) }
-    /// Back into the slot: the same path, no bounce, a touch quicker. A thing
-    /// put away does not overshoot where it goes.
-    static var cardClose: Animation { calm(.spring(duration: 0.34, bounce: 0)) }
 }

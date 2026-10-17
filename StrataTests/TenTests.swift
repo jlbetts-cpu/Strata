@@ -29,7 +29,9 @@ struct TenTests {
         #expect(try code("Strata/Views/TipJarViews.swift").contains("QuietWord(TipJar.Copy.notNow)"))
         #expect(try code("Strata/Views/OnboardingFilm.swift").contains("QuietWord(\"Skip\""))
         let list = try code("Strata/Views/Crews/CrewsListView.swift")
-        #expect(list.components(separatedBy: "NewsDot(").count - 1 == 2)
+        // Three since 2026-10-16: the Crews corner became Activity (the
+        // add-on brief), and its quiet dot is the same `NewsDot`.
+        #expect(list.components(separatedBy: "NewsDot(").count - 1 == 3)
         // The chat's dot moved from the crew screen's corner button to the
         // drawer's resting line (2026-10-14, `ChatRestBar`): still the one dot.
         #expect(try code("Strata/Views/Crews/ChatRestBar.swift").contains("NewsDot()"))
