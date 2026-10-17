@@ -60,7 +60,7 @@ struct PersonPage: View {
         Group {
             if let member, let shared {
                 FriendProfileSheet(member: member, crewID: shared, embedded: true,
-                                   story: story.map { tonight in (fresh: !tonight.watched, open: { watching = true }) },
+                                   story: story.map { tonight in (fresh: !tonight.watched, open: { TodayHeads.still { watching = true } }) },
                                    storyTonight: storyTonight)
                     .pinnedFoot { foot }
             } else {
@@ -120,9 +120,13 @@ struct PersonPage: View {
             if let story {
                 // Their head in their story opens their profile, as it does
                 // from the row; here the profile is under it (the stories
-                // standard, layers: one way back, always the same).
-                StoryViewer(people: [story], start: story.profileID, onClose: { watching = false },
-                            onProfile: { _, _ in watching = false })
+                // standard, layers: one way back, always the same). Out of
+                // the ring on their head and back into it, as from the row.
+                StoryViewer(people: [story], start: story.profileID,
+                            onClose: { TodayHeads.still { watching = false } },
+                            onProfile: { _, _ in watching = false },
+                            ring: { _ in StoryRings.profileHead })
+                    .presentationBackground(.clear)
             }
         }
         .alert("That didn't start", isPresented: $failed) {

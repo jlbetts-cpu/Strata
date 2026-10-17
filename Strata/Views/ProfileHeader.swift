@@ -212,6 +212,9 @@ struct ProfileTop: View {
                                           lineWidth: story.fresh ? 2.5 : GridConstants.strokeThin)
                     }
                     .contentShape(Circle())
+                    // Where the ring stands, for their story to grow out of
+                    // and go back into (`StoryRings`).
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { StoryRings.profileHead = $0 }
             }
             .buttonStyle(.press)
             .accessibilityLabel(story.fresh ? "Watch \(name)'s story" : "Watch \(name)'s story again")

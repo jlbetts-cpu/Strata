@@ -121,6 +121,11 @@ final class StoryStandardTests: XCTestCase {
     func testAHoldOfEightSecondsKeepsThePage() {
         let app = night()
         let card = openFirstStory(app)
+        // On and back: page 1 starts again with its whole five seconds, so
+        // the press never begins as a page is turning (a full run under load
+        // once pressed into the last moment of one, 2026-10-18).
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).tap()
         let before = where_(app)
         card.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)).press(forDuration: 8)
         let after = where_(app)

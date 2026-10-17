@@ -216,6 +216,30 @@ final class FeedbackShots: XCTestCase {
         snap("ring-end")
     }
 
+    /// The same from a person's page: out of the ring on their head (2026-10-18).
+    func testProfileStoryRingMotion() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedStories", "3", "-strataStoryHour", "21", "-strataStorySeen", "1"])
+        let head = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
+        XCTAssertTrue(head.waitForExistence(timeout: 30))
+        head.tap()
+        wait(2.5)
+        if !app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, '")).firstMatch.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            wait(1.5)
+        }
+        // Their name: their page.
+        app.buttons.matching(NSPredicate(format: "label == 'Ana'")).firstMatch.tap()
+        wait(3)
+        FileManager.default.createFile(atPath: "/tmp/claude-501/overnight/motion-go", contents: nil)
+        wait(1)
+        app.buttons.matching(NSPredicate(format: "label == 'Ana'")).firstMatch.tap()
+        wait(2.5)
+        app.buttons["Close story"].firstMatch.tap()
+        wait(2)
+        snap("profile-ring-end")
+    }
+
     /// The system sheet opening, filmed the same way, to calibrate the film.
     func testSheetMotion() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCameraFirst", "0"])

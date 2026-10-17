@@ -920,10 +920,14 @@ private struct StoryReplyBar: View {
                     // reply is one line; the chat keeps Return for lines.
                     .onChange(of: text) { before, typed in
                         guard typed.contains("\n") else { return }
-                        // The key itself: one new line, at the end, added to
-                        // what was there. A paste with lines in it is joined
-                        // and waits for Send (the second reader, 2026-10-18).
-                        let pressed = typed == before + "\n"
+                        // The key itself: one new line, at the end, where
+                        // there was none. Not "what was there plus a line":
+                        // autocorrect finishes the last word in the same
+                        // change as the key (seen, "thoug" to "though\n"),
+                        // and that press went unsent. A paste with lines in
+                        // it is joined and waits for Send (the second reader,
+                        // 2026-10-18).
+                        let pressed = StoryReplyKey.isSend(before: before, typed: typed)
                         text = typed.replacingOccurrences(of: "\n", with: " ")
                             .trimmingCharacters(in: .whitespaces)
                         if pressed { send() }
@@ -1449,5 +1453,21 @@ struct StoryArtImage: View {
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: image)
+    }
+}
+
+/// **Where a story's ring stands, outside the row** (a person's page): the
+/// head that was tapped, so their story grows out of it and goes back.
+@MainActor
+enum StoryRings {
+    static var profileHead: CGRect?
+}
+
+/// **The Send key, told from a paste** (`StoryReplyBar`): one new line at the
+/// end where there was none is the key, whatever autocorrect did to the last
+/// word in the same change; lines inside the words are a paste.
+enum StoryReplyKey {
+    static func isSend(before: String, typed: String) -> Bool {
+        typed.filter { $0 == "\n" }.count == 1 && typed.hasSuffix("\n") && !before.contains("\n")
     }
 }
