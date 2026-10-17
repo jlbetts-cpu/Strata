@@ -38,5 +38,12 @@ Tags: (a) research, (b) seen in a shipping app, (c) my inference.
 - Crews top-left is Activity: reactions and replies to your wins and story, messages, plans, someone joining, grouped, newest first, a quiet dot, no counts.
 - One planner on Wins: share the next line with a crew; shared lines say "With Roommates". Crew plans you joined were already lines of your plan, so none moved or were lost.
 
+## Intentional drawing on the tower
+- The accident was real and measurable: the slot's drag started on touch down, so a swipe up the tower that began on the slot drew a Deep block and logged it on release. (c, read in code)
+- Now three beats: rest 0.35s to arm (UIKit's long press, which hands a moving finger to the scroll, as the crew block hold already does), drag to preview with soft ticks, rest 0.45s at one size to lock (the edge fills round in the block's colour, two faint ticks, a firm one at the lock). Let go early and it springs back, nothing logged.
+- Why those lengths: the system long press is 0.5s (a: UIKit `minimumPressDuration` default); Android lowered its own to 0.4s to feel faster (a: AOSP ViewConfiguration commit). Arm plus lock is 0.8s for a Quick, under the one-second limit where an action stops feeling continuous (a: Nielsen's response-time limits). The arm matches the crew hold so one finger learns one length. (c)
+- Walk `testOnlyAHeldSlotLogs`: a swipe over the slot, a drag let go early, and a rest let go early log nothing; the same hold kept still logs one, so the test can fail.
+- Found while testing: a busy main thread can squeeze a synthetic rest, and the hold rightly refuses to arm. Real fingers are not squeezed; the walks rest a full second.
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).
