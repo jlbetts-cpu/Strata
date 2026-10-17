@@ -63,7 +63,14 @@ struct ShutterBlock: View {
     @ViewBuilder
     private var rim: some View {
         if #available(iOS 26.0, *) {
-            Color.clear.glassEffect(.regular, in: shape)
+            // **Glass that reads as glass on black** (the owner's launch
+            // pass, 2: "the Liquid Glass shutter looks like mud. It isn't
+            // see-through or light"). Regular glass over the camera's black
+            // band has nothing behind it to bend and goes grey; Apple's own
+            // controls over dark content are the clear variant, lit from
+            // inside. Clear, with a faint white in it, catches the light at
+            // its edge the way theirs does.
+            Color.clear.glassEffect(.clear.tint(.white.opacity(0.22)).interactive(), in: shape)
         } else {
             shape.fill(.ultraThinMaterial)
         }

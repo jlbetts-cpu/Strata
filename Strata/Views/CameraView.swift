@@ -115,6 +115,10 @@ struct CameraView: View {
     @State private var marking: PhotoMarksSheet.Opening?
     /// The looks, in the tools' place while they are being chosen.
     @State private var choosingLook = false
+    /// The shutter's one-line lesson is showing (`drawCueKey`).
+    @State private var drawCue = false
+    static let drawCueKey = "camera.drawCueShown"
+    static let drawTaughtKey = "camera.drawTaught"
     @State private var shutterDown = false
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
@@ -1864,6 +1868,37 @@ struct CameraView: View {
         // to the one control that was missing it. On black it costs nothing,
         // because a 42% black blur on black is black.
         .legibleOnImagery()
+        // **What it does, said once, small, where it is** (the owner's launch
+        // pass, 2: "a person can't tell ... that you can draw a block out of it
+        // for size. Add the smallest possible cue that teaches it, in the
+        // moment, once"). Over the shutter on the first few visits, until
+        // a block has been drawn out once.
+        .overlay(alignment: .top) {
+            if drawCue {
+                Text("Drag out for a bigger block")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(.white)
+                    .fixedSize()
+                    .legibleOnImagery()
+                    .offset(y: -30)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            let seen = UserDefaults.standard.integer(forKey: Self.drawCueKey)
+            guard seen < 3, !UserDefaults.standard.bool(forKey: Self.drawTaughtKey) else { return }
+            UserDefaults.standard.set(seen + 1, forKey: Self.drawCueKey)
+            try? await Task.sleep(for: .seconds(1))
+            withAnimation(GridConstants.crossFade) { drawCue = true }
+            try? await Task.sleep(for: .seconds(5))
+            withAnimation(GridConstants.crossFade) { drawCue = false }
+        }
+        .onChange(of: drawnSize) { _, size in
+            guard size != .small else { return }
+            UserDefaults.standard.set(true, forKey: Self.drawTaughtKey)
+            withAnimation(GridConstants.crossFade) { drawCue = false }
+        }
         .contentShape(block.shape)
         .gesture(draw, isEnabled: !camera.isDenied)
         .accessibilityLabel("Take photo")

@@ -2359,8 +2359,9 @@ final class FeedbackShots: XCTestCase {
 
     /// The black bar over the camera and the way back (2026-10-16 prototype).
     func testCameraBar() {
-        var app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3"])
-        wait(6); snap("bar-0-camera")
+        var app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3", "-camera.drawCueShown", "0", "-camera.drawTaught", "NO"])
+        wait(3); snap("bar-0a-cue")
+        wait(3); snap("bar-0-camera")
         app.tabBars.buttons["Wins"].firstMatch.tap()
         snap("bar-1-leaving")
         wait(0.25); snap("bar-2-left")
