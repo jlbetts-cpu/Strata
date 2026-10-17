@@ -164,8 +164,10 @@ struct MemoriesConsistencyTests {
         // Fifteen since 2026-10-17: Show Tab Names and Quick Post (the
         // launch pass, both off, his call in the morning) and Add Wins with
         // the Camera (on, his ask). All three wear the token.
-        #expect(rowTints.count == 15,
-                "there are \(rowTints.count) switches in the app and there were 15; a new one needs the token too")
+        // Seventeen since later that night: Show the Camera Tab (on) and
+        // Keep Friends' Chat Photos (off, his call). Both wear the token.
+        #expect(rowTints.count == 17,
+                "there are \(rowTints.count) switches in the app and there were 17; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**

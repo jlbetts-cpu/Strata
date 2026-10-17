@@ -2785,6 +2785,8 @@ struct MainAppView: View {
                 try? await Task.sleep(for: .milliseconds(80))
                 winDraft = draft
             }
+        case .send?:
+            break
         case .drop(let win)?:
             logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
                    undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,

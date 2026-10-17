@@ -1499,6 +1499,18 @@ final class SocialStore {
     /// only once this phone's own photo check has passed it, as a friend's
     /// photo is. The cloud may still hold yesterday's until each writer's
     /// phone deletes its own; none of it is ever shown.
+    /// **A photo in a chat is for the moment** (the owner, 2026-10-17:
+    /// "These photos are mostly for the moment. They disappear after 24
+    /// hours"). A photograph sent in a conversation leaves a day after it was
+    /// sent; a sticker, a strip and words keep as the conversation does.
+    /// Keep one by holding it: save it to Photos, or add it as a win.
+    static let photoLasts: TimeInterval = 24 * 3600
+
+    nonisolated static func photoHasGone(_ message: CrewMessage, at now: Date) -> Bool {
+        message.isPicture && !message.isSticker && !message.isStrip
+            && now.timeIntervalSince(message.createdAt) > photoLasts
+    }
+
     func messages(in crewID: CrewID) -> [CrewMessage] {
         guard let crew = crew(crewID) else { return [] }
         let today = CrewDay.string(for: now(), in: crew.timeZone)
@@ -1515,6 +1527,7 @@ final class SocialStore {
                 // reads this list (the chat, its dot, its alerts, a line's
                 // reactions) ever meets one. Nothing shows them any more.
                 !message.isToss
+                    && !(crew.isPersonal && Self.photoHasGone(message, at: now()))
                     && message.crewDay >= oldest && message.crewDay <= today && people.contains(message.senderProfileID)
                     && !blocked.contains(message.senderProfileID)
                     // Hidden for you (`hide`): a line's id shares the set a
@@ -2662,9 +2675,14 @@ final class SocialStore {
             // its own lines (only a record's writer may), doodle and all;
             // anyone else's leave this phone's list, and no screen shows
             // another day's line before then (`messages(in:)`).
-            let ended = (messagesByCrew[crew.id] ?? []).filter { $0.crewDay < lineCutoff }
+            // A photograph in a conversation is for the moment: a day, then
+            // gone (`photoHasGone`), though its words keep two weeks.
+            let gone: (CrewMessage) -> Bool = { message in
+                message.crewDay < lineCutoff || (crew.isPersonal && Self.photoHasGone(message, at: self.now()))
+            }
+            let ended = (messagesByCrew[crew.id] ?? []).filter(gone)
             if !ended.isEmpty {
-                messagesByCrew[crew.id]?.removeAll { $0.crewDay < lineCutoff }
+                messagesByCrew[crew.id]?.removeAll(where: gone)
                 for message in ended where message.senderProfileID == me {
                     if let sketch = message.sketch { try? FileManager.default.removeItem(at: sketch) }
                     enqueue(.init(crew: crew.id, type: .message, name: CrewRecords.name(of: message), fields: nil))

@@ -160,6 +160,8 @@ struct DroppedWin {
 enum InlineCameraResult {
     /// Drop it onto the tower.
     case drop(DroppedWin)
+    /// Send it in a chat (`InlineCameraCard.Purpose.send`).
+    case send(UIImage)
     /// Everything else: the full sheet, holding whatever the card had.
     case sheet(WinDraft)
 }
@@ -183,6 +185,13 @@ enum InlineCameraResult {
 /// both end the same way: a name if you want one, and Drop.
 struct InlineCameraCard: View {
     let opening: AddWinOpening
+    /// **One camera, two jobs** (the owner, 2026-10-17): a win, or a photo
+    /// sent in a chat, snapped and sent in a second.
+    enum Purpose { case win, send }
+    var purpose: Purpose = .win
+    /// Standing on the tab bar (the tower); off, on the screen's own foot
+    /// (a chat in a sheet, where there is no bar).
+    var standsOnBar = true
     let done: (InlineCameraResult?) -> Void
 
     private enum Mode: Equatable { case lens, shot, words }
@@ -253,8 +262,13 @@ struct InlineCameraCard: View {
 
     var body: some View {
         GeometryReader { geo in
-            let target = cardFrame(in: geo)
-            let frame = open ? target : opening.from
+            // In the window's space, whatever this is laid out in: at the root
+            // the two agree, and in a sheet the sheet's top is moved down.
+            let origin = CGPoint(x: geo.frame(in: .global).minX - geo.safeAreaInsets.leading,
+                                 y: geo.frame(in: .global).minY - geo.safeAreaInsets.top)
+            let target = cardFrame(in: geo, origin: origin)
+            let from = opening.from.offsetBy(dx: -origin.x, dy: -origin.y)
+            let frame = open ? target : from
             // **The slot, growing into the card**, as Photos grows a photo out
             // of its thumbnail: the card's face is scaled to cover the window
             // (aspect fill, never stretched) and the window's rounded edge is
@@ -265,7 +279,7 @@ struct InlineCameraCard: View {
                 // Not the tab bar, which stays as it is under the card.
                 VStack(spacing: 0) {
                     Color.black.opacity(open ? 0.22 : 0)
-                        .frame(height: barTop.map { max($0 - 4, 0) })
+                        .frame(height: barTop.map { max($0 - origin.y - 4, 0) })
                         .contentShape(Rectangle())
                         .onTapGesture { close() }
                     if barTop != nil { Spacer(minLength: 0).allowsHitTesting(false) }
@@ -311,14 +325,15 @@ struct InlineCameraCard: View {
     /// photograph's 3:4. The win's details and the words: the whole height
     /// from under the status bar to the tab bar, so nothing is cramped.
     /// Never taller than the room above the keyboard.
-    private func cardFrame(in geo: GeometryProxy) -> CGRect {
+    private func cardFrame(in geo: GeometryProxy, origin: CGPoint) -> CGRect {
         let inset = geo.safeAreaInsets
         let margin = GridConstants.gapTight
         let width = geo.size.width - margin * 2
         // On the tab bar, or above the keyboard when that is higher.
-        let floor = min(inset.top + geo.size.height, barTop ?? .infinity) - margin
+        let floor = min(inset.top + geo.size.height, barTop.map { $0 - origin.y } ?? .infinity) - margin
         let room = floor - inset.top - GridConstants.gapItem * 2
-        let height = mode == .lens ? min(width * 4 / 3, room) : max(room, 0)
+        let tall = purpose == .win && mode != .lens
+        let height = tall ? max(room, 0) : min(width * 4 / 3, room)
         return CGRect(x: margin, y: floor - height, width: width, height: height)
     }
 
@@ -351,6 +366,9 @@ struct InlineCameraCard: View {
             }
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .dark)
+        case .shot where purpose == .send:
+            sendPage(size: size)
+                .environment(\.colorScheme, .dark)
         case .shot, .words:
             ZStack {
                 WarmBackground()
@@ -414,7 +432,7 @@ struct InlineCameraCard: View {
             HStack(spacing: GridConstants.gapTight) {
                 glassGlyph("xmark", label: "Close") { close() }
                 Spacer(minLength: 0)
-                pill("Just Words", systemImage: "textformat") { toWords() }
+                if purpose == .win { pill("Just Words", systemImage: "textformat") { toWords() } }
                 extras
             }
             Spacer(minLength: 0)
@@ -467,7 +485,9 @@ struct InlineCameraCard: View {
             }))
             Divider()
             Button("Choose a Photo", systemImage: "photo.on.rectangle") { picking = true }
-            Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
+            if purpose == .win {
+                Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
+            }
         } label: {
             glyphFace(camera.timerSeconds > 0 ? "timer" : "ellipsis")
         }
@@ -617,6 +637,53 @@ struct InlineCameraCard: View {
                 camera.stop()
             } }
         }
+    }
+
+    // MARK: Sending
+
+    /// **Snapped, then sent** (the owner, 2026-10-17: "Snap and send in a
+    /// second"): the photograph, whole, and two things to do with it.
+    private func sendPage(size: CGSize) -> some View {
+        ZStack {
+            Color.black
+            if let shot {
+                Image(uiImage: shot)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .accessibilityLabel("Your photo")
+            }
+            VStack {
+                HStack {
+                    glassGlyph("xmark", label: "Close") { close() }
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+                HStack {
+                    glassGlyph("arrow.counterclockwise", label: "Retake") { backToLens() }
+                    Spacer(minLength: 0)
+                    Button {
+                        guard let shot else { return }
+                        HapticsEngine.snap()
+                        leave(with: .send(shot))
+                    } label: {
+                        Label("Send", systemImage: "arrow.up")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, GridConstants.gapWide)
+                            .frame(minHeight: 44)
+                            .background(Capsule().fill(.white))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel("Send it")
+                }
+            }
+            .padding(GridConstants.gapItem)
+            .opacity(open ? 1 : 0)
+        }
+        .frame(width: size.width, height: size.height)
     }
 
     // MARK: The page: after the shot, and words
@@ -919,6 +986,7 @@ struct InlineCameraCard: View {
 
     private func arrive() {
         opened = CACurrentMediaTime()
+        if !standsOnBar { barTop = nil }
         recipients = opening.crews ?? CrewChoice.load()
         colour = opening.colour
         HapticsEngine.lightTap()
@@ -1050,7 +1118,8 @@ struct InlineCameraCard: View {
         countdownTask?.cancel()
         // A drop hands over at once, so the block is already falling while
         // the card folds back into the slot it is falling toward.
-        if case .drop = result { done(result) }
+        let handsOver: Bool = { switch result { case .drop?, .send?: true; default: false } }()
+        if handsOver { done(result) }
         withAnimation(GridConstants.cardFaceOut) { shown = false }
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardClose) {
             open = false
@@ -1059,7 +1128,7 @@ struct InlineCameraCard: View {
             // Stopped after the motion, not at its start (filmed, 2026-10-17).
             camera.stop()
             LocationService.shared.stop()
-            if case .drop = result { done(nil) } else { done(result) }
+            if handsOver { done(nil) } else { done(result) }
         }
     }
 

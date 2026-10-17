@@ -31,6 +31,7 @@ struct SettingsView: View {
     @AppStorage(QuickPost.key) private var quickPost = false
     @AppStorage(CameraFirst.key) private var cameraFirst = true
     @AppStorage(CameraTab.key) private var cameraTabShown = true
+    @AppStorage(KeepFriendsPhotos.key) private var keepFriendsPhotos = false
     @AppStorage(TabNames.key) private var tabNamesShown = true
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
@@ -434,6 +435,17 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "camera.viewfinder")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+
+                // A friend's chat photo can be kept (`KeepFriendsPhotos`).
+                Toggle(isOn: $keepFriendsPhotos) {
+                    Label {
+                        Text("Keep Friends' Chat Photos")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.and.arrow.down")
                     }
                 }
                 .tint(AppColors.switchTrack)

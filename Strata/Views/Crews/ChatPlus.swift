@@ -18,7 +18,7 @@ import SwiftUI
 /// in what order and in what words, is still decided here.
 enum ChatPlusRow {
     enum Choice: String, CaseIterable, Identifiable {
-        case win, photo, plan, sticker, strip
+        case win, camera, photo, plan, sticker, strip
         /// **Sticker's place for someone who may not send photos**: a
         /// sticker is lifted out of a photograph, so their row says what it
         /// opens, the doodle pad, rather than "Sticker" opening it.
@@ -39,10 +39,14 @@ enum ChatPlusRow {
         /// **Photo, second** (2026-10-15, the owner: "has all the components
         /// needed to be a successful chat"): every chat people use leads its
         /// + with a photo, and this one had no way to send one.
-        static let offered: [Choice] = [.win, .photo, .plan, .sticker, .strip]
+        ///
+        /// **Snap and send, first among the photos** (the owner, 2026-10-17:
+        /// "Add the inline camera to chats ... Snap and send in a second"):
+        /// the app's camera card, in the chat, ahead of the library.
+        static let offered: [Choice] = [.win, .camera, .photo, .plan, .sticker, .strip]
         /// **To one person** (2026-10-16): a message, not the crew's tower, so
         /// no Win and no Plan; a photo, a sticker, a strip.
-        static let direct: [Choice] = [.photo, .sticker, .strip]
+        static let direct: [Choice] = [.camera, .photo, .sticker, .strip]
         static let directWithoutPhotos: [Choice] = [.doodle]
         /// Strip is photographs, and so is a sticker: not offered to
         /// someone who may not send one.
@@ -51,6 +55,7 @@ enum ChatPlusRow {
         var word: String {
             switch self {
             case .win: "Win"
+            case .camera: "Camera"
             case .photo: "Photo"
             case .plan: "Plan"
             case .sticker: "Sticker"
@@ -67,6 +72,7 @@ enum ChatPlusRow {
         var symbol: String {
             switch self {
             case .win: "square.stack.3d.up"
+            case .camera: "camera"
             case .photo: "photo"
             case .plan: "checklist"
             case .sticker: ""
@@ -80,6 +86,7 @@ enum ChatPlusRow {
         var menuWord: String {
             switch self {
             case .win: "Add a Win"
+            case .camera: "Take a Photo"
             case .photo: "Send a Photo"
             case .plan: "Make a Plan"
             case .sticker: "Send a Sticker"
@@ -92,6 +99,7 @@ enum ChatPlusRow {
         var spoken: String {
             switch self {
             case .win: "Add a win to this crew"
+            case .camera: "Snap a photo and send it"
             case .photo: "Send a photo"
             case .plan: "Plan something with this crew"
             case .sticker: "Send a sticker or a doodle"

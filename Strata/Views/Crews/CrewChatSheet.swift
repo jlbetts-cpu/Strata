@@ -104,6 +104,8 @@ struct CrewChatSheet: View {
     @State private var profileOf: CrewMember?
     /// What the + menu's things open (`ChatPlusMenu`).
     @State private var pickingPhoto = false
+    /// The camera card, open in the chat (`ChatPlusRow.Choice.camera`).
+    @State private var snapping: AddWinOpening?
     @State private var pickedPhoto: PhotosPickerItem?
     /// A photo on its way: one at a time (a second pick while the first is
     /// checked and sent would send it twice).
@@ -119,6 +121,8 @@ struct CrewChatSheet: View {
     /// **Add a Win, over the chat** (the plus row's Win, and the empty
     /// strip's way forward). The chat stays open underneath.
     @State private var addingWin = false
+    /// A chat photo being kept as a win (`ChatPictureViewer.onAddWin`).
+    @State private var addingWinPhoto: UIImage?
     /// A sticker just lifted out of a photo: shown chosen in the grid, and
     /// sent only by a tap on it (the research, section 3, item 3: it sent on
     /// the lift, a sticker nobody had seen yet).
@@ -234,6 +238,21 @@ struct CrewChatSheet: View {
                     guard !presenting, returnToChat else { return }
                     returnToChat = false
                     reopen?()
+                }
+            }
+            // **Take a Photo**: the app's camera card, here in the chat,
+            // standing on its foot; snapped and sent through the same photo
+            // check as every crew photo (the owner, 2026-10-17).
+            .overlay {
+                if let opening = snapping {
+                    InlineCameraCard(opening: opening, purpose: .send, standsOnBar: false) { result in
+                        switch result {
+                        case .send(let image)?: sendSnap(image)
+                        case nil: snapping = nil
+                        default: snapping = nil
+                        }
+                    }
+                    .id(opening.id)
                 }
             }
             // **Send a Photo**: from the library, shrunk as every crew photo
@@ -466,8 +485,10 @@ struct CrewChatSheet: View {
             }
         }
         .sheet(isPresented: $addingWin) {
-            AddWinSheet(modelContext: modelContext, tower: activeTower, initialCrews: [crewID],
+            AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,
+                        initialCrews: [crewID],
                         onSaved: { habit in sayWin(habit) })
+                .onDisappear { addingWinPhoto = nil }
         }
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: store.crew(crewID)?.displayName(excluding: store.me) ?? "") { drawing in
@@ -496,6 +517,11 @@ struct CrewChatSheet: View {
                               onReport: {
                                   viewingPicture = nil
                                   afterSheet { reporting = message }
+                              },
+                              onAddWin: { image in
+                                  viewingPicture = nil
+                                  addingWinPhoto = image
+                                  afterSheet { addingWin = true }
                               })
         }
         .fullScreenCover(item: $planStrip) { plan in
@@ -1556,10 +1582,28 @@ struct CrewChatSheet: View {
             || profileOf != nil
     }
 
+
+    /// A photograph from the chat's camera, sent as Send a Photo sends one.
+    private func sendSnap(_ image: UIImage) {
+        guard !sendingPhoto else { return }
+        sendingPhoto = true
+        Task {
+            defer { sendingPhoto = false }
+            guard let data = image.jpegData(compressionQuality: 0.9),
+                  let jpeg = ShareDerivative.jpeg(from: data) else { pictureRefused = true; return }
+            switch await store.sendPicture(jpeg, caption: "", in: crewID) {
+            case .refusedSketch, .notAllowed, .refusedWords: pictureRefused = true
+            case let other: answer(other)
+            }
+        }
+    }
+
     private func open(_ choice: ChatPlusRow.Choice) {
         switch choice {
         // Over the chat, which stays open: the win lands here as a line.
         case .win: addingWin = true
+        case .camera: snapping = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                               colour: .unlabeled, crews: [crewID])
         case .photo: pickingPhoto = true
         case .plan: planning = true
         case .strip: showsStrip = true

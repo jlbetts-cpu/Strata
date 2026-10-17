@@ -14,6 +14,15 @@ import SwiftUI
 /// into a crew is always the sender's own (`StripStory.share` offers crews
 /// only for your own strip), so nobody's photos leave in someone else's
 /// hands.
+/// **Keeping a friend's photo, while it is a switch** (the owner,
+/// 2026-10-17: "Hold a photo to keep it: save it to Photos, or add it as a
+/// win on your tower"). Your own photos keep either way; a friend's was
+/// theirs to keep, so keeping one waits on his call. See the camera log.
+enum KeepFriendsPhotos {
+    static let key = "keepFriendsPhotos"
+    static var on: Bool { UserDefaults.standard.bool(forKey: key) }
+}
+
 struct ChatPictureViewer: View {
     let message: CrewMessage
     /// "You" or the friend's short name.
@@ -23,6 +32,8 @@ struct ChatPictureViewer: View {
     let onClose: () -> Void
     var onHeart: () -> Void = {}
     var onReport: () -> Void = {}
+    /// Make it a win on your tower: the chat's Add a Win, holding it.
+    var onAddWin: ((UIImage) -> Void)? = nil
 
     @State private var image: UIImage?
     @State private var zoomed = false
@@ -114,12 +125,23 @@ struct ChatPictureViewer: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
+            }
+            // **Keep it** (2026-10-17): a chat's photo leaves after a day,
+            // so the ways to keep it stand here. Yours always; a friend's
+            // only while `KeepFriendsPhotos` is on.
+            if mine || KeepFriendsPhotos.on {
                 Button { save() } label: {
                     Label(saved ? "Saved to Photos" : "Save to Photos",
                           systemImage: saved ? "checkmark" : "square.and.arrow.down")
                 }
                 .disabled(image == nil || saving || saved)
-            } else {
+                if let onAddWin, let image, !message.isStrip {
+                    Button { onAddWin(image) } label: {
+                        Label("Add to My Tower", systemImage: "square.stack.3d.up")
+                    }
+                }
+            }
+            if !mine {
                 Button { onHeart() } label: {
                     Label(hearted ? "Remove Heart" : "Heart", systemImage: hearted ? "heart.slash" : "heart")
                 }

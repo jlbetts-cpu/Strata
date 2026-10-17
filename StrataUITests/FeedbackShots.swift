@@ -245,6 +245,26 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("three-1-card")
     }
 
+    /// The camera in a crew's chat: Take a Photo, shoot, Send.
+    func testChatCamera() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                          "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
+                          "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        wait(9)
+        let plus = app.buttons["More to send"].firstMatch
+        if plus.waitForExistence(timeout: 10) { plus.tap() }
+        wait(1); snap("chatcam-0-menu")
+        let take = app.buttons["Take a Photo"].firstMatch
+        if take.waitForExistence(timeout: 5) { take.tap() }
+        wait(1.5); snap("chatcam-1-lens")
+        let shutter = app.buttons["Take photo"]
+        if shutter.waitForExistence(timeout: 5) { shutter.tap() }
+        wait(1.5); snap("chatcam-2-shot")
+        app.buttons["Send it"].firstMatch.tap()
+        wait(3); snap("chatcam-3-sent")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
