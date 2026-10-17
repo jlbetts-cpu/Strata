@@ -647,12 +647,17 @@ struct InlineCameraCard: View {
         ZStack {
             Color.black
             if let shot {
-                Image(uiImage: shot)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .accessibilityLabel("Your photo")
+                // The same stage and tools as a win's photo (the owner,
+                // 2026-10-17: "everything that touches a photo feels like one
+                // editor"), the picture whole and still.
+                photoStage(shot, width: size.width, aspect: size.width / max(size.height, 1), still: true)
+                if choosingLook {
+                    FilmLookStrip(photo: shot, selection: Binding(
+                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                        set: { lookRaw = $0.rawValue }))
+                        .frame(maxHeight: .infinity, alignment: .center)
+                        .transition(.opacity)
+                }
             }
             VStack {
                 HStack {
@@ -664,9 +669,10 @@ struct InlineCameraCard: View {
                     glassGlyph("arrow.counterclockwise", label: "Retake") { backToLens() }
                     Spacer(minLength: 0)
                     Button {
-                        guard let shot else { return }
+                        guard let shot, !dropping else { return }
                         HapticsEngine.snap()
-                        leave(with: .send(shot))
+                        dropping = true
+                        Task { @MainActor in leave(with: .send(await finished(shot))) }
                     } label: {
                         Label("Send", systemImage: "arrow.up")
                             .font(Typography.headerSmall)
@@ -742,11 +748,13 @@ struct InlineCameraCard: View {
     /// gestures, as on the Camera tab's review), the drawing and the head on
     /// it, the look on it. The tools stand along its foot, small and quiet,
     /// and each opens only when pressed.
-    private func photoStage(_ image: UIImage, width: CGFloat) -> some View {
-        let box = CGSize(width: width, height: width / max(size.cropAspectRatio, 0.01))
+    private func photoStage(_ image: UIImage, width: CGFloat, aspect: CGFloat? = nil, still: Bool = false) -> some View {
+        let box = CGSize(width: width, height: width / max(aspect ?? size.cropAspectRatio, 0.01))
         let rests = CachedImageView.filled(image.size, in: box)
         let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
-        return ZStack(alignment: .bottomLeading) {
+        // The tools along the foot; on a chat's photo, whose foot holds
+        // Retake and Send, along the top right instead.
+        return ZStack(alignment: still ? .topTrailing : .bottomLeading) {
             Image(uiImage: looked ?? image)
                 .resizable()
                 .frame(width: rests.width, height: rests.height)
@@ -758,9 +766,12 @@ struct InlineCameraCard: View {
                     }
                 }
                 .overlay {
+                    // `still`: a photo sent whole, which the finger does not
+                    // move (a chat's); the head still moves on it.
                     HeadStickerOverlay(
                         rig: sticker == nil ? nil : HeadStore.shared.head,
-                        placement: $sticker, crop: $crop, zoom: $zoom,
+                        placement: $sticker, crop: still ? .constant(.zero) : $crop,
+                        zoom: still ? .constant(1) : $zoom,
                         photo: image.size, box: box,
                         look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
                 }
@@ -1065,26 +1076,32 @@ struct InlineCameraCard: View {
         // The photograph as the tools left it: the head, then the look, then
         // the drawing, as the Camera tab's Use Photo makes it, and its window.
         dropping = true
-        let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
-        let head = sticker.flatMap { placement in HeadStore.shared.head.map { (rig: $0, placement: placement) } }
-        let drawn = marks
         win.window = CachedImageView.held(crop, photo: photo.size, frame: CGSize(width: size.cropAspectRatio, height: 1),
                                           zoom: PhotoWindow.zoom(zoom))
         win.zoom = PhotoWindow.zoom(zoom)
         Task { @MainActor in
-            var composed = photo
-            if let head { composed = HeadSticker.composite(photo, rig: head.rig, placement: head.placement) }
-            let base = composed
-            let graded = look.kind == .none ? base : await Task.detached(priority: .userInitiated) {
-                FilmLookRenderer.shared.render(base, look: look)
-            }.value
-            let finished = drawn.map { PhotoMarks.composite(graded, marks: $0) } ?? graded
+            let finished = await finished(photo)
             // A photograph taken here is kept in the library, as the Camera
             // tab keeps its own; one chosen from the library is already there.
             if fromCamera { Task { await PhotoLibrarySaver.save(finished) } }
             win.photo = finished
             leave(with: .drop(win))
         }
+    }
+
+    /// The photograph as the tools left it: the head, then the look, then
+    /// the drawing, as the Camera tab's Use Photo makes it.
+    private func finished(_ photo: UIImage) async -> UIImage {
+        let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        var composed = photo
+        if let placement = sticker, let rig = HeadStore.shared.head {
+            composed = HeadSticker.composite(photo, rig: rig, placement: placement)
+        }
+        let base = composed
+        let graded = look.kind == .none ? base : await Task.detached(priority: .userInitiated) {
+            FilmLookRenderer.shared.render(base, look: look)
+        }.value
+        return marks.map { PhotoMarks.composite(graded, marks: $0) } ?? graded
     }
 
     private func toSheet(drawing: Bool = false) {
