@@ -2479,8 +2479,8 @@ struct AddWinSheet: View {
         // and Undo only put it back on your tower. As the viewer's delete
         // does, Undo now sends it back where it was.
         let social = SocialStore.shared
-        let shared: [(id: UUID, crews: Set<CrewID>, story: Bool)] = (habit.logs ?? []).map {
-            ($0.id, social.crews(holding: $0.id), social.isOnStory($0.id))
+        let shared: [(id: UUID, crews: Set<CrewID>, story: Bool, with: [UUID])] = (habit.logs ?? []).map {
+            ($0.id, social.crews(holding: $0.id), social.isOnStory($0.id), social.sentWith($0.id))
         }
         let pending: WinDeletion.Pending
         do {
@@ -2501,7 +2501,7 @@ struct AddWinSheet: View {
                                      let id = item.id
                                      guard let back = try? context.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == id })).first
                                      else { continue }
-                                     if !item.crews.isEmpty { CrewSync.post(back, to: item.crews) }
+                                     if !item.crews.isEmpty { CrewSync.post(back, to: item.crews, with: item.with) }
                                      if item.story { CrewSync.setStory(back, on: true) }
                                  }
                                  changed()

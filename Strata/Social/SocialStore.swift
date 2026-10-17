@@ -712,6 +712,10 @@ final class SocialStore {
         var with: [UUID]? = nil
     }
 
+    /// Who a sent win was with, read before a delete so Undo can send it
+    /// back the same (the second reader, 2026-10-17).
+    func sentWith(_ winID: UUID) -> [UUID] { sent[winID]?.with ?? [] }
+
     @ObservationIgnored private var sentCache: [UUID: Sent]?
     private static let sentKey = "crews.sent"
 
