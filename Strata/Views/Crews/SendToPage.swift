@@ -51,7 +51,7 @@ struct SendToPage: View {
             .padding(.bottom, GridConstants.gapPage)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
+        .pinnedFoot { sendBar }
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("Send To")
         .navigationBarTitleDisplayMode(.inline)

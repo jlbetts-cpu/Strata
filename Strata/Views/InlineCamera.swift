@@ -272,11 +272,14 @@ struct InlineCameraCard: View {
                 Color.black.opacity(0.25)
             }
         } else {
-            ZStack {
-                Rectangle().fill(.ultraThinMaterial)
-                opening.colour.style.baseColor.opacity(0.14)
-            }
-            .environment(\.colorScheme, pageScheme)
+            // **No colour at all** (the owner, 2026-10-17: "a flash of the
+            // block's category colour shows for a split second when the camera
+            // opens ... morph its shape only, not its colour"). It was the
+            // slot's glass with the win's colour tinted in, which on a phone
+            // read as a coloured frame before the lens. Only the slot's own
+            // clear glass, so the shape grows and the picture comes up in it.
+            Rectangle().fill(.ultraThinMaterial)
+                .environment(\.colorScheme, pageScheme)
         }
     }
 

@@ -172,7 +172,8 @@ struct CrewTowerView: View {
         // into the bubble. See `CrewHeadArena`.
         // **Today's chat, resting under the tower** (`ChatRestBar`). An
         // inset, so the tower's base stands above it rather than behind it.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // Faded under, as every bar is (`pinnedFoot`, 2026-10-17).
+        .pinnedFoot {
             ChatRestBar(crewID: crewID) { how in
                 chatOpening = how
                 if native {

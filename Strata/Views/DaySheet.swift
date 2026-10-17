@@ -552,7 +552,7 @@ struct DaySheet: View {
         }
         // Where a deleted line's Undo shows: over the list, above the bar.
         .undoLine()
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .pinnedFoot {
             VStack(spacing: 0) {
                 // Suggestions are for today, and are kept for today: on
                 // another day's page one would be kept where it is not shown.
@@ -671,7 +671,7 @@ struct DaySheet: View {
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom, spacing: 0) { journalFoot }
+            .pinnedFoot { journalFoot }
             // **An empty page says so, in the middle, as the chat does**
             // (the owner, 2026-10-06: "the journal should be like the chat
             // where it has that empty state message in the middle"; the
