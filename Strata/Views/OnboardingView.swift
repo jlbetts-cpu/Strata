@@ -1335,8 +1335,8 @@ struct OnboardingView: View {
         // not, which is the entry above.
         case 1: return hasDrawn
             ? "Pull nothing and it's a quick one. The size is how much it took."
-            : reduceMotion ? "Hold the slot, then let go to drop a block in."
-            : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
+            : reduceMotion ? "Hold the slot until its edge fills, then let go."
+            : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Rest until the edge fills, then let go."
         case 2: return CrewsFlag.isOn ? "Some Wins is better with a few people who love you." : nil
         case 3: return "Your wins land on the map where you took them."
         // The head is who you are in a crew (the owner, 2026-10-14), so the

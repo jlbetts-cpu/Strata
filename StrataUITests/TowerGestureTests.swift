@@ -175,8 +175,12 @@ final class TowerGestureTests: XCTestCase {
         // Out to the side is "medium" — 46pt is GridConstants.slotStep.
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let out = start.withOffset(CGVector(dx: 70, dy: 0))
-        start.press(forDuration: 0.15, thenDragTo: out,
-                    withVelocity: .slow, thenHoldForDuration: 0.5)
+        // Rest to arm (0.35s), drag, rest to lock (0.45s); see `SlotHold`.
+        // **A full second, not just past 0.35.** Measured: with the tower
+        // still settling, a synthetic 0.6s rest reached the app as 0.26s and
+        // the hold rightly never armed, which is the accident guard working.
+        start.press(forDuration: 1.0, thenDragTo: out,
+                    withVelocity: .slow, thenHoldForDuration: 0.9)
 
         var after = tally
         let deadline = Date().addingTimeInterval(15)
@@ -186,6 +190,55 @@ final class TowerGestureTests: XCTestCase {
         }
         XCTAssertEqual(after, (tally ?? 0) + 1,
                        "dragging the slot out and releasing logged nothing")
+    }
+
+    /// **Nothing logs by accident** (the owner, 2026-10-16: "I constantly
+    /// resize or move blocks by accident and have to undo"). A swipe that
+    /// starts on the slot, a drag let go before the edge has filled, and a
+    /// rest let go before the lock each leave the tally where it was; the
+    /// same hold kept still to the end logs one. The last step is what makes
+    /// the first three able to fail: the tally is being read correctly.
+    @MainActor
+    func testOnlyAHeldSlotLogs() throws {
+        let app = launch(wins: 4)
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30), "no next slot on the tower")
+        Thread.sleep(forTimeInterval: 8)
+        let tally = Self.towerTally(app)
+        XCTAssertNotNil(tally, "no tally on the tower header")
+        let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+
+        // A swipe up the tower that happens to begin on the slot.
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -260)),
+                    withVelocity: .fast, thenHoldForDuration: 0)
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(Self.towerTally(app), tally, "a swipe over the slot logged a win")
+        app.swipeDown()
+        Thread.sleep(forTimeInterval: 1.5)
+
+        // Armed, drawn out, let go at once: springs back.
+        let again = app.buttons["Log a win"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        again.press(forDuration: 1.0, thenDragTo: again.withOffset(CGVector(dx: 70, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.05)
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(Self.towerTally(app), tally, "a drag let go before the lock logged a win")
+
+        // Rested past the arm, let go before the fill.
+        again.press(forDuration: 0.55)
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(Self.towerTally(app), tally, "a rest let go before the lock logged a win")
+        XCTAssertFalse(app.buttons["Add"].exists || app.buttons["Next"].exists || app.buttons["Post"].exists,
+                       "a hold opened the add sheet as if it were a tap")
+
+        // Kept still to the end: a Quick.
+        again.press(forDuration: 1.2)
+        var after = tally
+        let deadline = Date().addingTimeInterval(15)
+        while Date() < deadline, after == tally {
+            Thread.sleep(forTimeInterval: 0.3)
+            after = Self.towerTally(app)
+        }
+        XCTAssertEqual(after, (tally ?? 0) + 1, "a slot held still to the lock logged nothing")
     }
 
     /// The tower header's count, whatever it happens to be.
@@ -232,9 +285,9 @@ final class TowerGestureTests: XCTestCase {
                       "the tower is not empty, so this is not the first slot of the day")
 
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.15,
+        start.press(forDuration: 1.0,
                     thenDragTo: start.withOffset(CGVector(dx: 70, dy: 0)),
-                    withVelocity: .slow, thenHoldForDuration: 0.6)
+                    withVelocity: .slow, thenHoldForDuration: 0.9)
 
         var tally = Self.towerTally(app)
         let deadline = Date().addingTimeInterval(15)

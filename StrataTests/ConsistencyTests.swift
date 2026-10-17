@@ -268,6 +268,9 @@ enum ConsistencySweep {
         "Strata/Views/Crews/CrewReactions.swift": 2,
         // Message on a friend's profile: a `glassCapsule(onPage:)` (2026-10-16).
         "Strata/Views/Crews/FriendProfileSheet.swift": 1,
+        // "Watch Sam's story" on a person's page: a `glassCapsule(onPage:)`,
+        // the same answer as Message above it (2026-10-16).
+        "Strata/Views/Crews/PersonPage.swift": 1,
         // The crew page's name capsule, `glassCapsule(onPage:)`, and the day
         // sheet's emoji disc on `glassCircle(onPage:)`: the same fault as the
         // reaction face, found in the 2026-10-06 cohesion audit. And the back

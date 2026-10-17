@@ -51,15 +51,15 @@ struct NextSlotButton: View {
     /// How far the finger has been dragged from where it went down.
     @State private var drawn: CGFloat = 0
     @State private var lastSize: BlockSize = .small
-    @State private var pressStarted = Date()
-
-    /// Below this, a still press is a tap.
-    ///
-    /// **Half a second, the system's own long press** (the launch pass,
-    /// 5½: "a parent who taps once and sees nothing happen will think the
-    /// app is broken"). At 0.28s a slow, careful tap logged a Quick win
-    /// instead of opening the menu. A drag still draws at once.
-    private static let tapCeiling: Double = 0.5
+    /// Where the hold armed, and where the finger last came to rest.
+    @State private var start: CGPoint = .zero
+    @State private var anchor: CGPoint = .zero
+    /// The edge filling round, 0 to 1, while the finger rests at one size.
+    @State private var fill: CGFloat = 0
+    /// Filled: letting go now drops the block.
+    @State private var locked = false
+    /// Which fill is running, so one that was restarted stays quiet.
+    @State private var lockRun = 0
 
     /// The gesture's maths lives in `BlockSizeDraw`.
     ///
@@ -239,6 +239,15 @@ struct NextSlotButton: View {
             // One continuous hairline. See `edge`.
             shape.strokeBorder(edge, lineWidth: GridConstants.strokeThin)
 
+            // **The lock, filling round the edge** in the block's colour.
+            // Quiet: the edge the slot already has, drawn over by degrees,
+            // never a ring or a badge of its own.
+            shape.inset(by: GridConstants.strokeMedium / 2)
+                .trim(from: 0, to: fill)
+                .stroke(previewCategory.style.baseColor,
+                        style: StrokeStyle(lineWidth: GridConstants.strokeMedium, lineCap: .round))
+                .opacity(isDown ? 1 : 0)
+
             Image(systemName: "plus")
                 .iconSize(plusSize, relativeTo: .body, weight: .medium)
                 // 0.55 measured at (144, 142, 140) inside a (242, 242, 242)
@@ -286,6 +295,7 @@ struct NextSlotButton: View {
         //
         // The irreversible action is the one that cannot happen by accident,
         // and it is the one with somewhere to put progress.
+        .onTapGesture(perform: tapped)
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { fire(size: .small, velocity: 0) }
@@ -306,111 +316,153 @@ struct NextSlotButton: View {
         .accessibilityHint("Drops a block onto your tower.")
     }
 
-    /// Drawing the block out of the slot.
+    /// Drawing the block out of the slot, **on purpose** (the owner,
+    /// 2026-10-16: "I constantly resize or move blocks by accident and have to
+    /// undo, and it's never on purpose. I like the interaction, but it needs to
+    /// be intentional").
     ///
-    /// One gesture does the whole thing: put a finger down and let go for a
-    /// small block, or drag away and the block is drawn bigger the further you
-    /// go — and smaller again if you come back, which a hold timer could never
-    /// do. Distance, not time, so the size is something you aim at rather than
-    /// wait for.
-    private var draw: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                if !isDown {
-                    isDown = true
-                    pressStarted = Date()
-                    HapticsEngine.tick()
-                    withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
-                }
-                guard !reduceMotion else { return }
-                // Up is negative in this coordinate space. Dragging DOWN grows
-                // nothing — there is no shorter block than one cell, and
-                // pulling a block down out of the tower means nothing yet.
-                // `BlockSizeDraw.axes` is the one place that knows it.
-                let (lateral, up) = BlockSizeDraw.axes(translation: value.translation)
-                drawn = max(lateral, up)
-                let next = BlockSizeDraw.size(lateral: lateral, up: up, from: lastSize)
-                guard next != lastSize else { return }
+    /// Three beats, and only the last one writes anything:
+    ///
+    ///  1. **Arm.** The finger has to rest on the slot for `SlotHold.arm`
+    ///     before anything starts. A finger that moves first was scrolling or
+    ///     brushing past, and UIKit's long press gives that touch to the tower's
+    ///     scroll (`SlotHold`), so a swipe up over the slot can no longer draw a
+    ///     Deep block and drop it on release, which is what it used to do.
+    ///  2. **Preview.** Drag and the slot shows the size live, with a soft
+    ///     tick on each crossing. Nothing is decided.
+    ///  3. **Lock.** Hold still at a size for `lockTime` and the slot's edge
+    ///     fills round in the block's colour, ticking softly as it goes, and
+    ///     locks with a firm one. Move or change size and the fill starts over.
+    ///
+    /// Let go before it locks and the slot springs back: no win, no undo.
+    /// A tap still opens the menu.
+    private var draw: SlotHold {
+        SlotHold { phase in
+            switch phase {
+            case .began(let at): armed(at: at)
+            case .moved(let at): moved(to: at)
+            case .ended: letGo()
+            case .cancelled: springBack()
+            }
+        }
+    }
+
+    /// How long the finger rests at one size before it is chosen. See the
+    /// launch pass log, "Intentional drawing": past a reflex and a brush,
+    /// inside the second that keeps a hold feeling like one action.
+    static let lockTime: Double = 0.45
+    /// How far a resting finger may wander and still be resting. A real hand
+    /// trembles a few points; this is the same allowance the arm has.
+    static let stillSlack: CGFloat = SlotHold.slack
+
+    private func armed(at point: CGPoint) {
+        isDown = true
+        start = point
+        anchor = point
+        drawn = 0
+        lastSize = .small
+        HapticsEngine.tick()
+        withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
+        restartLock()
+    }
+
+    private func moved(to point: CGPoint) {
+        guard isDown else { return }
+        if !reduceMotion {
+            // Up is negative in this coordinate space. Dragging DOWN grows
+            // nothing: there is no shorter block than one cell.
+            // `BlockSizeDraw.axes` is the one place that knows it.
+            let translation = CGSize(width: point.x - start.x, height: point.y - start.y)
+            let (lateral, up) = BlockSizeDraw.axes(translation: translation)
+            drawn = max(lateral, up)
+            let next = BlockSizeDraw.size(lateral: lateral, up: up, from: lastSize)
+            if next != lastSize {
                 lastSize = next
-                // A haptic on every crossing, in both directions — the only
-                // unambiguous signal that a size actually committed, and the
-                // thing that makes drawing back feel deliberate rather than
-                // like losing progress.
-                HapticsEngine.snap()
+                // A soft tick on every crossing, both ways: you are looking,
+                // not choosing. The firm one is kept for the lock.
+                HapticsEngine.tick()
                 withAnimation(GridConstants.slotSnap) { onSizeChanged(next) }
+                anchor = point
+                restartLock()
+                return
             }
-            .onEnded { value in
-                // A gesture that never began cannot end in a block.
-                //
-                // `DragGesture(minimumDistance: 0)` can deliver `onEnded`
-                // without a matching `onChanged` when the view is rebuilt under
-                // a touch — and the tower rebuilds constantly. A logged win is
-                // not reversible enough to be produced by a gesture nobody
-                // made, so a run that never set `isDown` is discarded.
-                guard isDown else { return }
-                isDown = false
-                // A quick, still press is a tap: open the menu instead.
-                //
-                // A tap is a drag of zero distance, so this gesture sees both
-                // and has to tell them apart. Held long enough, or moved at
-                // all, and you meant to draw a block out.
-                let held = Date().timeIntervalSince(pressStarted)
-                let moved = hypot(value.translation.width, value.translation.height) > 6
-                guard moved || held >= Self.tapCeiling else {
-                    withAnimation(GridConstants.tapPopSpring) { charge = 0 }
-                    drawn = 0
-                    lastSize = .small
-                    onSizeChanged(.small)
-                    onOpenMenu()
-                    return
-                }
-                let size: BlockSize = reduceMotion ? .small : released(value)
-                fire(size: size, velocity: releaseSpeed(value))
-                withAnimation(GridConstants.elasticPop) { charge = 1 }
-                withAnimation(GridConstants.slotBloomIn) { glow = 1 }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(90))
-                    withAnimation(GridConstants.tapPopSpring) { charge = 0 }
-                    withAnimation(GridConstants.slotBloomOut) { glow = 0 }
-                }
+        }
+        if hypot(point.x - anchor.x, point.y - anchor.y) > Self.stillSlack {
+            anchor = point
+            restartLock()
+        }
+    }
+
+    /// The fill starts again from empty, and the lock with it.
+    private func restartLock() {
+        lockRun += 1
+        let run = lockRun
+        locked = false
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { fill = 0 }
+        withAnimation(.linear(duration: Self.lockTime)) { fill = 1 }
+        Task { @MainActor in
+            // Two soft ticks on the way round, then the firm one.
+            for _ in 0..<2 {
+                try? await Task.sleep(for: .seconds(Self.lockTime / 3))
+                guard run == lockRun, isDown else { return }
+                HapticsEngine.surface()
             }
+            try? await Task.sleep(for: .seconds(Self.lockTime / 3))
+            guard run == lockRun, isDown else { return }
+            locked = true
+            HapticsEngine.snap()
+        }
     }
 
-    /// The component of the release velocity along the direction of the drag,
-    /// in points per second. Sideways wobble at the end of a pull outward
-    /// should not read as slowing down, so only motion along the drag counts.
-    private func releaseSpeed(_ value: DragGesture.Value) -> CGFloat {
-        let d = hypot(value.translation.width, value.translation.height)
-        guard d > 1 else { return 0 }
-        let ux = value.translation.width / d
-        let uy = value.translation.height / d
-        return value.velocity.width * ux + value.velocity.height * uy
+    private func letGo() {
+        guard isDown else { return }
+        guard locked else { springBack(); return }
+        isDown = false
+        lockRun += 1
+        locked = false
+        withAnimation(GridConstants.crossFade) { fill = 0 }
+        let size: BlockSize = reduceMotion ? .small : lastSize
+        // The lock already gave the firm haptic; the drop needs no second.
+        fire(size: size, velocity: 0, felt: false)
+        withAnimation(GridConstants.elasticPop) { charge = 1 }
+        withAnimation(GridConstants.slotBloomIn) { glow = 1 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(90))
+            withAnimation(GridConstants.tapPopSpring) { charge = 0 }
+            withAnimation(GridConstants.slotBloomOut) { glow = 0 }
+        }
     }
 
-    /// What you let go of is what you saw.
-    ///
-    /// This used to recompute the size from the raw translation plus a
-    /// momentum projection, which is apple-design.md §6 — and it was wrong
-    /// here, because it recomputed WITHOUT the hysteresis the ghost had been
-    /// tracking with. The two could disagree, in both directions:
-    ///
-    ///  - Drag up to Deep and drift back a little: hysteresis holds the ghost
-    ///    on Deep at `up >= step - back`, but the release demanded
-    ///    `up >= step`. Showed large, dropped Regular.
-    ///  - Ghost on Regular, a small upward flick at release: projection made
-    ///    `up > lateral` and returned Deep. Showed medium, dropped large.
-    ///
-    /// Momentum projection belongs on a control whose position is continuous
-    /// and whose release point is arbitrary. This one has already SNAPPED —
-    /// the size is decided, shown, and confirmed by a haptic while your finger
-    /// is still down. Overriding what somebody watched themselves choose is
-    /// worse than not predicting where they were heading.
-    private func released(_ value: DragGesture.Value) -> BlockSize {
-        lastSize
+    /// Let go too soon, or the touch was taken away: back where it was.
+    private func springBack() {
+        guard isDown else { return }
+        isDown = false
+        lockRun += 1
+        locked = false
+        withAnimation(GridConstants.slotSnap) {
+            fill = 0
+            drawn = 0
+            charge = 0
+            if lastSize != .small { onSizeChanged(.small) }
+        }
+        lastSize = .small
     }
 
-    private func fire(size: BlockSize, velocity: CGFloat) {
-        HapticsEngine.snap()
+    /// A quick tap opens the menu. The hold above never starts for one.
+    private func tapped() {
+        HapticsEngine.lightTap()
+        withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            withAnimation(GridConstants.tapPopSpring) { charge = 0 }
+        }
+        onOpenMenu()
+    }
+
+    private func fire(size: BlockSize, velocity: CGFloat, felt: Bool = true) {
+        if felt { HapticsEngine.snap() }
         // Velocity handoff (docs/apple-design.md §5): the settle continues at
         // the speed the finger was moving, so there is no seam between dragging
         // and animating. Normalised by the distance left to travel, which is
@@ -436,3 +488,43 @@ struct NextSlotButton: View {
         action(size)
     }
 }
+
+/// The slot's hold, as UIKit's long press, for the reason `BlockHold` is one:
+/// it **fails the moment the finger travels before the hold is long enough**,
+/// which hands the touch to the tower's scroll, and once held it follows the
+/// finger until it lifts. The SwiftUI drag this replaces started on touch
+/// down, so a swipe up the tower that began on the slot drew a Deep block and
+/// dropped it on release.
+struct SlotHold: UIGestureRecognizerRepresentable {
+    enum Phase { case began(CGPoint), moved(CGPoint), ended, cancelled }
+    var onPhase: (Phase) -> Void
+
+    /// **How long before anything starts: the tower's one hold.** The same
+    /// 0.35s a crew block waits before its reactions (`BlockHold`), so one
+    /// finger learns one length. Past a tap and a brush (both well under a
+    /// quarter second), short of the system's 0.5s long press, because the
+    /// lock adds its own rest after this one. See the launch pass log.
+    static let arm: TimeInterval = BlockHold.duration
+    /// How far a finger may drift while arming and still be holding.
+    static let slack: CGFloat = BlockHold.slack
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let hold = UILongPressGestureRecognizer()
+        hold.minimumPressDuration = Self.arm
+        hold.allowableMovement = Self.slack
+        return hold
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        // The window's space, not the slot's: the slot grows under the finger.
+        let at = context.converter.location(in: .global)
+        switch recognizer.state {
+        case .began: onPhase(.began(at))
+        case .changed: onPhase(.moved(at))
+        case .ended: onPhase(.ended)
+        case .cancelled, .failed: onPhase(.cancelled)
+        default: break
+        }
+    }
+}
+
