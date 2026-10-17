@@ -74,6 +74,7 @@ final class ProfileStore {
     func setFeatured(_ files: [String]) {
         UserDefaults.standard.set(Array(files.prefix(FeaturedWins.slots)), forKey: Self.featuredKey)
         bannerChanged += 1
+        ProfileSync.shared.changed(.featured)
     }
 
     private static let featuredPromptsKey = "profileFeaturedPrompts"
@@ -90,6 +91,7 @@ final class ProfileStore {
         all[index] = prompt
         UserDefaults.standard.set(all, forKey: Self.featuredPromptsKey)
         bannerChanged += 1
+        ProfileSync.shared.changed(.featuredPrompts)
     }
 
     /// What your crews are told of them, as last worked out (`FeaturedWins.encode`).
@@ -193,6 +195,7 @@ final class ProfileStore {
         name = newValue
         UserDefaults.standard.set(newValue, forKey: Self.nameKey)
         SocialStore.noteMyselfChanged()
+        ProfileSync.shared.changed(.name)
     }
 
     /// **The banner's photographs, as you chose them, a month at a time**
@@ -214,6 +217,7 @@ final class ProfileStore {
         all[month] = index == 0 ? nil : index
         UserDefaults.standard.set(all, forKey: Self.bannerLayoutKey)
         bannerChanged += 1
+        ProfileSync.shared.changed(.bannerLayout(month))
     }
 
     func setBanner(_ files: [String], for month: String) {
@@ -221,6 +225,15 @@ final class ProfileStore {
         all[month] = files.isEmpty ? nil : Array(files.prefix(ProfileBanner.most))
         UserDefaults.standard.set(all, forKey: Self.bannerKey)
         bannerChanged += 1
+        ProfileSync.shared.changed(.banner(month))
+    }
+
+    /// The months with a banner, or an arrangement, chosen (`ProfileSync`).
+    var bannerMonths: [String] {
+        Array(((UserDefaults.standard.dictionary(forKey: Self.bannerKey) as? [String: [String]]) ?? [:]).keys)
+    }
+    var bannerLayoutMonths: [String] {
+        Array(((UserDefaults.standard.dictionary(forKey: Self.bannerLayoutKey) as? [String: Int]) ?? [:]).keys)
     }
 
     /// Bumped on a change, so a view reading `bannerFiles` redraws.
@@ -290,6 +303,7 @@ final class ProfileStore {
         UserDefaults.standard.removeObject(forKey: Self.handleKey)
         UserDefaults.standard.removeObject(forKey: Self.handleSetKey)
         bannerChanged += 1
+        ProfileSync.shared.forget()
     }
 
     private static var photoURL: URL? {

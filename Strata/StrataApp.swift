@@ -273,6 +273,8 @@ struct StrataApp: App {
             // The crew widget's file follows the crews from here on, and is
             // cleared when crews are off.
             if newPhase == .active {
+                // Your profile as your other phones last set it (`ProfileSync`).
+                ProfileSync.shared.start(store: SharedModelContainer.shared)
                 CrewWidgetPublisher.shared.start()
                 CrewNoteAnswers.register()
             }
