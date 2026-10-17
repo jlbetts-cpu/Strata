@@ -109,7 +109,8 @@ final class FeedbackShots: XCTestCase {
     /// Add a Win as the inline camera (2026-10-17): open from the slot, shoot,
     /// name, drop; then words; then a refused camera.
     func testInlineCamera() {
-        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                          "-strataSeedCrews", "2", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES",
                           "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
         let slot = app.buttons["Log a win"].firstMatch
@@ -123,13 +124,17 @@ final class FeedbackShots: XCTestCase {
         let field = app.textFields.firstMatch
         if field.waitForExistence(timeout: 3) { field.tap(); field.typeText("Ate something green") }
         wait(1); snap("inline-3-named")
+        app.buttons["More details"].firstMatch.tap()
+        wait(1); snap("inline-35-more")
         app.buttons["Drop it on the tower"].tap()
         wait(0.25); snap("inline-4-closing")
         wait(3); snap("inline-5-dropped")
         app.buttons["Log a win"].firstMatch.tap()
         wait(1.2)
         app.buttons["Just Words"].tap()
-        wait(1.2); snap("inline-6-words")
+        wait(1.2)
+        app.typeText("Answered one email")
+        wait(0.6); snap("inline-6-words")
         app.buttons["Close"].firstMatch.tap()
         wait(1.2); snap("inline-7-closed")
         app.terminate()

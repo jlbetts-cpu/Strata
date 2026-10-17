@@ -2779,24 +2779,31 @@ struct MainAppView: View {
                 try? await Task.sleep(for: .milliseconds(80))
                 winDraft = draft
             }
-        case .drop(let photo, let size, let title, let place, let crews)?:
-            logWin(size: size, photo: photo, title: title, place: place, crews: crews, undoable: true)
+        case .drop(let win)?:
+            logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
+                   undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
+                   with: win.with, story: win.story)
         }
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false,
                         title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil,
-                        undoable: Bool = false) {
+                        undoable: Bool = false, colour: HabitCategory? = nil, colourChosen: Bool = false,
+                        note: String? = nil, with people: [UUID] = [], story: Bool = false) {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
         #endif
         do {
             // The colour the slot has been showing, not a fresh roll.
+            // A colour chosen on the camera card is a kind of win; one left as
+            // the slot showed it is only a colour (`QuickWinService.labels`).
+            let labels = QuickWinService.labels(showing: colour ?? nextWinCategory, chosen: colourChosen)
             let win = try QuickWinService.logWin(
                 title: title.isEmpty ? QuickWinService.untitled : title,
+                category: labels.category,
                 size: size,
-                spontaneous: nextWinCategory,
+                spontaneous: labels.spontaneous ?? nextWinCategory,
                 context: modelContext,
                 tower: towerManager.activeTower
             )
@@ -2814,10 +2821,15 @@ struct MainAppView: View {
                     log.longitude = place.longitude
                     log.locationAccuracy = place.accuracy
                 }
+                if let note {
+                    log.note = note
+                    try? modelContext.save()
+                }
                 if holdFromCrews { CrewHold.hold(log.id) }
                 // Named on the card; none named is your tower only.
-                else if let crews { if !crews.isEmpty { CrewSync.post(log, to: crews, with: []) } }
+                else if let crews { if !crews.isEmpty { CrewSync.post(log, to: crews, with: people) } }
                 else { CrewSync.post(log) }
+                if story { CrewSync.setStory(log, on: true) }
             }
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.

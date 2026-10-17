@@ -110,11 +110,26 @@ enum AddWinFrom {
     }
 }
 
+/// A win made on the card, everything the add sheet would have saved.
+struct DroppedWin {
+    var photo: UIImage?
+    var size: BlockSize
+    var title: String
+    var place: WinPlace?
+    /// The crews named on the card (empty: your tower only).
+    var crews: Set<CrewID>
+    var colour: HabitCategory
+    /// Chosen by a person rather than the slot's roll: a kind of win.
+    var colourChosen: Bool
+    var note: String?
+    var with: [UUID]
+    var story: Bool
+}
+
 /// What the card hands back.
 enum InlineCameraResult {
-    /// Drop it: a photograph (or none), the size drawn, its name, where, and
-    /// the crews named on the card (empty: your tower only).
-    case drop(photo: UIImage?, size: BlockSize, title: String, place: WinPlace?, crews: Set<CrewID>)
+    /// Drop it onto the tower.
+    case drop(DroppedWin)
     /// Everything else: the full sheet, holding whatever the card had.
     case sheet(WinDraft)
 }
@@ -143,36 +158,52 @@ struct InlineCameraCard: View {
     private enum Mode: Equatable { case lens, shot, words }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var pageScheme
     @State private var open = false
-    /// **Who sees it, named on the card before Drop** (the second reader,
-    /// 2026-10-17: Drop sent to your last crews with nothing saying so, which
-    /// is the owner's CrewHold rule broken: nothing reaches a crew before a
-    /// yes). The chip is the naming; Drop is the yes, as Quick Post's "To"
-    /// and Post are on the sheet.
-    @State private var recipients: Set<CrewID> = []
     @State private var mode: Mode = InlineCamera.refused ? .words : .lens
     @State private var live = false
     @State private var shot: UIImage?
+    @State private var place: WinPlace?
+
+    // The win, as it is being made.
     @State private var title = ""
     @State private var size: BlockSize = .small
-    @State private var place: WinPlace?
-    @State private var drag: CGFloat = 0
+    @State private var colour: HabitCategory = .unlabeled
+    @State private var colourChosen = false
+    @State private var note = ""
+    @State private var with: [UUID] = []
+    /// **Who sees it, named on the card before it goes** (the second reader,
+    /// 2026-10-17: nothing reaches a crew before a yes). The chip is the
+    /// naming; the primary button is the yes.
+    @State private var recipients: Set<CrewID> = []
+    @State private var onStory = false
+    @State private var high = ""
+    @State private var low = ""
+    @State private var buffalo = ""
+    /// The rest of the details, tucked away until wanted.
+    @State private var more = false
+
+    // The camera.
     @State private var down = false
     @State private var shutterScale: CGFloat = 1
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
+    @State private var frontFlash = false
+
     @State private var picking = false
     @State private var picked: PhotosPickerItem?
+    @State private var drag: CGFloat = 0
     @State private var closing = false
     @State private var opened = CACurrentMediaTime()
     @FocusState private var naming: Bool
-    /// The card's face, dissolving in over the slot and back out into it, on
-    /// its own short curve so the morph never looks washed out midway.
+    /// The card's face, dissolving in over the slot and back out into it.
     @State private var shown = false
-    @Environment(\.colorScheme) private var pageScheme
     /// Where the tab bar's top is, in the window: the card stands on it and
     /// the dim stops at it (2026-10-17). Nil where there is no bar.
     @State private var barTop: CGFloat? = TabGlyph.barFrame()?.minY
 
     private var camera: CameraService { InlineCamera.shared.camera }
+    private var crews: [Crew] { CrewsFlag.isOn ? SocialStore.shared.groupCrews : [] }
 
     var body: some View {
         GeometryReader { geo in
@@ -181,8 +212,7 @@ struct InlineCameraCard: View {
             // **The slot, growing into the card**, as Photos grows a photo out
             // of its thumbnail: the card's face is scaled to cover the window
             // (aspect fill, never stretched) and the window's rounded edge is
-            // the slot's at the start and the card's at the end. Both come
-            // from one spring, so it is one motion with no seam.
+            // the slot's at the start and the card's at the end. One spring.
             let cover = open ? 1 : max(frame.width / target.width, frame.height / target.height)
             ZStack {
                 // The page stays, gently dimmed: it is still where you are.
@@ -208,6 +238,15 @@ struct InlineCameraCard: View {
                             .frame(width: frame.width, height: frame.height)
                             .position(x: frame.midX, y: frame.midY + drag)
                     }
+
+                // The front camera's flash is the screen, lit warm for the
+                // shot, as the Camera tab's is (`WarmRingLight`).
+                if frontFlash {
+                    WarmRingLight(fillOpacity: 1)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
             }
             .frame(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
                    height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
@@ -222,73 +261,62 @@ struct InlineCameraCard: View {
         }
     }
 
-    /// Low on the screen, full width less the margins, a photograph's 3:4,
-    /// and never taller than the room above the keyboard.
+    /// The lens: low on the screen, full width less the margins, a
+    /// photograph's 3:4. The win's details and the words: the whole height
+    /// from under the status bar to the tab bar, so nothing is cramped.
+    /// Never taller than the room above the keyboard.
     private func cardFrame(in geo: GeometryProxy) -> CGRect {
-        // The reader's size is the room between the safe areas (and above the
-        // keyboard when it is up); the card is placed in the screen's space,
-        // whose top is `inset.top` above the reader's.
         let inset = geo.safeAreaInsets
         let margin = GridConstants.gapTight
         let width = geo.size.width - margin * 2
         // On the tab bar, or above the keyboard when that is higher.
         let floor = min(inset.top + geo.size.height, barTop ?? .infinity) - margin
         let room = floor - inset.top - GridConstants.gapItem * 2
-        let height = min(width * 4 / 3, room)
+        let height = mode == .lens ? min(width * 4 / 3, room) : max(room, 0)
         return CGRect(x: margin, y: floor - height, width: width, height: height)
     }
 
     // MARK: The card's face
 
+    @ViewBuilder
     private func card(size: CGSize) -> some View {
-        ZStack {
-            // The slot itself, under everything: what shows for the moment
-            // before the first frame, so there is never a black box and the
-            // card begins as exactly the thing that was tapped.
-            ground
-            switch mode {
-            case .lens:
+        switch mode {
+        case .lens:
+            ZStack {
+                // The slot's own clear glass, never a colour, under the lens
+                // for the moment before the first frame (the owner, 2026-10-17:
+                // "morph its shape only, not its colour").
+                Rectangle().fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, pageScheme)
                 lens(size: size)
                     .opacity(live ? 1 : 0)
-            case .shot:
-                if let shot {
-                    Image(uiImage: shot)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                        .transition(.opacity)
+                if camera.showsGuides { guides }
+                if let countdown {
+                    Text("\(countdown)")
+                        .font(.system(size: 96, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .legibleOnImagery()
+                        .contentTransition(.numericText(countsDown: true))
+                        .accessibilityLabel("\(countdown) seconds")
                 }
-            case .words:
-                EmptyView()
+                lensControls
+                    .opacity(open ? 1 : 0)
             }
-            controls
-                .opacity(open ? 1 : 0)
-        }
-        .frame(width: size.width, height: size.height)
-        .environment(\.colorScheme, .dark)
-    }
-
-    /// **The slot's own glass and tint while the lens wakes; the win's colour
-    /// for words.** It was the colour deepened toward black, and filmed that
-    /// read as a dark red square that lightened as the lens arrived: a colour
-    /// jolt in the one motion people see most (2026-10-17).
-    @ViewBuilder
-    private var ground: some View {
-        if mode == .words {
+            .frame(width: size.width, height: size.height)
+            .environment(\.colorScheme, .dark)
+        case .shot, .words:
             ZStack {
-                opening.colour.style.baseColor
-                Color.black.opacity(0.25)
+                WarmBackground()
+                VStack(spacing: GridConstants.gapItem) {
+                    pageTop
+                    if mode == .shot { shotPage } else { wordsPage }
+                    pageFoot
+                }
+                .padding(GridConstants.gapItem)
+                .opacity(open ? 1 : 0)
             }
-        } else {
-            // **No colour at all** (the owner, 2026-10-17: "a flash of the
-            // block's category colour shows for a split second when the camera
-            // opens ... morph its shape only, not its colour"). It was the
-            // slot's glass with the win's colour tinted in, which on a phone
-            // read as a coloured frame before the lens. Only the slot's own
-            // clear glass, so the shape grows and the picture comes up in it.
-            Rectangle().fill(.ultraThinMaterial)
-                .environment(\.colorScheme, pageScheme)
+            .frame(width: size.width, height: size.height)
         }
     }
 
@@ -312,46 +340,93 @@ struct InlineCameraCard: View {
         .clipped()
     }
 
-    // MARK: Controls
-
-    @ViewBuilder
-    private var controls: some View {
-        VStack(spacing: 0) {
-            top
-            Spacer(minLength: 0)
-            if mode == .words && InlineCamera.refused { cameraOff }
-            if mode != .lens {
-                recipientsChip
-                nameRow
+    /// Rule of thirds, hairlines, as the Camera tab draws its own.
+    private var guides: some View {
+        GeometryReader { g in
+            Path { p in
+                for i in 1...2 {
+                    let x = g.size.width * CGFloat(i) / 3, y = g.size.height * CGFloat(i) / 3
+                    p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: g.size.height))
+                    p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: g.size.width, y: y))
+                }
             }
-            bottom
+            .stroke(Color.white.opacity(0.45), lineWidth: GridConstants.strokeThin)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: The lens's controls
+
+    /// **The camera's layout, everywhere a camera opens** (the owner,
+    /// 2026-10-17: "flash on the left, flip on the right, shutter in the
+    /// middle. A '...' holds the extras: a timer and a rule-of-thirds grid").
+    /// Close at the top left; Just Words and the extras at the top right, so
+    /// a win with no photo is one clear tap.
+    private var lensControls: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: GridConstants.gapTight) {
+                glassGlyph("xmark", label: "Close") { close() }
+                Spacer(minLength: 0)
+                pill("Just Words", systemImage: "textformat") { toWords() }
+                extras
+            }
+            Spacer(minLength: 0)
+            HStack {
+                glassGlyph(flashSymbol, label: flashLabel) {
+                    camera.cycleFlash()
+                }
+                Spacer(minLength: 0)
+                shutter
+                Spacer(minLength: 0)
+                glassGlyph("arrow.triangle.2.circlepath", label: "Switch camera") {
+                    withAnimation(GridConstants.motionSnappy) { camera.flip() }
+                }
+            }
         }
         .padding(GridConstants.gapItem)
     }
 
-    /// The other ways a win is made, small, at the top: never a photograph
-    /// you are made to take.
-    private var top: some View {
-        HStack(spacing: GridConstants.gapTight) {
-            if mode != .words {
-                pill("Just Words", systemImage: "textformat") {
-                    withAnimation(GridConstants.motionSnappy) { mode = .words; shot = nil }
-                    naming = true
-                    camera.stop()
-                }
-            } else if !InlineCamera.refused {
-                pill("Camera", systemImage: "camera") { backToLens() }
-            }
-            Spacer(minLength: 0)
-            Menu {
-                Button("Choose a Photo", systemImage: "photo.on.rectangle") { picking = true }
-                Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
-                Button("More Options", systemImage: "slider.horizontal.3") { toSheet() }
-            } label: {
-                glyphFace("ellipsis")
-            }
-            .accessibilityLabel("More ways to add")
+    private var flashSymbol: String {
+        switch camera.flash {
+        case .off: "bolt.slash"
+        case .auto: "bolt.badge.automatic"
+        case .on: "bolt.fill"
         }
+    }
+
+    private var flashLabel: String {
+        switch camera.flash {
+        case .off: "Flash off"
+        case .auto: "Flash auto"
+        case .on: "Flash on"
+        }
+    }
+
+    /// The extras, kept out of the way: the timer and the grid, and the other
+    /// ways to make a win.
+    private var extras: some View {
+        Menu {
+            Picker("Timer", selection: Binding(get: { camera.timerSeconds }, set: { seconds in
+                camera.timerSeconds = seconds
+                UserDefaults.standard.set(seconds, forKey: "cameraTimerSeconds")
+            })) {
+                Text("Timer Off").tag(0)
+                Text("3 Seconds").tag(3)
+                Text("10 Seconds").tag(10)
+            }
+            Toggle("Grid", systemImage: "grid", isOn: Binding(get: { camera.showsGuides }, set: { on in
+                camera.showsGuides = on
+                UserDefaults.standard.set(on, forKey: "cameraShowsGuides")
+            }))
+            Divider()
+            Button("Choose a Photo", systemImage: "photo.on.rectangle") { picking = true }
+            Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
+        } label: {
+            glyphFace(camera.timerSeconds > 0 ? "timer" : "ellipsis")
+        }
+        .accessibilityLabel("More")
+        .accessibilityValue(camera.timerSeconds > 0 ? "Timer \(camera.timerSeconds) seconds" : "")
     }
 
     /// A glyph on a soft glass disc, white, held legible over any picture as
@@ -394,123 +469,6 @@ struct InlineCameraCard: View {
         .buttonStyle(.plain)
     }
 
-    /// Close, the shutter (or Drop), flip (or Retake): the camera's three.
-    private var bottom: some View {
-        HStack {
-            glassGlyph("xmark", label: "Close") { close() }
-            Spacer(minLength: 0)
-            switch mode {
-            case .lens: shutter
-            case .shot, .words: dropButton
-            }
-            Spacer(minLength: 0)
-            switch mode {
-            case .lens:
-                glassGlyph("arrow.triangle.2.circlepath", label: "Switch camera") {
-                    withAnimation(GridConstants.motionSnappy) { camera.flip() }
-                }
-            case .shot:
-                glassGlyph("arrow.counterclockwise", label: "Retake") { backToLens() }
-            case .words:
-                Color.clear.frame(width: 44, height: 44)
-            }
-        }
-    }
-
-    private var crews: [Crew] { CrewsFlag.isOn ? SocialStore.shared.groupCrews : [] }
-
-    @ViewBuilder
-    private var recipientsChip: some View {
-        if !crews.isEmpty {
-            let store = SocialStore.shared
-            let names = crews.filter { recipients.contains($0.id) }.map { $0.displayName(excluding: store.me) }
-            let words = names.isEmpty ? "Just you" : names.count == 1 ? names[0] : "\(names[0]) and \(names.count - 1) more"
-            Menu {
-                Toggle("Just Me", isOn: Binding(get: { recipients.isEmpty },
-                                                set: { if $0 { recipients = [] } }))
-                ForEach(crews) { crew in
-                    Toggle(crew.displayName(excluding: store.me),
-                           isOn: Binding(get: { recipients.contains(crew.id) },
-                                         set: { if $0 { recipients.insert(crew.id) } else { recipients.remove(crew.id) } }))
-                }
-            } label: {
-                HStack(spacing: GridConstants.spacing) {
-                    Text("To").foregroundStyle(AppColors.onDarkSecondary)
-                    Text(words).foregroundStyle(.white).lineLimit(1)
-                    Image(systemName: "chevron.down").foregroundStyle(AppColors.onDarkSecondary)
-                }
-                .font(Typography.headerSmall)
-                .legibleOnImagery()
-                .padding(.horizontal, GridConstants.gapLabel)
-                .frame(minHeight: 44)
-                .inlineGlass(in: Capsule())
-            }
-            .menuActionDismissBehavior(.disabled)
-            .accessibilityLabel("Sending to \(words)")
-            .accessibilityHint("Choose who sees it.")
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, GridConstants.gapTight)
-        }
-    }
-
-    private var nameRow: some View {
-        TextField("", text: $title, prompt: Text(mode == .words ? "What went right?" : "Name it, if you want")
-            .foregroundStyle(AppColors.onDarkSecondary))
-            .font(Typography.bodyLarge)
-            .foregroundStyle(.white)
-            .submitLabel(.done)
-            .onSubmit(drop)
-            .focused($naming)
-            .padding(.horizontal, GridConstants.gapItem)
-            .frame(minHeight: 48)
-            .glassCapsule(carriesType: true, interactive: false)
-            .padding(.bottom, GridConstants.gapItem)
-    }
-
-    private var cameraOff: some View {
-        VStack(spacing: GridConstants.gapTight) {
-            Text("The camera is off for \(AppName.display).")
-                .font(Typography.bodyLarge)
-                .foregroundStyle(.white)
-            Button {
-                HapticsEngine.lightTap()
-                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                UIApplication.shared.open(url)
-            } label: {
-                Text("Turn It On in Settings")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, GridConstants.gapLabel)
-                    .frame(minHeight: 44)
-                    .glassCapsule(carriesType: true)
-            }
-            .buttonStyle(.plain)
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, GridConstants.gapSection)
-    }
-
-    /// **Drop is the block itself**: the shutter's own shape at the size
-    /// drawn, with the way it goes on it. It was a white circle in the place
-    /// the shutter's rounded block had just been, two shapes for one role
-    /// (2026-10-17, looking at the card whole rather than piece by piece).
-    private var dropButton: some View {
-        Button(action: drop) {
-            ZStack {
-                ShutterBlock(size: size, lit: true)
-                Image(systemName: "arrow.down")
-                    .iconSize(22, relativeTo: .body, weight: .semibold)
-                    .foregroundStyle(.black)
-            }
-            .legibleOnImagery()
-            .frame(width: CameraView.shutterBounds(.hard).width, height: CameraView.shutterBounds(.hard).height)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.press)
-        .accessibilityLabel("Drop it on the tower")
-    }
-
     // MARK: The shutter
 
     private var shutter: some View {
@@ -523,7 +481,7 @@ struct InlineCameraCard: View {
             .accessibilityLabel("Take photo")
             .accessibilityValue(size.effortLabel)
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction { shoot() }
+            .accessibilityAction { shutterPressed() }
     }
 
     private static var fakeLens: Bool {
@@ -534,8 +492,8 @@ struct InlineCameraCard: View {
         #endif
     }
 
-    /// The Camera tab's shutter: a tap shoots one cell, and a drag draws the
-    /// size and shoots on release (a plain drag, the owner, 2026-10-17).
+    /// A tap shoots one cell, and a drag draws the size and shoots on release
+    /// (a plain drag, the owner, 2026-10-17).
     private var shutterDraw: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
@@ -553,8 +511,35 @@ struct InlineCameraCard: View {
             .onEnded { _ in
                 guard down else { return }
                 down = false
-                shoot()
+                shutterPressed()
             }
+    }
+
+    /// Through the timer when there is one; a press during it stops it.
+    private func shutterPressed() {
+        if let task = countdownTask {
+            task.cancel()
+            countdownTask = nil
+            withAnimation(GridConstants.crossFade) { countdown = nil }
+            HapticsEngine.lightTap()
+            return
+        }
+        let seconds = camera.timerSeconds
+        guard seconds > 0 else { shoot(); return }
+        HapticsEngine.tick()
+        countdown = seconds
+        countdownTask = Task { @MainActor in
+            var left = seconds
+            while left > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                left -= 1
+                withAnimation(GridConstants.crossFade) { countdown = left > 0 ? left : nil }
+                if left > 0 { HapticsEngine.tick() }
+            }
+            countdownTask = nil
+            shoot()
+        }
     }
 
     private func shoot() {
@@ -563,20 +548,224 @@ struct InlineCameraCard: View {
         withAnimation(GridConstants.shutterPress) { shutterScale = 0.86 }
         withAnimation(GridConstants.shutterRelease.delay(0.08)) { shutterScale = 1 }
         place = LocationService.shared.place()
-        camera.capture { image in Task { @MainActor in
-            guard let image else {
-                withAnimation(GridConstants.slotSnap) { size = .small }
-                return
+        let lit = camera.facing == .front && camera.flash == .on
+        Task { @MainActor in
+            if lit {
+                withAnimation(GridConstants.crossFade) { frontFlash = true }
+                try? await Task.sleep(for: .milliseconds(250))
             }
-            let polished = await Task.detached(priority: .userInitiated) {
-                PortraitPolish.apply(to: image)
-            }.value
-            withAnimation(GridConstants.motionSnappy) {
-                shot = polished
-                mode = .shot
+            camera.capture { image in Task { @MainActor in
+                if lit { withAnimation(GridConstants.crossFade) { frontFlash = false } }
+                guard let image else {
+                    withAnimation(GridConstants.slotSnap) { size = .small }
+                    return
+                }
+                let polished = await Task.detached(priority: .userInitiated) {
+                    PortraitPolish.apply(to: image)
+                }.value
+                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
+                    shot = polished
+                    mode = .shot
+                }
+                camera.stop()
+            } }
+        }
+    }
+
+    // MARK: The page: after the shot, and words
+
+    /// Back to the lens (or to it for the first time) on the left; away on
+    /// the right.
+    private var pageTop: some View {
+        HStack {
+            if mode == .shot || !InlineCamera.refused {
+                GlassIconButton(systemName: mode == .shot ? "arrow.counterclockwise" : "camera", onPage: true,
+                                accessibilityLabel: mode == .shot ? "Retake" : "Camera") { backToLens() }
             }
-            camera.stop()
-        } }
+            Spacer(minLength: 0)
+            GlassIconButton(systemName: "xmark", onPage: true, accessibilityLabel: "Close") { close() }
+        }
+    }
+
+    /// **After the photo, one clean page** (the owner, 2026-10-17: "Don't put
+    /// text over the photo itself. Put the details in a clean container above
+    /// the photo ... the essentials up front, the rest tucked away until
+    /// wanted"). Name, size and who sees it, then More; the photograph under
+    /// them, nothing written on it.
+    private var shotPage: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: GridConstants.gapItem) {
+                details
+                if let shot {
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(size.cropAspectRatio, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 120),
+                                                    style: .continuous))
+                        .animation(GridConstants.slotSnap, value: size)
+                        .accessibilityLabel("Your photo")
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .softScrollEdge([.top, .bottom])
+    }
+
+    /// The essentials in one container, the rest under More.
+    private var details: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            TextField("", text: $title, prompt: Text("Name it, if you want").foregroundStyle(AppColors.inkTertiary))
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .submitLabel(.done)
+                .focused($naming)
+                .frame(minHeight: 44)
+            sizeBar
+            recipientsRow
+            moreDetails
+        }
+        .padding(GridConstants.gapItem)
+        .pageCard()
+    }
+
+    private var sizeBar: some View {
+        GlassChoiceBar(items: [BlockSize.small, .medium, .hard], chosen: size,
+                       title: { $0.effortLabel }, spoken: { $0.effortLabel },
+                       choose: { chosen in withAnimation(GridConstants.slotSnap) { size = chosen } },
+                       fills: true)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Size")
+    }
+
+    /// **Words are written on the block** (the owner, 2026-10-17: "it should
+    /// feel like writing directly on the block itself: the block in front of
+    /// you, the cursor on it, your words appearing on it as you type"). The
+    /// block at its size and in its colour, the words in the tower's own type
+    /// where the tower puts them, so what lands is exactly what was written.
+    private var wordsPage: some View {
+        VStack(spacing: GridConstants.gapItem) {
+            if InlineCamera.refused { cameraOff }
+            Spacer(minLength: 0)
+            WordBlock(title: $title, size: size, colour: colour, focus: $naming)
+                .animation(GridConstants.slotSnap, value: size)
+                .animation(GridConstants.motionSnappy, value: colour)
+            Spacer(minLength: 0)
+            ColourSwatchRow(category: $colour) { _ in colourChosen = true }
+                .frame(maxWidth: .infinity)
+            sizeBar
+            recipientsRow
+        }
+    }
+
+    /// Who sees it, and what more there is to say.
+    @ViewBuilder
+    private var recipientsRow: some View {
+        if !crews.isEmpty {
+            let store = SocialStore.shared
+            let names = crews.filter { recipients.contains($0.id) }.map { $0.displayName(excluding: store.me) }
+            let words = names.isEmpty ? "Just you" : names.count == 1 ? names[0] : "\(names[0]) and \(names.count - 1) more"
+            Menu {
+                Toggle("Just Me", isOn: Binding(get: { recipients.isEmpty }, set: { if $0 { recipients = [] } }))
+                ForEach(crews) { crew in
+                    Toggle(crew.displayName(excluding: store.me),
+                           isOn: Binding(get: { recipients.contains(crew.id) },
+                                         set: { if $0 { recipients.insert(crew.id) } else { recipients.remove(crew.id) } }))
+                }
+                Divider()
+                Toggle("Tonight's Story", systemImage: "moon.stars", isOn: $onStory)
+            } label: {
+                HStack(spacing: GridConstants.spacing) {
+                    Text("To").foregroundStyle(AppColors.inkSecondary)
+                    Text(words + (onStory ? ", and tonight's story" : "")).foregroundStyle(AppColors.inkPrimary).lineLimit(1)
+                    Image(systemName: "chevron.down").foregroundStyle(AppColors.inkTertiary)
+                }
+                .font(Typography.headerSmall)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .menuActionDismissBehavior(.disabled)
+            .accessibilityLabel("Sending to \(words)")
+            .accessibilityHint("Choose who sees it.")
+        }
+    }
+
+    /// The rest of what the add sheet held, one press away and never in the
+    /// way: the colour (for a photograph, which mostly covers it), a note,
+    /// who you were with, and tonight's high, low and buffalo.
+    @ViewBuilder
+    private var moreDetails: some View {
+        Button {
+            HapticsEngine.tick()
+            if !more {
+                let words = SocialStore.shared.storyWords(on: DateUtils.dateString(from: Date()))
+                if high.isEmpty, low.isEmpty, buffalo.isEmpty { (high, low, buffalo) = (words.high, words.low, words.buffalo) }
+            }
+            withAnimation(GridConstants.motionSnappy) { more.toggle() }
+        } label: {
+            HStack {
+                Text(more ? "Less" : "More")
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down").rotationEffect(.degrees(more ? 180 : 0))
+            }
+            .font(Typography.headerSmall)
+            .foregroundStyle(AppColors.inkSecondary)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel(more ? "Fewer details" : "More details")
+        if more {
+            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                ColourSwatchRow(category: $colour, showsSelection: colourChosen) { _ in colourChosen = true }
+                TextField("", text: $note, prompt: Text("A note, just for you").foregroundStyle(AppColors.inkTertiary),
+                          axis: .vertical)
+                    .font(Typography.bodyLarge)
+                    .lineLimit(1...4)
+                if !recipients.isEmpty {
+                    CrewWithRow(crews: recipients, selection: $with)
+                }
+                Text("Tonight's high, low and buffalo")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                ForEach([("High", $high), ("Low", $low), ("Buffalo", $buffalo)], id: \.0) { word, text in
+                    TextField("", text: text, prompt: Text(word).foregroundStyle(AppColors.inkTertiary))
+                        .font(Typography.bodyLarge)
+                        .frame(minHeight: 36)
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private var cameraOff: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            Text("The camera is off for \(AppName.display).")
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkSecondary)
+            Button {
+                HapticsEngine.lightTap()
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            } label: {
+                Text("Turn It On in Settings")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    .frame(minHeight: 44)
+                    .glassCapsule(onPage: true)
+            }
+            .buttonStyle(.plain)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// One tap posts: Add, or Post when it goes to a crew or the story.
+    private var pageFoot: some View {
+        PrimaryCapsule(title: !recipients.isEmpty || onStory ? "Post" : "Add") { drop() }
+            .accessibilityLabel("Drop it on the tower")
     }
 
     // MARK: Going
@@ -584,22 +773,18 @@ struct InlineCameraCard: View {
     private func arrive() {
         opened = CACurrentMediaTime()
         recipients = opening.crews ?? CrewChoice.load()
+        colour = opening.colour
         HapticsEngine.lightTap()
         if mode == .lens {
             Task {
-                // **Nothing on the first frames but the motion.** Filmed, the
-                // opening's first frames repeated while the lens and location
-                // started beside them (2026-10-17). The session starts on its
-                // own queue; asking for it waits a frame so the cover's first
-                // composite is the card's, and location waits for the card.
+                // **Nothing on the first frames but the motion.** The session
+                // starts on its own queue; asking for it waits a frame so the
+                // first composite is the card's, and location waits for it.
                 try? await Task.sleep(for: .milliseconds(16))
                 await InlineCamera.shared.camera.start()
                 if Self.fakeLens { showLive() }
                 // Asked just now, and refused: words, with the way back on.
-                if camera.isDenied {
-                    withAnimation(GridConstants.motionSnappy) { mode = .words }
-                    naming = true
-                }
+                if camera.isDenied { toWords() }
                 try? await Task.sleep(for: .milliseconds(400))
                 if !closing { LocationService.shared.start() }
             }
@@ -619,13 +804,22 @@ struct InlineCameraCard: View {
         withAnimation(GridConstants.crossFade) { live = true }
     }
 
+    private func toWords() {
+        camera.stop()
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
+            mode = .words
+            shot = nil
+        }
+        naming = true
+    }
+
     private func backToLens() {
-        withAnimation(GridConstants.motionSnappy) {
+        naming = false
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
             shot = nil
             mode = .lens
             size = .small
         }
-        naming = false
         Task { await camera.start() }
     }
 
@@ -638,8 +832,18 @@ struct InlineCameraCard: View {
         HapticsEngine.snap()
         // Your usual next time, unless a crew's own camera chose for you.
         if opening.crews == nil, !crews.isEmpty { CrewChoice.save(recipients) }
-        leave(with: .drop(photo: photo, size: size, title: title, place: photo == nil ? nil : place,
-                          crews: crews.isEmpty ? [] : recipients))
+        // Tonight's words, kept as Send To keeps them.
+        let today = DateUtils.dateString(from: Date())
+        var words = SocialStore.shared.storyWords(on: today)
+        if more, (words.high, words.low, words.buffalo) != (high, low, buffalo) {
+            words.high = high; words.low = low; words.buffalo = buffalo
+            Task { await SocialStore.shared.setStoryWords(words, on: today) }
+        }
+        let kept = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        leave(with: .drop(DroppedWin(photo: photo, size: size, title: title, place: photo == nil ? nil : place,
+                                     crews: crews.isEmpty ? [] : recipients, colour: colour,
+                                     colourChosen: colourChosen || mode == .words,
+                                     note: kept.isEmpty ? nil : kept, with: with, story: onStory)))
     }
 
     private func toSheet(drawing: Bool = false) {
@@ -654,12 +858,12 @@ struct InlineCameraCard: View {
     private func take(_ item: PhotosPickerItem?) async {
         guard let item, let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else { return }
-        withAnimation(GridConstants.motionSnappy) {
+        camera.stop()
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
             shot = image
             mode = .shot
             place = nil
         }
-        camera.stop()
     }
 
     private func close() { leave(with: nil) }
@@ -669,18 +873,16 @@ struct InlineCameraCard: View {
         guard !closing else { return }
         closing = true
         naming = false
+        countdownTask?.cancel()
         // A drop hands over at once, so the block is already falling while
         // the card folds back into the slot it is falling toward.
         if case .drop = result { done(result) }
-        // The face dissolves over the last of the way, so what reaches the
-        // slot is the slot and not a tiny picture that then vanishes.
         withAnimation(GridConstants.cardFaceOut) { shown = false }
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardClose) {
             open = false
             drag = 0
         } completion: {
-            // Stopped after the motion, not at its start: filmed, stopping the
-            // lens on the first frame of the close cost that frame (2026-10-17).
+            // Stopped after the motion, not at its start (filmed, 2026-10-17).
             camera.stop()
             LocationService.shared.stop()
             if case .drop = result { done(nil) } else { done(result) }
@@ -701,6 +903,51 @@ struct InlineCameraCard: View {
                     withAnimation(GridConstants.slotSnap) { drag = 0 }
                 }
             }
+    }
+}
+
+/// **The block, written on** (`InlineCameraCard`'s words). The tower's own
+/// block at its size and colour, drawn at the tower's cell and scaled up so
+/// it can be written on comfortably: the words sit where a block's title
+/// sits, in its type, so what lands on the tower is what was typed here.
+private struct WordBlock: View {
+    @Binding var title: String
+    let size: BlockSize
+    let colour: HabitCategory
+    var focus: FocusState<Bool>.Binding
+
+    private var cell: CGFloat { GridConstants.blockReferenceCell }
+    private var gutter: CGFloat { GridConstants.spacing }
+    private var blockSize: CGSize {
+        CGSize(width: cell * CGFloat(size.columnSpan) + gutter * CGFloat(size.columnSpan - 1),
+               height: cell * CGFloat(size.rowSpan) + gutter * CGFloat(size.rowSpan - 1))
+    }
+
+    var body: some View {
+        GeometryReader { g in
+            let scale = min(g.size.width / blockSize.width, g.size.height / blockSize.height, 2.6)
+            ZStack(alignment: .bottomLeading) {
+                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell), style: .continuous)
+                    .fill(colour.style.baseColor)
+                TextField("", text: $title, prompt: Text("What went right?").foregroundStyle(.white.opacity(0.6)),
+                          axis: .vertical)
+                    .font(BlockContentOverlay.titleFont)
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .lineLimit(1...3)
+                    .submitLabel(.done)
+                    .focused(focus)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 8)
+                    .padding(.bottom, 10)
+            }
+            .frame(width: blockSize.width, height: blockSize.height)
+            .scaleEffect(scale)
+            .frame(width: g.size.width, height: g.size.height)
+        }
+        .frame(maxHeight: 260)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Your block")
     }
 }
 
