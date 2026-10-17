@@ -1063,6 +1063,9 @@ struct CrewTowerView: View {
             // map). It was lifted above the drawer for one build.
             .padding(.bottom, GridConstants.gapWide)
             .frame(minHeight: viewport, alignment: .bottom)
+            // On its floor whatever the page measured (the Wins tower's fix,
+            // 2026-10-16: a short measurement lifted it off).
+            .modifier(TowerFloor())
         }
         .defaultScrollAnchor(.bottom)
         // A finger choosing a reaction must not scroll the tower under it.

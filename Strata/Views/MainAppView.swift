@@ -69,24 +69,6 @@ private struct NotificationLanding: ViewModifier {
     }
 }
 
-/// The tower's floor: its content at least as tall as the scroll view
-/// shows, standing at the bottom (`towerContent`).
-private struct TowerFloor: ViewModifier {
-    func body(content: Content) -> some View {
-        #if DEBUG
-        // `-strataNoTowerFloor`: without it, for the walk's self-test.
-        if ProcessInfo.processInfo.arguments.contains("-strataNoTowerFloor") { return AnyView(content) }
-        #endif
-        return AnyView(ZStack(alignment: .bottom) {
-            Color.clear
-                .containerRelativeFrame(.vertical)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            content
-        })
-    }
-}
-
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
 private struct TabBarCollapseModifier: ViewModifier {
     func body(content: Content) -> some View {
