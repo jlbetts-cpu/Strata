@@ -258,13 +258,16 @@ struct FriendProfileSheet: View {
                            // This month's, by the rule yours keeps.
                            banner: recent.filter { Calendar.current.isDate($0.createdAt, equalTo: Date(), toGranularity: .month) }
                                .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
-                           chips: chips(today: today.count),
+                           // No figures on a person's page (2026-10-17: "Nothing
+                           // that feels like a stats page or a score").
+                           chips: embedded ? [] : chips(today: today.count),
                            handle: Usernames.shown ? store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member) : nil,
                            story: story)
                 if member.profileID != store.me, store.canReply(), !embedded { messageButton }
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }
+                if embedded { betweenYou }
                 // Their featured wins, as on your own profile: only ones
                 // they sent you, only photographs the check lets show.
                 ForEach(theirFeatured, id: \.win.winID) { item in
@@ -307,17 +310,46 @@ struct FriendProfileSheet: View {
     /// What you have in common, and since when.
     private var facts: [InfoCard.Fact] {
         var out: [InfoCard.Fact] = []
-        let names = together.map { $0.displayName(excluding: store.me) }
+        // Crews, not your conversation with them, which is this page.
+        let names = together.filter { !$0.isPersonal }.map { $0.displayName(excluding: store.me) }
+        // **The crews you share, by name** (2026-10-17): "Roommates and Run
+        // Club" is the two of you; "2 crews together" was a tally.
         if !names.isEmpty {
-            out.append(InfoCard.Fact(icon: "person.2", text: names.count == 1 ? names[0] : "\(names.count) crews together"))
+            let shown = names.count <= 2 ? names.formatted(.list(type: .and))
+                : "\(names[0]), \(names[1]) and more"
+            out.append(InfoCard.Fact(icon: "person.2", text: shown))
         }
         if let joined = together.compactMap({ $0.member(member.profileID)?.joinedAt }).min() {
-            out.append(InfoCard.Fact(icon: "clock", text: "Since \(joined.formatted(.dateTime.month(.abbreviated).year()))"))
+            out.append(InfoCard.Fact(icon: "clock", text: "Friends here since \(joined.formatted(.dateTime.month(.wide).year()))"))
         }
         if !Self.story(of: member.profileID, store: store).isEmpty {
             out.append(InfoCard.Fact(icon: "sparkles", text: "On tonight's story"))
         }
         return out
+    }
+
+    // MARK: Between you two
+
+    /// Cheers traded and things you both did (`BetweenYou`), on the page you
+    /// talk to them on. Nothing at all when there is nothing yet.
+    @ViewBuilder
+    private var betweenYou: some View {
+        let shared = together
+        let moments = BetweenYou.moments(me: store.me, friend: member.profileID, name: name,
+                                         wins: shared.flatMap { store.wins(in: $0.id) },
+                                         reactions: shared.flatMap { store.reactionsByCrew[$0.id] ?? [] })
+        if !moments.isEmpty {
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                Text("Between you two")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .accessibilityAddTraits(.isHeader)
+                InfoCard(rows: moments.map { moment in
+                    InfoCard.Fact(icon: moment.kind == .bothDid ? "figure.2" : "heart", text: moment.words)
+                }, contained: true)
+            }
+        }
     }
 
     // MARK: Their photos
