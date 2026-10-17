@@ -888,7 +888,10 @@ struct CrewDestinations: ViewModifier {
             .onChange(of: router.openPerson) { _, friend in
                 guard let friend else { return }
                 router.openPerson = nil
-                path = listIsRoot ? [.person(friend)] : [.list, .person(friend)]
+                // Through the same gate as a crew (the second reader,
+                // 2026-10-17): a phone the gate holds back opens the list.
+                path = CrewGate.current.isFinal ? (listIsRoot ? [] : [.list])
+                    : listIsRoot ? [.person(friend)] : [.list, .person(friend)]
             }
             .onChange(of: router.opensList) { _, opens in
                 guard opens else { return }

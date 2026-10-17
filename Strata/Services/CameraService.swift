@@ -178,9 +178,11 @@ final class CameraService: NSObject {
         // A phone with no camera (the simulator) fails the same way every
         // time; looking for one again on every open was main-thread work on
         // the first frame of the inline camera's motion.
+        // Only "no camera at all" is remembered; a camera busy elsewhere at
+        // warm-up is asked again next time (the second reader, 2026-10-17).
         if !isConfigured, !configureFailed {
             configure()
-            configureFailed = !isConfigured
+            configureFailed = !isConfigured && camera(for: facing) == nil
         }
         return isConfigured
     }
