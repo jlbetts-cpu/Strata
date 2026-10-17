@@ -751,17 +751,11 @@ struct MainAppView: View {
         // stays pressable, and going to another tab puts the card away.
         // **In a window of its own, above every sheet** (`AddWinWindow`: a
         // crew tower's resting chat hid the card under it).
+        // Shown by `presentAddWin` itself, so a card asked for while Wins is
+        // still first appearing (a deep link, the launch) is never missed;
+        // put away here whenever the card is cleared.
         .onChange(of: inlineOpening?.id) { _, id in
-            guard let opening = inlineOpening, id != nil else {
-                AddWinWindow.shared.hide()
-                return
-            }
-            AddWinWindow.shared.hide()
-            AddWinWindow.shared.show(
-                InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
-                    .id(opening.id),
-                passesBelow: TabGlyph.barFrame()?.minY
-            )
+            if id == nil { AddWinWindow.shared.hide() }
         }
         // **No Camera tab, and the camera still a button away** (2026-10-17):
         // with three tabs, a press of Camera Control on Wins opens the card,
@@ -781,8 +775,11 @@ struct MainAppView: View {
                 }
             }
         }
-        .onChange(of: selectedTab, initial: true) { _, tab in
-            if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
+        .onChange(of: selectedTab, initial: true) { old, tab in
+            // Put away by a real change of tab only: the first appearance
+            // calls this too, with the tab unchanged, and cleared a card asked
+            // for at launch (found by the sweep, 2026-10-18).
+            if old != tab, inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
             // **No Camera tab** (the owner, 2026-10-18: "Three tabs: Wins,
             // Crews, Memories. The inline camera is the camera"). Anything
             // that still asks for it lands on Wins with the card open.
@@ -799,7 +796,7 @@ struct MainAppView: View {
         }
         // **Asked for from anywhere**: a chat, a crew, a person's page
         // (`AddWinRouter`), through the one way in.
-        .onChange(of: AddWinRouter.shared.request?.id) { _, id in
+        .onChange(of: AddWinRouter.shared.request?.id, initial: true) { _, id in
             guard id != nil, let request = AddWinRouter.shared.take() else { return }
             presentAddWin(request)
         }
@@ -2718,6 +2715,12 @@ struct MainAppView: View {
         if inlineOpening != nil, !AddWinWindow.shared.isShowing { inlineOpening = nil }
         guard inlineOpening == nil else { return }
         withTransaction(Self.still) { inlineOpening = opening }
+        AddWinWindow.shared.hide()
+        AddWinWindow.shared.show(
+            InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
+                .id(opening.id),
+            passesBelow: TabGlyph.barFrame()?.minY
+        )
     }
 
     /// A cover put up or taken down with no animation of its own.

@@ -1102,40 +1102,8 @@ struct InlineCameraCard: View {
     /// **Who sees it, one small chip** (the second reader, 2026-10-17:
     /// nothing reaches a crew before a yes, so the chip names them and Add is
     /// the yes).
-    @ViewBuilder
     private var recipientsChip: some View {
-        if !crews.isEmpty {
-            let store = SocialStore.shared
-            let names = crews.filter { recipients.contains($0.id) }.map { $0.displayName(excluding: store.me) }
-            let words = names.isEmpty ? "Just you" : names.count == 1 ? names[0] : "\(names[0]) and \(names.count - 1) more"
-            Menu {
-                Toggle("Just Me", isOn: Binding(get: { recipients.isEmpty }, set: { if $0 { recipients = [] } }))
-                ForEach(crews) { crew in
-                    Toggle(crew.displayName(excluding: store.me),
-                           isOn: Binding(get: { recipients.contains(crew.id) },
-                                         set: { if $0 { recipients.insert(crew.id) } else { recipients.remove(crew.id) } }))
-                }
-                Divider()
-                Toggle("Tonight's Story", systemImage: "moon.stars", isOn: $onStory)
-            } label: {
-                HStack(spacing: GridConstants.spacing) {
-                    if onStory { Image(systemName: "moon.stars") }
-                    Text(words).lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .semibold)
-                        .foregroundStyle(AppColors.inkTertiary)
-                }
-                .font(Typography.headerSmall)
-                .foregroundStyle(AppColors.inkPrimary)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
-                .glassCapsule(onPage: true)
-                .contentShape(Capsule())
-            }
-            .menuActionDismissBehavior(.disabled)
-            .accessibilityLabel("Sending to \(words)" + (onStory ? " and tonight's story" : ""))
-            .accessibilityHint("Choose who sees it.")
-        }
+        CrewPicker(selection: $recipients, story: $onStory)
     }
 
     /// **Everything else, behind "..."** (the owner, 2026-10-18: "note,
@@ -1498,8 +1466,20 @@ struct WinHeroTitle: View {
         let k = width / Self.blockWidth(size)
         let lines = size.rowSpan > 1 ? 2 : 1
         VStack(alignment: .leading, spacing: 0) {
-            TextField("", text: $title, prompt: Text("Name it").foregroundStyle(.white.opacity(0.72)),
-                      axis: lines > 1 ? .vertical : .horizontal)
+            // The prompt drawn here rather than as the field's: UIKit's
+            // placeholder clipped through its middle at the hero's size
+            // (seen 2026-10-18); typed words were whole.
+            TextField("", text: $title, axis: lines > 1 ? .vertical : .horizontal)
+                .background(alignment: .leading) {
+                    if title.isEmpty {
+                        Text("Name it")
+                            .font(.system(size: base * k, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .font(.system(size: base * k, weight: .medium))
                 .foregroundStyle(.white)
                 .tint(.white)
@@ -1514,16 +1494,19 @@ struct WinHeroTitle: View {
                 .padding(.top, 18 * k)
         }
         .frame(width: width, alignment: .leading)
+        // Only the scrim is rounded to the photo's corners: clipping the
+        // whole title cut the words through their middle at the hero's size
+        // (seen 2026-10-18).
         .background(alignment: .bottom) {
             if onPhoto {
                 LinearGradient(colors: [.clear, .black.opacity(0.42)], startPoint: .top, endPoint: .bottom)
+                    .clipShape(UnevenRoundedRectangle(
+                        bottomLeadingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
+                        bottomTrailingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
+                        style: .continuous))
                     .allowsHitTesting(false)
             }
         }
-        .clipShape(UnevenRoundedRectangle(
-            bottomLeadingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
-            bottomTrailingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
-            style: .continuous))
         .accessibilityLabel("Name")
     }
 }

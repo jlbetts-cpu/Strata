@@ -106,8 +106,12 @@ struct QoLFixTests {
             let source = try code(path)
             #expect(!source.contains(".buttonStyle(.pressSurface)"),
                     "\(path) puts a scaling press on interactive glass, which cancels taps on a phone")
-            // Ink since the owner thinned the glass (2026-10-06).
-            #expect(!source.contains(".glassCapsule("), "\(path) is a glass chip again")
+            // Ink since the owner thinned the glass (2026-10-06), when the
+            // picker was up to ten chips. **One glass chip since 2026-10-18**
+            // (the owner: "Who sees it ... one small chip", "Controls as quiet
+            // glass"): the row of ticks became that chip, so at most one.
+            let glassChips = source.components(separatedBy: ".glassCapsule(").count - 1
+            #expect(glassChips <= (path.hasSuffix("CrewPicker.swift") ? 1 : 0), "\(path) is a row of glass chips again")
         }
         // The journal's corner glass button became its + (`PlusMenu`, a
         // menu, which takes no press style at all) on 2026-10-15.
