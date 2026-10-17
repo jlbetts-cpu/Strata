@@ -32,6 +32,10 @@ struct StoryViewer: View {
     /// inside the viewer it came up and went at once (filmed, 2026-10-16),
     /// so it is the row's own sheet, the one that works.
     var onEdit: (() -> Void)? = nil
+    /// A friend's head or name tapped in their story: their profile, the
+    /// row's own sheet, as Edit is (the audit, 2026-10-16: "a story's head
+    /// and name should open their profile", as a face in the chat does).
+    var onProfile: ((CrewMember, CrewID) -> Void)? = nil
     /// The page after everyone: "That's everyone tonight."
     private static let endID = UUID(uuidString: "00000000-0000-0000-0000-00000000E0D0")!
     /// Whether this is friends' stories (an end card) or only your own.
@@ -64,6 +68,7 @@ struct StoryViewer: View {
             ForEach(people) { person in
                 StoryPage(person: person, isCurrent: shown == person.id && !opening, dragging: drop > 0,
                           edit: { onEdit?() },
+                          profile: onProfile,
                           next: { step(from: person.id, by: 1) },
                           back: { step(from: person.id, by: -1) },
                           close: onClose)
@@ -72,7 +77,10 @@ struct StoryViewer: View {
             // **A finish line** (Instagram's "You're all caught up", 2018):
             // the evening is finite, and this says it is done.
             if hasEnd {
-                StoryEnd(close: onClose)
+                // **The end asks for yours** when you have not posted (the
+                // audit, 2026-10-16: seeing and sharing go together).
+                StoryEnd(close: onClose,
+                         addStory: store.myStory.isEmpty && store.canReply() ? onEdit : nil)
                     .tag(Self.endID)
             }
         }
@@ -160,6 +168,7 @@ private struct StoryPage: View {
     var dragging = false
     /// Opens Tonight's Story over your own story, to change it.
     var edit: () -> Void = {}
+    var profile: ((CrewMember, CrewID) -> Void)? = nil
     let next: () -> Void
     let back: () -> Void
     let close: () -> Void
@@ -290,18 +299,31 @@ private struct StoryPage: View {
                 .id("\(person.id)-\(page)-\(isCurrent)")
                 .padding(.top, GridConstants.gapTight)
             HStack(spacing: GridConstants.gapTight) {
-                Group {
-                    if mine {
-                        PersonHead(person: .me, side: 32)
-                    } else if let member {
-                        PersonHead(person: .member(member, crew: story.win.crewID, me: store.me), side: 32)
+                Button {
+                    guard !mine, let member else { return }
+                    HapticsEngine.lightTap()
+                    profile?(member, story.win.crewID)
+                } label: {
+                    HStack(spacing: GridConstants.gapTight) {
+                        Group {
+                            if mine {
+                                PersonHead(person: .me, side: 32)
+                            } else if let member {
+                                PersonHead(person: .member(member, crew: story.win.crewID, me: store.me), side: 32)
+                            }
+                        }
+                        .accessibilityHidden(true)
+                        Text(name)
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
                     }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .accessibilityHidden(true)
-                Text(name)
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
+                .buttonStyle(.press)
+                .disabled(mine || profile == nil)
+                .accessibilityHint(mine ? "" : "Opens their profile.")
                 Spacer(minLength: 0)
                 // The same glass circles as the bar at the foot, the chat's +
                 // and every viewer's close (the owner, 2026-10-16: "the
@@ -675,8 +697,23 @@ private struct StoryReplyBar: View {
                     .frame(minHeight: GlassIconButton.defaultSide)
                     .glassField()
                     .accessibilityLabel("Reply to \(name)")
-                GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send", action: send)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                // **A heart in one tap** (the audit, 2026-10-16, after
+                // Instagram's story like and Strava's kudos): cheering a
+                // friend's day cost a tap into the field and the keyboard.
+                // The arrow takes its place once there are words to send.
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let liked = store.myReaction(to: story.id, in: story.win.crewID) == Reaction.doubleTap
+                    GlassIconButton(systemName: liked ? "heart.fill" : "heart", onPage: true,
+                                    accessibilityLabel: liked ? "Liked" : "Like") {
+                        guard !liked else { return }
+                        HapticsEngine.success()
+                        Task { await store.reactToStory(Reaction.doubleTap, story: story) }
+                        done("Sent")
+                    }
+                    .contentTransition(.symbolEffect(.replace))
+                } else {
+                    GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send", action: send)
+                }
             }
         }
         .animation(motion, value: writing)
@@ -709,8 +746,10 @@ private struct StoryReplyBar: View {
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: name) { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
-                Task { _ = await store.doodle(png, to: story.id, in: story.win.crewID) }
-                done("Sent")
+                Task {
+                    let (outcome, to) = await store.doodleToStory(png, story: story)
+                    done(outcome == .sent ? "Sent to \(to)" : "Didn't send. Try again.")
+                }
             }
         }
     }
@@ -745,6 +784,7 @@ private struct StoryReplyBar: View {
 /// No count, no list of who posted, nothing more to see.
 private struct StoryEnd: View {
     let close: () -> Void
+    var addStory: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: GridConstants.gapSection) {
@@ -760,6 +800,21 @@ private struct StoryEnd: View {
             Text("That's everyone tonight.")
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
+            if let addStory {
+                Button {
+                    HapticsEngine.lightTap()
+                    addStory()
+                } label: {
+                    Label("Add Your Story", systemImage: "plus")
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(minHeight: 44)
+                        .glassCapsule(carriesType: true)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -769,7 +824,7 @@ private struct StoryEnd: View {
         // story and tap to close").
         .contentShape(Rectangle())
         .onTapGesture(perform: close)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: addStory == nil ? .combine : .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Closes the stories.")
         .accessibilityAction(.escape, close)

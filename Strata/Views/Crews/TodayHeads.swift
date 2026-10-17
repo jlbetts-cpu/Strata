@@ -191,6 +191,13 @@ struct TodayHeads: View {
                                     try? await Task.sleep(for: .milliseconds(450))
                                     composing = true
                                 }
+                            },
+                            onProfile: { member, crew in
+                                self.watching = nil
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(450))
+                                    profile = Person(member: member, crew: crew, newest: nil, wins: 0)
+                                }
                             })
             }
             .sheet(item: $profile) { person in

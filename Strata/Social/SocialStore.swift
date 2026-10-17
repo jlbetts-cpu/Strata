@@ -3564,6 +3564,17 @@ extension SocialStore {
     /// The outcome, and where it went, said back to you ("Sent to Sam", or
     /// the crew's name when there could be no personal chat): the review,
     /// 2026-10-16, a private reply must never go to a crew unannounced.
+    /// **A doodle on a story goes where a typed reply goes** (the audit,
+    /// 2026-10-16: the words went to your conversation with them and the
+    /// drawing to the whole crew, with "Sent" saying neither): to them.
+    func doodleToStory(_ png: Data, story: CrewStory) async -> (outcome: ReplyOutcome, to: String) {
+        let friend = crew(story.win.crewID)?.member(story.sender)?.firstName ?? ""
+        if let personal = await startPersonal(with: story.sender) {
+            return (await sendDoodle(png, in: personal.id), friend.isEmpty ? "your chat" : friend)
+        }
+        return (await doodle(png, to: story.id, in: story.win.crewID), crew(story.win.crewID)?.displayName(excluding: me) ?? "the crew")
+    }
+
     func replyToStory(_ text: String, story: CrewStory) async -> (outcome: ReplyOutcome, to: String) {
         let title = String(story.win.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit))
         let quote = title.isEmpty ? "a win" : title
