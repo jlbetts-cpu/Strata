@@ -16,18 +16,18 @@ foot.
 
 | # | Rule | Measured by | Status |
 |---|---|---|---|
-| 1 | **Nothing you are doing is cut off by the timer.** The story waits while your finger is down, while the "..." menu or the reply's + menu is open, while the keyboard, a sticker or a doodle is up, and while a dialog shows. Slowly, as a parent would: an 8 second hold, a menu left open 7 seconds. | `testAHoldOfEightSecondsKeepsThePage`, `testStoryWaitsWhileItsMenuIsOpen`, `testStoryWaitsWhileThePlusMenuIsOpen`, `testTypingHoldsTheStoryAndTheCardKeepsItsSize` | see log |
-| 2 | **The keyboard never moves or squeezes the picture.** The story stays where it is and dims; the reply rides the keyboard. (b: Instagram) | the same test reads the card's frame before and while typing | see log |
-| 3 | **A hold shows the picture alone.** Held, the bar, the name and the reply fade away; let go, they come back. (b: WhatsApp hides the name on hold; Instagram the chrome) | screenshot while held | see log |
-| 4 | **Words get time to be read.** The high, low and buffalo page stands by its length, not a photograph's 5 seconds. (a: WCAG 2.2.2; c) | unit test on the duration | see log |
-| 5 | **Every send says where it went**, in the reply's own place, for a moment ("Sent to Sam"); one light haptic on a send or a heart, none on a page tap. (a: Apple, haptics for significant moments) | screenshot after a reaction | see log |
-| 6 | **The timer waits for the picture.** A page whose photograph is still loading does not spend its time on a blank. (b: Instagram holds the bar until media is ready) | unit test or code read | see log |
-| 7 | **The next picture is ready before you get there.** The next page's and the next friend's first photograph are decoded ahead. (a: Meta's adjacent preload, 2026) | code read | see log |
+| 1 | **Nothing you are doing is cut off by the timer.** The story waits while your finger is down, while the "..." menu or the reply's + menu is open, while the keyboard, a sticker or a doodle is up, and while a dialog shows. Slowly, as a parent would: an 8 second hold, a menu left open 7 seconds. | `testAHoldOfEightSecondsKeepsThePage`, `testStoryWaitsWhileItsMenuIsOpen`, `testStoryWaitsWhileThePlusMenuIsOpen`, `testTypingHoldsTheStoryAndTheCardKeepsItsSize` | met: 8s hold, ... menu, + menu, typing each keep the page (probes) |
+| 2 | **The keyboard never moves or squeezes the picture.** The story stays where it is and dims; the reply rides the keyboard. (b: Instagram) | the same test reads the card's frame before and while typing | met: the card 718pt before and while typing (probe) |
+| 3 | **A hold shows the picture alone.** Held, the bar, the name and the reply fade away; let go, they come back. (b: WhatsApp hides the name on hold; Instagram the chrome) | screenshot while held | met: held, the chrome is unseen, untouchable and unspoken; a tap where the close stood leaves the story open (probe) |
+| 4 | **Words get time to be read.** The high, low and buffalo page stands by its length, not a photograph's 5 seconds. (a: WCAG 2.2.2; c) | unit test on the duration | met: 2s plus a third of a second a word, 5 to 12s (`StoryTimingTests`) |
+| 5 | **Every send says where it went**, in the reply's own place, for a moment ("Sent to Sam"); one light haptic on a send or a heart, none on a page tap. (a: Apple, haptics for significant moments) | screenshot after a reaction | met: Sent to Ana, 1.8s; the blue Send key sends (probe) |
+| 6 | **The timer waits for the picture.** A page whose photograph is still loading does not spend its time on a blank. (b: Instagram holds the bar until media is ready) | unit test or code read | met: the bar holds until the picture is on screen, 2.5s at most (code read) |
+| 7 | **The next picture is ready before you get there.** The next page's and the next friend's first photograph are decoded ahead. (a: Meta's adjacent preload, 2026) | code read | met: this friend's next photograph and the next friend's first decode ahead (code read) |
 | 8 | **Rings tell watched from new, everywhere and across restarts and devices.** Resume at the first page not yet watched. | existing unit tests (`TonightsStoryTests`), screenshot of the row | shipped earlier |
 | 9 | **A reply or reaction lands in your conversation with them**, and you are told so. | `replyToStory` / `doodleToStory` read | shipped earlier |
 | 10 | **Never a count, a viewer list, a time posted or a read mark.** | code read, screenshots | shipped earlier |
 | 11 | **Consistent and minimal:** the app's glass, type, radius and dark camera framing; no shadows on chrome; no new colours; nothing added that a rule above does not ask for. | screenshots, looked at | every pass |
-| 12 | **Accessible:** VoiceOver pauses the story and pages by swipe; Reduce Motion cross-fades; the largest text does not break the reply. | screenshots at the largest size, code read | see log |
+| 12 | **Accessible:** VoiceOver pauses the story and pages by swipe; Reduce Motion cross-fades; the largest text does not break the reply. | screenshots at the largest size, code read | met: capped at the camera's xxLarge; the reply field whole at the largest size (probe) |
 
 ## Log
 
@@ -41,6 +41,22 @@ The first measurement, against Build 161, failed rules 1 and 2 four times:
   the launch pass called "the timer cuts off reactions".
 - With the keyboard up, the card went from 718pt tall to 365pt, and the words
   page's drawing slid over its words and the bar.
+
+Then, fixed and measured the same day:
+
+- The hold is `TouchHeld`, one UIKit recogniser for the tap and the hold:
+  a SwiftUI drag from no distance won over the swipe down to close, and a
+  recogniser beside the tap began only on lift. Taps, the swipe across and
+  the swipe down are probed.
+- The keyboard: the pages ignore it, and the reply rides it over the dimmed
+  picture; the quick reactions float over the row, never in it.
+- Their name in a story opened from their page did nothing: it brings you
+  back to them now.
+- A two-person chat read "New Crew" over a story reply until the friend's
+  phone joined it: `chatName` names it for the friend.
+- Not built, proposed: a story reply carrying the story's photo in the chat
+  (Instagram's thumbnail). Quotes show titles only, for every win; adding a
+  picture is a chat change and crew messaging code.
 
 ## Research, in short
 
