@@ -90,6 +90,18 @@ struct CrewFaces: View {
     let crew: Crew
     let me: UUID
     var side: CGFloat = 52
+    /// **A crew is a square where people are round** (the owner, 2026-10-17:
+    /// "Make crews and people easy to tell apart at a glance without labels
+    /// ... Check that a crew of two never reads as a DM"). In a list beside
+    /// conversations a crew's picture is a rounded square, the shape of a
+    /// block, as WhatsApp sets its communities apart from chats; a person is
+    /// always their round head. A crew of two shows you beside them, so its
+    /// tile is never one face.
+    var squared = false
+
+    private var shape: AnyShape {
+        squared ? AnyShape(RoundedRectangle(cornerRadius: side * 0.28, style: .continuous)) : AnyShape(Circle())
+    }
 
     var body: some View {
         ZStack {
@@ -100,7 +112,9 @@ struct CrewFaces: View {
                 // Nobody has joined yet: the crew is you, so far, and its
                 // picture is your face rather than an empty circle.
                 let others = crew.others(than: me)
-                let people = others.isEmpty ? crew.members.filter { $0.profileID == me } : Array(others.prefix(4))
+                let mine = crew.members.filter { $0.profileID == me }
+                let people = others.isEmpty ? mine
+                    : (squared && others.count == 1) ? others + mine : Array(others.prefix(4))
                 ForEach(Array(people.enumerated()), id: \.element.id) { index, member in
                     let spot = Self.spot(index, of: people.count)
                     CrewFace(member: member, crew: crew.id, me: me, side: side * spot.size)
@@ -110,7 +124,7 @@ struct CrewFaces: View {
             }
         }
         .frame(width: side, height: side)
-        .clipShape(Circle())
+        .clipShape(shape)
         .accessibilityHidden(true)
     }
 

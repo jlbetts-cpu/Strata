@@ -123,7 +123,7 @@ struct SendToPage: View {
                 row(on: crews.contains(crew.id),
                     label: crew.displayName(excluding: store.me),
                     hint: "") {
-                    CrewFaces(crew: crew, me: store.me, side: 56)
+                    CrewFaces(crew: crew, me: store.me, side: 56, squared: true)
                 } toggle: {
                     if crews.contains(crew.id) { crews.remove(crew.id) } else { crews.insert(crew.id) }
                 }

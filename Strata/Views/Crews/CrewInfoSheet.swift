@@ -300,7 +300,7 @@ struct CrewInfoSheet: View {
     private func identity(_ crew: Crew) -> some View {
         Section {
             VStack(spacing: GridConstants.gapTight) {
-                CrewFaces(crew: crew, me: store.me, side: 96)
+                CrewFaces(crew: crew, me: store.me, side: 96, squared: true)
                     .accessibilityHidden(true)
                 // A crew's picture is a photograph (the owner, 2026-10-02);
                 // there is no colour or faces option to swap it for. 13 to

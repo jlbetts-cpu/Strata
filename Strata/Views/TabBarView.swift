@@ -114,14 +114,17 @@ enum StrataTab: String, CaseIterable {
     /// for the appearance.
     func label(news count: Int, lit: Bool, scheme: ColorScheme) -> some View {
         Group {
-            if count > 0 || lit, let marked = Self.marked(assetName, count: count, dark: scheme == .dark) {
+            // **A dot, never a number** (the owner, 2026-10-17: "replace the
+            // red count with a quiet dot that matches the bell"). How many
+            // crews have news is the list's to say, row by row.
+            if count > 0 || lit, let marked = Self.marked(assetName, count: 0, dark: scheme == .dark) {
                 Label { Text(rawValue) } icon: { Image(uiImage: marked) }
             } else {
                 Label(rawValue, image: assetName)
             }
         }
         .labelStyle(TabNameStyle())
-        .accessibilityLabel(rawValue)
+        .accessibilityLabel(count > 0 ? "\(rawValue), something new" : rawValue)
     }
 
     @MainActor private static var markedCache: [String: UIImage] = [:]
