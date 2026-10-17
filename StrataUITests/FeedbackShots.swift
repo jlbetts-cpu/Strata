@@ -592,6 +592,50 @@ final class FeedbackShots: XCTestCase {
         XCUIDevice.shared.press(.home); wait(25)
         app.activate(); wait(0.4); snap("back-5-long-at-once")
         wait(2.5); snap("back-6-long-settled")
+        print("PLANNING-floor \(floorGap(app))")
+    }
+
+    /// **The tower stays on its floor** (the owner's launch pass, item 0:
+    /// "leave the app, come back, and the tower is no longer resting on the
+    /// bottom"): 0, 1, 3, 10 and 30 wins, scrolled or not, home and back.
+    func testTowerFloorAfterReturning() {
+        for (wins, short) in [(1, false), (3, false), (3, true), (10, false), (30, false)] {
+            let app = launch(["-strataSeedWins", "\(wins)", "-strataStartTab", "tower"] + (short ? ["-strataShortViewport"] : []))
+            wait(7)
+            let before = floorGap(app)
+            // Scrolled up into the tower, then home.
+            if wins >= 10 { app.swipeDown(); wait(1) }
+            XCUIDevice.shared.press(.home); wait(3)
+            app.activate(); wait(2)
+            let after = floorGap(app)
+            snap("floor-\(wins)")
+            // A sheet and back, then a tab and back.
+            app.tabBars.buttons["Memories"].firstMatch.tap(); wait(1.5)
+            app.tabBars.buttons["Wins"].firstMatch.tap(); wait(1.5)
+            let tabs = floorGap(app)
+            print("PLANNING-floor wins=\(wins) short=\(short) before=\(before) after=\(after) tabs=\(tabs)")
+            app.terminate()
+        }
+    }
+
+    /// The floor walk's self-test: the page measurement short and the floor
+    /// off, the tower must float (or the walk above proves nothing).
+    func testTowerFloorSelfTest() {
+        let app = launch(["-strataSeedWins", "3", "-strataStartTab", "tower", "-strataShortViewport", "-strataNoTowerFloor"])
+        wait(7)
+        print("PLANNING-floor selftest gap=\(floorGap(app))")
+        snap("floor-selftest")
+    }
+
+    /// **How far the tower's lowest block stands above the tab bar**, in
+    /// points: a tower resting on its floor is a small fixed gap; a floating
+    /// one is a large one (the owner, 2026-10-16, build 142).
+    private func floorGap(_ app: XCUIApplication) -> CGFloat {
+        let bar = app.tabBars.firstMatch.frame
+        let blocks = app.buttons.allElementsBoundByIndex.filter { $0.frame.maxY < bar.minY && $0.frame.width > 40
+            && $0.frame.minY > app.frame.height * 0.3 }
+        guard let lowest = blocks.map(\.frame.maxY).max() else { return -1 }
+        return bar.minY - lowest
     }
 
     /// **Every choice on the chat's +, opened** (the owner, 2026-10-14: "make

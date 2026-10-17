@@ -69,6 +69,24 @@ private struct NotificationLanding: ViewModifier {
     }
 }
 
+/// The tower's floor: its content at least as tall as the scroll view
+/// shows, standing at the bottom (`towerContent`).
+private struct TowerFloor: ViewModifier {
+    func body(content: Content) -> some View {
+        #if DEBUG
+        // `-strataNoTowerFloor`: without it, for the walk's self-test.
+        if ProcessInfo.processInfo.arguments.contains("-strataNoTowerFloor") { return AnyView(content) }
+        #endif
+        return AnyView(ZStack(alignment: .bottom) {
+            Color.clear
+                .containerRelativeFrame(.vertical)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            content
+        })
+    }
+}
+
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
 private struct TabBarCollapseModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -2088,6 +2106,15 @@ struct MainAppView: View {
 
  
 
+    /// `-strataShortViewport`: the page measurement made short on purpose,
+    /// so a walk can prove the tower stands on its floor regardless.
+    private func towerFloorViewport(_ measured: CGFloat) -> CGFloat {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-strataShortViewport") { return measured * 0.5 }
+        #endif
+        return measured
+    }
+
     private func towerTabContent() -> some View {
         let colW = currentColW
 
@@ -3770,10 +3797,31 @@ struct MainAppView: View {
                 // excludes the safe areas. Subtracting `safeAreaTop` from it
                 // took the top inset off a second time and left that much
                 // dead air under a bottom-aligned tower.
+                // **The scroll view's own height, measured by itself** (the
+                // owner's launch pass, item 0: "leave the app, come back, and
+                // the tower is no longer resting on the bottom ... it floats
+                // in the middle with a large empty gap beneath"). The floor
+                // was `viewportHeight`, a page measurement taken elsewhere;
+                // whenever it came back short of what this scroll view really
+                // shows (a keyboard or sheet gone while away, the tab bar's
+                // inset settling late), the content was shorter than the
+                // view, and a short scroll content sits at the TOP. Measured
+                // here, the floor is always this view's floor.
                 .frame(
-                    minHeight: viewportHeight,
+                    minHeight: towerFloorViewport(viewportHeight),
                     alignment: .bottom
                 )
+                // **...and never shorter than the scroll view itself shows**
+                // (the owner's launch pass, item 0: "leave the app, come back,
+                // and the tower is no longer resting on the bottom ... it
+                // floats in the middle with a large empty gap beneath"). A
+                // scroll view's content shorter than its view sits at the
+                // TOP; `viewportHeight` is a page measurement taken
+                // elsewhere, and whenever it came back short of what this
+                // scroll view shows, the tower rose off its floor. The scroll
+                // view's own measure (`containerRelativeFrame`) sets the floor
+                // now, whatever that measurement says.
+                .modifier(TowerFloor())
                 // **The empty state's one sentence is NOT here any more.** It
                 // was an overlay pinned to the top of this page, written to sit
                 // under the date; the date came off the header on 2026-10-01
