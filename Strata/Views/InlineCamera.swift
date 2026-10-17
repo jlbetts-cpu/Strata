@@ -809,8 +809,12 @@ struct InlineCameraCard: View {
                 .frame(width: box.width, height: box.height)
                 .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
                 .accessibilityLabel("Your photo")
-            photoTools
-                .padding(GridConstants.gapTight)
+            // Only where there is room for them: squeezed by the keyboard,
+            // the photo was a sliver with three discs floating on it.
+            if box.height >= 140 {
+                photoTools
+                    .padding(GridConstants.gapTight)
+            }
         }
         .frame(width: box.width, height: box.height)
         .task(id: lookRaw) { await showLook(on: image) }
