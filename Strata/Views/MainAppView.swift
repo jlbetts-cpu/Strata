@@ -284,6 +284,8 @@ struct MainAppView: View {
     /// A win the plan page asked for, held while the plan is on screen and
     /// opened once it has gone.
     @State private var pendingOpening: AddWinOpening?
+    /// The way back to the plan, already on its way (a drop, then the close).
+    @State private var planReturnScheduled = false
     /// A plan line ticked optimistically, still waiting to become a block.
     ///
     /// **The tick has to be able to go back.** Pressing a line checks it
@@ -779,7 +781,10 @@ struct MainAppView: View {
             // Put away by a real change of tab only: the first appearance
             // calls this too, with the tab unchanged, and cleared a card asked
             // for at launch (found by the sweep, 2026-10-18).
-            if old != tab, inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
+            if old != tab, let opening = inlineOpening {
+                withTransaction(Self.still) { inlineOpening = nil }
+                letGoOfPlanTick(opening)
+            }
             // **No Camera tab** (the owner, 2026-10-18: "Three tabs: Wins,
             // Crews, Memories. The inline camera is the camera"). Anything
             // that still asks for it lands on Wins with the card open.
@@ -2734,18 +2739,14 @@ struct MainAppView: View {
         switch result {
         case nil:
             withTransaction(Self.still) { inlineOpening = nil }
-            // A plan line ticked for this win and closed without one: the
-            // line goes back the way it was (as the old sheet's dismissal did).
-            if let id = tickAwaitingWin, id == opening.planItemID {
-                if !hasWinToday(for: id) { setPlanItemDone(id, false) }
-                tickAwaitingWin = nil
-                PlanTickPending.clear()
-            }
+            letGoOfPlanTick(opening)
             backToPlanIfAsked(saved: false)
         case .send?:
             break
         case .plan(let scope, let words)?:
             withTransaction(Self.still) { inlineOpening = nil }
+            letGoOfPlanTick(opening)
+            returnsToPlan = false
             planHandoff = (scope, words)
             // The sheet's own way to the plan, with no sheet to close.
             Task { @MainActor in
@@ -2754,6 +2755,8 @@ struct MainAppView: View {
             }
         case .quickAdd?:
             withTransaction(Self.still) { inlineOpening = nil }
+            letGoOfPlanTick(opening)
+            returnsToPlan = false
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(80))
                 quickAdding = true
@@ -2764,9 +2767,17 @@ struct MainAppView: View {
                               with: win.with, story: win.story, window: win.window, zoom: win.zoom, doodle: win.doodle)
             if let made { opening.afterSaved?(made) }
             if opening.planItemID != nil, opening.planItemID == tickAwaitingWin {
-                tickAwaitingWin = nil
-                PlanTickPending.clear()
+                if made == nil {
+                    // Nothing was made: the line goes back the way it was.
+                    letGoOfPlanTick(opening)
+                } else {
+                    tickAwaitingWin = nil
+                    PlanTickPending.clear()
+                }
             }
+            // Back to the plan once the block has landed, once: the close
+            // that follows a drop finds nothing to do (the second reader,
+            // 2026-10-18: it reopened the plan at once and cut the drop off).
             backToPlanIfAsked(saved: made != nil)
             // A plan line photographed from its box: the line is done, and
             // the win remembers it, as the add sheet does for a plan.
@@ -2783,13 +2794,25 @@ struct MainAppView: View {
     /// from a plan line goes back to the plan, a saved one after a moment to
     /// drop onto the tower.
     private func backToPlanIfAsked(saved: Bool) {
-        guard returnsToPlan else { return }
+        guard returnsToPlan, !planReturnScheduled else { return }
+        planReturnScheduled = true
         Task { @MainActor in
             if saved { try? await Task.sleep(for: .milliseconds(900)) }
+            planReturnScheduled = false
             returnsToPlan = false
             dayOpeningTab = .plan
             isPlanning = true
         }
+    }
+
+    /// A plan line ticked for this card's win, and the card gone without
+    /// one (closed, another tab, planned instead, Today's Photos): the line
+    /// goes back the way it was, as the old sheet's dismissal did.
+    private func letGoOfPlanTick(_ opening: AddWinOpening) {
+        guard let id = tickAwaitingWin, id == opening.planItemID else { return }
+        if !hasWinToday(for: id) { setPlanItemDone(id, false) }
+        tickAwaitingWin = nil
+        PlanTickPending.clear()
     }
 
     /// **To the plan, on the day chosen** (the sheet's Now row, and the

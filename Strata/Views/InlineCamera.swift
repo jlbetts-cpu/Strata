@@ -1103,7 +1103,8 @@ struct InlineCameraCard: View {
     /// nothing reaches a crew before a yes, so the chip names them and Add is
     /// the yes).
     private var recipientsChip: some View {
-        CrewPicker(selection: $recipients, story: $onStory)
+        // Under 16, a photograph stays on the phone, and the chip says so.
+        CrewPicker(selection: $recipients, mentionsPhotos: mode == .shot, story: $onStory)
     }
 
     /// **Everything else, behind "..."** (the owner, 2026-10-18: "note,
@@ -1219,7 +1220,9 @@ struct InlineCameraCard: View {
     private func arrive() {
         opened = CACurrentMediaTime()
         if !standsOnBar { barTop = nil }
-        recipients = opening.crews ?? CrewChoice.load()
+        // Only crews this person can post to are ever named (the second
+        // reader, 2026-10-18: a conversation of two reached the chip).
+        recipients = (opening.crews ?? CrewChoice.load()).intersection(crews.map(\.id))
         colour = opening.colour
         if !opening.title.isEmpty { title = opening.title }
         size = opening.size
@@ -1405,7 +1408,7 @@ struct InlineCameraCard: View {
         (lookRaw, looked, choosingLook, marks, markLayer, sticker, crop, zoom) =
             (FilmLook.Kind.none.rawValue, nil, false, nil, nil, nil, .zero, 1)
         (dropping, colourChosen, doodle) = (false, false, nil)
-        recipients = opening.crews ?? CrewChoice.load()
+        recipients = (opening.crews ?? CrewChoice.load()).intersection(crews.map(\.id))
         if restart, mode == .lens { Task { await camera.start() } }
     }
 

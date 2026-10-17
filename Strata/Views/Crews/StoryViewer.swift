@@ -839,11 +839,15 @@ private struct StoryReplyBar: View {
                     // rule 5): on a field that can grow, the key only typed a
                     // new line under the reply (filmed, 2026-10-17). A story
                     // reply is one line; the chat keeps Return for lines.
-                    .onChange(of: text) { _, typed in
+                    .onChange(of: text) { before, typed in
                         guard typed.contains("\n") else { return }
+                        // The key itself: one new line, at the end, added to
+                        // what was there. A paste with lines in it is joined
+                        // and waits for Send (the second reader, 2026-10-18).
+                        let pressed = typed == before + "\n"
                         text = typed.replacingOccurrences(of: "\n", with: " ")
                             .trimmingCharacters(in: .whitespaces)
-                        send()
+                        if pressed { send() }
                     }
                     .padding(.horizontal, GridConstants.gapLabel)
                     .padding(.vertical, GridConstants.gapTight)

@@ -1590,6 +1590,10 @@ struct CrewChatSheet: View {
 
     private func choose(_ choice: ChatPlusRow.Choice) {
         writing = false
+        // The card stands in its own window over everything: the chat stays
+        // where it is (the second reader, 2026-10-18: lowered for Win, it
+        // never came back).
+        if choice == .win { open(choice); return }
         alone { open(choice) }
     }
 
@@ -1682,10 +1686,14 @@ struct CrewChatSheet: View {
     /// 2026-10-17: nothing reaches a crew without naming it on screen).
     private func addWin(photo: UIImage?) {
         let crew = crewID
+        // To this crew only from a crew's chat. A conversation of two is not
+        // a crew a win is posted to (the second reader, 2026-10-18: the chip
+        // said Just you while it posted to the conversation).
+        let toCrew = photo == nil && !isDirect
         AddWinRouter.shared.open(AddWinOpening(
             from: AddWinOpening.foot(), radius: GridConstants.radiusSurface, colour: .unlabeled,
-            crews: photo == nil ? [crew] : [], photo: photo,
-            afterSaved: photo == nil ? { habit in sayWin(habit) } : nil))
+            crews: toCrew ? [crew] : [], photo: photo,
+            afterSaved: toCrew ? { habit in sayWin(habit) } : nil))
     }
 
     private func sayWin(_ habit: Habit) {
