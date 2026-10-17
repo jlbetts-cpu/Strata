@@ -556,6 +556,9 @@ enum GridConstants {
     /// And out over the last of the close, so what reaches the slot is the
     /// slot and not a tiny picture that then vanishes.
     static let cardFaceOut = Animation.easeIn(duration: 0.16).delay(0.14)
+    /// **Riding the keyboard** (the stories standard, rule 2): the reply
+    /// moves as the keyboard does, over the keyboard's own duration.
+    static func keyboardRide(_ duration: Double) -> Animation { .smooth(duration: max(duration, 0.2)) }
 
 
     // **`progressFill` (0.25 / 0.70) and `cascadeReveal` (0.50 / 0.65) are

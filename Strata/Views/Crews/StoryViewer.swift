@@ -317,11 +317,11 @@ private struct StoryPage: View {
             let screen = UIScreen.main.bounds.height
             let height = max(0, screen - end.minY)
             let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
-            withAnimation(.smooth(duration: max(duration, 0.2))) { keyboard = height }
+            withAnimation(GridConstants.keyboardRide(duration)) { keyboard = height }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { note in
             let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
-            withAnimation(.smooth(duration: max(duration, 0.2))) { keyboard = 0 }
+            withAnimation(GridConstants.keyboardRide(duration)) { keyboard = 0 }
         }
         .onChange(of: touching) { _, now in
             if !now { withAnimation(GridConstants.crossFade) { holding = false } }
