@@ -136,7 +136,16 @@ extension SocialStore {
     var hasNewActivity: Bool {
         _ = activityRevision
         let seen = defaults.double(forKey: Self.activitySeenKey)
-        return (activityFeed().first?.date.timeIntervalSince1970 ?? 0) > seen
+        // Read here, so a change to any of them still redraws the dot.
+        let key = [crews.count, blocked.count,
+                   winsByCrew.values.reduce(0) { $0 + $1.count },
+                   messagesByCrew.values.reduce(0) { $0 + $1.count },
+                   reactionsByCrew.values.reduce(0) { $0 + $1.count },
+                   storiesByCrew.values.reduce(0) { $0 + $1.count }]
+        if let cached = activityNewest, cached.key == key { return cached.newest > seen }
+        let newest = activityFeed().first?.date.timeIntervalSince1970 ?? 0
+        activityNewest = (key, newest)
+        return newest > seen
     }
 
     func markActivitySeen() {

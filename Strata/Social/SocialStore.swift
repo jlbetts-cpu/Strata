@@ -138,6 +138,11 @@ final class SocialStore {
     private(set) var outboxRevision = 0
     /// Bumped when the activity corner is looked at (`ActivityFeed`).
     var activityRevision = 0
+    /// The newest thing in Activity, kept against a cheap fingerprint of
+    /// what it was gathered from, so the corner's dot is not a whole feed
+    /// rebuilt on every render of the Crews list (the second reader,
+    /// 2026-10-17).
+    @ObservationIgnored var activityNewest: (key: [Int], newest: Double)?
     private(set) var isRefreshing = false
 
     let cloud: CrewCloud
