@@ -118,7 +118,8 @@ struct AlbumsAndCropTests {
         // Five since 2026-10-13: tonight's note (`DayNote`) and where a
         // win's note shows (`WinNote`) are said under the header too, and
         // wait as the other three do.
-        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 5)
+        // Six since 2026-10-17: the day in photos (`QuickAddCue`) waits too.
+        #expect(main.components(separatedBy: "await Self.waitForRing()").count - 1 == 6)
         #expect(WinNote.hintLine.count <= TipCopy.longestMessage)
         #expect(!main.contains("guard !Task.isCancelled, winDraft == nil, TipStage.shared.holder == nil"))
         #expect(try code("Strata/Views/Crews/FirstWinInviteCard.swift").contains("await MainAppView.waitForRing()"))

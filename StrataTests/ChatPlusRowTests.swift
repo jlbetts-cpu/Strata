@@ -115,7 +115,8 @@ struct ChatPlusRowTests {
         #expect(CrewStripSendSheet.addWord == "Add a Win")
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
         #expect(chat.contains("addWin: { afterSheet { addingWin = true } }"), "the strip's Add a Win goes somewhere else")
-        // Holding a kept chat photo since 2026-10-17 (`addingWinPhoto`).
-        #expect(chat.contains("AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,\n                        initialCrews: [crewID]"))
+        // Holding a kept chat photo since 2026-10-17 (`addingWinPhoto`),
+        // which goes on your tower only; the chat's own Add a Win, to it.
+        #expect(chat.contains("AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,\n                        initialCrews: addingWinPhoto == nil ? [crewID] : []"))
     }
 }

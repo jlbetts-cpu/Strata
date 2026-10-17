@@ -364,7 +364,8 @@ struct PlanningAheadTests {
         // Through `planned` since 2026-10-13 (a crew's tower presses the
         // same boxes): the guard is the same, in one place.
         #expect(main.contains("onCamera: { planned(nil, $0, .camera) }"))
-        #expect(main.contains("case .camera: if stillThere(item), !alreadyWon(item) { capturingPlan = item }"))
+        // The camera card since 2026-10-17, behind the same guard.
+        #expect(main.contains("case .camera:\n            guard stillThere(item), !alreadyWon(item) else { return }"))
         #expect(main.contains("plannedLine: draft.planItemID"))
         #expect(main.contains("PlanTickPending.hold(item.id)"))
         let settle = try #require(main.range(of: "PlanTickPending.settle(context: modelContext)"))
