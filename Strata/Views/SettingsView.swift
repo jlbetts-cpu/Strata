@@ -899,6 +899,19 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "hand.raised")
                     }
                 }
+                // **Acknowledgements** (the owner, 2026-10-18): the Solar
+                // credit its CC BY 4.0 licence asks for.
+                NavigationLink {
+                    AcknowledgementsView()
+                        .glassBackButton()
+                } label: {
+                    Label {
+                        Text(AcknowledgementsView.title)
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "heart.text.square")
+                    }
+                }
                 // **The Terms of Use** (2026-10-08): crews carry other
                 // people's photos and words, so the rules, the takedown route
                 // and the tips' terms need a home a reviewer can reach.
