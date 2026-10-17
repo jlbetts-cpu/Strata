@@ -149,14 +149,17 @@ struct OnboardingView: View {
     /// win: "that should be explained in the app they just kinda look lame").
     /// Your three is chosen from Your day; the first win is the tower's own
     /// slot, which the app opens on. Both pages stay in the code, unreached.
-    private var lastStep: Int { endsOnGoal ? Self.lockStep : Self.thanksStep }
+    /// **Ends on your name** (the launch pass, 9: "ask for permissions only at
+    /// the moment they're needed"): the journal's lock, which asks for Face
+    /// ID, is offered by the journal itself and in Settings, not here.
+    private var lastStep: Int { endsOnGoal ? Self.nameStep : Self.thanksStep }
 
     /// **Seven pages, not nine** (2026-10-08, `docs/superpowers/specs/
     /// 2026-10-08-onboarding-rebuild-design.md`). The film opens it; the
     /// opening tower picture, the camera slide and the map slide are what the
     /// film shows, and the map asks for places itself when it is opened. Their
     /// pages stay in the code, skipped: one line from back.
-    private static let skipped: Set<Int> = [0, 2, 3, 7]
+    private static let skipped: Set<Int> = CrewsFlag.isOn ? [0, 3, 7] : [0, 2, 3, 7]
     private static let firstShown = 1
     private var shownSteps: [Int] { (0...lastStep).filter { !Self.skipped.contains($0) } }
     private func next(after s: Int) -> Int { shownSteps.first { $0 > s } ?? lastStep }
@@ -596,6 +599,19 @@ struct OnboardingView: View {
                 // the identical rectangle (x192 to 1013, y2373 to 2558 at 3x,
                 // the same in both), masked to the capsule. The sunset and
                 // every other control are the original capture.
+                // **Your people, the app as it is now** (the owner's launch
+                // pass, 9: "the app has changed a lot, and onboarding hasn't
+                // ... crews, profiles with messages in them"). One page, three
+                // lines: who sees your wins, when, and how to talk to one of
+                // them. Nothing to set up here; the Crews tab asks when you go.
+                case 2 where CrewsFlag.isOn:
+                    FeatureList(rows: [
+                        ("MarkPeople", "A crew", "A few friends who see each other's wins every day."),
+                        ("TipSparkle", "Tonight's stories", "At 8, the best of everyone's day, to cheer on."),
+                        ("TipPersonPlus", "Their page", "Tap anyone to see their wins and message them."),
+                    ])
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .frame(maxHeight: .infinity)
                 case 2: screenshot("DemoViewfinder", in: box)
                 case 3: memories(in: box)
                 case Self.headStep: headPage
@@ -1265,7 +1281,7 @@ struct OnboardingView: View {
         switch step {
         // The first page now, after the film: the film's own line.
         case 1: return "Every win is a block."
-        case 2: return "A win can be a photo"
+        case 2: return CrewsFlag.isOn ? "Bring your people" : "A win can be a photo"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         case Self.goalStep: return "A goal for each day"
@@ -1321,7 +1337,7 @@ struct OnboardingView: View {
             ? "Pull nothing and it's a quick one. The size is how much it took."
             : reduceMotion ? "Hold the slot, then let go to drop a block in."
             : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
-        case 2: return nil
+        case 2: return CrewsFlag.isOn ? "Some Wins is better with a few people who love you." : nil
         case 3: return "Your wins land on the map where you took them."
         // The head is who you are in a crew (the owner, 2026-10-14), so the
         // line says that, not where it may be switched on.
@@ -1521,7 +1537,8 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil ? "Make My Head" : "Go On"
         // The last page now (2026-10-08): it sets the goal and opens the app.
         case Self.goalStep: return "Set My Goal"
-        case Self.nameStep: return "Go On"
+        // The last page: it opens the app.
+        case Self.nameStep: return step < lastStep ? "Go On" : "Start"
         case Self.lockStep: return "Lock My Journal"
         // Not the last page any more when the goal follows it.
         // Two follow it, the goal and your name, and it said "One More

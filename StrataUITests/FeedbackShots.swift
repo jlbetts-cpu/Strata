@@ -39,7 +39,7 @@ final class FeedbackShots: XCTestCase {
     }
 
     func testOnboardingPages() {
-        for step in [1, 4, 5, 6, 8, 9] {
+        for step in [1, 2, 4, 5, 6, 8] {
             let app = launch(["-strataShowOnboarding", "1", "-strataOnboardingStep", "\(step)"])
             wait(step == 1 ? 7 : 4)
             snap("onb-\(step)")
