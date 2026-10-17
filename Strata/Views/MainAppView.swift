@@ -749,11 +749,19 @@ struct MainAppView: View {
         // sits right above it, with the tab bar still visible and calm
         // underneath"). An overlay, not a cover: the bar stays where it is and
         // stays pressable, and going to another tab puts the card away.
-        .overlay {
-            if let opening = inlineOpening {
-                InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
-                    .id(opening.id)
+        // **In a window of its own, above every sheet** (`AddWinWindow`: a
+        // crew tower's resting chat hid the card under it).
+        .onChange(of: inlineOpening?.id) { _, id in
+            guard let opening = inlineOpening, id != nil else {
+                AddWinWindow.shared.hide()
+                return
             }
+            AddWinWindow.shared.hide()
+            AddWinWindow.shared.show(
+                InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
+                    .id(opening.id),
+                passesBelow: TabGlyph.barFrame()?.minY
+            )
         }
         // **No Camera tab, and the camera still a button away** (2026-10-17):
         // with three tabs, a press of Camera Control on Wins opens the card,
@@ -2744,10 +2752,12 @@ struct MainAppView: View {
     /// Add a Win from something tapped at `rect`: the inline camera grown out
     /// of it, or out of the foot of the screen when nothing was tapped.
     func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil) {
-        guard inlineOpening == nil else {
-            winDraft = WinDraft(crews: crews)
-            return
-        }
+        // **Never the old sheet** (the owner, 2026-10-18): a card already
+        // up is the one being made; a second press does not open another.
+        // Said open with nothing on screen: never again a press that does
+        // nothing. It opens fresh.
+        if inlineOpening != nil, !AddWinWindow.shared.isShowing { inlineOpening = nil }
+        guard inlineOpening == nil else { return }
         // Nothing tapped to grow out of (a chat's Add a Win, the day's cue):
         // it rises from the foot of the screen, where the card will stand.
         let from = rect.flatMap { $0.width > 0 ? $0 : nil } ?? AddWinOpening.foot()
