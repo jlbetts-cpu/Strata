@@ -651,7 +651,15 @@ struct NewCrewSheet: View {
                     .focused($focused)
                     .submitLabel(.go)
                     .onSubmit(start)
-                Text("Whoever you invite sees the wins sent here that day, with their photos.")
+                // **What a crew is, where it is named** (the owner's launch
+                // pass: "someone making their first one should understand
+                // what a crew is ... and how it differs from a one-on-one
+                // conversation"). Two lines: what happens, and the other way.
+                Text("A few people who see each other's wins every day. A win you send here lands on one shared tower, for all of you.")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Just one person? Message them from their profile.")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
                 // Red, as every error the app sets on the page is (the owner,

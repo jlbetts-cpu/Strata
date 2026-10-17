@@ -64,6 +64,8 @@ struct CrewTowerView: View {
     private var native: Bool { NativeChat.isOn }
     /// "Just you so far.": once a crew, while nobody else has joined.
     @State private var aloneTip = false
+    /// The first shared tower you see: what it is, once ever.
+    @State private var towerTip = false
     /// The crew's week, offered from Sunday evening (`CrewWeekReplay`).
     @State private var weekCard: Replay?
     /// **The crew widget, said once** (the second round of research,
@@ -137,13 +139,14 @@ struct CrewTowerView: View {
             // the bar and not in it, or I'm In takes no touch. Once you are
             // in, it is a box on the tower below (`CrewPlannedLayer`).
             VStack(spacing: GridConstants.gapTight) {
-                if aloneTip { justYouTip }
+                if aloneTip { justYouTip } else if towerTip { firstTowerTip }
                 if let catchUp { catchUpTip(catchUp) } else if let weekCard { weekTip(weekCard) } else if widgetTip { crewWidgetTip }
                 CrewPlanCards(crewID: crewID, refresh: plansRefresh, onChanged: { plannedNudge += 1 })
             }
             .padding(.horizontal, hPad)
             .padding(.top, GridConstants.gapTight)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: aloneTip)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: towerTip)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: weekCard?.id)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: widgetTip)
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: catchUp?.id)
@@ -345,6 +348,7 @@ struct CrewTowerView: View {
             if (members?.count ?? 0) > 1, aloneTip { withAnimation(GridConstants.cueOut) { aloneTip = false } }
         }
         .task { await considerAloneTip() }
+        .task { await considerTowerTip() }
         .task { await considerCatchUp() }
         .task { await considerWeekCard() }
         .task { await considerWidgetTip() }
@@ -726,6 +730,32 @@ struct CrewTowerView: View {
     }
 
     static let aloneShownKey = "crews.justYouShown"
+
+    /// **A crew explains itself the first time it is a crew** (the owner's
+    /// launch pass: "one line the first time they see the shared tower").
+    /// Once ever, the first crew you open with a friend in it.
+    private var firstTowerTip: some View {
+        TipCard(title: "Your crew's tower.",
+                message: "Every win sent here lands on it, for all of you. Hold one to cheer it on.",
+                mark: "TipSparkle",
+                close: {
+                    HapticsEngine.lightTap()
+                    withAnimation(GridConstants.cueOut) { towerTip = false }
+                })
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+    }
+
+    static let towerTipShownKey = "crews.firstTowerShown"
+
+    private func considerTowerTip() async {
+        guard let crew, !crew.isPersonal, crew.members.count > 1,
+              !UserDefaults.standard.bool(forKey: Self.towerTipShownKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.towerTipShownKey)
+        try? await Task.sleep(for: .milliseconds(900))
+        towerTip = true
+        try? await Task.sleep(for: .seconds(12))
+        if towerTip { withAnimation(GridConstants.cueOut) { towerTip = false } }
+    }
 
     /// **"Your week, put together."** (`docs/voice.md`, albums and recaps:
     /// the warmest the app gets, and still quiet.) The line under it is the
