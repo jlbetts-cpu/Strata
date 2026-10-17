@@ -71,7 +71,7 @@ struct InfoCard: View {
                                     .fixedSize()
                             }
                             .padding(.horizontal, GridConstants.horizontalPadding)
-                            .frame(height: Self.line)
+                            .frame(minHeight: Self.line)
                             .accessibilityElement(children: .combine)
                         }
                     }

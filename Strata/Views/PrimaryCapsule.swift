@@ -253,7 +253,10 @@ struct PrimaryCapsule: View {
             .font(Typography.headerMedium)
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity)
-            .frame(height: Self.height)
+            // At least 50, never clipped: at the largest text sizes the words
+            // grow it (the launch pass, 5½: "nothing gets cut off").
+            .multilineTextAlignment(.center)
+            .frame(minHeight: Self.height)
             .background(ground())
     }
 }

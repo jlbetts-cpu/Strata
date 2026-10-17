@@ -19,6 +19,7 @@ nonisolated enum CrewRoute: Hashable {
 struct CrewsListView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var open: (CrewID) -> Void
 
     @State private var startsCrew = false
@@ -344,7 +345,7 @@ struct CrewsListView: View {
                     Text(friend.map { $0.shortName.isEmpty ? "A friend" : $0.shortName } ?? crew.displayName(excluding: store.me))
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                         .fitsLargeType(.body)
                     // **The crew's streak, tiny** (2026-10-09, unification
                     // §5c): a flame and the number, quiet ink, after the
@@ -371,7 +372,7 @@ struct CrewsListView: View {
                             .accessibilityLabel("Muted")
                     }
                     Spacer(minLength: 8)
-                    if let latest {
+                    if let latest, !dynamicTypeSize.isAccessibilitySize {
                         Text(Self.when(latest.date))
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkSecondary)
@@ -380,7 +381,15 @@ struct CrewsListView: View {
                 Text(Self.preview(latest, in: crew, me: store.me))
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                // **At the largest text, the time goes under** (the launch
+                // pass, 5½), as Messages stacks a row: beside the name it
+                // squeezed the name to nothing.
+                if let latest, dynamicTypeSize.isAccessibilitySize {
+                    Text(Self.when(latest.date))
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkTertiary)
+                }
             }
             // **No count at the end of the row** (the owner, 2026-10-02: "I
             // dont like the big number of wins outside the chat... just

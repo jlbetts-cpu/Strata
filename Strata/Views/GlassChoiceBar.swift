@@ -92,9 +92,11 @@ struct GlassChoiceBar<Item: Hashable>: View {
                 .font(Typography.headerSmall)
                 .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkSecondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .padding(.horizontal, GridConstants.gapItem)
                 .frame(minWidth: 44, maxWidth: fills ? .infinity : nil)
-                .frame(height: Self.height - Self.inset * 2)
+                // At least the bar's own height; the largest text grows it.
+                .frame(minHeight: Self.height - Self.inset * 2)
                 .overlay(alignment: .bottom) {
                     Circle()
                         .fill(on ? AppColors.inkPrimary : AppColors.inkTertiary)

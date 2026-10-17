@@ -627,6 +627,24 @@ final class FeedbackShots: XCTestCase {
         snap("floor-selftest")
     }
 
+    /// **The largest text** (the launch pass, 5½: "test every screen at the
+    /// largest Dynamic Type sizes ... nothing gets cut off").
+    func testLargestText() {
+        let big = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        var app = launch(big + ["-strataSeedWins", "3", "-strataStartTab", "tower"])
+        wait(7); snap("big-0-wins")
+        app.terminate()
+        app = launch(big + ["-strataSeedWins", "2", "-strataOpenSheet", "add"])
+        wait(6); snap("big-1-add")
+        app.terminate()
+        app = launch(big + ["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                            "-strataSeedWins", "2"])
+        wait(10); snap("big-2-crews")
+        app.terminate()
+        app = launch(big + ["-strataOpenSheet", "settings"])
+        wait(6); snap("big-3-settings")
+    }
+
     /// **How far the tower's lowest block stands above the tab bar**, in
     /// points: a tower resting on its floor is a small fixed gap; a floating
     /// one is a large one (the owner, 2026-10-16, build 142).

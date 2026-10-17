@@ -54,7 +54,12 @@ struct NextSlotButton: View {
     @State private var pressStarted = Date()
 
     /// Below this, a still press is a tap.
-    private static let tapCeiling: Double = 0.28
+    ///
+    /// **Half a second, the system's own long press** (the launch pass,
+    /// 5½: "a parent who taps once and sees nothing happen will think the
+    /// app is broken"). At 0.28s a slow, careful tap logged a Quick win
+    /// instead of opening the menu. A drag still draws at once.
+    private static let tapCeiling: Double = 0.5
 
     /// The gesture's maths lives in `BlockSizeDraw`.
     ///
