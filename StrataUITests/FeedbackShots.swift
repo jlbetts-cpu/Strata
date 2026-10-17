@@ -216,6 +216,20 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("person-1-scrolled")
     }
 
+    /// Activity, grouped, and a group opened out.
+    func testActivityGrouped() {
+        let app = launch(["-strataStartTab", "crews", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                          "-strataSeedCrews", "3", "-strataSeedDM", "1",
+                          "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        _ = app.buttons["Crews"].firstMatch.waitForExistence(timeout: 15)
+        wait(6)
+        let bell = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "activity")).firstMatch
+        if bell.waitForExistence(timeout: 5) { bell.tap() }
+        wait(2); snap("activity-0")
+        let grouped = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "others")).firstMatch
+        if grouped.exists { grouped.tap(); wait(1.5); snap("activity-1-open") }
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

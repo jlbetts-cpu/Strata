@@ -7,7 +7,10 @@ import SwiftUI
 /// no red, and an empty page in the app's voice.
 struct ActivitySheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var store: SocialStore { SocialStore.shared }
+    /// The grouped rows opened out (`ActivityItem.children`).
+    @State private var opened: Set<String> = []
 
     var body: some View {
         let items = store.activityFeed()
@@ -26,10 +29,25 @@ struct ActivitySheet: View {
                         ForEach(sections(items), id: \.title) { section in
                             Section {
                                 ForEach(section.items) { item in
-                                    Button { open(item) } label: { row(item) }
+                                    Button {
+                                        if item.children.isEmpty { open(item) } else { toggle(item) }
+                                    } label: { row(item) }
                                         .buttonStyle(.press)
                                         .listRowBackground(Color.clear)
                                         .listRowSeparator(.hidden)
+                                        .accessibilityHint(item.children.isEmpty ? ""
+                                                           : opened.contains(item.id) ? "Folds these away." : "Shows each one.")
+                                    // Opened out: each one, a little in, a
+                                    // tap from where it happened.
+                                    if opened.contains(item.id) {
+                                        ForEach(item.children) { child in
+                                            Button { open(child) } label: { row(child, small: true) }
+                                                .buttonStyle(.press)
+                                                .listRowBackground(Color.clear)
+                                                .listRowSeparator(.hidden)
+                                                .listRowInsets(EdgeInsets(top: 4, leading: 56, bottom: 4, trailing: 16))
+                                        }
+                                    }
                                 }
                             } header: {
                                 Text(section.title)
@@ -66,10 +84,17 @@ struct ActivitySheet: View {
             .filter { !$0.1.isEmpty }.map { DaySection(title: $0.0, items: $0.1) }
     }
 
-    private func row(_ item: ActivityItem) -> some View {
+    private func toggle(_ item: ActivityItem) {
+        HapticsEngine.tick()
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) {
+            if opened.contains(item.id) { opened.remove(item.id) } else { opened.insert(item.id) }
+        }
+    }
+
+    private func row(_ item: ActivityItem, small: Bool = false) -> some View {
         HStack(alignment: .top, spacing: GridConstants.gapItem) {
             if let first = item.people.first, let member = store.crews.lazy.compactMap({ $0.member(first) }).first {
-                PersonHead(person: .member(member, crew: item.crewID, me: store.me), side: 40)
+                PersonHead(person: .member(member, crew: item.crewID, me: store.me), side: small ? 28 : 40)
             }
             VStack(alignment: .leading, spacing: 2) {
                 (Text(store.names(item.people, in: item.crewID)).fontWeight(.semibold)
@@ -83,6 +108,15 @@ struct ActivitySheet: View {
                     .foregroundStyle(AppColors.inkTertiary)
             }
             Spacer(minLength: 0)
+            if !item.children.isEmpty {
+                Image(systemName: "chevron.down")
+                    .font(Typography.headerSmall)
+                    .imageScale(.small)
+                    .foregroundStyle(AppColors.inkTertiary)
+                    .rotationEffect(.degrees(opened.contains(item.id) ? 180 : 0))
+                    .padding(.top, 4)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(minHeight: 44)
         .contentShape(Rectangle())

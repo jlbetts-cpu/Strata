@@ -22,6 +22,10 @@ nonisolated struct ActivityItem: Identifiable, Equatable, Sendable {
     let words: String
     /// The win it is about, to open it there.
     let winID: UUID?
+    /// **What it gathers, one each, for a tap to open out** (the owner,
+    /// 2026-10-17: "collapse them into one row ... Tap to expand and see each
+    /// one"). Empty for a row that is one thing.
+    var children: [ActivityItem] = []
 }
 
 nonisolated enum ActivityFeed {
@@ -40,23 +44,36 @@ nonisolated enum ActivityFeed {
         } }
         var items: [ActivityItem] = []
 
-        // Reactions to yours: one line a win, across crews.
-        var byWin: [UUID: [(Reaction, CrewID)]] = [:]
+        // **Reactions to yours: one line a win a day, across crews** (the
+        // owner, 2026-10-17: "grouped within a sensible window of time so old
+        // and new don't merge"). The window is the day, which is how the sheet
+        // already reads (Today, Yesterday, Earlier) and how Instagram groups
+        // likes on one post; each person's reaction is a child to open out.
+        func day(_ date: Date) -> String { DateUtils.dateString(from: date) }
+        var byWin: [String: [(Reaction, CrewID)]] = [:]
         for crew in crews {
             for reaction in reactions[crew.id] ?? [] where mine[reaction.winID] != nil
                 && reaction.profileID != me && !blocked.contains(reaction.profileID) && reaction.createdAt >= since {
-                byWin[reaction.winID, default: []].append((reaction, crew.id))
+                byWin["\(reaction.winID)|\(day(reaction.createdAt))", default: []].append((reaction, crew.id))
             }
         }
-        for (winID, list) in byWin {
+        for (key, list) in byWin {
             let newest = list.sorted { $0.0.createdAt > $1.0.createdAt }
+            let winID = newest[0].0.winID
             var emoji: [String] = []
             for (r, _) in newest where !emoji.contains(r.emoji) && !r.isSticker { emoji.append(r.emoji) }
             let marks = emoji.prefix(3).joined()
-            items.append(ActivityItem(id: "r-\(winID)", kind: .reacted, crewID: newest[0].1,
-                                      people: unique(newest.map(\.0.profileID)), date: newest[0].0.createdAt,
-                                      words: "reacted\(marks.isEmpty ? "" : " " + marks) to \(mine[winID] ?? "your win")",
-                                      winID: winID))
+            let what = mine[winID] ?? "your win"
+            let one = newest.map { r, crew in
+                ActivityItem(id: "r1-\(r.winID)-\(r.profileID)-\(r.createdAt.timeIntervalSince1970)", kind: .reacted,
+                             crewID: crew, people: [r.profileID], date: r.createdAt,
+                             words: "reacted\(r.isSticker ? "" : " " + r.emoji) to \(what)", winID: r.winID)
+            }
+            let people = unique(newest.map(\.0.profileID))
+            items.append(ActivityItem(id: "r-\(key)", kind: .reacted, crewID: newest[0].1,
+                                      people: people, date: newest[0].0.createdAt,
+                                      words: "reacted\(marks.isEmpty ? "" : " " + marks) to \(what)",
+                                      winID: winID, children: people.count > 1 ? one : []))
         }
 
         for crew in crews {
@@ -89,15 +106,50 @@ nonisolated enum ActivityFeed {
                                           people: [line.senderProfileID], date: line.createdAt,
                                           words: "planned \(plan.title) in \(crew.displayName(excluding: me))", winID: nil))
             }
-            // Someone new in a crew of yours.
-            for member in crew.members where member.profileID != me && !blocked.contains(member.profileID)
-                && member.joinedAt >= since && member.joinedAt > crew.createdAt.addingTimeInterval(60) {
-                items.append(ActivityItem(id: "j-\(crew.id.rawValue)-\(member.profileID)", kind: .joined, crewID: crew.id,
-                                          people: [member.profileID], date: member.joinedAt,
-                                          words: "joined \(crew.displayName(excluding: me))", winID: nil))
+            // Someone new in a crew of yours: everyone who joined it that
+            // day on one line.
+            let joiners = crew.members.filter { member in
+                member.profileID != me && !blocked.contains(member.profileID)
+                    && member.joinedAt >= since && member.joinedAt > crew.createdAt.addingTimeInterval(60)
+            }
+            for (joinDay, group) in Dictionary(grouping: joiners, by: { day($0.joinedAt) }) {
+                let newest = group.sorted { $0.joinedAt > $1.joinedAt }
+                let crewName = crew.displayName(excluding: me)
+                let one = newest.map { member in
+                    ActivityItem(id: "j-\(crew.id.rawValue)-\(member.profileID)", kind: .joined, crewID: crew.id,
+                                 people: [member.profileID], date: member.joinedAt, words: "joined \(crewName)", winID: nil)
+                }
+                items.append(ActivityItem(id: "j-\(crew.id.rawValue)-\(joinDay)", kind: .joined, crewID: crew.id,
+                                          people: newest.map(\.profileID), date: newest[0].joinedAt,
+                                          words: "joined \(crewName)", winID: nil,
+                                          children: newest.count > 1 ? one : []))
             }
         }
-        return items.sorted { $0.date > $1.date }
+        return byPerson(items).sorted { $0.date > $1.date }
+    }
+
+    /// **One person, several of your wins, one day: one line** ("Ana reacted
+    /// to 3 of your wins"), as Instagram folds one person's likes. Only rows
+    /// that are that person alone are folded; a row several people share
+    /// keeps its own line.
+    static func byPerson(_ items: [ActivityItem]) -> [ActivityItem] {
+        var keep: [ActivityItem] = []
+        var solo: [String: [ActivityItem]] = [:]
+        for item in items {
+            if item.kind == .reacted, item.people.count == 1, item.winID != nil {
+                solo["\(item.people[0])|\(DateUtils.dateString(from: item.date))", default: []].append(item)
+            } else {
+                keep.append(item)
+            }
+        }
+        for (key, group) in solo {
+            guard group.count > 1 else { keep.append(contentsOf: group); continue }
+            let newest = group.sorted { $0.date > $1.date }
+            keep.append(ActivityItem(id: "rp-\(key)", kind: .reacted, crewID: newest[0].crewID, people: newest[0].people,
+                                     date: newest[0].date, words: "reacted to \(group.count) of your wins",
+                                     winID: nil, children: newest))
+        }
+        return keep
     }
 
     private static func title(_ win: SharedWin) -> String {
@@ -153,7 +205,8 @@ extension SocialStore {
         activityRevision &+= 1
     }
 
-    /// "Sam", "Sam and Ana", "Sam, Ana and Leo", "Sam, Ana and others".
+    /// "Sam", "Sam and Ana", "Sam, Ana and Leo", "Kai, Leo and 2 others"
+    /// (the owner's own wording for a grouped row, 2026-10-17).
     func names(_ people: [UUID], in crew: CrewID) -> String {
         let all = people.map { id -> String in
             let short = crews.lazy.compactMap { $0.member(id) }.first?.shortName ?? ""
@@ -164,7 +217,7 @@ extension SocialStore {
         case 1: return all[0]
         case 2: return "\(all[0]) and \(all[1])"
         case 3: return "\(all[0]), \(all[1]) and \(all[2])"
-        default: return "\(all[0]), \(all[1]) and others"
+        default: return "\(all[0]), \(all[1]) and \(all.count - 2) others"
         }
     }
 }
