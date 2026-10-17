@@ -199,6 +199,9 @@ struct InlineCameraCard: View {
     /// Standing on the tab bar (the tower); off, on the screen's own foot
     /// (a chat in a sheet, where there is no bar).
     var standsOnBar = true
+    /// **The Camera tab's camera**: always open, nothing to grow from or
+    /// fold into, no close; after a win it goes back to the lens.
+    var docked = false
     let done: (InlineCameraResult?) -> Void
 
     private enum Mode: Equatable { case lens, shot, words }
@@ -285,7 +288,7 @@ struct InlineCameraCard: View {
                 // The page stays, gently dimmed: it is still where you are.
                 // Not the tab bar, which stays as it is under the card.
                 VStack(spacing: 0) {
-                    Color.black.opacity(open ? 0.22 : 0)
+                    Color.black.opacity(open && !docked ? 0.22 : 0)
                         .frame(height: barTop.map { max($0 - origin.y - 4, 0) })
                         .contentShape(Rectangle())
                         .onTapGesture { close() }
@@ -296,7 +299,7 @@ struct InlineCameraCard: View {
                 card(size: target.size)
                     .frame(width: target.width, height: target.height)
                     .opacity(shown ? 1 : 0)
-                    .gesture(swipeDown)
+                    .gesture(swipeDown, isEnabled: !docked)
                     .scaleEffect(cover)
                     .position(x: frame.midX, y: frame.midY + drag)
                     .mask {
@@ -449,7 +452,7 @@ struct InlineCameraCard: View {
     private var lensControls: some View {
         VStack(spacing: 0) {
             HStack(spacing: GridConstants.gapTight) {
-                glassGlyph("xmark", label: "Close") { close() }
+                if !docked { glassGlyph("xmark", label: "Close") { close() } }
                 Spacer(minLength: 0)
                 if purpose == .win { pill("Just Words", systemImage: "textformat") { toWords() } }
                 extras
@@ -1041,6 +1044,11 @@ struct InlineCameraCard: View {
         } else {
             naming = true
         }
+        if docked {
+            shown = true
+            open = true
+            return
+        }
         withAnimation(GridConstants.cardFaceIn) { shown = true }
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) { open = true }
     }
@@ -1153,6 +1161,16 @@ struct InlineCameraCard: View {
 
     /// Back the way it came, then gone.
     private func leave(with result: InlineCameraResult?) {
+        if docked {
+            // On the tab: hand it over and stand ready for the next one.
+            naming = false
+            countdownTask?.cancel()
+            done(result)
+            // A win or the sheet takes you to Wins: the lens starts again
+            // when the tab is back (`arrive`), never on a tab out of sight.
+            resetForNext(restart: result == nil)
+            return
+        }
         guard !closing else { return }
         closing = true
         naming = false
@@ -1171,6 +1189,20 @@ struct InlineCameraCard: View {
             LocationService.shared.stop()
             if handsOver { done(nil) } else { done(result) }
         }
+    }
+
+    /// The tab's card, back on the lens with nothing left from the last win.
+    private func resetForNext(restart: Bool) {
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
+            mode = InlineCamera.refused ? .words : .lens
+            shot = nil
+        }
+        (title, size, note, with, more, high, low, buffalo) = ("", .small, "", [], false, "", "", "")
+        (lookRaw, looked, choosingLook, marks, markLayer, sticker, crop, zoom) =
+            (FilmLook.Kind.none.rawValue, nil, false, nil, nil, nil, .zero, 1)
+        (dropping, colourChosen) = (false, false)
+        recipients = opening.crews ?? CrewChoice.load()
+        if restart, mode == .lens { Task { await camera.start() } }
     }
 
     /// Down, and it tucks away.

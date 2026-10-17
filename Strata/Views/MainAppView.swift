@@ -1151,7 +1151,7 @@ struct MainAppView: View {
         // the phone on every tab, so switching never flips the bar, the
         // status bar or a sheet. The camera is dark inside its own view
         // (`StableCameraTab`) and the status bar steps aside over it.
-        .statusBarHidden(selectedTab == .camera)
+        .statusBarHidden(selectedTab == .camera && !CameraFirst.on)
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
@@ -1984,7 +1984,47 @@ struct MainAppView: View {
     /// arrived as a block you then had to find and open to name. It goes to
     /// the add sheet now, already holding the picture, so naming and sizing
     /// happen once while you are still thinking about the thing you did.
+    @ViewBuilder
     private var cameraTab: some View {
+        // **One camera, the tab's too** (the owner, 2026-10-17: "The main
+        // Camera tab and the inline camera become the same camera with the
+        // same controls. I like the square frame on the inline camera, so
+        // use it for both"). The camera card, docked: standing on the bar,
+        // always open, back on the lens after each win.
+        if CameraFirst.on {
+            InlineCameraCard(opening: AddWinOpening(from: .zero, radius: GridConstants.radiusSurface,
+                                                    colour: nextWinCategory),
+                             docked: true) { result in tabCardFinished(result) }
+                .background { WarmBackground().ignoresSafeArea() }
+        } else {
+            oldCameraTab
+        }
+    }
+
+    /// The camera card on the Camera tab hands back as the inline one does;
+    /// a drop lands on Wins, where it can be seen falling.
+    private func tabCardFinished(_ result: InlineCameraResult?) {
+        switch result {
+        case .drop(let win)?:
+            selectedTab = .tower
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
+                       undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
+                       with: win.with, story: win.story, window: win.window, zoom: win.zoom)
+            }
+        case .sheet(let draft)?:
+            selectedTab = .tower
+            winDraft = draft
+        case .quickAdd?:
+            selectedTab = .tower
+            quickAdding = true
+        case .send?, nil:
+            break
+        }
+    }
+
+    private var oldCameraTab: some View {
         // No `.ignoresSafeArea()` here. The preview ignores it from the
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
@@ -2029,7 +2069,9 @@ struct MainAppView: View {
     /// the owner has seen it.
     @ViewBuilder
     var cameraBarSkin: some View {
-        if CameraTabBarSkin.isOn, selectedTab == .camera, !CameraReviewState.shared.reviewing {
+        // The black drawing belongs to the old full-screen camera; the card
+        // stands on the page, and the bar on it is the real one.
+        if CameraTabBarSkin.isOn, !CameraFirst.on, selectedTab == .camera, !CameraReviewState.shared.reviewing {
             CameraTabBarSkin()
                 .transition(.opacity.animation(.easeOut(duration: 0.18)))
         }

@@ -309,6 +309,20 @@ final class FeedbackShots: XCTestCase {
         wait(8); snap("week-3-none")
     }
 
+    /// The Camera tab as the docked camera card: shoot, then Add lands on Wins.
+    func testCameraTabCard() {
+        let app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3", "-cameraTimerSeconds", "0",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        wait(6); snap("tabcard-0-lens")
+        let shutter = app.buttons["Take photo"]
+        if shutter.waitForExistence(timeout: 5) { shutter.tap() }
+        wait(1.5); snap("tabcard-1-shot")
+        app.buttons["Drop it on the tower"].firstMatch.tap()
+        wait(3); snap("tabcard-2-wins")
+        app.buttons["Camera"].firstMatch.tap()
+        wait(2); snap("tabcard-3-back")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
