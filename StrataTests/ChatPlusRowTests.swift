@@ -119,7 +119,10 @@ struct ChatPlusRowTests {
         // Win, the old sheet gone). A kept chat photo still goes on your tower
         // only; the chat's own Add a Win, to it.
         #expect(chat.contains("AddWinRouter.shared.open(AddWinOpening("))
-        #expect(chat.contains("crews: photo == nil ? [crew] : [], photo: photo"))
+        // A crew's chat names its crew; a conversation of two names none
+        // (the second reader, 2026-10-18).
+        #expect(chat.contains("let toCrew = photo == nil && !isDirect"))
+        #expect(chat.contains("crews: toCrew ? [crew] : [], photo: photo"))
         #expect(!chat.contains("EditWinSheet("), "the chat opens the old sheet again")
     }
 }
