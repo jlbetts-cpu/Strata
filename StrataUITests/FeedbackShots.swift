@@ -645,6 +645,13 @@ final class FeedbackShots: XCTestCase {
         wait(6); snap("big-3-settings")
     }
 
+    /// Show Tab Names, on (the launch pass, 5½; off by default).
+    func testTabNames() {
+        let app = launch(["-tabNamesShown", "YES", "-strataSeedWins", "3", "-strataStartTab", "tower"])
+        wait(7); snap("tabnames-0")
+        app.tabBars.buttons.element(boundBy: 1).tap(); wait(2); snap("tabnames-1")
+    }
+
     /// **How far the tower's lowest block stands above the tab bar**, in
     /// points: a tower resting on its floor is a small fixed gap; a floating
     /// one is a large one (the owner, 2026-10-16, build 142).

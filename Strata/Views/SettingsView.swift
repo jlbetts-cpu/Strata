@@ -28,6 +28,7 @@ struct SettingsView: View {
 
     // MARK: - Notification State
 
+    @AppStorage(TabNames.key) private var tabNamesShown = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
     @AppStorage("reminderMinute") private var reminderMinute = 0
@@ -408,6 +409,17 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+
+                // The tabs' names under their drawings (`TabNames`).
+                Toggle(isOn: $tabNamesShown) {
+                    Label {
+                        Text("Show Tab Names")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "textformat")
                     }
                 }
                 .tint(AppColors.switchTrack)

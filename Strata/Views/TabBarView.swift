@@ -84,10 +84,23 @@ enum StrataTab: String, CaseIterable {
     /// **Icons only** (the owner, 2026-10-16: "no names under the tab at
     /// the bottom"). The words come off the bar a third time; the name stays
     /// for VoiceOver.
+    ///
+    /// **Names back, by a setting that is off** (the launch pass, 5½: "nobody
+    /// has to guess what an icon means ... decide with research"). Apple's
+    /// HIG asks for a label on every tab, NN/g finds icon-only navigation
+    /// unclear, and older people misread unlabelled icons; the owner chose
+    /// icons only the same day, so it waits for him in Settings, Show Tab
+    /// Names (`TabNames`), off.
+    @ViewBuilder
     var label: some View {
-        Label(rawValue, image: assetName)
-            .labelStyle(.iconOnly)
-            .accessibilityLabel(rawValue)
+        if TabNames.shown {
+            Label(rawValue, image: assetName)
+                .labelStyle(.titleAndIcon)
+        } else {
+            Label(rawValue, image: assetName)
+                .labelStyle(.iconOnly)
+                .accessibilityLabel(rawValue)
+        }
     }
 
     /// **The tab with the app's dot on it** (2026-10-13). A tab bar badge
@@ -107,7 +120,7 @@ enum StrataTab: String, CaseIterable {
                 Label(rawValue, image: assetName)
             }
         }
-        .labelStyle(.iconOnly)
+        .labelStyle(TabNameStyle())
         .accessibilityLabel(rawValue)
     }
 
@@ -299,6 +312,24 @@ struct CameraTabBarSkin: View {
         bar = TabGlyph.barFrame()
         tabs = StrataTab.allCases.compactMap { tab in
             TabGlyph.frames(of: tab).map { (tab, $0.button, $0.picture) }
+        }
+    }
+}
+
+
+/// **Show Tab Names**, a setting, off by default (see `StrataTab.label`).
+enum TabNames {
+    static let key = "tabNamesShown"
+    static var shown: Bool { UserDefaults.standard.bool(forKey: key) }
+}
+
+/// The tab's word under its drawing when Show Tab Names is on.
+struct TabNameStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        if TabNames.shown {
+            VStack(spacing: 2) { configuration.icon; configuration.title }
+        } else {
+            configuration.icon
         }
     }
 }

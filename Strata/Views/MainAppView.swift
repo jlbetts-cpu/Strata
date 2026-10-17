@@ -510,6 +510,7 @@ struct MainAppView: View {
     // there is nothing for an alert to say.
 
     var body: some View {
+        let _ = tabNamesShown
         mainContent
             .onAppear(perform: setup)
             .onChange(of: reduceMotion) { _, newValue in
@@ -2074,6 +2075,8 @@ struct MainAppView: View {
     /// when the goal is crossed (`DailyGoal`). Seeded on the first build so a
     /// tower opened already past its goal does not dance on arrival.
     @AppStorage("goalDanceDay") private var goalDanceDay = ""
+    /// Read so the bar redraws when Show Tab Names changes (`TabNames`).
+    @AppStorage(TabNames.key) private var tabNamesShown = false
     @State private var goalDanceSeeded = false
     /// Where the Wins tab's stack has gone: Crews, then a crew.
     @State private var crewPath: [CrewRoute] = []
