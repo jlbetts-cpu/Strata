@@ -136,3 +136,21 @@ Not fixed, low: a shareMyself on a 1.5s timer can land a blank member record in 
 ## Waiting for your call
 - **Reset All Data and crews you started.** Built: Reset leaves every crew you joined, and keeps crews you started for the people in them, without your wins or name. Ending them would delete their tower and chat too. Recommend keeping it this way; App Review wants your data gone, and it is.
 - Show Tab Names on by default (recommended).
+
+## Morning notes, 2026-10-18 (Build 162)
+
+1. Three tabs: Wins, Crews, Memories. The Camera tab and both camera switches are gone; anything that asked for the tab opens the card on Wins.
+2. Bars over photos: iOS 26's `safeAreaBar` turns what it holds dark over dark content (measured 253 to 94). `pinnedFoot` and `pinnedBar` pin the page's appearance inside; the field stays light glass (227). `ChromeFlipTests`. The tab bar and the system toolbars are Apple's; forcing the tab bar's scheme lagged its glass before, so it is left alone.
+3. Camera parity: every old-camera feature listed and checked in `docs/camera-parity-2026-10-18.md`. Ported: pinch, tap to focus, exposure drag, double tap to flip, the lens pill and row, the warm ring held while composing (the blast and its wait were back by mistake), the timer's seconds, the numerals, a drag during the countdown, haptics, the draw-out cue, filled flash symbols, press feedback, the head inside the crop. Partial: the grid draws plainly; the Head tool is a labelled pill, not your head's picture; the crop shows the block, not the photo outside it. A flip, a focus and a real zoom need a phone.
+4. Between you two removed.
+5. Stickers button removed (Draw has stickers).
+6. The size control: the one-of-a-few bar has a track of its own; light 255 on 226, dark 108 on 56. Same bar everywhere.
+7. Plan This Instead in the card's "...": a day or Repeating, to the planner, as the old sheet did.
+8. Consistency sweep (`AppSweepTests`, 14 screens, light and dark): one chip for who sees a win (`CrewPicker`, the edit sheet included); a card asked for at launch now opens; the hero's name drew clipped. Proposed, not changed: the edit sheet for an existing win still has the old form layout; a story reply could carry the story's photo in the chat.
+9. Tab icons: yours to draw. Acknowledgements in Settings carries the Solar credit.
+
+Top-priority bug: Add a Win sometimes opened the old sheet. Cause: the card was an overlay on the app's root, under any sheet; a crew tower's resting chat is a sheet, so the card opened unseen and stayed open, and the next press fell back to the old sheet. Now: the card has its own window above every sheet; every entry point (the tower, crew towers, chats, plan lines, your three, VoiceOver, Camera Control, debug) builds an `AddWinOpening` and goes through `presentAddWin`; the old add sheet is deleted (`EditWinSheet` edits only). `AddWinEntryTests` (nine presses), `AddWinOneWayTests`.
+
+The edit screen redesign: the photo or the block fills the card, the name written on it in block type; one layout for both; controls round its edges; one row above the keyboard; labelled tools; the shot moves into the hero.
+
+Second reader: six findings fixed (a conversation of two's strip Add a Win posted to it under "Just you"; plan ticks let go on every exit; the plan came back twice; the under-16 photo line; the chat drawer after Win; a paste sent a story reply).
