@@ -25,6 +25,16 @@ struct SendToPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var store: SocialStore { SocialStore.shared }
     private let hPad = GridConstants.horizontalPadding
+    /// **High, low, buffalo, where you post** (the launch pass, 3½: "only if
+    /// you tap the story icon before you post ... most people will never
+    /// find them. Make them a natural, visible option at the moment of
+    /// posting"). Optional, folded under the story until asked for.
+    @State private var writingWords = false
+    @State private var high = ""
+    @State private var low = ""
+    @State private var buffalo = ""
+    @State private var wordsLoaded = false
+    private var today: String { DateUtils.dateString(from: Date()) }
 
     var body: some View {
         ScrollView {
@@ -79,6 +89,27 @@ struct SendToPage: View {
                     .padding(.leading, 56 + GridConstants.gapItem)
                     .padding(.bottom, GridConstants.gapTight)
                     .transition(.opacity)
+                if writingWords {
+                    wordsFields
+                } else {
+                    Button {
+                        HapticsEngine.lightTap()
+                        if !wordsLoaded {
+                            let words = store.storyWords(on: today)
+                            (high, low, buffalo) = (words.high, words.low, words.buffalo)
+                            wordsLoaded = true
+                        }
+                        withAnimation(motion) { writingWords = true }
+                    } label: {
+                        Label("Add your high, low and buffalo", systemImage: "plus")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.pressWord)
+                    .padding(.leading, 56 + GridConstants.gapItem)
+                    .transition(.opacity)
+                }
             }
         }
     }
@@ -135,11 +166,53 @@ struct SendToPage: View {
 
     private var sendBar: some View {
         // The app's one primary action (`PrimaryCapsule`).
-        PrimaryCapsule(title: crews.isEmpty && !onStory ? "Add" : "Send", action: send)
+        PrimaryCapsule(title: crews.isEmpty && !onStory ? "Add" : "Send", action: sendWithWords)
         .disabled(sending)
         .accessibilityHint(summary)
         .padding(.horizontal, hPad)
         .padding(.vertical, GridConstants.gapItem)
+    }
+
+    /// The words go with the win, kept as the rest of tonight's are (its
+    /// photo behind and its page, as they were).
+    private func sendWithWords() {
+        if onStory, wordsLoaded {
+            var words = store.storyWords(on: today)
+            if (words.high, words.low, words.buffalo) != (high, low, buffalo) {
+                words.high = high; words.low = low; words.buffalo = buffalo
+                let day = today
+                Task { await SocialStore.shared.setStoryWords(words, on: day) }
+            }
+        }
+        send()
+    }
+
+    private var wordsFields: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            wordsField(StoryLine.high, prompt: StoryLine.highPrompt, text: $high)
+            wordsField(StoryLine.low, prompt: StoryLine.lowPrompt, text: $low)
+            wordsField(StoryLine.buffalo, prompt: StoryLine.buffaloPrompt, text: $buffalo)
+        }
+        .padding(PageCard.inset)
+        .pageCard()
+        .padding(.leading, 56 + GridConstants.gapItem)
+        .transition(.opacity)
+    }
+
+    private func wordsField(_ name: String, prompt: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+                .font(Typography.headerSmall)
+                .foregroundStyle(AppColors.inkSecondary)
+            TextField(name, text: Binding(get: { text.wrappedValue },
+                                          set: { text.wrappedValue = String($0.prefix(StoryLine.limit)) }),
+                      prompt: Text(prompt).foregroundStyle(AppColors.inkTertiary), axis: .vertical)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1...3)
+                .frame(minHeight: 32, alignment: .leading)
+                .accessibilityLabel("\(name), \(prompt)")
+        }
     }
 
     // MARK: One row, every choice

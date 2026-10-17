@@ -645,6 +645,25 @@ final class FeedbackShots: XCTestCase {
         wait(6); snap("big-3-settings")
     }
 
+    /// High, low and buffalo where you post (the launch pass, 3½).
+    func testSendToWords() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
+                          "-strataSeedWins", "2", "-strataOpenSheet", "add", "-strataStoryHour", "15"])
+        wait(7)
+        app.typeText("Sunset walk")
+        let next = app.buttons["Next"].firstMatch
+        if next.exists { next.tap() }
+        wait(1.5)
+        let story = app.buttons.matching(NSPredicate(format: "label BEGINSWITH \"Tonight's Story\"")).firstMatch
+        print("PLANNING-sendto story \(story.exists)")
+        if story.exists { story.tap() }
+        wait(1); snap("sendto-0-story")
+        let add = app.buttons["Add your high, low and buffalo"].firstMatch
+        print("PLANNING-sendto words \(add.exists)")
+        if add.exists { add.tap() }
+        wait(1); snap("sendto-1-words")
+    }
+
     /// Show Tab Names, on (the launch pass, 5½; off by default).
     func testTabNames() {
         let app = launch(["-tabNamesShown", "YES", "-strataSeedWins", "3", "-strataStartTab", "tower"])
