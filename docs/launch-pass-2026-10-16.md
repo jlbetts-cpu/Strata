@@ -85,5 +85,11 @@ Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs
 ## The drop moment
 - Checked, not changed: a block lands with its own sound, haptic and settle every time, and the inline camera hands it over while the card folds back into the slot it is falling toward. (c)
 
+## Your calls, 2026-10-17 morning
+- Show Tab Names: on by default (the Camera tab's black bar draws the names too).
+- Quick Post: stays off.
+- The Camera tab's black bar drawing: kept.
+- Conversations: kept in Crews, under their own Messages heading after the crews.
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).
