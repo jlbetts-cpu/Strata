@@ -85,6 +85,9 @@ struct StoryViewer: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // **The keyboard never squeezes the picture** (the stories standard,
+        // rule 2): the pages ignore it, and each lifts its own reply over it.
+        .ignoresSafeArea(.keyboard)
         // **Black above, the page below**, as the camera stands (its
         // `CameraCard`): the band runs from the top of the screen down behind
         // the card's top corners.
@@ -174,7 +177,25 @@ private struct StoryPage: View {
     let close: () -> Void
 
     @State private var page = 0
-    @State private var held = false
+    /// **A finger on the picture, until it lifts** (the stories standard,
+    /// rule 1). It was `onLongPressGesture`'s pressing, which ends when the
+    /// hold is recognised, a quarter of a second in: an 8 second hold moved
+    /// the story on (measured, 2026-10-17). A gesture state ends when the
+    /// finger lifts, and on a cancel, so it never sticks.
+    @GestureState private var touching = false
+    /// Held past a tap: the bar, the name and the reply step aside so the
+    /// picture is alone (rule 3; b: WhatsApp and Instagram on a hold).
+    @State private var holding = false
+    /// The "..." menu is open: the story waits (rule 1).
+    @State private var menuOpen = false
+    /// The keyboard's height, from the bottom of the screen, and the page's
+    /// own bottom inset: the reply rides the keyboard while the picture
+    /// stays where it is (rule 2).
+    @State private var keyboard: CGFloat = 0
+    @State private var bottomInset: CGFloat = 0
+    /// The reply row's own height, kept under the picture so the picture's
+    /// size never changes with what the row is doing.
+    @State private var footRoom: CGFloat = 60
     /// The reaction bar, Reply, a doodle or a sticker is open: the story waits.
     @State private var busy = false
     @State private var reporting: SharedWin?
@@ -219,7 +240,7 @@ private struct StoryPage: View {
     static let pageLength: TimeInterval = 5
 
     private var paused: Bool {
-        held || busy || dragging || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
+        touching || busy || menuOpen || dragging || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
     }
 
     private var member: CrewMember? {
@@ -235,12 +256,50 @@ private struct StoryPage: View {
     var body: some View {
         VStack(spacing: 0) {
             card
-                .overlay(alignment: .top) { top }
-                .overlay(alignment: .bottomLeading) { label }
+                .overlay(alignment: .top) { top.opacity(holding ? 0 : 1) }
+                .overlay(alignment: .bottomLeading) { label.opacity(holding ? 0 : 1) }
+                // Answering, the story dims and waits under the reply
+                // (b: Instagram's reply).
+                .overlay {
+                    RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
+                        .fill(Color.black.opacity(busy ? 0.42 : 0))
+                        .allowsHitTesting(false)
+                }
+            Color.clear.frame(height: footRoom)
+        }
+        .overlay(alignment: .bottom) {
             foot
                 .padding(.horizontal, hPad)
                 .padding(.top, GridConstants.gapTight)
                 .padding(.bottom, GridConstants.gapTight)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+                    // Measured at rest only: the reactions over the field
+                    // while writing grow up over the dimmed picture.
+                    if keyboard == 0, !busy { footRoom = height }
+                }
+                .offset(y: -max(0, keyboard - bottomInset))
+                .opacity(holding ? 0 : 1)
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.bottom }) { bottomInset = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard isCurrent, let end = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let screen = UIScreen.main.bounds.height
+            let height = max(0, screen - end.minY)
+            let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+            withAnimation(.smooth(duration: max(duration, 0.2))) { keyboard = height }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { note in
+            let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+            withAnimation(.smooth(duration: max(duration, 0.2))) { keyboard = 0 }
+        }
+        .onChange(of: touching) { _, now in
+            if !now { withAnimation(GridConstants.crossFade) { holding = false } }
+        }
+        .task(id: touching) {
+            guard touching else { return }
+            try? await Task.sleep(for: .seconds(0.3))
+            guard !Task.isCancelled, touching else { return }
+            withAnimation(GridConstants.crossFade) { holding = true }
         }
         .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: story.win.crewID) }
         .confirmationDialog("Block \(name)?", isPresented: $blocking, titleVisibility: .visible) {
@@ -348,6 +407,7 @@ private struct StoryPage: View {
 
     private var actions: some View {
         Menu {
+            Group {
             if mine {
                 Button { edit() } label: {
                     Label("Edit Tonight's Story", systemImage: "pencil")
@@ -388,6 +448,11 @@ private struct StoryPage: View {
                     Label("Block", systemImage: "hand.raised")
                 }
             }
+            }
+            // **Open, the story waits** (rule 1): the menu's own items
+            // appear while it shows and go when it closes, chosen or not.
+            .onAppear { menuOpen = true }
+            .onDisappear { menuOpen = false }
         } label: {
             StoryGlyph.label("ellipsis", tint: .white)
         }
@@ -450,9 +515,9 @@ private struct StoryPage: View {
                 HapticsEngine.tick()
                 if point.x < geo.size.width / 3 { backward() } else { forward() }
             }
-            .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 24, perform: {}, onPressingChanged: { pressing in
-                held = pressing
-            })
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0).updating($touching) { _, touching, _ in touching = true }
+            )
         }
         .animation(GridConstants.crossFade, value: page)
         .accessibilityElement()
@@ -662,29 +727,29 @@ private struct StoryReplyBar: View {
     @State private var doodling = false
     @State private var choosingSticker = false
     @State private var makingSticker = false
+    /// The + menu is open (the stories standard, rule 1): it moved the story
+    /// two pages on while it was open, into the next friend (measured,
+    /// 2026-10-17).
+    @State private var plusOpen = false
     /// "Sent", for a moment, where the words were.
     @State private var said: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var store: SocialStore { SocialStore.shared }
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy }
-    private var open: Bool { writing || doodling || choosingSticker || makingSticker }
+    private var open: Bool { writing || doodling || choosingSticker || makingSticker || plusOpen }
 
     var body: some View {
-        VStack(spacing: GridConstants.gapTight) {
-            if writing {
-                ReactionBar(mine: store.myReaction(to: story.id, in: story.win.crewID)) { emoji in
-                    Task { await store.reactToStory(emoji, story: story) }
-                    done("Sent")
-                }
-                .transition(.opacity)
-            }
-            HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
+        HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
                 PlusMenu {
-                    if store.photosAllowed() {
-                        Button { choosingSticker = true } label: { Label("Send a Sticker", systemImage: "face.smiling") }
+                    Group {
+                        if store.photosAllowed() {
+                            Button { choosingSticker = true } label: { Label("Send a Sticker", systemImage: "face.smiling") }
+                        }
+                        Button { doodling = true } label: { Label("Send a Doodle", systemImage: "scribble") }
                     }
-                    Button { doodling = true } label: { Label("Send a Doodle", systemImage: "scribble") }
+                    .onAppear { plusOpen = true }
+                    .onDisappear { plusOpen = false }
                 }
                 TextField("Reply", text: $text,
                           prompt: Text(said ?? "Reply to \(name)").foregroundStyle(AppColors.inkTertiary), axis: .vertical)
@@ -716,6 +781,22 @@ private struct StoryReplyBar: View {
                 } else {
                     GlassIconButton(systemName: "arrow.up", onPage: true, accessibilityLabel: "Send", action: send)
                 }
+        }
+        // **Over the row, never in it** (the stories standard, rule 2): the
+        // reactions came in above the field and grew the row by 52pt before
+        // the story knew you were writing, and the picture shrank by as much.
+        .overlay(alignment: .top) {
+            if writing {
+                ReactionBar(mine: store.myReaction(to: story.id, in: story.win.crewID)) { emoji in
+                    Task { await store.reactToStory(emoji, story: story) }
+                    done("Sent")
+                }
+                .fixedSize()
+                // A frame of no height at the row's top, the bar standing on
+                // it: it rises above the row and takes none of its room.
+                .frame(height: 0, alignment: .bottom)
+                .offset(y: -GridConstants.gapTight)
+                .transition(.opacity)
             }
         }
         .animation(motion, value: writing)
