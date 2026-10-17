@@ -50,21 +50,26 @@ enum TodaysPhotos {
         guard access == .allowed else { return [] }
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.fetchLimit = limit
-        let screenshot = PHAssetMediaSubtype.photoScreenshot.rawValue
+        // **Screenshots are skipped here, in Swift, not in the predicate**
+        // (found 2026-10-17, walking the day's photos with today's pictures
+        // in the library: none came back). The predicate tested
+        // `(mediaSubtypes & n) == 0`, and a fetch predicate has no bitwise
+        // and, so it matched nothing at all. A screenshot is a few at most,
+        // so the limit is asked for with room for them.
+        options.fetchLimit = limit * 2
         if sinceDayStart {
-            options.predicate = NSPredicate(format: "creationDate >= %@ AND (mediaSubtypes & %d) == 0",
-                                            dayStart(for: now) as NSDate, screenshot)
-        } else {
-            options.predicate = NSPredicate(format: "(mediaSubtypes & %d) == 0", screenshot)
+            options.predicate = NSPredicate(format: "creationDate >= %@", dayStart(for: now) as NSDate)
         }
         let result = PHAsset.fetchAssets(with: .image, options: options)
         var assets: [PHAsset] = []
-        result.enumerateObjects { asset, _, _ in assets.append(asset) }
+        result.enumerateObjects { asset, _, stop in
+            guard !asset.mediaSubtypes.contains(.photoScreenshot) else { return }
+            assets.append(asset)
+            if assets.count >= limit { stop.pointee = true }
+        }
         return assets
     }
 
-    /// A tile's picture, filled to its shape.
     static func thumbnail(for asset: PHAsset, size: CGSize, scale: CGFloat) async -> UIImage? {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat

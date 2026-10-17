@@ -163,6 +163,8 @@ enum InlineCameraResult {
     case drop(DroppedWin)
     /// Send it in a chat (`InlineCameraCard.Purpose.send`).
     case send(UIImage)
+    /// Today's photos, several at once (`QuickAddSheet`).
+    case quickAdd
     /// Everything else: the full sheet, holding whatever the card had.
     case sheet(WinDraft)
 }
@@ -493,6 +495,7 @@ struct InlineCameraCard: View {
             Button("Choose a Photo", systemImage: "photo.on.rectangle") { picking = true }
             if purpose == .win {
                 Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
+                Button("Today's Photos", systemImage: "photo.stack") { leave(with: .quickAdd) }
             }
         } label: {
             glyphFace(camera.timerSeconds > 0 ? "timer" : "ellipsis")

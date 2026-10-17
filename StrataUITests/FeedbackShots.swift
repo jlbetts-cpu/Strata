@@ -265,6 +265,33 @@ final class FeedbackShots: XCTestCase {
         wait(3); snap("chatcam-3-sent")
     }
 
+    /// Today's photos, several at once, from the camera's extras.
+    func testQuickAdd() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6); slot.tap(); wait(1.2)
+        app.buttons["More"].firstMatch.tap(); wait(0.8)
+        app.buttons["Today's Photos"].firstMatch.tap()
+        wait(2); snap("qa-0")
+        let show = app.buttons["Show Today's Photos"].firstMatch
+        if show.waitForExistence(timeout: 3) {
+            show.tap()
+            // The photos prompt draws in the app's own window on iOS 26.
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            for place in [app, springboard] {
+                let allow = place.buttons["Allow Full Access"]
+                if allow.waitForExistence(timeout: 4) { allow.tap(); break }
+            }
+            wait(3); snap("qa-05")
+        }
+        app.buttons["Skip This One"].firstMatch.tap()
+        wait(1.2); snap("qa-1")
+        app.buttons["Add These to Your Tower"].firstMatch.tap()
+        wait(4); snap("qa-2-tower")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

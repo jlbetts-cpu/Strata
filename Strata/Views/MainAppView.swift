@@ -230,6 +230,8 @@ struct MainAppView: View {
     /// Add a Win as the inline camera, grown out of what was tapped
     /// (`InlineCameraCard`). Nil when the card is away.
     @State private var inlineOpening: AddWinOpening?
+    /// Today's photos, several onto the tower at once (`QuickAddSheet`).
+    @State private var quickAdding = false
     /// The planned win whose camera is open, and the one being changed.
     @State private var capturingPlan: PlanItem?
     @State private var pickingPlan: PlanItem?
@@ -756,6 +758,17 @@ struct MainAppView: View {
                                 && winDraft == nil) { event in
             if event.phase == .ended { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
         }
+        .sheet(isPresented: $quickAdding) {
+            QuickAddSheet { wins in
+                // One after another, so each lands as its own block.
+                Task { @MainActor in
+                    for win in wins {
+                        logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: [])
+                        try? await Task.sleep(for: .milliseconds(350))
+                    }
+                }
+            }
+        }
         .onChange(of: selectedTab, initial: true) { _, tab in
             if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
             // No Camera tab to be on: Wins, with its slot and the card.
@@ -1247,14 +1260,15 @@ struct MainAppView: View {
             // means. It says, and asks for nothing.
             let note = shownNote.flatMap { $0.headline == line ? $0 : nil }
             let teaches = line == DayOneHint.drawOut || line == PlannedHint.line || line == WinNote.hintLine || note != nil
+            let photos = line == QuickAddCue.line
             TipCard(title: line == DayOneHint.drawOut ? DayOneHint.title
                         : line == PlannedHint.line ? PlannedHint.title
                         : line == WinNote.hintLine ? WinNote.hintTitle : line,
-                    message: note?.detail ?? (teaches ? line : WinCue.tapToAdd),
+                    message: note?.detail ?? (photos ? QuickAddCue.detail : teaches ? line : WinCue.tapToAdd),
                     mark: note != nil ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
                     onTap: teaches ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
-                        openAddWin(from: nil, radius: GridConstants.radiusSurface)
+                        if photos { quickAdding = true } else { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
                     },
                     close: { withAnimation(GridConstants.cueOut) { winCue = nil } })
                 .accessibilityHint(teaches ? "" : "Adds a win.")
@@ -1322,6 +1336,19 @@ struct MainAppView: View {
                     WinNote.markHintShown()
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = WinNote.hintLine }
                     try? await Task.sleep(for: .seconds(9))
+                    withAnimation(GridConstants.cueOut) { winCue = nil }
+                    return
+                }
+                // **The day in photos**, once an evening (`QuickAddCue`).
+                if ringIsClear, QuickAddCue.due() {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    await Self.waitForLaunchToFinish()
+                    await Self.waitForRing()
+                    await TipStage.shared.waitUntilFree()
+                    guard !Task.isCancelled, ringIsClear, TipStage.shared.holder == nil else { return }
+                    QuickAddCue.markShown()
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cueIn) { winCue = QuickAddCue.line }
+                    try? await Task.sleep(for: .seconds(12))
                     withAnimation(GridConstants.cueOut) { winCue = nil }
                     return
                 }
@@ -2795,6 +2822,12 @@ struct MainAppView: View {
             }
         case .send?:
             break
+        case .quickAdd?:
+            withTransaction(Self.still) { inlineOpening = nil }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                quickAdding = true
+            }
         case .drop(let win)?:
             logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
                    undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
