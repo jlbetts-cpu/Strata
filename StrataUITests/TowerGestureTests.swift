@@ -355,14 +355,13 @@ final class TowerGestureTests: XCTestCase {
         // label alone, this found the field at 1am and not at 10am: once the
         // field has the focus its label is empty and the words are only its
         // placeholder. The sheet had opened, pre-filled, both times.
-        let field = app.textFields.matching(
-            NSPredicate(format: "placeholderValue == %@ OR label == %@", "What did you do?", "What did you do?")).firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 15), "the add sheet did not open")
-        XCTAssertEqual(field.value as? String, "Run the loop",
-                       "the title was not pre-filled from the plan line")
+        // **The camera card since 2026-10-18** (one way into Add a Win): it
+        // opens on the block with the line's words written on it.
+        let field = app.textFields.matching(NSPredicate(format: "value == %@", "Run the loop")).firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "the card did not open with the plan line's words")
 
         // Back out. The line must still be there, not thrown away.
-        app.swipeDown(velocity: .fast)
+        app.buttons["Close"].firstMatch.tap()
         Thread.sleep(forTimeInterval: 3)
         // **Back on the plan by itself, or one press away** (2026-10-14).
         // Cancelling a sheet opened from the plan goes back to the plan
@@ -784,85 +783,72 @@ final class TowerGestureTests: XCTestCase {
                        + "gesture was cancelled before it ended")
     }
 
-    /// The review screen keeps a shot, and the shot reaches the add sheet.
-    ///
-    /// This path had never run on this machine: the simulator has no capture
-    /// device, so `fire()` never produces an image and the review state is
-    /// unreachable the way a person reaches it. `-strataOpenReview` puts a
-    /// stand-in photograph there so the half after the shutter — Use Photo,
-    /// the hand-off, the sheet arriving with the drawn size — can be checked.
+    /// The shot keeps its size into the edit screen (the camera card, since
+    /// 2026-10-18: the old full-screen camera and its review are gone).
+    /// `-strataOpenSheet adddeep` puts a stand-in Deep photograph on the card,
+    /// as `-strataOpenReview` did on the old camera, since the simulator has
+    /// no capture device.
     @MainActor
     func testReviewKeepsTheShotAndHandsItOn() throws {
         let app = XCUIApplication()
-        // The full-screen camera, which the card replaces on the tab
-        // (2026-10-17) and which stays for the card switched off.
-        app.launchArguments = ["-strataStartTab", "camera", "-strataCameraFirst", "0",
-                               "-strataOpenReview", "medium"]
+        app.launchArguments = ["-strataStartTab", "tower", "-strataOpenSheet", "adddeep", "-cameraTimerSeconds", "0"]
         app.launch()
 
-        let use = app.buttons["Use Photo"]
-        XCTAssertTrue(use.waitForExistence(timeout: 30), "no review screen")
-        XCTAssertTrue(app.buttons["Retake"].exists, "the review offers no way back")
-        use.tap()
-
-        // The add sheet is where a photographed win gets its name. Its size
-        // control should already be on what was drawn — "Regular" is
-        // `BlockSize.medium.effortLabel`.
-        let regular = app.buttons["Regular"].firstMatch
-        XCTAssertTrue(regular.waitForExistence(timeout: 15),
-                      "the shot never reached the add sheet")
-        XCTAssertTrue(regular.isSelected || (regular.value as? String) == "1"
-                      || app.staticTexts["Regular"].exists,
-                      "the drawn size did not travel with the photograph")
+        let retake = app.buttons["Retake the photo"].firstMatch
+        XCTAssertTrue(retake.waitForExistence(timeout: 30), "no edit screen for the shot")
+        XCTAssertTrue(app.buttons["Drop it on the tower"].firstMatch.exists, "the shot offers no way to add it")
+        let deep = app.buttons["Deep"].firstMatch
+        XCTAssertTrue(deep.waitForExistence(timeout: 5), "no size on the edit screen")
+        XCTAssertTrue(deep.isSelected, "the drawn size did not travel with the photograph")
     }
 
-    /// The grid toggle has to work in BOTH directions. Off is easy; the
-    /// reported bug is that it never comes back.
+    /// The grid has to toggle in BOTH directions, and the timer has to change
+    /// (the camera card's "...", since 2026-10-18).
     @MainActor
     func testGridToggleTurnsOffAndBackOn() throws {
         let app = XCUIApplication()
-        // **A lens, or there is nothing to toggle.** A simulator that has
-        // refused the camera shows the refused screen, which rules the whole
-        // row out on purpose (`CameraView`, "The refused screen kept this whole
-        // row"): measured 2026-10-08, every glyph inert there and every glyph
-        // toggling with the fake lens.
-        // The full-screen camera (the card's grid is in its "…").
-        app.launchArguments = ["-strataStartTab", "camera", "-strataCameraFirst", "0", "-strataFakeLens", "1"]
+        app.launchArguments = ["-strataStartTab", "tower", "-strataSeedWins", "3", "-cameraTimerSeconds", "0",
+                               "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"]
         app.launch()
-
-        let grid = app.buttons["gridToggle"]
-        let timer = app.buttons["timerToggle"]
-        XCTAssertTrue(grid.waitForExistence(timeout: 30), "no grid toggle on the camera")
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
         Thread.sleep(forTimeInterval: 4)
+        slot.tap()
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "no extras on the camera")
+        Thread.sleep(forTimeInterval: 1.5)
 
-        // Both directions, from whichever state it starts in — the preference
-        // persists across launches, so the test must not assume.
-        let start = grid.value as? String ?? "?"
-        grid.tap(); Thread.sleep(forTimeInterval: 2)
-        let flipped = grid.value as? String ?? "?"
-        XCTAssertNotEqual(start, flipped, "the grid toggle did nothing")
-        grid.tap(); Thread.sleep(forTimeInterval: 2)
-        XCTAssertEqual(grid.value as? String ?? "?", start,
-                       "the grid could not be toggled back — this is the bug where a "
-                       + "dimmed control stops taking taps")
-
-        // The timer cycles Off / 3 / 10, as iOS Camera does.
-        //
-        // Polled, not slept on. A flat one-second wait failed once here and
-        // passed on a re-run with identical code — the same flake this file
-        // has hit before, and the same fix: wait for the condition, not for a
-        // duration.
-        let t0 = timer.value as? String ?? "?"
-        timer.tap()
-        var t1 = t0
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline, t1 == t0 {
-            Thread.sleep(forTimeInterval: 0.2)
-            t1 = timer.value as? String ?? "?"
+        func gridValue() -> String {
+            more.tap()
+            let grid = app.buttons["Grid"].firstMatch.exists ? app.buttons["Grid"].firstMatch : app.switches["Grid"].firstMatch
+            _ = grid.waitForExistence(timeout: 3)
+            // A menu's toggle says its state as selected, not as a value.
+            let value = grid.isSelected ? "on" : "off"
+            return value
         }
-        XCTAssertNotEqual(t1, t0, "the timer did not change")
+        func tapGrid() {
+            let grid = app.buttons["Grid"].firstMatch.exists ? app.buttons["Grid"].firstMatch : app.switches["Grid"].firstMatch
+            grid.tap()
+            Thread.sleep(forTimeInterval: 1.2)
+        }
+        let start = gridValue(); tapGrid()
+        let flipped = gridValue(); tapGrid()
+        let back = gridValue()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+        print("GRID \(start) -> \(flipped) -> \(back)")
+        XCTAssertNotEqual(start, flipped, "the grid toggle did nothing")
+        XCTAssertEqual(back, start, "the grid could not be toggled back")
+
+        // The timer: 3 seconds, and the extras say so.
+        Thread.sleep(forTimeInterval: 1)
+        more.tap()
+        let timer = app.buttons["Timer"].firstMatch
+        if timer.waitForExistence(timeout: 3) { timer.tap() }
+        let three = app.buttons["3 Seconds"].firstMatch
+        XCTAssertTrue(three.waitForExistence(timeout: 3), "no timer choice")
+        three.tap()
+        Thread.sleep(forTimeInterval: 1.2)
+        XCTAssertEqual(more.value as? String, "Timer 3 seconds", "the timer did not change")
     }
-
-
-
 }

@@ -52,17 +52,13 @@ final class RealPhotoTests: XCTestCase {
         app.launch()
         Thread.sleep(forTimeInterval: 16)
 
-        // Assert the sheet really is open before anything else is blamed.
-        let title = app.textFields.matching(
-            NSPredicate(format: "placeholderValue == %@ OR label == %@", "What did you do?", "What did you do?")).firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 12),
-                      "the add sheet never opened. On screen: \(app.debugDescription)")
-        XCTAssertEqual(well(app).label, "Add a photo",
-                       "a fresh win should start with no photograph")
-
-        well(app).tap()
-        Thread.sleep(forTimeInterval: 2)
-        let library = app.buttons["Choose from Library"]
+        // **The camera card since 2026-10-18** (the old Add sheet is gone):
+        // a library photo comes in through its "...".
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 12),
+                      "the camera card never opened. On screen: \(app.debugDescription)")
+        more.tap()
+        let library = app.buttons["Choose a Photo"].firstMatch
         XCTAssertTrue(library.waitForExistence(timeout: 10),
                       "no library option. On screen: \(app.debugDescription)")
         library.tap()
@@ -70,23 +66,20 @@ final class RealPhotoTests: XCTestCase {
 
         // **Tap a coordinate, not an element.** PHPicker's grid is a remote
         // view: its cells are not exposed as `cells` and its `images` ignore a
-        // tap. A normalised point inside the first row of thumbnails selects
-        // one — the private-access banner sits above the grid, so aim below it.
-        // The banner about private access is sometimes there and sometimes
-        // not, and it moves the grid down when it is, so one fixed point
-        // misses about half the time. Try a few rows and stop as soon as the
-        // well says a photograph arrived.
+        // tap. The banner about private access is sometimes there and moves
+        // the grid down, so try a few rows and stop once the card holds the
+        // photograph (its Retake is there).
         var picked = false
         for dy in [0.42, 0.52, 0.62, 0.34] where !picked {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: dy)).tap()
             Thread.sleep(forTimeInterval: 5)
-            picked = well(app).exists && well(app).label == "View the photo"
+            picked = app.buttons["Retake the photo"].firstMatch.exists
         }
         XCTAssertTrue(picked,
-                      "the picker did not put a photograph into the draft. "
+                      "the picker did not put a photograph on the card. "
                       + "On screen: \(app.debugDescription)")
 
-        app.buttons["Add"].tap()
+        app.buttons["Drop it on the tower"].firstMatch.tap()
         Thread.sleep(forTimeInterval: 10)
 
         // **The part that matters: does the photograph survive?**
