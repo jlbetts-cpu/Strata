@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 import StoreKit
 import SwiftData
@@ -747,6 +748,13 @@ struct MainAppView: View {
                 InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
                     .id(opening.id)
             }
+        }
+        // **No Camera tab, and the camera still a button away** (2026-10-17):
+        // with three tabs, a press of Camera Control on Wins opens the card,
+        // which then takes the shot on the next press.
+        .onCameraCaptureEvent(isEnabled: !CameraTab.shown && selectedTab == .tower && inlineOpening == nil
+                                && winDraft == nil) { event in
+            if event.phase == .ended { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
         }
         .onChange(of: selectedTab, initial: true) { _, tab in
             if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }

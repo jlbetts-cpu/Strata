@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import PhotosUI
 import SwiftUI
 
@@ -313,6 +314,11 @@ struct InlineCameraCard: View {
             .offset(x: -geo.safeAreaInsets.leading, y: -geo.safeAreaInsets.top)
         }
         .onAppear(perform: arrive)
+        // **The volume buttons and Camera Control take the shot**, as every
+        // camera on the phone, the Camera tab's included (`docs/camera.md`).
+        .onCameraCaptureEvent(isEnabled: mode == .lens && open && !closing) { event in
+            if event.phase == .ended { shutterPressed() }
+        }
         .onChange(of: picked) { _, item in Task { await take(item) } }
         .photosPicker(isPresented: $picking, selection: $picked, matching: .images)
         .onReceive(NotificationCenter.default.publisher(for: AVCaptureSession.didStartRunningNotification)) { note in
