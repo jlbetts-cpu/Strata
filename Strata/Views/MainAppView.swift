@@ -793,18 +793,8 @@ struct MainAppView: View {
         .sheet(item: $winDraft, onDismiss: {
             // **To the plan, on the day chosen on Now.** Words already in
             // the name field are the first line.
-            if let handoff = planHandoff {
-                planHandoff = nil
-                if DayComposing.hasWords(handoff.words) {
-                    let all = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
-                    _ = DayComposing.addPlanLines(handoff.words, after: all, habits: habits, context: modelContext,
-                                                  day: handoff.scope.date() ?? Date(),
-                                                  repeatDays: handoff.scope == .repeating ? PlanScope.everyDay : [])
-                    plannedNudge += 1
-                }
-                planOpeningScope = handoff.scope
-                dayOpeningTab = .plan
-                isPlanning = true
+            if planHandoff != nil {
+                openPlanHandoff()
                 return
             }
             let saved = tickAwaitingWin == nil
@@ -2788,6 +2778,14 @@ struct MainAppView: View {
             }
         case .send?:
             break
+        case .plan(let scope, let words)?:
+            withTransaction(Self.still) { inlineOpening = nil }
+            planHandoff = (scope, words)
+            // The sheet's own way to the plan, with no sheet to close.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                openPlanHandoff()
+            }
         case .quickAdd?:
             withTransaction(Self.still) { inlineOpening = nil }
             Task { @MainActor in
@@ -2807,6 +2805,24 @@ struct MainAppView: View {
                 try? modelContext.save()
             }
         }
+    }
+
+    /// **To the plan, on the day chosen** (the sheet's Now row, and the
+    /// card's "Plan This Instead"): the words are its first line, and the
+    /// planner opens on that day, where a repeat's days are chosen.
+    private func openPlanHandoff() {
+        guard let handoff = planHandoff else { return }
+        planHandoff = nil
+        if DayComposing.hasWords(handoff.words) {
+            let all = (try? modelContext.fetch(FetchDescriptor<PlanItem>())) ?? []
+            _ = DayComposing.addPlanLines(handoff.words, after: all, habits: habits, context: modelContext,
+                                          day: handoff.scope.date() ?? Date(),
+                                          repeatDays: handoff.scope == .repeating ? PlanScope.everyDay : [])
+            plannedNudge += 1
+        }
+        planOpeningScope = handoff.scope
+        dayOpeningTab = .plan
+        isPlanning = true
     }
 
     @discardableResult

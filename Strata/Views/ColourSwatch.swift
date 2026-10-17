@@ -254,10 +254,32 @@ struct ColourSwatchRow: View {
                     withAnimation(GridConstants.motionSnappy) { category = cat }
                     onPick(cat)
                 } label: {
-                    ColourSwatch(colour: cat.style.baseColor,
-                                 glyph: cat.iconName,
-                                 doodle: cat.doodle,
-                                 isSelected: isSelected)
+                    // **The name on the chosen one** (the owner, 2026-10-18:
+                    // "Show the name of the selected one only, so it's clear
+                    // what it means ('Focus' alone next to the dots is
+                    // confusing)"): the chosen dot opens into a pill with its
+                    // name, so the word belongs to that colour.
+                    HStack(spacing: 0) {
+                        ColourSwatch(colour: cat.style.baseColor,
+                                     glyph: cat.iconName,
+                                     doodle: cat.doodle,
+                                     isSelected: isSelected)
+                        if isSelected {
+                            Text(cat.rawValue.capitalized)
+                                .font(Typography.headerSmall)
+                                .foregroundStyle(AppColors.inkPrimary)
+                                .lineLimit(1)
+                                .fixedSize()
+                                .padding(.trailing, GridConstants.gapItem)
+                                .transition(.opacity)
+                        }
+                    }
+                    .background {
+                        if isSelected {
+                            Capsule(style: .continuous).fill(AppColors.quietFill)
+                                .padding(.vertical, ColourSwatch.inset)
+                        }
+                    }
                 }
                 // The app's press, not `.plain`. A 34pt chip on a page has no
                 // background to shift, so the glyph row's scale-and-dim is the
@@ -271,16 +293,6 @@ struct ColourSwatchRow: View {
             // "was confused what the color categories were for"). The chosen
             // one's name, quiet, at the end of the row: a word beside the
             // circle answers it without a legend or a tour.
-            if showsSelection {
-                Text(category.rawValue.capitalized)
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .contentTransition(.opacity)
-                    .padding(.leading, GridConstants.gapTight)
-                    .accessibilityHidden(true)
-            }
             Spacer(minLength: 0)
         }
         // **PULLED BACK ONTO THE MARGIN.**

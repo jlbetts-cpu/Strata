@@ -127,9 +127,17 @@ final class FeedbackShots: XCTestCase {
         let field = app.textFields.firstMatch
         if field.waitForExistence(timeout: 3) { field.tap(); field.typeText("Ate something green") }
         wait(1); snap("inline-3-named")
-        app.buttons["More details"].firstMatch.tap()
+        // The keyboard down: the hero, the colour, the size and "...".
+        if app.keyboards.buttons["done"].exists { app.keyboards.buttons["done"].tap() }
+        else if app.keyboards.buttons["Done"].exists { app.keyboards.buttons["Done"].tap() }
+        wait(1); snap("inline-32-rest")
+        app.buttons["Regular"].firstMatch.tap()
+        wait(0.8); snap("inline-33-regular")
+        app.buttons["More"].firstMatch.tap()
         wait(1); snap("inline-35-more")
-        app.buttons["Drop it on the tower"].tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        wait(0.8)
+        app.buttons["Drop it on the tower"].firstMatch.tap()
         wait(0.25); snap("inline-4-closing")
         wait(3); snap("inline-5-dropped")
         app.buttons["Log a win"].firstMatch.tap()
@@ -138,6 +146,9 @@ final class FeedbackShots: XCTestCase {
         wait(1.2)
         app.typeText("Answered one email")
         wait(0.6); snap("inline-6-words")
+        if app.keyboards.buttons["done"].exists { app.keyboards.buttons["done"].tap() }
+        else if app.keyboards.buttons["Done"].exists { app.keyboards.buttons["Done"].tap() }
+        wait(1); snap("inline-62-words-rest")
         app.buttons["Close"].firstMatch.tap()
         wait(1.2); snap("inline-7-closed")
         app.terminate()
@@ -164,6 +175,23 @@ final class FeedbackShots: XCTestCase {
         app.buttons["Close"].firstMatch.tap()
         wait(2)
         snap("motion-end")
+    }
+
+    /// The shot growing into the editor's hero, filmed (2026-10-18).
+    func testShotToHero() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6)
+        slot.tap()
+        wait(2)
+        FileManager.default.createFile(atPath: "/tmp/claude-501/overnight/motion-go", contents: nil)
+        wait(1)
+        app.buttons["Take photo"].firstMatch.tap()
+        wait(2.5)
+        snap("hero-end")
     }
 
     /// The system sheet opening, filmed the same way, to calibrate the film.

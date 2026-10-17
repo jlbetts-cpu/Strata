@@ -143,6 +143,9 @@ enum InlineCameraResult {
     case send(UIImage)
     /// Today's photos, several at once (`QuickAddSheet`).
     case quickAdd
+    /// **Planned instead** (the owner, 2026-10-18: "Put 'plan this instead'
+    /// in the '...' of the Add sheet"): the words, for the day chosen.
+    case plan(PlanScope, String)
     /// Everything else: the full sheet, holding whatever the card had.
     case sheet(WinDraft)
 }
@@ -203,8 +206,8 @@ struct InlineCameraCard: View {
     @State private var high = ""
     @State private var low = ""
     @State private var buffalo = ""
-    /// The rest of the details, tucked away until wanted.
-    @State private var more = false
+    /// Which of "..."'s details is being written (`WinDetailsSheet`).
+    @State private var details: WinDetailsSheet.Which?
 
     // The photograph's tools, the Camera tab's review in one quiet row
     // (the owner, 2026-10-17: "crop, film looks/filters, doodle, stickers,
@@ -235,6 +238,14 @@ struct InlineCameraCard: View {
     @State private var closing = false
     @State private var opened = CACurrentMediaTime()
     @FocusState private var naming: Bool
+    /// The picture just taken, the same one on the lens and as the hero, so
+    /// it moves from one to the other (the owner, 2026-10-18: "the photo you
+    /// just took grows into the hero, no cut").
+    @Namespace private var heroSpace
+    /// The editor's controls, in a beat after the picture has moved into
+    /// place: the picture leads, nothing ghosts over it (filmed, 2026-10-18:
+    /// a crossfade of the whole card read as a cut).
+    @State private var chromeIn = true
     /// The card's face, dissolving in over the slot and back out into it.
     @State private var shown = false
     /// Where the tab bar's top is, in the window: the card stands on it and
@@ -347,6 +358,17 @@ struct InlineCameraCard: View {
                     .environment(\.colorScheme, pageScheme)
                 lens(size: size)
                     .opacity(live ? 1 : 0)
+                // The lens held on the picture it took, for the frame before
+                // it becomes the hero.
+                if let shot {
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                        .matchedGeometryEffect(id: "picture", in: heroSpace)
+                        .accessibilityHidden(true)
+                }
                 if camera.showsGuides { guides }
                 if let countdown {
                     Text("\(countdown)")
@@ -362,21 +384,15 @@ struct InlineCameraCard: View {
             }
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .dark)
+            // Gone at once under the editor's ground: the picture is what
+            // moves, not two cards fading through each other.
+            .transition(.identity)
         case .shot where purpose == .send:
             sendPage(size: size)
                 .environment(\.colorScheme, .dark)
         case .shot, .words:
-            ZStack {
-                WarmBackground()
-                VStack(spacing: GridConstants.gapItem) {
-                    pageTop
-                    if mode == .shot { shotPage } else { wordsPage }
-                    pageFoot
-                }
-                .padding(GridConstants.gapItem)
-                .opacity(open ? 1 : 0)
-            }
-            .frame(width: size.width, height: size.height)
+            composer(size: size)
+                .transition(.identity)
         }
     }
 
@@ -632,11 +648,15 @@ struct InlineCameraCard: View {
                     PortraitPolish.apply(to: image)
                 }.value
                 fromCamera = true
+                // Held on the lens for a frame, then grown into the hero.
+                shot = polished
+                camera.stop()
+                try? await Task.sleep(for: .milliseconds(34))
+                chromeIn = reduceMotion
                 withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
-                    shot = polished
                     mode = .shot
                 }
-                camera.stop()
+                withAnimation(GridConstants.cardFaceIn.delay(0.18)) { chromeIn = true }
             } }
         }
     }
@@ -697,67 +717,19 @@ struct InlineCameraCard: View {
 
     // MARK: The page: after the shot, and words
 
-    /// Back to the lens (or to it for the first time) on the left; away on
-    /// the right.
-    private var pageTop: some View {
-        HStack {
-            if mode == .shot || !InlineCamera.refused {
-                GlassIconButton(systemName: mode == .shot ? "arrow.counterclockwise" : "camera", onPage: true,
-                                accessibilityLabel: mode == .shot ? "Retake" : "Camera") { backToLens() }
-            }
-            Spacer(minLength: 0)
-            GlassIconButton(systemName: "xmark", onPage: true, accessibilityLabel: "Close") { close() }
-        }
-    }
-
-    /// **After the photo, one clean page** (the owner, 2026-10-17: "Don't put
-    /// text over the photo itself. Put the details in a clean container above
-    /// the photo ... the essentials up front, the rest tucked away until
-    /// wanted"). Name, size and who sees it, then More; the photograph under
-    /// them, nothing written on it.
-    private var shotPage: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            // **More takes the photograph's room while it is open**: the
-            // details scroll there, and Less brings the picture back. Both
-            // at once ran the page off the card under the keyboard.
-            if more {
-                ScrollView(.vertical, showsIndicators: false) { details }
-                    .scrollDismissesKeyboard(.interactively)
-                    .softScrollEdge([.top, .bottom])
-            } else {
-                details
-            }
-            // The photograph in the room that is left, whole, never scrolled:
-            // a drag on it moves the picture under the block's frame.
-            if let shot, !more {
-                GeometryReader { g in
-                    let width = min(g.size.width, g.size.height * size.cropAspectRatio)
-                    photoStage(shot, width: max(width, 1))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .animation(GridConstants.slotSnap, value: size)
-                if choosingLook {
-                    FilmLookStrip(photo: shot, selection: Binding(
-                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
-                        set: { lookRaw = $0.rawValue }))
-                        .transition(.opacity)
-                }
-            }
-        }
-    }
-
     /// **The photograph as the block will show it**: the block's frame, the
     /// picture moved and pinched under it (the head overlay carries both
     /// gestures, as on the Camera tab's review), the drawing and the head on
     /// it, the look on it. The tools stand along its foot, small and quiet,
     /// and each opens only when pressed.
-    private func photoStage(_ image: UIImage, width: CGFloat, aspect: CGFloat? = nil, still: Bool = false) -> some View {
+    private func photoStage(_ image: UIImage, width: CGFloat, aspect: CGFloat? = nil, still: Bool = false,
+                            corner: CGFloat = GridConstants.radiusSurface) -> some View {
         let box = CGSize(width: width, height: width / max(aspect ?? size.cropAspectRatio, 0.01))
         let rests = CachedImageView.filled(image.size, in: box)
         let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
-        // The tools along the foot; on a chat's photo, whose foot holds
-        // Retake and Send, along the top right instead.
-        return ZStack(alignment: still ? .topTrailing : .bottomLeading) {
+        // The tools at the top right, as a story's editor keeps them: the
+        // foot is the name's (the owner, 2026-10-18: type on the win).
+        return ZStack(alignment: .topTrailing) {
             Image(uiImage: looked ?? image)
                 .resizable()
                 .frame(width: rests.width, height: rests.height)
@@ -781,13 +753,14 @@ struct InlineCameraCard: View {
                 .scaleEffect(PhotoWindow.zoom(zoom))
                 .offset(shift)
                 .frame(width: box.width, height: box.height)
-                .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
                 .accessibilityLabel("Your photo")
             // Only where there is room for them: squeezed by the keyboard,
             // the photo was a sliver with three discs floating on it.
-            if box.height >= 140 {
+            if box.height >= 140, !naming {
                 photoTools
                     .padding(GridConstants.gapTight)
+                    .transition(.opacity)
             }
         }
         .frame(width: box.width, height: box.height)
@@ -822,23 +795,41 @@ struct InlineCameraCard: View {
         }
     }
 
+    /// **A tool says what it is** (the owner, 2026-10-18: "No unexplained
+    /// icons ... nothing hidden that matters"): its glyph and its word, on
+    /// the card's darker glass so it holds on a white wall. On, it turns
+    /// white with dark ink.
     private func toolGlyph(_ symbol: String, label: String, on: Bool, action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
             action()
         } label: {
-            Image(systemName: symbol)
-                .iconSize(16, relativeTo: .body, weight: .semibold)
-                .foregroundStyle(on ? Color.black : .white)
-                .frame(width: 36, height: 36)
-                .background { if on { Circle().fill(.white) } }
-                .inlineGlass(in: Circle())
-                .frame(width: 44, height: 44)
-                .contentShape(Circle())
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .iconSize(15, relativeTo: .body, weight: .semibold)
+                Text(toolWord(label))
+                    .font(Typography.headerSmall)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(on ? Color.black : .white)
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .background { if on { Capsule().fill(.white) } }
+            .inlineGlass(in: Capsule(), deep: true)
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// The tool's word on its pill: the short form of its spoken label.
+    private func toolWord(_ label: String) -> String {
+        switch label {
+        case "Add your head", "Take your head off": "Head"
+        default: label
+        }
     }
 
     private func showLook(on image: UIImage) async {
@@ -850,21 +841,147 @@ struct InlineCameraCard: View {
         if !Task.isCancelled { looked = rendered }
     }
 
-    /// The essentials in one container, the rest under More.
-    private var details: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-            TextField("", text: $title, prompt: Text("Name it, if you want").foregroundStyle(AppColors.inkTertiary))
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .submitLabel(.done)
-                .focused($naming)
-                .frame(minHeight: 44)
-            sizeBar
-            recipientsRow
-            moreDetails
+    // MARK: The composer: after the shot, and words
+
+    /// **The win is the screen** (the owner, 2026-10-18: "Redesign the Add a
+    /// Win edit screen ... to feel immersive and minimal, like editing an
+    /// Instagram story. Right now it's a form with a tiny picture attached").
+    ///
+    /// One layout for a photograph and for words; only the hero differs. The
+    /// hero takes every point the card has left, above the keyboard when it
+    /// is up, and the name is written on it in the block's own type, so what
+    /// is seen is what lands. The controls are quiet glass round its edges:
+    /// close, who sees it and a labelled way back to the camera at the top;
+    /// the colour, the size and "..." under it; one Add. With the keyboard
+    /// up they fold into one row above it, as iMessage's and Instagram's do.
+    /// (b: Instagram Stories and Snapchat keep the picture full and the tools
+    /// in its corners; Notes keeps the page and puts the bar over the
+    /// keyboard.)
+    private func composer(size card: CGSize) -> some View {
+        ZStack {
+            WarmBackground()
+            VStack(spacing: GridConstants.gapItem) {
+                composerTop
+                    .opacity(chromeIn ? 1 : 0)
+                hero
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(1)
+                Group {
+                    if naming { keyboardRow } else { composerControls }
+                }
+                .opacity(chromeIn ? 1 : 0)
+            }
+            .padding(GridConstants.gapItem)
+            .opacity(open ? 1 : 0)
+            .animation(GridConstants.motionSnappy, value: naming)
         }
-        .padding(GridConstants.gapItem)
-        .pageCard()
+        .frame(width: card.width, height: card.height)
+    }
+
+    /// One clear close, who sees it in the middle, and the camera named.
+    private var composerTop: some View {
+        ZStack {
+            HStack {
+                GlassIconButton(systemName: "xmark", onPage: true, accessibilityLabel: "Close") { close() }
+                Spacer(minLength: 0)
+                if mode == .shot || !InlineCamera.refused {
+                    // Named, never a bare glyph (the owner: "No unexplained
+                    // icons").
+                    Button {
+                        HapticsEngine.lightTap()
+                        backToLens()
+                    } label: {
+                        Label(mode == .shot ? "Retake" : "Camera",
+                              systemImage: mode == .shot ? "arrow.counterclockwise" : "camera")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(AppColors.inkPrimary)
+                            .padding(.horizontal, GridConstants.gapLabel)
+                            .frame(minHeight: 44)
+                            .glassCapsule(onPage: true)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(mode == .shot ? "Retake the photo" : "Use the camera")
+                }
+            }
+            recipientsChip
+                .frame(maxWidth: 170)
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+    }
+
+    /// **The hero**: the photograph, or the block in its colour, at the
+    /// block's shape and as large as the room allows.
+    private var hero: some View {
+        GeometryReader { g in
+            let aspect = size.cropAspectRatio
+            let width = max(min(g.size.width, g.size.height * aspect), 1)
+            let k = width / WinHeroTitle.blockWidth(size)
+            let corner = GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k
+            Group {
+                if mode == .shot, let shot {
+                    photoStage(shot, width: width, corner: corner)
+                        .overlay(alignment: .bottom) {
+                            WinHeroTitle(title: $title, size: size, width: width, onPhoto: true, focus: $naming)
+                        }
+                        .matchedGeometryEffect(id: "picture", in: heroSpace)
+                } else {
+                    ZStack(alignment: .bottom) {
+                        RoundedRectangle(cornerRadius: corner, style: .continuous)
+                            .fill(colour.style.baseColor)
+                            .contentShape(Rectangle())
+                            .onTapGesture { naming = true }
+                        WinHeroTitle(title: $title, size: size, width: width, onPhoto: false, focus: $naming)
+                    }
+                    .frame(width: width, height: width / aspect)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Your block")
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height)
+        }
+        .animation(GridConstants.slotSnap, value: size)
+        .animation(GridConstants.motionSnappy, value: colour)
+    }
+
+    /// Under the hero, at rest: the colour, the size and "...", then Add.
+    private var composerControls: some View {
+        VStack(spacing: GridConstants.gapItem) {
+            if choosingLook, mode == .shot, let shot {
+                FilmLookStrip(photo: shot, selection: Binding(
+                    get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                    set: { lookRaw = $0.rawValue }))
+                    .transition(.opacity)
+            } else {
+                if InlineCamera.refused, mode == .words { cameraOff }
+                // A photograph covers its colour: no ring claims a kind of win
+                // nobody gave it until a dot is pressed.
+                ColourSwatchRow(category: $colour, showsSelection: mode == .words || colourChosen) { _ in colourChosen = true }
+                    .frame(maxWidth: .infinity)
+                HStack(spacing: GridConstants.gapTight) {
+                    sizeBar
+                    moreMenu
+                }
+            }
+            pageFoot
+        }
+    }
+
+    /// **With the keyboard up, one tidy row above it**: the size and Add, all
+    /// a name needs ("..." is a tap away with the keyboard down; beside them
+    /// the three sizes shrank to fit). Words keep their colour one row up,
+    /// since the block is the colour.
+    private var keyboardRow: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            if mode == .words {
+                ColourSwatchRow(category: $colour) { _ in colourChosen = true }
+                    .frame(maxWidth: .infinity)
+            }
+            HStack(spacing: GridConstants.gapTight) {
+                sizeBar
+                addButton
+            }
+        }
     }
 
     private var sizeBar: some View {
@@ -875,32 +992,14 @@ struct InlineCameraCard: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Size")
             // Three words that must each be whole: no larger than they fit.
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
-    /// **Words are written on the block** (the owner, 2026-10-17: "it should
-    /// feel like writing directly on the block itself: the block in front of
-    /// you, the cursor on it, your words appearing on it as you type"). The
-    /// block at its size and in its colour, the words in the tower's own type
-    /// where the tower puts them, so what lands is exactly what was written.
-    private var wordsPage: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            if InlineCamera.refused { cameraOff }
-            Spacer(minLength: 0)
-            WordBlock(title: $title, size: size, colour: colour, focus: $naming)
-                .animation(GridConstants.slotSnap, value: size)
-                .animation(GridConstants.motionSnappy, value: colour)
-            Spacer(minLength: 0)
-            ColourSwatchRow(category: $colour) { _ in colourChosen = true }
-                .frame(maxWidth: .infinity)
-            sizeBar
-            recipientsRow
-        }
-    }
-
-    /// Who sees it, and what more there is to say.
+    /// **Who sees it, one small chip** (the second reader, 2026-10-17:
+    /// nothing reaches a crew before a yes, so the chip names them and Add is
+    /// the yes).
     @ViewBuilder
-    private var recipientsRow: some View {
+    private var recipientsChip: some View {
         if !crews.isEmpty {
             let store = SocialStore.shared
             let names = crews.filter { recipients.contains($0.id) }.map { $0.displayName(excluding: store.me) }
@@ -916,66 +1015,70 @@ struct InlineCameraCard: View {
                 Toggle("Tonight's Story", systemImage: "moon.stars", isOn: $onStory)
             } label: {
                 HStack(spacing: GridConstants.spacing) {
-                    Text("To").foregroundStyle(AppColors.inkSecondary)
-                    Text(words + (onStory ? ", and tonight's story" : "")).foregroundStyle(AppColors.inkPrimary).lineLimit(1)
-                    Image(systemName: "chevron.down").foregroundStyle(AppColors.inkTertiary)
+                    if onStory { Image(systemName: "moon.stars") }
+                    Text(words).lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .semibold)
+                        .foregroundStyle(AppColors.inkTertiary)
                 }
                 .font(Typography.headerSmall)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+                .foregroundStyle(AppColors.inkPrimary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .glassCapsule(onPage: true)
+                .contentShape(Capsule())
             }
             .menuActionDismissBehavior(.disabled)
-            .accessibilityLabel("Sending to \(words)")
+            .accessibilityLabel("Sending to \(words)" + (onStory ? " and tonight's story" : ""))
             .accessibilityHint("Choose who sees it.")
         }
     }
 
-    /// The rest of what the add sheet held, one press away and never in the
-    /// way: the colour (for a photograph, which mostly covers it), a note,
-    /// who you were with, and tonight's high, low and buffalo.
-    @ViewBuilder
-    private var moreDetails: some View {
-        Button {
-            HapticsEngine.tick()
-            if !more {
+    /// **Everything else, behind "..."** (the owner, 2026-10-18: "note,
+    /// mood, who you were with, high/low/buffalo, plan this instead: behind
+    /// '...', never open by default").
+    private var moreMenu: some View {
+        Menu {
+            Button(note.isEmpty ? "Add a Note" : "Edit the Note", systemImage: "text.alignleft") { details = .note }
+            if !recipients.isEmpty {
+                Button("Who You Were With", systemImage: "person.2") { details = .with }
+            }
+            Button("High, Low and Buffalo", systemImage: "moon.stars") {
                 let words = SocialStore.shared.storyWords(on: DateUtils.dateString(from: Date()))
                 if high.isEmpty, low.isEmpty, buffalo.isEmpty { (high, low, buffalo) = (words.high, words.low, words.buffalo) }
+                details = .words
             }
-            withAnimation(GridConstants.motionSnappy) { more.toggle() }
+            Menu("Plan This Instead", systemImage: "calendar") {
+                ForEach(PlanScope.all, id: \.self) { scope in
+                    Button(scope == .day(0) ? "Later Today" : scope.title()) { planInstead(scope) }
+                }
+            }
+            Divider()
+            Button("All Details", systemImage: "slider.horizontal.3") { toSheet() }
         } label: {
-            HStack {
-                Text(more ? "Less" : "More")
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.down").rotationEffect(.degrees(more ? 180 : 0))
-            }
-            .font(Typography.headerSmall)
-            .foregroundStyle(AppColors.inkSecondary)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            Image(systemName: "ellipsis")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
+                .foregroundStyle(AppColors.inkPrimary)
+                .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
+                .glassCircle(onPage: true)
+                .contentShape(Circle())
         }
-        .buttonStyle(.pressWord)
-        .accessibilityLabel(more ? "Fewer details" : "More details")
-        if more {
-            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                ColourSwatchRow(category: $colour, showsSelection: colourChosen) { _ in colourChosen = true }
-                TextField("", text: $note, prompt: Text("A note, just for you").foregroundStyle(AppColors.inkTertiary),
-                          axis: .vertical)
-                    .font(Typography.bodyLarge)
-                    .lineLimit(1...4)
-                if !recipients.isEmpty {
-                    CrewWithRow(crews: recipients, selection: $with)
-                }
-                Text("Tonight's high, low and buffalo")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkSecondary)
-                ForEach([("High", $high), ("Low", $low), ("Buffalo", $buffalo)], id: \.0) { word, text in
-                    TextField("", text: text, prompt: Text(word).foregroundStyle(AppColors.inkTertiary))
-                        .font(Typography.bodyLarge)
-                        .frame(minHeight: 36)
-                }
-            }
-            .transition(.opacity)
+        .menuOrder(.fixed)
+        .accessibilityLabel("More")
+        .sheet(item: $details) { which in
+            WinDetailsSheet(which: which, note: $note, high: $high, low: $low, buffalo: $buffalo,
+                            recipients: recipients, with: $with)
         }
+    }
+
+    /// The words, planned for the day chosen, instead of a win now.
+    private func planInstead(_ scope: PlanScope) {
+        guard DayComposing.hasWords(title) else {
+            naming = true
+            return
+        }
+        HapticsEngine.tick()
+        leave(with: .plan(scope, title))
     }
 
     private var cameraOff: some View {
@@ -1003,9 +1106,18 @@ struct InlineCameraCard: View {
 
     /// One tap posts: Add, or Post when it goes to a crew or the story.
     private var pageFoot: some View {
-        PrimaryCapsule(title: !recipients.isEmpty || onStory ? "Post" : "Add") { if !dropping { drop() } }
+        PrimaryCapsule(title: postWord) { if !dropping { drop() } }
             .accessibilityLabel("Drop it on the tower")
     }
+
+    /// The same primary, at its word's width, in the keyboard's row.
+    private var addButton: some View {
+        PrimaryCapsule(title: postWord) { if !dropping { drop() } }
+            .frame(width: 92)
+            .accessibilityLabel("Drop it on the tower")
+    }
+
+    private var postWord: String { !recipients.isEmpty || onStory ? "Post" : "Add" }
 
     // MARK: Going
 
@@ -1086,7 +1198,7 @@ struct InlineCameraCard: View {
         // Tonight's words, kept as Send To keeps them.
         let today = DateUtils.dateString(from: Date())
         var words = SocialStore.shared.storyWords(on: today)
-        if more, (words.high, words.low, words.buffalo) != (high, low, buffalo) {
+        if (words.high, words.low, words.buffalo) != (high, low, buffalo), !(high + low + buffalo).isEmpty {
             words.high = high; words.low = low; words.buffalo = buffalo
             Task { await SocialStore.shared.setStoryWords(words, on: today) }
         }
@@ -1190,7 +1302,7 @@ struct InlineCameraCard: View {
             mode = InlineCamera.refused ? .words : .lens
             shot = nil
         }
-        (title, size, note, with, more, high, low, buffalo) = ("", .small, "", [], false, "", "", "")
+        (title, size, note, with, high, low, buffalo) = ("", .small, "", [], "", "", "")
         (lookRaw, looked, choosingLook, marks, markLayer, sticker, crop, zoom) =
             (FilmLook.Kind.none.rawValue, nil, false, nil, nil, nil, .zero, 1)
         (dropping, colourChosen) = (false, false)
@@ -1215,51 +1327,137 @@ struct InlineCameraCard: View {
     }
 }
 
-/// **The block, written on** (`InlineCameraCard`'s words). The tower's own
-/// block at its size and colour, drawn at the tower's cell and scaled up so
-/// it can be written on comfortably: the words sit where a block's title
-/// sits, in its type, so what lands on the tower is what was typed here.
-private struct WordBlock: View {
+/// **The name, written on the win** (the owner, 2026-10-18: "The name is
+/// written directly on the photo or block, the way text sits on a story, in
+/// our block typography, with a soft scrim on photos so it's always readable.
+/// What you see is exactly what lands on the tower").
+///
+/// The block's title as the tower sets it (`BlockContentOverlay`: footnote,
+/// medium, white, bottom left inside 12, 8 and 10, one line on a one-row
+/// block and two on a taller one), scaled with the hero by the same factor
+/// the hero is to a tower cell, and set at that size rather than magnified,
+/// so it stays sharp. On a photograph a short soft scrim and the tower's own
+/// halo; on a colour, neither (the owner, 2026-10-16: no shadow on flat
+/// colour).
+struct WinHeroTitle: View {
     @Binding var title: String
     let size: BlockSize
-    let colour: HabitCategory
+    /// The hero's width.
+    let width: CGFloat
+    let onPhoto: Bool
     var focus: FocusState<Bool>.Binding
 
-    private var cell: CGFloat { GridConstants.blockReferenceCell }
-    private var gutter: CGFloat { GridConstants.spacing }
-    private var blockSize: CGSize {
-        CGSize(width: cell * CGFloat(size.columnSpan) + gutter * CGFloat(size.columnSpan - 1),
-               height: cell * CGFloat(size.rowSpan) + gutter * CGFloat(size.rowSpan - 1))
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    static func blockWidth(_ size: BlockSize) -> CGFloat {
+        let cell = GridConstants.blockReferenceCell
+        return cell * CGFloat(size.columnSpan) + GridConstants.spacing * CGFloat(size.columnSpan - 1)
+    }
+
+    /// The tower's footnote at this person's text size, capped where the
+    /// tower caps it (`BlockContentOverlay`: XXL).
+    private var base: CGFloat {
+        let capped = min(typeSize, .xxLarge)
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(capped))
+        return UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits).pointSize
     }
 
     var body: some View {
-        GeometryReader { g in
-            let scale = min(g.size.width / blockSize.width, g.size.height / blockSize.height, 2.6)
-            ZStack(alignment: .bottomLeading) {
-                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell), style: .continuous)
-                    .fill(colour.style.baseColor)
-                TextField("", text: $title, prompt: Text("What went right?").foregroundStyle(.white.opacity(0.6)),
-                          axis: .vertical)
-                    .font(BlockContentOverlay.titleFont)
-                    // As the tower holds a block's title (`BlockContent`), so
-                    // the words land the size they were written.
-                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
-                    .foregroundStyle(.white)
-                    .tint(.white)
-                    .lineLimit(1...3)
-                    .submitLabel(.done)
-                    .focused(focus)
-                    .padding(.leading, 12)
-                    .padding(.trailing, 8)
-                    .padding(.bottom, 10)
-            }
-            .frame(width: blockSize.width, height: blockSize.height)
-            .scaleEffect(scale)
-            .frame(width: g.size.width, height: g.size.height)
+        let k = width / Self.blockWidth(size)
+        let lines = size.rowSpan > 1 ? 2 : 1
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("", text: $title, prompt: Text("Name it").foregroundStyle(.white.opacity(0.72)),
+                      axis: lines > 1 ? .vertical : .horizontal)
+                .font(.system(size: base * k, weight: .medium))
+                .foregroundStyle(.white)
+                .tint(.white)
+                .lineLimit(1...lines)
+                .submitLabel(.done)
+                .focused(focus)
+                .shadow(color: .black.opacity(onPhoto ? Legibility.ink : 0),
+                        radius: onPhoto ? Legibility.radius : 0, x: 0, y: Legibility.y)
+                .padding(.leading, 12 * k)
+                .padding(.trailing, 8 * k)
+                .padding(.bottom, 10 * k)
+                .padding(.top, 18 * k)
         }
-        .frame(maxHeight: 260)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Your block")
+        .frame(width: width, alignment: .leading)
+        .background(alignment: .bottom) {
+            if onPhoto {
+                LinearGradient(colors: [.clear, .black.opacity(0.42)], startPoint: .top, endPoint: .bottom)
+                    .allowsHitTesting(false)
+            }
+        }
+        .clipShape(UnevenRoundedRectangle(
+            bottomLeadingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
+            bottomTrailingRadius: GridConstants.blockCornerRadius(forCell: GridConstants.blockReferenceCell) * k,
+            style: .continuous))
+        .accessibilityLabel("Name")
+    }
+}
+
+/// **What "..." opens, one thing at a time**: a note, who you were with, or
+/// tonight's high, low and buffalo. A half sheet in the page's own ground.
+struct WinDetailsSheet: View {
+    enum Which: String, Identifiable { case note, with, words; var id: String { rawValue } }
+    let which: Which
+    @Binding var note: String
+    @Binding var high: String
+    @Binding var low: String
+    @Binding var buffalo: String
+    let recipients: Set<CrewID>
+    @Binding var with: [UUID]
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var writing: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                switch which {
+                case .note:
+                    TextField("", text: $note, prompt: Text("A note, just for you").foregroundStyle(AppColors.inkTertiary),
+                              axis: .vertical)
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .lineLimit(3...8)
+                        .focused($writing)
+                case .with:
+                    CrewWithRow(crews: recipients, selection: $with)
+                case .words:
+                    ForEach([(StoryLine.high, StoryLine.highPrompt, $high), (StoryLine.low, StoryLine.lowPrompt, $low),
+                             (StoryLine.buffalo, StoryLine.buffaloPrompt, $buffalo)], id: \.0) { name, prompt, text in
+                        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                            FormSectionLabel(name)
+                            TextField("", text: text, prompt: Text(prompt).foregroundStyle(AppColors.inkTertiary))
+                                .font(Typography.bodyLarge)
+                                .foregroundStyle(AppColors.inkPrimary)
+                                .frame(minHeight: 44)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(GridConstants.horizontalPadding)
+            .background { WarmBackground().ignoresSafeArea() }
+            .sheetTitle(title, drawn: false)
+            .toolbar {
+                BareToolbarItem(placement: .confirmationAction) {
+                    Button { dismiss() } label: { Text("Done").sheetAction(.confirm) }
+                        .buttonStyle(.pressWord)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .onAppear { if which != .with { writing = true } }
+    }
+
+    private var title: String {
+        switch which {
+        case .note: "Note"
+        case .with: "Who You Were With"
+        case .words: "High, Low and Buffalo"
+        }
     }
 }
 
@@ -1271,10 +1469,13 @@ private extension View {
     /// glass there lets a white glyph vanish (seen, 2026-10-17: More and Retake
     /// were all but gone over a white page). A fifth of black in the glass
     /// keeps the glyph's ground without becoming a dark button.
+    /// `deep`: on a photograph the person chose, which can be all white: a
+    /// third of black (the tools were pale discs on a bright photo, seen
+    /// 2026-10-18).
     @ViewBuilder
-    func inlineGlass(in shape: some Shape) -> some View {
+    func inlineGlass(in shape: some Shape, deep: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.tint(.black.opacity(0.22)).interactive(), in: shape)
+            self.glassEffect(.regular.tint(.black.opacity(deep ? 0.36 : 0.22)).interactive(), in: shape)
         } else {
             self.background(.ultraThinMaterial, in: shape)
                 .environment(\.colorScheme, .dark)
