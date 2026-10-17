@@ -91,5 +91,23 @@ Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs
 - The Camera tab's black bar drawing: kept.
 - Conversations: kept in Crews, under their own Messages heading after the crews.
 
+## 5. Crews, lived in (2026-10-17, seeded, in the simulator)
+- A crew of eight on a busy day: the tower fills warm, reactions sit as one or two emoji in a corner (never a number), and the heads stand in the crest. Nothing cold there. (seen)
+- A crew still waiting for a friend: "Just you so far. A crew starts when one friend joins." with Invite, over the first block. Clear. (seen)
+- No crews: the owner's drawing, "For the people you'd tell anyway", three plain promises, New Crew one tap away, and the line for a link. It is the recruiting screen it should be. (seen)
+- Crews and people now tell apart by shape: a crew is a rounded square (a block), a person a round head; a crew of two shows both faces. (built tonight)
+- Thin spots found and fixed tonight: a conversation that became unreachable; Activity flooding on a busy day (now grouped by day and person); a person's page that read like a stats sheet (now the two of you).
+- Not walked: a real week of days (the simulator holds one day at a time) and someone going silent for days; reading the code, a quiet member is never named or counted, which is right. (c)
+
+### Best ideas not on the list, ranked
+1. **A crew's week, in a card, on the crew's Sunday night** (build first): the week's photos as a strip and who showed up, in the chat, once. It is the "end of a crew's week" moment the brief names, and the personal replay already knows how to make one. (c; b: Strava clubs' weekly summary, BeReal's recap)
+2. **The first reaction someone ever gets, made to land**: a one-time note on Activity's first item ("Your first cheer"), the moment that brings a person back. (c)
+3. **"Everyone showed up today"**: the crest closes in the crew's colour the first time every member has a win on the same day. Quiet, once a day, no names for who did not. (c)
+4. **A late joiner's welcome**: someone joining after the crew's first week gets the last few days' photos as a strip in their first look, so they meet the crew, not an empty tower. (c)
+5. **Invite from the tower's empty cells** for a crew of one: the faint cells say "Room for a friend" and are the Invite. (c)
+
+## Profile as the relationship, ranked (built: 1 to 3)
+1. No score or count on a person's page. 2. The crews you share, by name, and "Friends here since". 3. Between you two: cheers traded and things you both did the same day. 4. (next) Photos from your conversation, under theirs, while they last. 5. (later) A colour of your own for that person's page, chosen by you, seen only by you.
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).

@@ -292,6 +292,23 @@ final class FeedbackShots: XCTestCase {
         wait(4); snap("qa-2-tower")
     }
 
+    /// The crews, lived in: two, eight on a busy day, and none at all.
+    func testCrewWeek() {
+        var app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "1",
+                          "-strataSeedCrews", "1", "-strataSeedCrewWins", "2",
+                          "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(9); snap("week-1-two")
+        app.terminate()
+        app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "7",
+                      "-strataSeedCrews", "1", "-strataSeedCrewWins", "20",
+                      "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(9); snap("week-2-eight")
+        app.terminate()
+        app = launch(["-strataStartTab", "crews", "-strataSeedWins", "3", "-strataCrews", "1", "-strataCrewsSignedIn", "1",
+                      "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        wait(8); snap("week-3-none")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
