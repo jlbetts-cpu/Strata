@@ -18,3 +18,11 @@ Tags: (a) research, (b) seen in a shipping app, (c) my inference.
 - After the photo: one page, details above the photo, nothing written on it; tools in one quiet row on its foot (Looks, Draw, Stickers, Your Head; drag and pinch to crop). Essentials up front (name, size, who sees it), the rest under More (colour, a note, who you were with, tonight's high, low and buffalo, tonight's story). Mood is the journal's, a day's not a win's, so it stays there. (c)
 - Words: the block itself, written on in the tower's own type, its colour one tap away. (your note)
 - No colour flash: the ground before the lens is the slot's clear glass. Filmed. (measured)
+
+## Photos in chats
+- Take a Photo leads a chat's +, crew or person: the camera card opens in the chat and sends through the photo check. (your ask)
+- A photograph in a conversation leaves after 24 hours; its words keep two weeks; a crew's chat already clears at midnight. Stickers and strips are not photos for the moment and keep. (your ask)
+- Keeping one: open it, then Save to Photos or Add to My Tower. Yours always. (your ask)
+- A friend's: Snapchat lets a friend save a snap in chat and tells the sender it was saved; Instagram tells the sender when a disappearing photo is screenshotted and lets nothing be saved; Locket keeps everything and tells no one. (b)
+- Recommendation: let a friend keep your photo, and say so in your chat as a quiet line ("Sam kept your photo"), as Snapchat does. It is honest without watching anyone, and it lets a moment be kept on purpose. Built: the keeping, behind Keep Friends' Chat Photos (off). Not built: the line to the sender, which should come with the switch if you want it. (c)
+- Hold vs open: the keep actions are in the photo's own menu (open it, then ⋯), because holding a chat line already opens its reactions. (c)

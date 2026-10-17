@@ -273,7 +273,7 @@ enum ConsistencySweep {
         "Strata/Views/Crews/PersonPage.swift": 1,
         // The inline camera's glyph discs, its two pills and its Settings
         // capsule, all on `inlineGlass` / `glassCapsule` (2026-10-17).
-        "Strata/Views/InlineCamera.swift": 3,
+        "Strata/Views/InlineCamera.swift": 4,
         // The crew page's name capsule, `glassCapsule(onPage:)`, and the day
         // sheet's emoji disc on `glassCircle(onPage:)`: the same fault as the
         // reaction face, found in the 2026-10-06 cohesion audit. And the back

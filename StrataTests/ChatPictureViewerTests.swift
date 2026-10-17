@@ -19,8 +19,12 @@ struct ChatPictureViewerTests {
         // and reading to its end found the definition as a call.
         let menuEnd = try #require(viewer.range(of: "GlassIconLabel(systemName: \"ellipsis\"", range: theirs.upperBound..<viewer.endIndex))
         let friendPart = String(viewer[theirs.upperBound..<menuEnd.lowerBound])
-        #expect(ownPart.contains("ShareLink(") && ownPart.contains("Save to Photos"))
+        #expect(ownPart.contains("ShareLink(") && ownPart.contains("keepButtons"))
+        // **A friend's leaves only by his switch** (2026-10-17: a chat's
+        // photo is for a day, so keeping one is offered; a friend's waits on
+        // `KeepFriendsPhotos`, off). Never shared on from here.
         #expect(!friendPart.contains("ShareLink(") && !friendPart.contains("save()"), "a friend's picture can leave the app")
+        #expect(friendPart.contains("if KeepFriendsPhotos.on { keepButtons }"), "keeping a friend's photo is not behind the switch")
         #expect(friendPart.contains("\"Report\""))
         #expect(!viewer.contains(".shadow("))
 

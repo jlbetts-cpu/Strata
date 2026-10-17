@@ -125,34 +125,37 @@ struct ChatPictureViewer: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
-            }
-            // **Keep it** (2026-10-17): a chat's photo leaves after a day,
-            // so the ways to keep it stand here. Yours always; a friend's
-            // only while `KeepFriendsPhotos` is on.
-            if mine || KeepFriendsPhotos.on {
-                Button { save() } label: {
-                    Label(saved ? "Saved to Photos" : "Save to Photos",
-                          systemImage: saved ? "checkmark" : "square.and.arrow.down")
-                }
-                .disabled(image == nil || saving || saved)
-                if let onAddWin, let image, !message.isStrip {
-                    Button { onAddWin(image) } label: {
-                        Label("Add to My Tower", systemImage: "square.stack.3d.up")
-                    }
-                }
-            }
-            if !mine {
+                keepButtons
+            } else {
                 Button { onHeart() } label: {
                     Label(hearted ? "Remove Heart" : "Heart", systemImage: hearted ? "heart.slash" : "heart")
                 }
                 Button(role: .destructive) { onReport() } label: {
                     Label("Report", systemImage: "exclamationmark.bubble")
                 }
+                // A friend's is theirs to keep, unless `KeepFriendsPhotos`.
+                if KeepFriendsPhotos.on { keepButtons }
             }
         } label: {
             GlassIconLabel(systemName: "ellipsis", tint: .primary, onPage: true)
         }
         .accessibilityLabel("Photo actions")
+    }
+
+    /// **Keep it** (2026-10-17): a chat's photo leaves after a day, so the
+    /// ways to keep it stand here.
+    @ViewBuilder
+    private var keepButtons: some View {
+        Button { save() } label: {
+            Label(saved ? "Saved to Photos" : "Save to Photos",
+                  systemImage: saved ? "checkmark" : "square.and.arrow.down")
+        }
+        .disabled(image == nil || saving || saved)
+        if let onAddWin, let image, !message.isStrip {
+            Button { onAddWin(image) } label: {
+                Label("Add to My Tower", systemImage: "square.stack.3d.up")
+            }
+        }
     }
 
     private func save() {
