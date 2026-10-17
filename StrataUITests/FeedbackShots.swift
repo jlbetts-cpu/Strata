@@ -2321,27 +2321,31 @@ final class FeedbackShots: XCTestCase {
         if waiting.exists { waiting.tap() }
         wait(2); snap("story-8c-waiting-tapped")
         app.terminate()
-        // Add a Win, then Send To (2026-10-16): the story on top, the crews.
-        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataStartTab", "tower",
-                      "-strataSeedWins", "2", "-strataOpenSheet", "add"])
-        wait(7)
-        app.typeText("Sunset walk")
-        wait(1); snap("story-9-add")
-        let nextButton = app.buttons["Next"].firstMatch
-        print("PLANNING-story next \(nextButton.exists)")
-        if nextButton.exists { nextButton.tap() }
-        wait(1.5); snap("story-10-sendto")
-        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH \"Tonight's Story\"")).firstMatch
-        print("PLANNING-story row \(row.exists)")
-        if row.exists { row.tap() }
-        let crewRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Roommates'")).firstMatch
-        if crewRow.exists, !crewRow.isSelected { crewRow.tap() }
+        // Add a Win on the camera card (2026-10-18): a photo, the chip's
+        // Tonight's Story, and Post.
+        app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "tower",
+                      "-strataSeedWins", "2", "-strataOpenSheet", "addphoto", "-strataStoryHour", "21"])
+        wait(8); snap("story-9-add")
+        let chip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sending to'")).firstMatch
+        print("PLANNING-story chip \(chip.exists)")
+        if chip.exists { chip.tap() }
+        wait(1); snap("story-10-sendto")
+        let storyToggle = app.buttons["Tonight's Story"].firstMatch.exists ? app.buttons["Tonight's Story"].firstMatch
+            : app.switches["Tonight's Story"].firstMatch
+        print("PLANNING-story row \(storyToggle.exists)")
+        if storyToggle.exists { storyToggle.tap() }
+        wait(0.8)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
         wait(1); snap("story-10b-chosen")
-        let send = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Send'")).firstMatch
+        let send = app.buttons["Drop it on the tower"].firstMatch
         print("PLANNING-story send \(send.exists)")
         if send.exists { send.tap() }
-        wait(3)
-        app.buttons["Crews"].firstMatch.tap()
+        // A third win plays the goal ring's moment, which takes no touch.
+        wait(7); snap("story-105-after-post")
+        // The tab's label carries its news ("Crews, new"), so by its start.
+        let crewsTab = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Crews'")).firstMatch
+        print("PLANNING-story crews-tab \(crewsTab.exists)")
+        if crewsTab.exists { crewsTab.tap() }
         wait(3); snap("story-11-posted")
         print("PLANNING-story posted \(app.buttons["Your Story"].firstMatch.exists)")
     }
