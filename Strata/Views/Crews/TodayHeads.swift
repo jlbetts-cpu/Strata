@@ -308,6 +308,18 @@ struct TodayHeads: View {
         // the 8pm unlock lost its timing with it.
         .contextMenu {
             Button { profile = person } label: { Label("View Profile", systemImage: "person.crop.circle") }
+            // **Message them, from their head** (2026-10-16: "make sure
+            // everything is connected"): their conversation, started if
+            // there is none.
+            if store.canReply() {
+                Button {
+                    let friend = person.member.profileID
+                    Task {
+                        guard let crew = await store.startPersonal(with: friend) else { return }
+                        CrewRouter.shared.open = crew.id
+                    }
+                } label: { Label("Message", systemImage: "bubble.left") }
+            }
         } preview: {
             VStack(spacing: GridConstants.gapTight) {
                 PersonHead(person: .member(person.member, crew: person.crew, me: store.me), side: 96)
