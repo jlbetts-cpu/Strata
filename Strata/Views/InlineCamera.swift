@@ -168,6 +168,9 @@ struct InlineCameraCard: View {
     /// its own short curve so the morph never looks washed out midway.
     @State private var shown = false
     @Environment(\.colorScheme) private var pageScheme
+    /// Where the tab bar's top is, in the window: the card stands on it and
+    /// the dim stops at it (2026-10-17). Nil where there is no bar.
+    @State private var barTop: CGFloat? = TabGlyph.barFrame()?.minY
 
     private var camera: CameraService { InlineCamera.shared.camera }
 
@@ -183,9 +186,15 @@ struct InlineCameraCard: View {
             let cover = open ? 1 : max(frame.width / target.width, frame.height / target.height)
             ZStack {
                 // The page stays, gently dimmed: it is still where you are.
-                Color.black.opacity(open ? 0.22 : 0)
-                    .onTapGesture { close() }
-                    .accessibilityHidden(true)
+                // Not the tab bar, which stays as it is under the card.
+                VStack(spacing: 0) {
+                    Color.black.opacity(open ? 0.22 : 0)
+                        .frame(height: barTop.map { max($0 - 4, 0) })
+                        .contentShape(Rectangle())
+                        .onTapGesture { close() }
+                    if barTop != nil { Spacer(minLength: 0).allowsHitTesting(false) }
+                }
+                .accessibilityHidden(true)
 
                 card(size: target.size)
                     .frame(width: target.width, height: target.height)
@@ -222,10 +231,11 @@ struct InlineCameraCard: View {
         let inset = geo.safeAreaInsets
         let margin = GridConstants.gapTight
         let width = geo.size.width - margin * 2
-        let room = geo.size.height - GridConstants.gapItem * 3
+        // On the tab bar, or above the keyboard when that is higher.
+        let floor = min(inset.top + geo.size.height, barTop ?? .infinity) - margin
+        let room = floor - inset.top - GridConstants.gapItem * 2
         let height = min(width * 4 / 3, room)
-        let bottom = inset.top + geo.size.height - margin
-        return CGRect(x: margin, y: bottom - height, width: width, height: height)
+        return CGRect(x: margin, y: floor - height, width: width, height: height)
     }
 
     // MARK: The card's face

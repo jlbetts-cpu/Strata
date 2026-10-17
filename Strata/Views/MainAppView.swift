@@ -737,12 +737,19 @@ struct MainAppView: View {
             // reopened on the Plan. A new opening is a new sheet.
             .id("\(dayOpeningTab)|\(planOpeningScope.map { "\($0)" } ?? "")")
         }
-        // **Over everything, the tab bar too, with the page left showing**:
-        // a cover with no background and no slide of its own, so the only
-        // motion is the card's own, out of the slot.
-        .fullScreenCover(item: $inlineOpening) { opening in
-            InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
-                .presentationBackground(.clear)
+        // **Part of the screen, standing on the tab bar** (the owner,
+        // 2026-10-17: "The inline camera should never cover the tab bar. It
+        // sits right above it, with the tab bar still visible and calm
+        // underneath"). An overlay, not a cover: the bar stays where it is and
+        // stays pressable, and going to another tab puts the card away.
+        .overlay {
+            if let opening = inlineOpening {
+                InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
+                    .id(opening.id)
+            }
+        }
+        .onChange(of: selectedTab) { _, _ in
+            if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
         }
         // The inline camera made ready (configured, not running) once the
         // app has settled, so a tap on the slot only has to start it.
