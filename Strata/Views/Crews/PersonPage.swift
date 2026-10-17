@@ -21,6 +21,8 @@ struct PersonPage: View {
 
     @State private var showsChat = false
     @State private var opening: ChatRestBar.Opening = .reading
+    @State private var reportingPerson = false
+    @State private var blockingPerson = false
     @State private var starting = false
     @State private var failed = false
     /// Their story, played over their page (the launch pass, 3½: "the story
@@ -132,6 +134,36 @@ struct PersonPage: View {
             HStack {
                 GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Back", action: onBack)
                 Spacer(minLength: 0)
+                // **Report and Block, on the person** (the App Store audit,
+                // 2026-10-17, Guideline 1.2): their page had neither.
+                if let member, let crew = shared ?? thread {
+                    Menu {
+                        Button("Report", systemImage: "exclamationmark.bubble") { reportingPerson = true }
+                        if !store.blocked.contains(friend) {
+                            Button("Block", systemImage: "nosign", role: .destructive) { blockingPerson = true }
+                        }
+                    } label: {
+                        GlassIconLabel(systemName: "ellipsis", tint: .primary, onPage: true)
+                    }
+                    .accessibilityLabel("Options for \(name)")
+                    .confirmationDialog("Report \(name)?", isPresented: $reportingPerson, titleVisibility: .visible) {
+                        ForEach(CrewSafety.Reason.allCases) { reason in
+                            Button(reason.words) {
+                                Task { _ = await CrewSafety.report(.person(member), in: crew, reason: reason) }
+                            }
+                        }
+                    } message: {
+                        Text("Their name, photo or head. Your report goes to Some Wins and they are not told.")
+                    }
+                    .confirmationDialog("Block \(name)?", isPresented: $blockingPerson, titleVisibility: .visible) {
+                        Button("Block", role: .destructive) {
+                            Task { await CrewSafety.block(friend, from: crew) }
+                            onBack()
+                        }
+                    } message: {
+                        Text("You won't see their wins, stories or messages. Some Wins hears about it. They are not told.")
+                    }
+                }
             }
             Text(name)
                 .font(Typography.headerSmall)

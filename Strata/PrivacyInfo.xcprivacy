@@ -137,6 +137,25 @@
 			</array>
 		</dict>
 			<!--
+		    The words of a reported message, now that crews and one-on-one
+		    conversations both carry them (the App Store audit, 2026-10-17):
+		    a reported line reaches the developer in its Report. LINKED, NOT
+		    TRACKING, APP FUNCTIONALITY: as above. Match in App Store Connect
+		    (Emails or Text Messages, App Functionality, Linked).
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailsOrTextMessages</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+			<!--
 		    The reported photograph or doodle, attached to a Report as a
 		    CKAsset when the thing reported has one (CrewSafety.send).
 		    LINKED, NOT TRACKING, APP FUNCTIONALITY: as above.

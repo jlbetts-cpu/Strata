@@ -17,7 +17,7 @@ itself must be true). No long dashes.
 import html, pathlib, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-UPDATED = "14 October 2026"
+UPDATED = "17 October 2026"
 EMAIL = "jbett5@hotmail.com"
 
 LEDE = ("Some Wins has no account and no server of its own. What you log stays on "
@@ -66,10 +66,12 @@ SECTIONS = [
         "them back. If your iCloud is full, new photos stay on this device "
         "until there is room. They are also in your iPhone's iCloud Backup if "
         "that is on, and in the backup file you can make in Settings.",
-        "To show the photos you took today beside a new win, Some Wins asks iOS "
-        "for your photo library, and only after you tap to allow it. It looks "
-        "only at today's photos, on your device, and copies in only the one you "
-        "pick. If you allow only some photos, it sees only those.",
+        "To show the photos you took today beside a new win, or several at once "
+        "in Today's Photos, Some Wins asks iOS for your photo library, and only "
+        "after you tap to allow it. It looks only at today's photos, on your "
+        "device, and copies in only the ones you keep. To offer a name for one, "
+        "your phone may read what the photo shows, on your device; nothing is "
+        "sent. If you allow only some photos, it sees only those.",
         "The front camera also finds the faces in view as you take a photo, to "
         "soften the light on them a little. This happens on your device, and "
         "what it finds is not kept.",
@@ -86,10 +88,12 @@ SECTIONS = [
     ]),
     ("Your profile", [
         "The name you add in Profile stays with your wins. If you join a crew, "
-        "the people in it see your first name. Some Wins does not use a profile "
-        "photo: your head is your picture. A profile photo saved by an earlier "
-        "version is never sent, and is deleted once you have a head or when you "
-        "reset all data.",
+        "the people in it see your first name. Your head is your picture. If "
+        "you choose a photo instead, it goes to your crews in place of your "
+        "head, on the same rules as your head: sealed, after the photo check, "
+        "and never from under 16.",
+        "Your name, your banner and the wins you feature reach your other "
+        "devices through your own iCloud, which no crew can see.",
     ]),
     ("Your head", [
         "To make your head, Some Wins takes a few photos with the front camera, "
@@ -113,8 +117,9 @@ SECTIONS = [
         "else there, after the same check photos get.",
     ]),
     ("Sharing", [
-        "Sharing a photo or a strip hands it to the iOS share sheet. Where it goes "
-        "from there is between you and whatever app you send it to. Save to "
+        "Sharing a photo or a strip hands it to the iOS share sheet, or to "
+        "Instagram's own story screen on your phone when you choose that. Where "
+        "it goes from there is between you and whatever app you send it to. Save to "
         "Photos, if you leave it on, puts a copy of each photo you take in your "
         "photo library. Save Video on a replay saves a video made on your device "
         "to your camera roll.",
@@ -142,6 +147,21 @@ SECTIONS = [
         "a win or a reaction: no names, titles or photos. The phone that left the "
         "note deletes it within minutes. Your phone then reads the win from the "
         "crew and writes the notification itself.",
+    ]),
+    ("Tonight's Story", [
+        "If you put a win on Tonight's Story, it goes to every crew you are in, "
+        "sealed the same way, for that night only: friends see it from eight in "
+        "the evening, and it ends for you at nine the next morning. Your high, "
+        "low and buffalo, and a page you draw for them, go with it if you add "
+        "them. Friends can react or reply; a reply lands in your conversation "
+        "with them. Taking a win off the story takes it back from everyone.",
+    ]),
+    ("Messages to one person", [
+        "A conversation with one friend is a crew of two, sealed the same way, "
+        "and only the two of you can open it. Its words keep two weeks. A photo "
+        "sent in a conversation is for the moment: it leaves after a day. You "
+        "can keep your own by saving it to Photos or adding it to your tower. "
+        "There are no read receipts, and nothing shows when anyone is in the app.",
     ]),
     ("What a crew sees", [
         "Of a win you send: its title, colour, size and icon, its photo, and when "
@@ -205,8 +225,9 @@ SECTIONS = [
     ("Deleting everything", [
         "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, "
         "drawing, sticker and strip, your name and every head, from "
-        "this device and from your iCloud. Leave your crews first, and end any "
-        "you started, so your wins leave them too.",
+        "this device and from your iCloud, takes every win, reaction, message "
+        "and story you sent back from your crews, and takes you out of every "
+        "crew and conversation. Crews you started end.",
         "Deleting the app removes it from this device only: what is in your "
         "iCloud stays there and comes back if you reinstall. What you posted to "
         "crews also stays, sealed, until you reinstall and leave them. To remove "

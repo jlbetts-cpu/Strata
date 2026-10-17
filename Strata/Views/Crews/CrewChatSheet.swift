@@ -1094,6 +1094,14 @@ struct CrewChatSheet: View {
             BlockMenuRow("Report", "exclamationmark.bubble", destructive: true) {
                 BlockMenuAfter.run(closing: close) { reporting = message }
             }
+            // **Block, where the line is** (the App Store audit, 2026-10-17:
+            // in a conversation, Block was only after a report). Guideline
+            // 1.2 asks for both, plainly, wherever someone can reach you.
+            if message.senderProfileID != store.me {
+                BlockMenuRow("Block \(name(of: message.senderProfileID))", "nosign", destructive: true) {
+                    BlockMenuAfter.run(closing: close) { blockingPerson = message.senderProfileID }
+                }
+            }
         }
     }
 

@@ -1207,7 +1207,15 @@ final class SocialStore {
             messagesByCrew[crewID]?.removeAll { $0.senderProfileID == me }
         }
         await flush()
+        // Your name off your member record first, so a leave that fails
+        // (offline) still leaves nothing of you behind.
         await shareMyself()
+        // **And out of every crew** (the App Store audit, 2026-10-17: Reset
+        // All Data left your member record, your score and the crews you
+        // started). Leaving takes your record and stories with it; a crew you
+        // started ends, as leaving one you own always has. A conversation is
+        // a crew of two and goes the same way.
+        for crew in crews { try? await leave(crew.id) }
     }
 
     /// Your head, as friends see it. Nil takes it away.
