@@ -632,7 +632,15 @@ struct MainAppView: View {
                 .modifier(CrewDestinations(path: $crewPath,
                                            listIsRoot: true,
                                            isShown: selectedTab == .crews,
-                                           addWin: { openAddWin(from: AddWinFrom.take(), radius: GridConstants.cornerRadius, crews: [$0]) },
+                                           addWin: { crew in
+                                               let from = AddWinFrom.take()
+                                               // The chat's own Add a Win closes its sheet first;
+                                               // the card waits for it to go.
+                                               Task { @MainActor in
+                                                   if from == nil { try? await Task.sleep(for: .milliseconds(450)) }
+                                                   openAddWin(from: from, radius: GridConstants.cornerRadius, crews: [crew])
+                                               }
+                                           },
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) },
                                            planned: { planned($0, $1, $2) }))
         }
@@ -1225,7 +1233,7 @@ struct MainAppView: View {
                     mark: note != nil ? "TipSparkle" : teaches ? "TipPlus" : "DoodleSticker",
                     onTap: teaches ? nil : {
                         withAnimation(GridConstants.cueOut) { winCue = nil }
-                        winDraft = WinDraft()
+                        openAddWin(from: nil, radius: GridConstants.radiusSurface)
                     },
                     close: { withAnimation(GridConstants.cueOut) { winCue = nil } })
                 .accessibilityHint(teaches ? "" : "Adds a win.")
@@ -2732,12 +2740,16 @@ struct MainAppView: View {
     /// of it (`CameraFirst`), or the sheet when that is off or there is no
     /// rectangle to grow from.
     func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil) {
-        guard CameraFirst.on, let rect, rect.width > 0, inlineOpening == nil else {
+        guard CameraFirst.on, inlineOpening == nil else {
             winDraft = WinDraft(crews: crews)
             return
         }
+        // Nothing tapped to grow out of (a chat's Add a Win, the day's cue):
+        // it rises from the foot of the screen, where the card will stand.
+        let from = rect.flatMap { $0.width > 0 ? $0 : nil } ?? AddWinOpening.foot()
         withTransaction(Self.still) {
-            inlineOpening = AddWinOpening(from: rect, radius: radius, colour: nextWinCategory, crews: crews)
+            inlineOpening = AddWinOpening(from: from, radius: rect == nil ? GridConstants.radiusSurface : radius,
+                                          colour: nextWinCategory, crews: crews)
         }
     }
 

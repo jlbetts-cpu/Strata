@@ -45,5 +45,19 @@ Tags: (a) research, (b) seen in a shipping app, (c) my inference.
 - Walk `testOnlyAHeldSlotLogs`: a swipe over the slot, a drag let go early, and a rest let go early log nothing; the same hold kept still logs one, so the test can fail.
 - Found while testing: a busy main thread can squeeze a synthetic rest, and the hold rightly refuses to arm. Real fingers are not squeezed; the walks rest a full second.
 
+## Add a Win is the camera (inline)
+- The slot, a crew's slot, a chat's Add a Win and the day's cue open a rounded camera card over the dimmed page; nothing tapped to grow from, it rises from the foot. (b: your ChatGPT screens; Photos' thumbnail-to-photo growth)
+- Morph: the card's face scales to cover a window that runs from the slot's rectangle and radius to the card's, on one spring (0.42s, a little bounce); close runs back with no bounce. The face dissolves in over the first 0.14s and out over the last of the close, so the slot is what is left, not a tiny picture. (c, filmed frame by frame)
+- Filmed at 60fps in the simulator: no repeated frame inside either motion after moving the lens start and location off the first frames; the system sheet on the same film drops one. 120Hz and a real lens need your phone. (measured)
+- Before the first frame the card is the slot's own glass, never black. The lens is configured early and never started before a tap, so no camera dot lights up while you look at your tower. (c)
+- One camera at a time: a camera that starts stops the last one, which is the Camera tab and the inline one never fighting. (c)
+- Shot, then a name if you want it, then Drop (the block itself, in the shutter's shape). Just Words is one tap at the top left; More holds Choose a Photo, Draw It and More Options (the full sheet with whatever the card had). A refused camera opens on words with one tap to Settings.
+- The shutter keeps the hold-to-commit rule (`HoldLock`), as on the Camera tab.
+- Not moved to the card yet: the full sheet's own Take Photo and a planned win's camera still open the full-screen camera. Chats' + sends pictures from the library only (no camera there today).
+- Switch: Settings, Add Wins with the Camera, on. Recommend keeping it on.
+
+## The black tab bar on the Camera tab
+- It is a drawing over the real bar (`CameraTabBarSkin`), so the real bar's own drag-between-tabs response happens underneath, unseen. The root fix is the system bar owning the dark look, which is the forced-scheme lag you rejected (0.8s). Not changed tonight; needs a phone to judge. Options: keep the drawing (today), or drop it and let the bar stay light. (c)
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).

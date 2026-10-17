@@ -172,6 +172,23 @@ final class FeedbackShots: XCTestCase {
         snap("sheet-end")
     }
 
+    /// The inline camera from a crew's tower, then from the day's foot.
+    func testInlineCameraCrew() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                          "-strataSeedCrews", "2", "-strataSeedCrewWins", "6",
+                          "-strataOpenCrew", "0", "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        wait(9); snap("crewcam-0-tower")
+        let slot = app.buttons["Log a win"].firstMatch
+        if slot.waitForExistence(timeout: 10) { slot.tap() }
+        wait(1.3); snap("crewcam-1-open")
+        app.buttons["Just Words"].tap()
+        wait(0.8)
+        app.textFields.firstMatch.typeText("Answered one email")
+        app.buttons["Drop it on the tower"].tap()
+        wait(3); snap("crewcam-2-dropped")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

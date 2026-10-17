@@ -75,6 +75,19 @@ struct AddWinOpening: Identifiable, Equatable {
     var crews: Set<CrewID>? = nil
 
     static func == (a: Self, b: Self) -> Bool { a.id == b.id }
+
+    /// A small square at the foot of the screen, middle, for a way in with
+    /// nothing on screen to grow out of.
+    @MainActor
+    static func foot() -> CGRect {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        let bounds = window?.bounds ?? CGRect(x: 0, y: 0, width: 393, height: 852)
+        let bottom = window?.safeAreaInsets.bottom ?? 34
+        let side: CGFloat = 64
+        return CGRect(x: bounds.midX - side / 2, y: bounds.maxY - bottom - side - GridConstants.gapItem,
+                      width: side, height: side)
+    }
 }
 
 /// **The rectangle a tap just came from**, for the ways in that reach Add a
