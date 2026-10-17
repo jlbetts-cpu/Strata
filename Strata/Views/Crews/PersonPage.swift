@@ -34,7 +34,10 @@ struct PersonPage: View {
     /// Who they are, as the crew you share names them.
     private var member: CrewMember? {
         guard !store.blocked.contains(friend) else { return nil }
+        // A crew you share first; failing that, your conversation, which
+        // names them too (the second reader, 2026-10-17).
         return store.groupCrews.lazy.compactMap { $0.member(friend) }.first
+            ?? store.personalCrew(with: friend)?.member(friend)
     }
     private var shared: CrewID? { store.groupCrews.first { $0.member(friend) != nil }?.id }
     /// Your conversation with them, if there is one yet.
@@ -53,14 +56,21 @@ struct PersonPage: View {
                 FriendProfileSheet(member: member, crewID: shared, embedded: true)
                     .safeAreaInset(edge: .bottom, spacing: 0) { foot }
             } else {
+                // **The conversation stays yours when the crew does not**
+                // (the second reader, 2026-10-17): someone who leaves your
+                // last shared crew took the whole thread out of reach, though
+                // its row still listed and its messages still arrived.
                 VStack {
                     Spacer()
-                    EmptyPageLine("Not in a crew with you now", icon: "person.crop.circle",
-                                  detail: "You can talk again once you share a crew.")
+                    EmptyPageLine(thread != nil ? "Not in a crew together now" : "Not in a crew with you now",
+                                  icon: "person.crop.circle",
+                                  detail: thread != nil ? "Your conversation is still here."
+                                                        : "You can talk again once you share a crew.")
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
                 .background { WarmBackground().ignoresSafeArea() }
+                .safeAreaInset(edge: .bottom, spacing: 0) { if thread != nil { foot } }
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { top }
