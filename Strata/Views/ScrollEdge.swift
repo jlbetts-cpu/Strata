@@ -71,6 +71,20 @@ extension View {
     ///
     /// Apply it to the SCROLL VIEW, not to its content: the effect belongs to
     /// the scroll's boundary, and on the content it has no boundary to sit at.
+    /// **`pinnedBar`'s twin for the foot**: a bar at the bottom that the
+    /// scroll's soft edge fades under, as it fades under the top one. A plain
+    /// `safeAreaInset` makes room but the system's edge ignores it, so what
+    /// scrolled behind it cut off hard (a person's page and its chat, the
+    /// owner, 2026-10-17: "the profile should feel calm, not stark").
+    @ViewBuilder
+    func pinnedFoot<Foot: View>(@ViewBuilder _ foot: @escaping () -> Foot) -> some View {
+        if #available(iOS 26.0, *) {
+            self.safeAreaBar(edge: .bottom, spacing: 0, content: foot)
+        } else {
+            self.safeAreaInset(edge: .bottom, spacing: 0, content: foot)
+        }
+    }
+
     @ViewBuilder
     func softScrollEdge(_ edges: Edge.Set = .top) -> some View {
         if #available(iOS 26.0, *) {

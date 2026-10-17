@@ -200,6 +200,22 @@ final class FeedbackShots: XCTestCase {
         wait(8); snap("crewsdm-list")
     }
 
+    /// A person's page, scrolled, for the soft edges top and foot.
+    func testPersonPageBlur() {
+        let app = launch(["-strataStartTab", "crews", "-strataSeedWins", "3", "-strataCrews", "1", "-strataSeedCrew", "3",
+                          "-strataSeedCrews", "3", "-strataSeedDM", "1",
+                          "-crews.rulesAccepted.v1", "YES", "-crews.filmSeen", "YES"])
+        let sam = app.staticTexts["Sam"].firstMatch
+        _ = sam.waitForExistence(timeout: 20)
+        wait(4)
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sam")).firstMatch.tap()
+        wait(3)
+        if app.buttons["Done"].exists { app.buttons["Done"].tap(); wait(2) }
+        snap("person-0-top")
+        app.swipeUp(velocity: .slow)
+        wait(2); snap("person-1-scrolled")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

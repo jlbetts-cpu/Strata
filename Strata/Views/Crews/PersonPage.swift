@@ -54,7 +54,7 @@ struct PersonPage: View {
         Group {
             if let member, let shared {
                 FriendProfileSheet(member: member, crewID: shared, embedded: true)
-                    .safeAreaInset(edge: .bottom, spacing: 0) { foot }
+                    .pinnedFoot { foot }
             } else {
                 // **The conversation stays yours when the crew does not**
                 // (the second reader, 2026-10-17): someone who leaves your
@@ -70,10 +70,13 @@ struct PersonPage: View {
                 }
                 .frame(maxWidth: .infinity)
                 .background { WarmBackground().ignoresSafeArea() }
-                .safeAreaInset(edge: .bottom, spacing: 0) { if thread != nil { foot } }
+                .pinnedFoot { if thread != nil { foot } }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { top }
+        // **Our soft blur under the top, as every screen has** (the owner,
+        // 2026-10-17): `pinnedBar` is a bar the scroll's edge fades under;
+        // the plain inset it replaces left the page stark.
+        .pinnedBar { top }
         .toolbar(.hidden, for: .navigationBar)
         .applying(thread != nil) { $0.modifier(CrewLiveSync(crewID: thread ?? CrewID(rawValue: ""))) }
         .onAppear {

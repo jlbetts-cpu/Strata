@@ -274,7 +274,9 @@ struct FriendProfileSheet: View {
             .padding(.horizontal, hPad)
             .padding(.bottom, GridConstants.gapPage)
         }
-        .softScrollEdge(.top)
+        // On a person's page the chat rests at the foot, and the page fades
+        // under it too (2026-10-17).
+        .softScrollEdge(embedded ? [.top, .bottom] : .top)
     }
 
     /// Their figures, as yours sit under your name: the score their phone
