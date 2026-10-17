@@ -23,6 +23,10 @@ enum CrewChoicesSync {
         case reactionsOff = "crews.sync.reactionsOff"
         /// Value 1 for a win hidden from you (`SocialStore.hide`).
         case hidden = "crews.sync.hiddenWins"
+        /// Value 1 for a story page watched (`SocialStore.markStorySeen`), so
+        /// a ring watched on one phone is quiet on the other (the launch
+        /// pass, 3½: "right across app restarts and devices").
+        case storiesSeen = "crews.sync.storiesSeen"
     }
 
     typealias Entries = [String: [String: Any]]

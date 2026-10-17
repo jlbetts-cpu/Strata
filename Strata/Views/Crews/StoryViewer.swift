@@ -275,8 +275,10 @@ private struct StoryPage: View {
         }
     }
 
+    /// Yours too (the launch pass, 3½: "including your own"): watched to
+    /// the end, your ring goes quiet until something new is on it.
     private func seen() {
-        guard isCurrent, !mine else { return }
+        guard isCurrent else { return }
         if isWords, let key = person.wordsKey { store.markStorySeen(key) } else { store.markStorySeen(story.id) }
     }
 

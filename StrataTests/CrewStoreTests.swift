@@ -441,6 +441,16 @@ extension CrewStoreTests {
         return (phone, pad)
     }
 
+    /// The launch pass, 3½: a story watched on one phone is watched on the
+    /// other, so its ring is quiet on both.
+    @Test func aStoryWatchedOnOnePhoneIsWatchedOnTheOther() {
+        let (phone, pad) = twoPhones()
+        let story = UUID()
+        phone.markStorySeen(story)
+        pad.pullChoices()
+        #expect(pad.storiesSeen.contains(story))
+    }
+
     @Test func aBlockOnOnePhoneReachesTheOther() {
         let (phone, pad) = twoPhones()
         phone.block(sam, name: "Sam")

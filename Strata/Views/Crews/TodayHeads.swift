@@ -425,7 +425,7 @@ struct TodayHeads: View {
             watching = Watching(people: [me], start: me.profileID)
         } label: {
             VStack(spacing: GridConstants.spacing) {
-                StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: []) {
+                StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: store.storiesSeen) {
                     EmptyView()
                 } picture: {
                     StoryBubble(story: me, side: Self.storyFace)

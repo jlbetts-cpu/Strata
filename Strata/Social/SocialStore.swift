@@ -3187,6 +3187,12 @@ final class SocialStore {
     private func note(_ table: CrewChoicesSync.Table, _ key: String, _ value: Double, name: String? = nil) {
         var mine = entries(table)
         mine[key] = CrewChoicesSync.entry(value, at: now().timeIntervalSince1970, name: name)
+        // A night's watching is kept three days, then let go: the table
+        // stays small however many stories are watched.
+        if table == .storiesSeen {
+            let old = now().timeIntervalSince1970 - 3 * 86_400
+            mine = mine.filter { CrewChoicesSync.stamp($0.value) >= old }
+        }
         defaults.set(mine, forKey: table.rawValue)
         guard let choicesCloud else { return }
         let remote = choicesCloud.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
@@ -3254,6 +3260,12 @@ final class SocialStore {
             Self.groupDefaults?.set(off, forKey: Self.quietReactionsKey)
         case .hidden:
             hiddenWins = Set(merged.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
+        case .storiesSeen:
+            let watched = Set(merged.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
+            if !watched.isSubset(of: storiesSeen) {
+                storiesSeen.formUnion(watched)
+                defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
+            }
         }
     }
 
@@ -3670,6 +3682,7 @@ extension SocialStore {
     func markStorySeen(_ id: UUID) {
         guard storiesSeen.insert(id).inserted else { return }
         defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
+        note(.storiesSeen, id.uuidString, 1)
     }
 
     /// Hide Their Story, for the night it is on (R11). Their head stays.
@@ -3773,7 +3786,11 @@ extension SocialStore {
             persistStoryLedger()
         }
         guard hasFetchedCrews else { return }
+        // The words pages' own marks too (`StoryPerson.wordsKey`): left
+        // out, the sweep forgot them and a watched words page lit again.
         let live = Set(storiesByCrew.values.flatMap { $0.map(\.id) })
+            .union(storyPeople(at: t).compactMap(\.wordsKey))
+            .union([StoryPerson(profileID: me, stories: myStory, phase: .open, watched: false).wordsKey].compactMap { $0 })
         if !storiesSeen.isSubset(of: live) {
             storiesSeen.formIntersection(live)
             defaults.set(storiesSeen.map(\.uuidString), forKey: Self.storiesSeenKey)
