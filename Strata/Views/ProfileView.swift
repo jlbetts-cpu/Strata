@@ -61,8 +61,7 @@ struct ProfileView: View {
         // is changing who you are: the picture, the name, the heads.
         Form {
             identity
-            bannerSection
-            featuredSection
+            pageSection
             headSection
             earlierHeadsSection
         }
@@ -180,21 +179,32 @@ struct ProfileView: View {
 
     /// **This month's banner, chosen** (`BannerEditor`): the photographs
     /// have to be this month's (the owner, 2026-10-16).
-    private var bannerSection: some View {
+    /// **One thing at a time, as Contacts edits** (the owner's launch pass,
+    /// 4: "the edit-profile menu is confusing and overwhelming, especially
+    /// how the photos drop down. Simplify it"). The banner and the featured
+    /// wins each had a whole month of photographs open on this page; now
+    /// each is a row, and its own page holds its editor.
+    private var pageSection: some View {
         Section {
-            FormSectionLabel("Banner")
-            BannerEditor(month: Date())
-                .listRowSeparator(.hidden)
-        }
-    }
-
-    // MARK: - Featured
-
-    private var featuredSection: some View {
-        Section {
-            FormSectionLabel("Featured wins")
-            FeaturedEditor()
-                .listRowSeparator(.hidden)
+            FormSectionLabel("Your page")
+            NavigationLink {
+                ProfilePart(title: "Banner") { BannerEditor(month: Date()) }
+            } label: {
+                Label {
+                    Text("Banner").foregroundStyle(AppColors.inkPrimary)
+                } icon: {
+                    SettingsIcon(systemName: "rectangle.3.group")
+                }
+            }
+            NavigationLink {
+                ProfilePart(title: "Featured Wins") { FeaturedEditor() }
+            } label: {
+                Label {
+                    Text("Featured Wins").foregroundStyle(AppColors.inkPrimary)
+                } icon: {
+                    SettingsIcon(systemName: "star")
+                }
+            }
         }
     }
 
@@ -711,3 +721,21 @@ struct ProfileView: View {
     }
 }
 
+
+
+/// One part of your profile, edited on a page of its own (`pageSection`).
+private struct ProfilePart<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        List {
+            Section { content.listRowSeparator(.hidden) }
+        }
+        .scrollContentBackground(.hidden)
+        .background { WarmBackground().ignoresSafeArea() }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .glassBackButton()
+    }
+}

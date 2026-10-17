@@ -2237,6 +2237,23 @@ final class FeedbackShots: XCTestCase {
     /// **Memories as your profile** (2026-10-15): the header, Your Score,
     /// Edit Profile and Settings from the gear.
     /// The banner over the head, full and empty (2026-10-16).
+    /// Edit Profile, as a first-time person meets it (the launch pass, 4:
+    /// "the edit-profile menu is confusing and overwhelming").
+    func testEditProfile() {
+        let app = launch(["-strataSeedWins", "4", "-strataSeedHead", "1", "-strataSeedHistory", "10",
+                          "-strataOpenSheet", "profile"])
+        wait(8); snap("edit-0-profile")
+        let edit = app.buttons["Edit"].firstMatch
+        print("PLANNING-editprofile edit \(edit.exists)")
+        if edit.exists { edit.tap() }
+        wait(2); snap("edit-1-top")
+        app.swipeUp(); wait(1); snap("edit-2-mid")
+        let banner = app.buttons["Banner"].firstMatch
+        print("PLANNING-editprofile banner \(banner.exists)")
+        if banner.exists { banner.tap() }
+        wait(1.5); snap("edit-3-banner")
+    }
+
     func testProfileBanner() {
         var app = launch(["-strataStartTab", "memories", "-strataSeedWins", "6", "-strataSeedHead", "1",
                           "-strataSeedHistory", "20", "-strataSeedRealPhotos", "1"])
