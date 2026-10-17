@@ -64,7 +64,7 @@ struct DirectChatView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .disabled(friend == nil)
             .accessibilityLabel(name)
             .accessibilityHint("Opens their profile.")

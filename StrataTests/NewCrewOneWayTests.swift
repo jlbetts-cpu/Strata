@@ -18,7 +18,14 @@ struct NewCrewOneWayTests {
         // The corners are the round glass of every tab since 2026-10-14 (the
         // owner: "why are they so much bigger than the buttons on the other
         // pages"), so their names ride on `GlassIconButton`.
-        #expect(list.contains("accessibilityLabel: CrewLine.newCrew"))
+        // **New Message, with New Crew at its top** (the owner approved the
+        // recommended way in, 2026-10-16, with messages to one person): still
+        // one compose button, top right; it opens New Message, whose first
+        // row is New Crew, or New Crew itself when there is nobody to write to.
+        #expect(list.contains("accessibilityLabel: \"New Message\""))
+        #expect(list.contains("store.messageablePeople.isEmpty || !store.canReply() { newCrew() } else { composing = true }"))
+        let compose = try code("Strata/Views/Crews/NewMessageSheet.swift")
+        #expect(compose.contains("Text(CrewLine.newCrew)"))
         #expect(list.contains("PrimaryCapsule(title: CrewLine.newCrew, action: newCrew)"))
         #expect(list.contains(".navigationTitle(CrewLine.newCrew)"))
         // One leading toolbar item: the sheet's own Cancel. Plan stands in
