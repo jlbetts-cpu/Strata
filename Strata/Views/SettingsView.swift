@@ -29,8 +29,6 @@ struct SettingsView: View {
     // MARK: - Notification State
 
     @AppStorage(QuickPost.key) private var quickPost = false
-    @AppStorage(CameraFirst.key) private var cameraFirst = true
-    @AppStorage(CameraTab.key) private var cameraTabShown = true
     @AppStorage(KeepFriendsPhotos.key) private var keepFriendsPhotos = false
     @AppStorage(TabNames.key) private var tabNamesShown = true
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
@@ -413,28 +411,6 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
-                    }
-                }
-                .tint(AppColors.switchTrack)
-
-                // Add a Win opens on the camera, inside the screen (`CameraFirst`).
-                Toggle(isOn: $cameraFirst) {
-                    Label {
-                        Text("Add Wins with the Camera")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "camera")
-                    }
-                }
-                .tint(AppColors.switchTrack)
-
-                // The Camera tab, or three tabs and the card (`CameraTab`).
-                Toggle(isOn: $cameraTabShown) {
-                    Label {
-                        Text("Show the Camera Tab")
-                            .foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        SettingsIcon(systemName: "camera.viewfinder")
                     }
                 }
                 .tint(AppColors.switchTrack)

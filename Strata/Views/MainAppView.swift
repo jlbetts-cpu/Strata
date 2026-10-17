@@ -758,7 +758,7 @@ struct MainAppView: View {
         // **No Camera tab, and the camera still a button away** (2026-10-17):
         // with three tabs, a press of Camera Control on Wins opens the card,
         // which then takes the shot on the next press.
-        .onCameraCaptureEvent(isEnabled: !CameraTab.shown && selectedTab == .tower && inlineOpening == nil
+        .onCameraCaptureEvent(isEnabled: selectedTab == .tower && inlineOpening == nil
                                 && winDraft == nil) { event in
             if event.phase == .ended { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
         }
@@ -776,8 +776,13 @@ struct MainAppView: View {
         }
         .onChange(of: selectedTab, initial: true) { _, tab in
             if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
-            // No Camera tab to be on: Wins, with its slot and the card.
-            if tab == .camera, !CameraTab.shown { selectedTab = .tower }
+            // **No Camera tab** (the owner, 2026-10-18: "Three tabs: Wins,
+            // Crews, Memories. The inline camera is the camera"). Anything
+            // that still asks for it lands on Wins with the card open.
+            if tab == .camera {
+                selectedTab = .tower
+                Task { @MainActor in openAddWin(from: nil, radius: GridConstants.radiusSurface) }
+            }
         }
         // The inline camera made ready (configured, not running) once the
         // app has settled, so a tap on the slot only has to start it.
@@ -917,7 +922,7 @@ struct MainAppView: View {
             guard stillThere(item), !alreadyWon(item) else { return }
             // **The camera card, with the line's words on it** (2026-10-17:
             // one camera everywhere a photo is taken).
-            if CameraFirst.on, inlineOpening == nil {
+            if inlineOpening == nil {
                 withTransaction(Self.still) {
                     inlineOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
                                                   colour: item.category, crews: crew.map { [$0] },
@@ -1106,15 +1111,6 @@ struct MainAppView: View {
                     StrataTab.crews.label(news: crewsWithNews, lit: crewsNeverOpened, scheme: colorScheme)
                 }
             }
-            // **Kept while `CameraTab.shown`** (the owner, 2026-10-17): off,
-            // the bar is Wins, Crews and Memories and the camera is the card.
-            if CameraTab.shown {
-                Tab(value: StrataTab.camera) {
-                    cameraTab
-                } label: {
-                    StrataTab.camera.label
-                }
-            }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot.undoLine()
             } label: {
@@ -1154,9 +1150,7 @@ struct MainAppView: View {
         // setup.
         // **No tab forces an appearance** (2026-10-08): the window follows
         // the phone on every tab, so switching never flips the bar, the
-        // status bar or a sheet. The camera is dark inside its own view
-        // (`StableCameraTab`) and the status bar steps aside over it.
-        .statusBarHidden(selectedTab == .camera && !CameraFirst.on)
+        // status bar or a sheet.
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
         // The ring coming forward to take a win (`RingMoment`).
@@ -1167,8 +1161,6 @@ struct MainAppView: View {
         .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
         })
-        .overlay { cameraBarSkin }
-        .animation(.easeOut(duration: 0.18), value: selectedTab == .camera)
         .overlay {
             if let handoffLogs {
                 DayHandoffLayer(logs: handoffLogs, modelContext: modelContext) {
@@ -1189,9 +1181,6 @@ struct MainAppView: View {
             await handOffYesterdayIfDue()
         }
         .onChange(of: selectedTab) { oldTab, newTab in
-            // Off the camera: the front flash's brightness goes back now, not
-            // when the camera's view finally disappears under the new tab.
-            if oldTab == .camera { RingBrightness.restore() }
             // No haptic of our own: the system bar answers its own taps, and
             // a second tick on top was the one thing about it that was not
             // native (2026-10-08, "make sure it works natively again").
@@ -2001,106 +1990,6 @@ struct MainAppView: View {
         }
     }
 
-    /// The camera tab.
-    ///
-    /// A shot used to become a win immediately — logged untitled, at the
-    /// smallest size, dropped on the tower. Which meant every photograph
-    /// arrived as a block you then had to find and open to name. It goes to
-    /// the add sheet now, already holding the picture, so naming and sizing
-    /// happen once while you are still thinking about the thing you did.
-    @ViewBuilder
-    private var cameraTab: some View {
-        // **One camera, the tab's too** (the owner, 2026-10-17: "The main
-        // Camera tab and the inline camera become the same camera with the
-        // same controls. I like the square frame on the inline camera, so
-        // use it for both"). The camera card, docked: standing on the bar,
-        // always open, back on the lens after each win.
-        if CameraFirst.on {
-            InlineCameraCard(opening: AddWinOpening(from: .zero, radius: GridConstants.radiusSurface,
-                                                    colour: nextWinCategory),
-                             docked: true) { result in tabCardFinished(result) }
-                .background { WarmBackground().ignoresSafeArea() }
-        } else {
-            oldCameraTab
-        }
-    }
-
-    /// The camera card on the Camera tab hands back as the inline one does;
-    /// a drop lands on Wins, where it can be seen falling.
-    private func tabCardFinished(_ result: InlineCameraResult?) {
-        switch result {
-        case .drop(let win)?:
-            selectedTab = .tower
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(350))
-                logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
-                       undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
-                       with: win.with, story: win.story, window: win.window, zoom: win.zoom)
-            }
-        case .sheet(let draft)?:
-            selectedTab = .tower
-            winDraft = draft
-        case .quickAdd?:
-            selectedTab = .tower
-            quickAdding = true
-        case .send?, nil:
-            break
-        }
-    }
-
-    private var oldCameraTab: some View {
-        // No `.ignoresSafeArea()` here. The preview ignores it from the
-        // inside; the screen needs real insets so the shutter can be placed
-        // above the tab bar and the count below the notch.
-        StableCameraTab(onCaptured: { image, size, place, crop, zoom in
-            selectedTab = .tower
-            winDraft = WinDraft(photo: image, size: size, place: place, crop: crop, zoom: zoom)
-        })
-        .equatable()
-        // **THE VIEWFINDER IS COVERED THE MOMENT IT IS NOT THE TAB YOU ARE ON.**
-        //
-        // The owner, with a photograph of it: "why when I switch to the Wins
-        // page from the camera doesn't it instantly change to light mode — it
-        // has this grey look, that makes it really not clean." Measured on the
-        // built app: the page comes back at 246 and the tab bar stays at
-        // (70, 70, 70).
-        //
-        // The bar is Liquid Glass. It samples what is BEHIND it and caches
-        // that, and a tab you have left is not unmounted — a `TabView` keeps it
-        // in the hierarchy — so behind the bar there is still a near-black
-        // viewfinder, and the bar is faithfully showing it. The file already
-        // records four attempts at this from the other end: `UITabBarAppearance`,
-        // `toolbarColorScheme(_:for: .tabBar)`, `toolbarBackgroundVisibility`,
-        // and an `.id` on the `TabView` — only the last worked and it breaks
-        // `selection` outright, which is navigation traded for a shade.
-        //
-        // This is the same fix from the other side: give the bar something
-        // light to sample. The camera is still there, still running, still
-        // warm — it is simply behind the app's own ground whenever it is not
-        // the screen you are looking at. Nothing is torn down, so coming back
-        // is as fast as it was, and the dissolve on arrival (see `CameraView`)
-        // covers the handover in the other direction.
-        .overlay {
-            if selectedTab != .camera {
-                WarmBackground()
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    /// The bar drawn in black over the camera (`CameraTabBarSkin`), off until
-    /// the owner has seen it.
-    @ViewBuilder
-    var cameraBarSkin: some View {
-        // The black drawing belongs to the old full-screen camera; the card
-        // stands on the page, and the bar on it is the real one.
-        if CameraTabBarSkin.isOn, !CameraFirst.on, selectedTab == .camera, !CameraReviewState.shared.reviewing {
-            CameraTabBarSkin()
-                .transition(.opacity.animation(.easeOut(duration: 0.18)))
-        }
-    }
-
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
         floor((totalWidth - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns))
     }
@@ -2863,10 +2752,9 @@ struct MainAppView: View {
     // MARK: - Add a Win, opening on the camera
 
     /// Add a Win from something tapped at `rect`: the inline camera grown out
-    /// of it (`CameraFirst`), or the sheet when that is off or there is no
-    /// rectangle to grow from.
+    /// of it, or out of the foot of the screen when nothing was tapped.
     func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil) {
-        guard CameraFirst.on, inlineOpening == nil else {
+        guard inlineOpening == nil else {
             winDraft = WinDraft(crews: crews)
             return
         }
@@ -4637,26 +4525,6 @@ private struct StableMemoriesTab: View, Equatable {
 
     var body: some View {
         MemoriesView(openProfile: openProfile, resetAllData: resetAllData)
-    }
-}
-
-/// The camera, shielded the same way and for the same reason.
-private struct StableCameraTab: View, Equatable {
-    let onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint, CGFloat) -> Void
-
-    static func == (lhs: Self, rhs: Self) -> Bool { true }
-    @Environment(\.colorScheme) private var phone
-
-    var body: some View {
-        // Dark in its own view, not the window's (2026-10-08): a viewfinder
-        // is a dark room whatever the phone is set to, and the rest of the
-        // app, its tab bar included, stays in the phone's own appearance.
-        // The review after the shutter follows the phone (2026-10-14).
-        // **Stopped short of the bar, on a strip** (the owner, 2026-10-14,
-        // his Apollo layout): not full screen, so the viewfinder ends in its
-        // rounded corners above the tab bar, as Snapchat's does.
-        CameraView(onCaptured: onCaptured, fillsScreen: false, phoneScheme: phone)
-            .environment(\.colorScheme, .dark)
     }
 }
 

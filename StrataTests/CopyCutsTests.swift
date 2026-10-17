@@ -93,7 +93,10 @@ struct CopyCutsTests {
         // natively again"): his drawing and the tab's name, handed to the
         // system as a `Label`, from the same asset the onboarding's picture
         // of the bar draws (`assetName`).
-        for tab in ["tower", "camera", "memories"] {
+        // Three tabs since 2026-10-18 (the owner: "Remove the Camera tab.
+        // Three tabs: Wins, Crews, Memories"); Crews carries its own news.
+        #expect(!main.contains("Tab(value: StrataTab.camera)"), "the Camera tab is back")
+        for tab in ["tower", "memories"] {
             #expect(main.contains("StrataTab.\(tab).label"))
         }
         #expect(!main.contains("preferredColorScheme(windowScheme)"), "a tab is forcing the window's appearance again")

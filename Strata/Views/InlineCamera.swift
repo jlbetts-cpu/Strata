@@ -3,45 +3,19 @@ import AVKit
 import PhotosUI
 import SwiftUI
 
-// MARK: - The switch
+// MARK: - The tabs
 
-/// **Add a Win opens on the camera** (the owner, 2026-10-17: "the camera IS
-/// the Add a Win sheet ... Taking the photo is the first and main thing you
-/// do. Everything else comes after, and only if you want it").
-///
-/// On by default because he asked for it by name; Settings can turn it off,
-/// and then every way in opens the sheet as before.
-enum CameraFirst {
-    static let key = "cameraFirst"
-    static var on: Bool {
-        #if DEBUG
-        if let forced = DebugHarness.argument("-strataCameraFirst") { return forced == "1" }
-        #endif
-        return UserDefaults.standard.object(forKey: key) as? Bool ?? true
-    }
-}
-
-/// **The Camera tab, while it is kept** (the owner, 2026-10-17: "Research
-/// whether we need a Camera tab at all ... build the three-tab version behind
-/// a switch that's off"). On: four tabs, as today. Off: Wins, Crews and
-/// Memories, the camera card reachable everywhere a photo is made.
-enum CameraTab {
-    static let key = "cameraTabShown"
-    static var shown: Bool {
-        #if DEBUG
-        if let forced = DebugHarness.argument("-strataCameraTab") { return forced == "1" }
-        #endif
-        return UserDefaults.standard.object(forKey: key) as? Bool ?? true
-    }
-}
-
+/// **Add a Win is the camera** (the owner, 2026-10-17: "the camera IS the
+/// Add a Win sheet"; 2026-10-18: "The inline camera is the camera, reachable
+/// everywhere it's needed", no switch and no Camera tab).
 extension StrataTab {
     /// The tabs the bar shows, in its order.
     static var visible: [StrataTab] {
         allCases.filter { tab in
             switch tab {
             case .crews: CrewsFlag.isOn
-            case .camera: CameraTab.shown
+            // Three tabs (the owner, 2026-10-18): the camera is the card.
+            case .camera: false
             default: true
             }
         }

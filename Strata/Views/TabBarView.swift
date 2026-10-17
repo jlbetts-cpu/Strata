@@ -224,20 +224,6 @@ enum StrataTab: String, CaseIterable {
 }
 
 
-/// **The bar in black over the camera, drawn** (the owner, 2026-10-16: "I
-/// really want the bottom tabs to be black when you are on the camera, but I
-/// hate the way it glitches the tabs and takes a while to come back").
-///
-/// The bar is the system's Liquid Glass and it samples what is behind it;
-/// told to go dark it lags most of a second coming back, and that was the
-/// jank. So the real bar stays as it is everywhere, and on the camera a
-/// drawing of it in black stands exactly over it, measured from the real
-/// one: its shape, its four pictures, the pill on the camera. It takes no
-/// touch, so every tap is the real bar's. Leaving the camera it fades in a
-/// fifth of a second over a bar that is already light, so nothing lags.
-///
-/// **Off until the owner has seen it** (his rule: camera changes go to him
-/// first): `-strataDarkCameraBar` turns it on.
 /// Whether the camera is showing a photograph just taken: the review stands
 /// on the page in the phone's own appearance, so the black bar steps aside.
 @MainActor @Observable
@@ -245,95 +231,6 @@ final class CameraReviewState {
     static let shared = CameraReviewState()
     var reviewing = false
 }
-
-struct CameraTabBarSkin: View {
-    @State private var bar: CGRect?
-    @State private var tabs: [(tab: StrataTab, button: CGRect, picture: CGRect)] = []
-    /// The tabs' names, when Show Tab Names puts them under the pictures.
-    @State private var titles: [StrataTab: (frame: CGRect, font: UIFont)] = [:]
-
-    /// **On** (the owner, 2026-10-16, asked: "Turn it on"). It was behind
-    /// `-strataDarkCameraBar` until he had seen it; `-strataLightCameraBar`
-    /// puts the plain bar back, for comparing.
-    static var isOn: Bool {
-        #if DEBUG
-        return !ProcessInfo.processInfo.arguments.contains("-strataLightCameraBar")
-        #else
-        return true
-        #endif
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let origin = geo.frame(in: .global).origin
-            if let bar {
-                ZStack(alignment: .topLeading) {
-                    // **Black under it, to the foot of the screen** (the owner,
-                    // 2026-10-16: "make that background black, not white, on
-                    // the camera"): drawn here with the bar, so the real bar's
-                    // ground never changes and leaving never lags.
-                    Rectangle()
-                        .fill(Color.black)
-                        .frame(width: geo.size.width + 2, height: geo.size.height - (bar.minY - origin.y) + 40)
-                        .offset(x: -1, y: bar.minY - origin.y - 40)
-                    Capsule()
-                        .fill(Color(white: 0.1))
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: GridConstants.strokeThin))
-                        .frame(width: bar.width, height: bar.height)
-                        .offset(x: bar.minX - origin.x, y: bar.minY - origin.y)
-                    ForEach(tabs, id: \.tab) { item in
-                        if item.tab == .camera {
-                            Capsule()
-                                .fill(Color.white.opacity(0.16))
-                                .frame(width: item.button.width, height: item.button.height)
-                                .offset(x: item.button.minX - origin.x, y: item.button.minY - origin.y)
-                        }
-                        Image(item.tab.assetName)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(Color.white.opacity(item.tab == .camera ? 1 : 0.6))
-                            .frame(width: item.picture.width, height: item.picture.height)
-                            .offset(x: item.picture.minX - origin.x, y: item.picture.minY - origin.y)
-                        // The name, where the real bar says it (on by default
-                        // since 2026-10-17), or the drawing hid it.
-                        if let title = titles[item.tab] {
-                            Text(item.tab.rawValue)
-                                .font(Font(title.font))
-                                .foregroundStyle(Color.white.opacity(item.tab == .camera ? 1 : 0.6))
-                                .fixedSize()
-                                .frame(width: title.frame.width, height: title.frame.height)
-                                .offset(x: title.frame.minX - origin.x, y: title.frame.minY - origin.y)
-                        }
-                    }
-                }
-            }
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        // Again until the bar is there: opening on the camera, it is laid
-        // out a moment after this view.
-        .task {
-            for _ in 0..<20 {
-                measure()
-                if bar != nil, tabs.count == StrataTab.visible.count { return }
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-        }
-    }
-
-    private func measure() {
-        bar = TabGlyph.barFrame()
-        tabs = StrataTab.visible.compactMap { tab in
-            TabGlyph.frames(of: tab).map { (tab, $0.button, $0.picture) }
-        }
-        titles = TabNames.shown
-            ? Dictionary(uniqueKeysWithValues: StrataTab.visible.compactMap { tab in TabGlyph.title(of: tab).map { (tab, $0) } })
-            : [:]
-    }
-}
-
 
 /// **Show Tab Names**, a setting, on by default since 2026-10-17 (see
 /// `StrataTab.label`).
