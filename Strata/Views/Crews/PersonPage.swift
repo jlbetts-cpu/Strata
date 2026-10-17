@@ -53,7 +53,8 @@ struct PersonPage: View {
     var body: some View {
         Group {
             if let member, let shared {
-                FriendProfileSheet(member: member, crewID: shared, embedded: true)
+                FriendProfileSheet(member: member, crewID: shared, embedded: true,
+                                   story: story.map { tonight in (fresh: !tonight.watched, open: { watching = true }) })
                     .pinnedFoot { foot }
             } else {
                 // **The conversation stays yours when the crew does not**
@@ -118,27 +119,11 @@ struct PersonPage: View {
         }
     }
 
-    /// The way back, a small line that always says who this is, and their
-    /// story when it is open, to watch over this page.
+    /// The way back and a small line that always says who this is. Their
+    /// story is the ring on their head (`ProfileTop.story`).
     private var top: some View {
         VStack(spacing: GridConstants.gapTight) {
             topBar
-            if let story {
-                Button {
-                    HapticsEngine.lightTap()
-                    watching = true
-                } label: {
-                    Label(story.watched ? "Watch \(name)'s story again" : "Watch \(name)'s story", systemImage: "play.circle")
-                        .font(Typography.headerSmall)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .padding(.horizontal, GridConstants.gapLabel)
-                        .frame(minHeight: 44)
-                        .glassCapsule(onPage: true, carriesType: true)
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, GridConstants.spacing)
-            }
         }
     }
 

@@ -227,7 +227,8 @@ struct TowerReactionLayers: ViewModifier {
                         .foregroundStyle(AppColors.inkPrimary)
                         .padding(.horizontal, GridConstants.gapLabel)
                         .frame(minHeight: 44)
-                        .glassCapsule(carriesType: true)
+                        // On the tower's page: its clear glass (2026-10-17).
+                        .glassCapsule(onPage: true)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.pressSurface)

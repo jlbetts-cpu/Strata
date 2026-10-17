@@ -125,6 +125,11 @@ struct ProfileTop: View {
     var chips: [InfoCard.Fact] = []
     /// @them, under the name, when they have one (`Handle`).
     var handle: String? = nil
+    /// **Their story, on their head** (the owner, 2026-10-17: "If someone
+    /// wants to rewatch, tapping the ring should be enough"): a ring round
+    /// the head, ink while it is new and quiet once watched, and a tap on
+    /// the head plays it. Nil: no story tonight, no ring.
+    var story: (fresh: Bool, open: () -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let headSide: CGFloat = 76
@@ -149,9 +154,9 @@ struct ProfileTop: View {
                 ZStack(alignment: .bottom) {
                     ProfileBanner(pictures: banner)
                         .padding(.bottom, Self.headSide / 2)
-                    PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
+                    storied(PersonHead(person: person, side: Self.headSide, life: .calm, setting: .disc(.chosen))
                         .padding(4)
-                        .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground)))
+                        .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground))))
                 }
                 // **It opens** (the owner, 2026-10-16: "making sure the user
                 // knows they can open the profile"): the row's chevron beside
@@ -186,6 +191,29 @@ struct ProfileTop: View {
         .accessibilityLabel(([name] + chips.map(\.text) + [personHint]).filter { !$0.isEmpty }.joined(separator: ", "))
         .padding(.top, GridConstants.gapTight)
         .frame(maxWidth: .infinity)
+    }
+
+    /// The head, ringed and pressable when there is a story to watch.
+    @ViewBuilder
+    private func storied(_ head: some View) -> some View {
+        if let story {
+            Button {
+                HapticsEngine.lightTap()
+                story.open()
+            } label: {
+                head
+                    .overlay {
+                        Circle()
+                            .strokeBorder(story.fresh ? AppColors.inkPrimary : AppColors.inkTertiary,
+                                          lineWidth: story.fresh ? 2.5 : GridConstants.strokeThin)
+                    }
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel(story.fresh ? "Watch \(name)'s story" : "Watch \(name)'s story again")
+        } else {
+            head
+        }
     }
 
     private var plain: some View {

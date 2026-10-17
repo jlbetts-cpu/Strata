@@ -207,9 +207,16 @@ extension View {
             // taken first and `GlassRecipe.onPage` is interactive, so the chat
             // composer and the crew page's reaction bar got the glass that
             // takes taps whatever they asked for.
-            self.glassEffect(carriesType ? (interactive ? GlassRecipe.typePanel : GlassRecipe.typePanelStill)
-                                         : (onPage ? (interactive ? GlassRecipe.onPage : GlassRecipe.onPageStill)
-                                            : (interactive ? Glass.regular.interactive() : Glass.regular)),
+            //
+            // **On a page, the page's clear glass, always** (the owner,
+            // 2026-10-17: "grey and muddy instead of clear ... One glass
+            // everywhere"). The type panel is a fifth of black for words over
+            // a photograph; asked for on a light page it came out a grey
+            // smudge with ink on it. `onPage` wins over `carriesType`, so no
+            // caller can ask for that pairing again.
+            self.glassEffect(onPage ? (interactive ? GlassRecipe.onPage : GlassRecipe.onPageStill)
+                                    : carriesType ? (interactive ? GlassRecipe.typePanel : GlassRecipe.typePanelStill)
+                                                  : (interactive ? Glass.regular.interactive() : Glass.regular),
                              in: .capsule)
 
         } else {
