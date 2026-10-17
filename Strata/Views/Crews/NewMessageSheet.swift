@@ -80,7 +80,7 @@ struct NewMessageSheet: View {
                 Text(member.shortName.isEmpty ? "A friend" : member.shortName)
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkPrimary)
-                if let handle = store.shownHandle(of: member) {
+                if Usernames.shown, let handle = store.shownHandle(of: member) {
                     Text("@\(handle)")
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkSecondary)

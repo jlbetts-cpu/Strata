@@ -622,7 +622,7 @@ struct OnboardingView: View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer(minLength: 0)
             nameEntry
-            if CrewsFlag.isOn {
+            if CrewsFlag.isOn, Usernames.shown {
                 HandleField(text: $handleText, note: claimingHandle ? "Checking" : handleNote, onSubmit: {
                     if canAdvance { advance() }
                 })
@@ -1534,7 +1534,7 @@ struct OnboardingView: View {
 
     private func advance() {
         // The username is claimed before the page is left: first come.
-        if step == Self.nameStep, CrewsFlag.isOn, !handleSettled,
+        if step == Self.nameStep, CrewsFlag.isOn, Usernames.shown, !handleSettled,
            Handle.normalized(handleText) != (ProfileStore.shared.handle ?? "") {
             claimHandleThenAdvance()
             return

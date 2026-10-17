@@ -211,7 +211,7 @@ struct ProfileView: View {
                     // **Typed here, nothing over it** (the owner: "no popups
                     // in popups"): saved when the keyboard's key or leaving the
                     // field says so, first come (`SocialStore.setHandle`).
-                    if CrewsFlag.isOn {
+                    if CrewsFlag.isOn, Usernames.shown {
                         HandleField(text: $handleDraft, note: handleNote, onSubmit: saveHandle)
                             .disabled(handleLocked)
                             .onDisappear(perform: saveHandle)

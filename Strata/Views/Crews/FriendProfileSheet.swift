@@ -257,7 +257,7 @@ struct FriendProfileSheet: View {
                            banner: recent.filter { Calendar.current.isDate($0.createdAt, equalTo: Date(), toGranularity: .month) }
                                .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
                            chips: chips(today: today.count),
-                           handle: store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member))
+                           handle: Usernames.shown ? store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member) : nil)
                 if member.profileID != store.me, store.canReply(), !embedded { messageButton }
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)

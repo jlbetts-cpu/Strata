@@ -52,3 +52,13 @@ struct HandleField: View {
         }
     }
 }
+
+
+/// **Usernames stay hidden** (the owner's launch pass, 4: "if the system
+/// needs a username under the hood to make friends work, keep it, but nobody
+/// should have to choose, see or type one"). Off: no field in onboarding or
+/// Profile, no @name on anyone. Crews and messages never needed one. The
+/// claims, checks and records stay, so it can come back by this switch.
+enum Usernames {
+    static let shown = false
+}

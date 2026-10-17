@@ -73,7 +73,7 @@ struct ProfileHeader: View {
         let _ = store.bannerChanged
         ProfileTop(person: .me, name: store.name.isEmpty ? "Your Name" : store.name, nameIsPrompt: store.name.isEmpty,
                    figures: [], onPerson: onOpen, personHint: "Opens your profile and stats.", glass: true,
-                   banner: banner, bannerLayout: store.bannerLayout(for: monthKey), chips: chips, handle: store.handle)
+                   banner: banner, bannerLayout: store.bannerLayout(for: monthKey), chips: chips, handle: Usernames.shown ? store.handle : nil)
 
             // Any change here, an older win deleted too, reaches your crews.
             .onChange(of: tally, initial: true) { _, now in
@@ -361,7 +361,7 @@ struct YourScoreSheet: View {
                            nameIsPrompt: profile.name.isEmpty, figures: [],
                            banner: ProfileHeader.banner(logs: logs, month: key, store: profile),
                            bannerLayout: profile.bannerLayout(for: key),
-                           chips: chips(stats), handle: profile.handle)
+                           chips: chips(stats), handle: Usernames.shown ? profile.handle : nil)
                     .listRowInsets(EdgeInsets())
             }
             .listRowBackground(Color.clear)
