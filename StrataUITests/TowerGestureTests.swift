@@ -794,7 +794,9 @@ final class TowerGestureTests: XCTestCase {
     @MainActor
     func testReviewKeepsTheShotAndHandsItOn() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-strataStartTab", "camera",
+        // The full-screen camera, which the card replaces on the tab
+        // (2026-10-17) and which stays for the card switched off.
+        app.launchArguments = ["-strataStartTab", "camera", "-strataCameraFirst", "0",
                                "-strataOpenReview", "medium"]
         app.launch()
 
@@ -824,7 +826,8 @@ final class TowerGestureTests: XCTestCase {
         // row out on purpose (`CameraView`, "The refused screen kept this whole
         // row"): measured 2026-10-08, every glyph inert there and every glyph
         // toggling with the fake lens.
-        app.launchArguments = ["-strataStartTab", "camera", "-strataFakeLens", "1"]
+        // The full-screen camera (the card's grid is in its "…").
+        app.launchArguments = ["-strataStartTab", "camera", "-strataCameraFirst", "0", "-strataFakeLens", "1"]
         app.launch()
 
         let grid = app.buttons["gridToggle"]
