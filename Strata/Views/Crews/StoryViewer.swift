@@ -36,6 +36,13 @@ struct StoryViewer: View {
     /// row's own sheet, as Edit is (the audit, 2026-10-16: "a story's head
     /// and name should open their profile", as a face in the chat does).
     var onProfile: ((CrewMember, CrewID) -> Void)? = nil
+    /// **Where each person's ring stands on screen** (the stories standard:
+    /// a story grows out of the ring it was opened from and goes back into
+    /// the ring of whoever is showing when it closes, as Instagram's does).
+    /// Nil: it fades in and out instead.
+    var ring: ((UUID) -> CGRect?)? = nil
+    @State private var grown = false
+    @State private var leaving = false
     /// The page after everyone: "That's everyone tonight."
     private static let endID = UUID(uuidString: "00000000-0000-0000-0000-00000000E0D0")!
     /// Whether this is friends' stories (an end card) or only your own.
@@ -72,7 +79,7 @@ struct StoryViewer: View {
                           profile: onProfile,
                           next: { step(from: person.id, by: 1) },
                           back: { step(from: person.id, by: -1) },
-                          close: onClose)
+                          close: leave)
                     .tag(person.id)
             }
             // **A finish line** (Instagram's "You're all caught up", 2018):
@@ -80,7 +87,7 @@ struct StoryViewer: View {
             if hasEnd {
                 // **The end asks for yours** when you have not posted (the
                 // audit, 2026-10-16: seeing and sharing go together).
-                StoryEnd(close: onClose,
+                StoryEnd(close: leave,
                          addStory: store.myStory.isEmpty && store.canReply() ? onEdit : nil)
                     .tag(Self.endID)
             }
@@ -112,7 +119,7 @@ struct StoryViewer: View {
         // across still goes to the next friend).
         .gesture(OneWayPan(way: .down, changed: { drop = $0 }, ended: { distance, speed in
             if distance > 120 || speed > 900 {
-                onClose()
+                leave()
             } else {
                 withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { drop = 0 }
             }
@@ -120,7 +127,7 @@ struct StoryViewer: View {
         .statusBarHidden()
         .overlay {
             if opening {
-                StoryOpening(people: people.filter { $0.profileID != store.me }, close: onClose) {
+                StoryOpening(people: people.filter { $0.profileID != store.me }, close: leave) {
                     openedNight = Self.night(of: people) ?? ""
                     withAnimation(reduceMotion ? GridConstants.crossFade : .smooth(duration: 0.4)) { opening = false }
                 }
@@ -129,11 +136,20 @@ struct StoryViewer: View {
                 .transition(.opacity)
             }
         }
+        // Out of its ring and back into it, the night's opening with it:
+        // inside, the opening stood full-screen over the growing (filmed).
+        .modifier(GrowsFromRing(progress: grown ? 1 : 0, ring: ringNow))
         .onAppear {
             #if DEBUG
             if DebugHarness.argument("-strataReplayOpening") != nil { openedNight = "" }
             #endif
             if hasEnd, let night = Self.night(of: people), openedNight != night { opening = true }
+            // After the presenting moment, whose transaction carries no
+            // animation: begun inside it, the growing did not run (filmed).
+            Task { @MainActor in
+                await Task.yield()
+                withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) { grown = true }
+            }
         }
         // Nobody left to show (all blocked, hidden or past 9am): close.
         .onChange(of: people.isEmpty) { _, empty in if empty { onClose() } }
@@ -168,8 +184,71 @@ struct StoryViewer: View {
             if hasEnd {
                 withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy) { current = Self.endID }
             } else {
-                onClose()
+                leave()
             }
+        }
+    }
+
+    /// The ring to grow from or go back to: the one tapped while opening,
+    /// whoever is showing while closing (the end page: the last person's).
+    private var ringNow: CGRect? {
+        guard !reduceMotion, let ring else { return nil }
+        if leaving {
+            let id = shown == Self.endID ? (live.last?.id ?? start) : shown
+            return ring(id) ?? ring(start)
+        }
+        return ring(start)
+    }
+
+    /// Back into the ring, then gone.
+    private func leave() {
+        guard !leaving else { return }
+        leaving = true
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardClose) {
+            grown = false
+            drop = 0
+        } completion: {
+            onClose()
+        }
+    }
+}
+
+/// **The viewer between its ring and the screen**: `progress` 0 is drawn at
+/// the ring's place and size, rounded to it; 1 is the whole screen. One
+/// animatable number, so the spring carries the scale, the place and the
+/// rounding together (a transform computed from the ring alone jumped,
+/// filmed 2026-10-18). With no ring, it fades.
+private struct GrowsFromRing: ViewModifier, Animatable {
+    var progress: CGFloat
+    let ring: CGRect?
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let screen = UIScreen.main.bounds
+        let p = max(0, min(1, progress))
+        if let ring, screen.width > 0 {
+            let k = (ring.width / screen.width) + (1 - ring.width / screen.width) * p
+            let dx = (ring.midX - screen.midX) * (1 - p)
+            let dy = (ring.midY - screen.midY) * (1 - p)
+            content
+                // A circle the ring's size at the ring, the whole screen at
+                // the end: the window's height closes to its width, round.
+                .mask {
+                    GeometryReader { g in
+                        RoundedRectangle(cornerRadius: (g.size.width / 2) * (1 - p), style: .continuous)
+                            .frame(width: g.size.width, height: g.size.width + (g.size.height - g.size.width) * p)
+                            .position(x: g.size.width / 2, y: g.size.height / 2)
+                    }
+                    .ignoresSafeArea()
+                }
+                .scaleEffect(k)
+                .offset(x: dx, y: dy)
+        } else {
+            content.opacity(p)
         }
     }
 }

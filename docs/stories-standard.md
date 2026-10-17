@@ -60,6 +60,27 @@ Then, fixed and measured the same day:
   title the reply carries, so nothing new is sent and no record changes. The
   quote wraps to two lines beside it so the title is not what is cut.
 
+Later the same day:
+
+- **A story grows out of the ring it was opened from and goes back into the
+  ring of whoever is showing when it closes**, the X, a swipe down or the end
+  page alike (`GrowsFromRing`, one animatable progress: scale, place and a
+  circle the ring's size opening to the screen). Built by hand, not with the
+  zoom transition iOS 26 is reported to flicker on after a drag (b, Apple
+  forums). Filmed at 60fps: the open about 25 frames, the close about 15,
+  ending as a circle on the ring. Reduce Motion fades. The cover presents
+  with no motion of its own so this is the only one.
+- **A person's head carries the waiting ring before 8pm** on their page, as
+  the row's does (the launch pass: "everywhere the ring appears").
+- **"Watch story again" is gone on purpose** (the owner, 2026-10-17: remove
+  it; "tapping the ring should be enough"): a watched story is replayed from
+  the quiet ring on their head or in the row.
+- Visual review: the whole stories walk shot in light and dark, end to end,
+  from the row to posting your own through the camera card (`testTonightsStory`).
+- Note: the 8 second hold probe missed once in a full run under load and
+  passes alone (twice) and in three full runs: XCUITest's press starts a
+  moment after the page is read, and a page near its end can turn in that gap.
+
 ## Research, in short
 
 From a research pass on 2026-10-17 (sources in the session's research report,

@@ -194,6 +194,28 @@ final class FeedbackShots: XCTestCase {
         snap("hero-end")
     }
 
+    /// A story growing out of its ring and going back into it, filmed
+    /// (2026-10-18).
+    func testStoryRingMotion() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedStories", "3", "-strataStoryHour", "21", "-strataStorySeen", "1"])
+        let head = app.buttons.matching(NSPredicate(format: "value == 'New story'")).firstMatch
+        XCTAssertTrue(head.waitForExistence(timeout: 30))
+        wait(4)
+        FileManager.default.createFile(atPath: "/tmp/claude-501/overnight/motion-go", contents: nil)
+        wait(1)
+        head.tap()
+        wait(2.5)
+        // Past the night's opening, if it showed.
+        if !app.otherElements.matching(NSPredicate(format: "label CONTAINS 'story, '")).firstMatch.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            wait(1.5)
+        }
+        app.buttons["Close story"].firstMatch.tap()
+        wait(2)
+        snap("ring-end")
+    }
+
     /// The system sheet opening, filmed the same way, to calibrate the film.
     func testSheetMotion() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCameraFirst", "0"])

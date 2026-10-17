@@ -16,6 +16,8 @@ struct TodayHeads: View {
     @State private var profile: Person?
     /// Tonight's stories being watched (`StoryViewer`).
     @State private var watching: Watching?
+    /// Each head's place on screen, for the story to grow out of.
+    @State private var rings: [UUID: CGRect] = [:]
     /// Read in the body, so the row redraws itself each minute and a ring
     /// lights at 8pm and a preview goes at 9am with nothing else changing
     /// (the review, 2026-10-15).
@@ -48,6 +50,14 @@ struct TodayHeads: View {
 
     /// The one line a cheer says.
     static let cheer = "Rooting for you today."
+
+    /// A presentation with no system motion of its own: the story's own
+    /// growing out of its ring is the only motion.
+    static func still(_ change: () -> Void) {
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet, change)
+    }
 
     struct Watching: Identifiable {
         let people: [StoryPerson]
@@ -193,7 +203,7 @@ struct TodayHeads: View {
                     .presentationBackground { WarmBackground().ignoresSafeArea() }
             }
             .fullScreenCover(item: $watching) { watching in
-                StoryViewer(people: watching.people, start: watching.start, onClose: { self.watching = nil },
+                StoryViewer(people: watching.people, start: watching.start, onClose: { Self.still { self.watching = nil } },
                             onEdit: {
                                 self.watching = nil
                                 // After the cover has gone: UIKit drops a sheet
@@ -209,7 +219,10 @@ struct TodayHeads: View {
                                     try? await Task.sleep(for: .milliseconds(450))
                                     CrewRouter.shared.openPerson = member.profileID
                                 }
-                            })
+                            },
+                            ring: { [rings] id in rings[id] })
+                    // The row shows through while the story grows out of it.
+                    .presentationBackground(.clear)
             }
             .sheet(item: $profile) { person in
                 NavigationStack {
@@ -277,7 +290,7 @@ struct TodayHeads: View {
             HapticsEngine.lightTap()
             // Their page: profile, and your conversation under it (the
             // launch pass, 3).
-            if showing { watching = Watching(people: open, start: person.id) } else { CrewRouter.shared.openPerson = person.member.profileID }
+            if showing { Self.still { watching = Watching(people: open, start: person.id) } } else { CrewRouter.shared.openPerson = person.member.profileID }
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 Group {
@@ -308,6 +321,8 @@ struct TodayHeads: View {
                     .compositingGroup()
                     .opacity(logged || showing ? 1 : 0.45)
                     .animation(GridConstants.motionSnappy, value: logged)
+                    // Where the ring stands, for the story to grow out of.
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rings[person.member.profileID] = $0 }
                 // Their name under it. (The owner's "no names under the
                 // icons", 2026-10-16, was the tab bar's, he said after.)
                 Text(name)
@@ -422,7 +437,7 @@ struct TodayHeads: View {
         let me = StoryPerson(profileID: store.me, stories: stories, phase: .open, watched: false)
         return Button {
             HapticsEngine.lightTap()
-            watching = Watching(people: [me], start: me.profileID)
+            Self.still { watching = Watching(people: [me], start: me.profileID) }
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 StoryCrest(story: me, side: Self.side + Self.inset * 2, seen: store.storiesSeen) {
@@ -430,6 +445,7 @@ struct TodayHeads: View {
                 } picture: {
                     StoryBubble(story: me, side: Self.storyFace)
                 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rings[store.me] = $0 }
                 // Whole, never "Your St...": the one name in the row that is
                 // two words, so its column is as wide as the words.
                 Text("Your Story")
