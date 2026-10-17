@@ -60,6 +60,10 @@ private struct NotificationLanding: ViewModifier {
         case .wins: selectedTab = .tower
         case .memories, .memoriesDay, .replay: selectedTab = .memories
         case .crew: break
+        case .stories:
+            selectedTab = .crews
+            CrewRouter.shared.opensList = true
+            CrewRouter.shared.openStories = true
         }
         router.pending = nil
     }

@@ -46,6 +46,9 @@ struct TodayHeads: View {
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The one line a cheer says.
+    static let cheer = "Rooting for you today."
+
     struct Watching: Identifiable {
         let people: [StoryPerson]
         let start: UUID
@@ -153,6 +156,14 @@ struct TodayHeads: View {
                     try? await Task.sleep(for: .seconds(60 - Double(Calendar.current.component(.second, from: Date()))))
                     minute &+= 1
                 }
+            }
+            // The 8pm cue, tapped: tonight's stories, from the first unwatched.
+            .onChange(of: CrewRouter.shared.openStories, initial: true) { _, opens in
+                guard opens else { return }
+                CrewRouter.shared.openStories = false
+                let open = store.storyPeople().filter { $0.phase == .open && $0.profileID != store.me }
+                guard let first = open.first(where: { !$0.watched }) ?? open.first else { return }
+                watching = Watching(people: open, start: first.id)
             }
             .task(id: night) {
                 guard let night, unlockedNight != night else { return }
@@ -326,6 +337,22 @@ struct TodayHeads: View {
                         CrewRouter.shared.open = crew.id
                     }
                 } label: { Label("Message", systemImage: "bubble.left") }
+                // **A cheer for a friend with no win yet** (the owner's pick,
+                // 2026-10-16): one private line from you, never from the app,
+                // into your conversation with them.
+                if !logged {
+                    Button {
+                        let friend = person.member.profileID
+                        HapticsEngine.success()
+                        // Sent once its Undo has passed, as a deleted line goes.
+                        UndoLine.shared.show("Cheering on \(name)", undo: {}, expire: {
+                            Task {
+                                guard let crew = await SocialStore.shared.startPersonal(with: friend) else { return }
+                                await SocialStore.shared.send(Self.cheer, in: crew.id)
+                            }
+                        })
+                    } label: { Label("Send a Cheer", systemImage: "hands.clap") }
+                }
             }
         } preview: {
             VStack(spacing: GridConstants.gapTight) {

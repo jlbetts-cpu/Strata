@@ -14,6 +14,11 @@ struct EveningCheckInTests {
         EveningCheckIn.when(winsToday: wins, firstWin: first, now: now, morningHour: 8, morningMinute: 0, cueSeenToday: seen)
     }
 
+    @Test("the 8pm stories cue opens tonight's stories")
+    func storiesCueRoutes() {
+        #expect(NotificationRoute.of(identifier: NotificationRoute.Prefix.stories + "2026-10-16", userInfo: [:]) == .stories)
+    }
+
     @Test("a day with one or two wins, logged before the morning reminder, is asked at 7pm")
     func asks() {
         #expect(when(1, first: at(7, 30), now: at(12)) == at(19))

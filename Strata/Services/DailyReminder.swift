@@ -231,7 +231,8 @@ nonisolated enum EveningCheckIn {
     static func update(context: ModelContext, now: Date = Date()) async {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [identifier(for: now)])
+        center.removePendingNotificationRequests(withIdentifiers: [identifier(for: now),
+                                                                    NotificationRoute.Prefix.stories + DateUtils.dateString(from: now)])
         guard defaults.bool(forKey: "notificationsEnabled") else {
             // Taken back above, so nothing is scheduled: not "delivered".
             defaults.removeObject(forKey: scheduledKey)
@@ -260,7 +261,27 @@ nonisolated enum EveningCheckIn {
             ? storyEvening(now: now, friendHasStory: SocialStore.shared.storyPeople(at: now).contains { $0.phase == .waiting })
                 .map { (at: $0, line: storiesLine) }
             : nil
-        let crew = stories ?? crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
+        // **On a story night, everyone hears it, and it opens the stories**
+        // (the owner, 2026-10-16, his pick: "Everyone, opens stories"). It
+        // was gated like the 7pm question, so the friends with the most time
+        // to cheer, done for the day or with nothing logged, never got it,
+        // and a tap opened Wins. Still the day's ONE cue.
+        if let stories {
+            let settings = await center.notificationSettings()
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+            let content = UNMutableNotificationContent()
+            content.title = storiesLine
+            content.body = "See how your friends' days went."
+            content.sound = .default
+            content.threadIdentifier = NotificationRoute.Thread.daily
+            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: stories.at)
+            try? await center.add(UNNotificationRequest(
+                identifier: NotificationRoute.Prefix.stories + today, content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+            defaults.set(["day": today, "at": stories.at.timeIntervalSince1970], forKey: scheduledKey)
+            return
+        }
+        let crew = crewEvening(now: now, today: today, defaults: defaults).flatMap { $0.at > now ? $0 : nil }
         guard let at = when(winsToday: logs.count, firstWin: logs.compactMap(\.completedAt).min(), now: now,
                             morningHour: hour, morningMinute: minute,
                             cueSeenToday: defaults.string(forKey: WinCue.defaultsKey) == today,

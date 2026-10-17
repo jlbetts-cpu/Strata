@@ -30,6 +30,8 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
     /// Memories, with that replay playing. `kind` is "week" or "month" and
     /// `firstDay` its first day's key, which is how `ReplayPeriod.id` spells it.
     case replay(kind: String, firstDay: String)
+    /// Crews, with tonight's stories playing (the 8pm cue on a story night).
+    case stories
 
     /// The `userInfo` key for the past win's day.
     static let dayKey = "day"
@@ -54,6 +56,7 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
             guard kind == "week" || kind == "month", first.count == 10 else { return .memories }
             return .replay(kind: kind, firstDay: first)
         }
+        if identifier.hasPrefix(Prefix.stories) { return .stories }
         if identifier.hasPrefix(Prefix.daily) || identifier == Prefix.dailyLegacy
             || identifier.hasPrefix(Prefix.evening) { return .wins }
         return nil
@@ -66,6 +69,7 @@ nonisolated enum NotificationRoute: Equatable, Sendable {
     enum Prefix {
         static let daily = "strata.reminder."
         static let evening = "strata.evening."
+        static let stories = "strata.stories."
         static let dailyLegacy = "strata.daily.reminder"
         static let pastWin = "strata.pastwin."
         static let replay = "strata.replay."
