@@ -4,6 +4,9 @@ import SwiftData
 /// One day, opened: the tower you built that day, and the photographs on it.
 struct DayAlbumDetailView: View {
     let route: DayRoute
+    /// The page on screen holds the bar: in `DayPager` each day is a page,
+    /// and every page's own back and journal stacked into one bar.
+    var hostsBar = true
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -123,7 +126,7 @@ struct DayAlbumDetailView: View {
         // "the dates in the previous day would like it to be cleaner maybe in
         // the middle on the header to stay consistent"). It was a large title
         // on the left with a count under it; the tower counts itself.
-        .sheetTitle(DayTitle.twoTone(forKey: route.dateString), drawn: false)
+        .applying(hostsBar) { $0.sheetTitle(DayTitle.twoTone(forKey: route.dateString), drawn: false) }
         // **The bar gets a ground**, the same line and for the same reason as
         // `PhotoCollectionView`, which is the other page off the same shelf.
         //
@@ -143,10 +146,10 @@ struct DayAlbumDetailView: View {
         // (Memories, then a day): the top-right corner opens that day's
         // note, with the same icon rule"). The same button as beside the
         // Plan on Wins, with the same glyph (`JournalIcon`).
-        .toolbar { JournalToolbarItem(dateString: route.dateString) }
+        .applying(hostsBar) { $0.toolbar { JournalToolbarItem(dateString: route.dateString) } }
         // Back in the same glass as the journal beside it, one style per
         // bar (the cohesion pass, 2026-10-05). See `GlassBackButton`.
-        .glassBackButton()
+        .applying(hostsBar) { $0.glassBackButton() }
         .task { reload() }
         .onChange(of: SocialStore.reactionsForMyTower) { reload() }
         .fullScreenCover(item: Binding(

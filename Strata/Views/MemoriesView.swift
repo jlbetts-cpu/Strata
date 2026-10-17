@@ -490,7 +490,8 @@ struct MemoriesView: View {
                     // at a cell that had moved under the new top row and the
                     // page went off the screen sideways (the owner: "it
                     // transitions off the screen weird").
-                    DayAlbumDetailView(route: DayRoute(dateString: key))
+                    // Paged through its month (the launch pass, 1: `DayPager`).
+                    DayPager(start: key)
                 case .place(let key):
                     PhotoCollectionView(source: .place(key))
                 case .curated(let key):

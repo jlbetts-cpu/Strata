@@ -2340,10 +2340,21 @@ final class FeedbackShots: XCTestCase {
         app.swipeUp(velocity: .slow); wait(1); snap("mem-2")
         app.swipeUp(velocity: .slow); wait(1); snap("mem-3")
         app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast); wait(1)
-        let day = app.buttons.matching(NSPredicate(format: "label CONTAINS 'October 1'")).firstMatch
-        print("PLANNING-mem day \(day.exists) \(day.exists ? day.label : "")")
-        if day.exists { day.tap() }
+        let days = app.buttons.allElementsBoundByIndex.filter { $0.label.contains("October") && $0.label.contains("win") }
+        print("PLANNING-mem days \(days.prefix(3).map(\.label))")
+        if let day = days.dropFirst(3).first { day.tap() }
         wait(2); snap("mem-4-day")
+        app.swipeLeft(); wait(1.5); snap("mem-5-next-day")
+        app.swipeRight(); app.swipeRight(); wait(1.5); snap("mem-6-earlier-day")
+    }
+
+    /// A day, paged through its month (the launch pass, 1).
+    func testDayPager() {
+        let app = launch(["-strataStartTab", "memories", "-strataSeedHistory", "20", "-strataSeedAllPhotos", "1",
+                          "-strataOpenDay", "3"])
+        wait(8); snap("pager-0-day")
+        app.swipeLeft(); wait(1.5); snap("pager-1-next")
+        app.swipeRight(); app.swipeRight(); wait(1.5); snap("pager-2-before")
     }
 
     /// The black bar over the camera and the way back (2026-10-16 prototype).

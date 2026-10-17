@@ -187,11 +187,16 @@ struct PhotoCollectionView: View {
     /// `DayAlbumDetailView.header`'s shape: the screen title, and a count
     /// under it.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // A place name: the owner's face only when it covers every
-            // letter and fits (`DynamicScreenTitle`), SF otherwise.
-            DynamicScreenTitle(text: title)
+        // **Centred and quiet, as every page's title is now** (the owner's
+        // launch pass, 1: "album headers still have the huge text. Change them
+        // to the clean, centered title the rest of the app now uses").
+        VStack(alignment: .center, spacing: 2) {
+            Text(title)
+                .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
             // **The count is a readout, and it is `CountReadout` now.** It was
             // "line for line the way `DayAlbumDetailView` sets its own" — two
             // copies of six lines, each with the other's name in its comment,
@@ -238,6 +243,7 @@ struct PhotoCollectionView: View {
             .opacity(sections.isEmpty || titleIsCount ? 0 : 1)
             .accessibilityHidden(sections.isEmpty || titleIsCount)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
 
