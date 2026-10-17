@@ -25,6 +25,8 @@ struct ChatPictureViewerTests {
         // `KeepFriendsPhotos`, off). Never shared on from here.
         #expect(!friendPart.contains("ShareLink(") && !friendPart.contains("save()"), "a friend's picture can leave the app")
         #expect(friendPart.contains("if KeepFriendsPhotos.on { keepButtons }"), "keeping a friend's photo is not behind the switch")
+        // And never as your win (the second reader): Add to My Tower is yours alone.
+        #expect(viewer.contains("if mine, let onAddWin, let image, !message.isStrip {"), "a friend's photo can become your win")
         #expect(friendPart.contains("\"Report\""))
         #expect(!viewer.contains(".shadow("))
 

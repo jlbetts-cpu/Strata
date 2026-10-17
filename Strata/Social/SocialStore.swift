@@ -2683,8 +2683,12 @@ final class SocialStore {
             let ended = (messagesByCrew[crew.id] ?? []).filter(gone)
             if !ended.isEmpty {
                 messagesByCrew[crew.id]?.removeAll(where: gone)
-                for message in ended where message.senderProfileID == me {
+                for message in ended {
+                    // Every picture leaves this phone with its line (the second
+                    // reader: a friend's expired photo stayed on disk); only
+                    // the writer may delete the record in the cloud.
                     if let sketch = message.sketch { try? FileManager.default.removeItem(at: sketch) }
+                    guard message.senderProfileID == me else { continue }
                     enqueue(.init(crew: crew.id, type: .message, name: CrewRecords.name(of: message), fields: nil))
                 }
             }

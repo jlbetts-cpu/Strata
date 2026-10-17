@@ -496,8 +496,11 @@ struct CrewChatSheet: View {
             }
         }
         .sheet(isPresented: $addingWin) {
+            // A kept chat photo goes on your tower only (the second reader,
+            // 2026-10-17: it posted to this crew, or in a conversation to the
+            // two of you as a win, with nothing on screen naming it).
             AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,
-                        initialCrews: [crewID],
+                        initialCrews: addingWinPhoto == nil ? [crewID] : [],
                         onSaved: { habit in sayWin(habit) })
                 .onDisappear { addingWinPhoto = nil }
         }
@@ -1626,8 +1629,12 @@ struct CrewChatSheet: View {
         sendingPhoto = true
         Task {
             defer { sendingPhoto = false }
-            guard let data = image.jpegData(compressionQuality: 0.9),
-                  let jpeg = ShareDerivative.jpeg(from: data) else { pictureRefused = true; return }
+            // Encoded off the main thread: a full camera frame (the reader).
+            let encoded = await Task.detached(priority: .userInitiated) { () -> Data? in
+                guard let data = image.jpegData(compressionQuality: 0.9) else { return nil }
+                return ShareDerivative.jpeg(from: data)
+            }.value
+            guard let jpeg = encoded else { pictureRefused = true; return }
             switch await store.sendPicture(jpeg, caption: "", in: crewID) {
             case .refusedSketch, .notAllowed, .refusedWords: pictureRefused = true
             case let other: answer(other)

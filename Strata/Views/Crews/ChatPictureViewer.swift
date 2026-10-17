@@ -151,7 +151,9 @@ struct ChatPictureViewer: View {
                   systemImage: saved ? "checkmark" : "square.and.arrow.down")
         }
         .disabled(image == nil || saving || saved)
-        if let onAddWin, let image, !message.isStrip {
+        // Your own only: a friend's photo never becomes your win, which
+        // could carry it to people they never sent it to.
+        if mine, let onAddWin, let image, !message.isStrip {
             Button { onAddWin(image) } label: {
                 Label("Add to My Tower", systemImage: "square.stack.3d.up")
             }

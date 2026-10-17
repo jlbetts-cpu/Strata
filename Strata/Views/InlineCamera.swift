@@ -320,6 +320,13 @@ struct InlineCameraCard: View {
             .offset(x: -geo.safeAreaInsets.leading, y: -geo.safeAreaInsets.top)
         }
         .onAppear(perform: arrive)
+        // **Gone without folding away** (a tab changed, the chat closed: the
+        // second reader, 2026-10-17): nothing keeps running behind it.
+        .onDisappear {
+            countdownTask?.cancel()
+            camera.stop()
+            LocationService.shared.stop()
+        }
         // **The volume buttons and Camera Control take the shot**, as every
         // camera on the phone, the Camera tab's included (`docs/camera.md`).
         .onCameraCaptureEvent(isEnabled: mode == .lens && open && !closing) { event in
@@ -626,7 +633,7 @@ struct InlineCameraCard: View {
         HapticsEngine.lightTap()
         withAnimation(GridConstants.shutterPress) { shutterScale = 0.86 }
         withAnimation(GridConstants.shutterRelease.delay(0.08)) { shutterScale = 1 }
-        place = LocationService.shared.place()
+        place = purpose == .win ? LocationService.shared.place() : nil
         let lit = camera.facing == .front && camera.flash == .on
         Task { @MainActor in
             if lit {
@@ -1028,7 +1035,8 @@ struct InlineCameraCard: View {
                 // Asked just now, and refused: words, with the way back on.
                 if camera.isDenied { toWords() }
                 try? await Task.sleep(for: .milliseconds(400))
-                if !closing { LocationService.shared.start() }
+                // A chat's photo carries no place: no location for it.
+                if !closing, purpose == .win { LocationService.shared.start() }
             }
         } else {
             naming = true

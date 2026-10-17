@@ -336,13 +336,14 @@ struct PlanLines: View {
 
     /// The empty plan's one line, for the day on the page.
     /// The quiet line under a plan line: when, and how often.
-    static func subtitle(for item: PlanItem, calendar: Calendar) -> String? {
+    static func subtitle(for item: PlanItem, calendar: Calendar, today: Bool = true) -> String? {
         // A plan shared with a crew says so (the one planner, 2026-10-16).
         let store = SocialStore.shared
         let shared = CrewsFlag.isOn ? GroupPlanBook.crew(forPlanItem: item.id).flatMap { store.crew($0) } : nil
         let crew = shared.map { "With \($0.displayName(excluding: store.me))" }
         // And who in it has done it today (2026-10-17): their part, ticked.
-        let done = shared.map { store.didToday(PlanTime.title(item.text), in: $0.id) } ?? []
+        // Today's page only: another day's line is not done today (the reader).
+        let done = today ? (shared.map { store.didToday(PlanTime.title(item.text), in: $0.id) } ?? []) : []
         let doneWords = done.isEmpty ? nil : store.names(done, in: shared!.id) + " did it"
         let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar), crew, doneWords].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -474,7 +475,7 @@ struct PlanLines: View {
                 )
                 // Its time, if the words say one ("Gym @ 2" reads back as
                 // "2 PM"), then the days it repeats on.
-                if let summary = Self.subtitle(for: item, calendar: calendar) {
+                if let summary = Self.subtitle(for: item, calendar: calendar, today: scope == .day(0)) {
                     // **`screenSubtitle`, 15 Medium, and it was 13 Regular**
                     // (2026-10-01, the type pass). A repeat summary is the
                     // quiet line under a line you wrote, and the quiet is the
