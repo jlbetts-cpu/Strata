@@ -836,7 +836,8 @@ struct InlineCameraCard: View {
                 withAnimation(GridConstants.motionSnappy) { choosingLook.toggle() }
             }
             toolGlyph("pencil.tip", label: "Draw", on: marks != nil) { marking = .pen }
-            toolGlyph("sparkles", label: "Stickers", on: false) { marking = .stickers }
+            // No Stickers of its own (the owner, 2026-10-18: "stickers
+            // already live inside doodle"): Draw has them.
             if HeadStore.shared.head != nil {
                 toolGlyph("face.smiling", label: sticker == nil ? "Add your head" : "Take your head off", on: sticker != nil) {
                     withAnimation(GridConstants.motionSnappy) {

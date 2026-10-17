@@ -267,7 +267,6 @@ struct FriendProfileSheet: View {
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }
-                if embedded { betweenYou }
                 // Their featured wins, as on your own profile: only ones
                 // they sent you, only photographs the check lets show.
                 ForEach(theirFeatured, id: \.win.winID) { item in
@@ -326,30 +325,6 @@ struct FriendProfileSheet: View {
             out.append(InfoCard.Fact(icon: "sparkles", text: "On tonight's story"))
         }
         return out
-    }
-
-    // MARK: Between you two
-
-    /// Cheers traded and things you both did (`BetweenYou`), on the page you
-    /// talk to them on. Nothing at all when there is nothing yet.
-    @ViewBuilder
-    private var betweenYou: some View {
-        let shared = together
-        let moments = BetweenYou.moments(me: store.me, friend: member.profileID, name: name,
-                                         wins: shared.flatMap { store.wins(in: $0.id) },
-                                         reactions: shared.flatMap { store.reactionsByCrew[$0.id] ?? [] })
-        if !moments.isEmpty {
-            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                Text("Between you two")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .padding(.horizontal, GridConstants.gapItem)
-                    .accessibilityAddTraits(.isHeader)
-                InfoCard(rows: moments.map { moment in
-                    InfoCard.Fact(icon: moment.kind == .bothDid ? "figure.2" : "heart", text: moment.words)
-                }, contained: true)
-            }
-        }
     }
 
     // MARK: Their photos
