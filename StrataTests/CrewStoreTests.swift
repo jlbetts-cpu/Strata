@@ -451,6 +451,28 @@ extension CrewStoreTests {
         #expect(pad.storiesSeen.contains(story))
     }
 
+    /// The second reader, 2026-10-17: the three-day prune ran on one phone's
+    /// copy and the merge put every old entry back, so iCloud's shared table
+    /// only grew. An old entry in iCloud is gone after either phone looks.
+    @Test func oldWatchedStoriesLeaveICloudToo() {
+        let icloud = MemoryKeyValueCloud()
+        let (phone, _, _) = store(jayden)
+        phone.choicesCloud = icloud
+        let table = CrewChoicesSync.Table.storiesSeen.rawValue
+        let stale = UUID().uuidString
+        let fresh = UUID().uuidString
+        let now = Date().timeIntervalSince1970
+        icloud.set([stale: CrewChoicesSync.entry(1, at: now - 5 * 86_400),
+                    fresh: CrewChoicesSync.entry(1, at: now - 60)], forKey: table)
+        phone.pullChoices()
+        let after = icloud.dictionary(forKey: table) as? CrewChoicesSync.Entries ?? [:]
+        #expect(after[stale] == nil, "a five-day-old watch stayed in iCloud")
+        #expect(after[fresh] != nil, "a fresh watch was pruned")
+        phone.markStorySeen(UUID())
+        let later = icloud.dictionary(forKey: table) as? CrewChoicesSync.Entries ?? [:]
+        #expect(later[stale] == nil && later.count == 2)
+    }
+
     @Test func aBlockOnOnePhoneReachesTheOther() {
         let (phone, pad) = twoPhones()
         phone.block(sam, name: "Sam")

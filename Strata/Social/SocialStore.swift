@@ -3189,16 +3189,23 @@ final class SocialStore {
     private func note(_ table: CrewChoicesSync.Table, _ key: String, _ value: Double, name: String? = nil) {
         var mine = entries(table)
         mine[key] = CrewChoicesSync.entry(value, at: now().timeIntervalSince1970, name: name)
-        // A night's watching is kept three days, then let go: the table
-        // stays small however many stories are watched.
-        if table == .storiesSeen {
-            let old = now().timeIntervalSince1970 - 3 * 86_400
-            mine = mine.filter { CrewChoicesSync.stamp($0.value) >= old }
-        }
+        mine = pruned(table, mine)
         defaults.set(mine, forKey: table.rawValue)
         guard let choicesCloud else { return }
         let remote = choicesCloud.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
-        choicesCloud.set(CrewChoicesSync.merge(mine, remote), forKey: table.rawValue)
+        choicesCloud.set(pruned(table, CrewChoicesSync.merge(mine, remote)), forKey: table.rawValue)
+    }
+
+    /// **A night's watching is kept three days, then let go, everywhere.**
+    /// The prune used to run on this phone's copy only, and the merge with
+    /// iCloud put every old entry straight back, so the shared table only
+    /// grew (the second reader, 2026-10-17). It shares iCloud's one megabyte
+    /// with blocks and mutes; full, a block made on one phone would stop
+    /// reaching the other. So the merged table is pruned too, both ways.
+    private func pruned(_ table: CrewChoicesSync.Table, _ entries: CrewChoicesSync.Entries) -> CrewChoicesSync.Entries {
+        guard table == .storiesSeen else { return entries }
+        let old = now().timeIntervalSince1970 - 3 * 86_400
+        return entries.filter { CrewChoicesSync.stamp($0.value) >= old }
     }
 
     /// What your other phones chose, merged with this one's, newest first,
@@ -3207,9 +3214,10 @@ final class SocialStore {
         adoptChoicesMadeBeforeSync()
         for table in CrewChoicesSync.Table.allCases {
             let remote = choicesCloud?.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
-            let merged = CrewChoicesSync.merge(entries(table), remote)
+            let merged = pruned(table, CrewChoicesSync.merge(entries(table), remote))
             defaults.set(merged, forKey: table.rawValue)
-            if let choicesCloud, CrewChoicesSync.isAhead(merged, of: remote) {
+            // Ahead of iCloud, or smaller than it (a prune): either way, sent.
+            if let choicesCloud, CrewChoicesSync.isAhead(merged, of: remote) || merged.count < remote.count {
                 choicesCloud.set(merged, forKey: table.rawValue)
             }
             apply(table, merged)
