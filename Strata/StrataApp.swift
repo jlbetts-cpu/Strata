@@ -33,6 +33,8 @@ struct StrataApp: App {
     @State private var storeOpening: StoreOpening
 
     init() {
+        // Day keys follow the phone's zone after a flight (`DateUtils`).
+        DateUtils.followZoneChanges()
         // Before the first view is built, so a launch with Reduce Motion on
         // never runs one spring. `ReduceMotionSync` keeps it current after.
         GridConstants.reducedMotion = UIAccessibility.isReduceMotionEnabled

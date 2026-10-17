@@ -205,6 +205,7 @@ final class StoreSyncStatus {
         // lands, so after the import there are two. See `StoreDedupe`.
         if type == .import, moment.succeeded {
             StoreDedupe.mergeDuplicateTowers(in: SharedModelContainer.shared.mainContext)
+            StoreDedupe.mergeDuplicateWins(in: SharedModelContainer.shared.mainContext)
             // **And photographs may have come down with it** (2026-10-08): an
             // iCloud copy is a row until `PhotoSync` writes it out as a file.
             PhotoSync.shared.storeImported()

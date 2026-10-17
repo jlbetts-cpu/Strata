@@ -105,6 +105,45 @@ enum StoreDedupe {
         return strays.count
     }
 
+    /// **One win, one row** (the launch pass's rare-bug hunt, 2026-10-16). A
+    /// backup restored while iCloud was still bringing the same wins down
+    /// kept their ids, and the import then landed them again beside it: every
+    /// win twice, on every device, for good. Rows with the same id are the
+    /// same win, so they are merged: a kind of win keeps every log of its
+    /// twins, and a win keeps the twin that has the most of it (a photo, a
+    /// doodle, a note). Nothing is touched when there are no twins.
+    @discardableResult
+    static func mergeDuplicateWins(in context: ModelContext) -> Int {
+        guard let habits = try? context.fetch(FetchDescriptor<Habit>()),
+              let logs = try? context.fetch(FetchDescriptor<HabitLog>()) else { return 0 }
+        var merged = 0
+        for (_, twins) in Dictionary(grouping: habits, by: \.id) where twins.count > 1 {
+            let keep = twins.min { ($0.logs?.count ?? 0) > ($1.logs?.count ?? 0) } ?? twins[0]
+            for other in twins where other !== keep {
+                for log in other.logs ?? [] { log.habit = keep }
+                context.delete(other)
+                merged += 1
+            }
+        }
+        func weight(_ log: HabitLog) -> Int {
+            (log.imageFileName != nil ? 4 : 0) + (log.doodleFileName != nil ? 2 : 0) + (log.completed ? 1 : 0)
+        }
+        for (_, twins) in Dictionary(grouping: logs, by: \.id) where twins.count > 1 {
+            let keep = twins.max { weight($0) < weight($1) } ?? twins[0]
+            for other in twins where other !== keep {
+                context.delete(other)
+                merged += 1
+            }
+        }
+        guard merged > 0 else { return 0 }
+        do { try context.save() } catch {
+            logger.error("could not save merged wins: \(String(describing: error), privacy: .private)")
+            return 0
+        }
+        logger.log("merged \(merged, privacy: .public) duplicate rows")
+        return merged
+    }
+
     /// The tower every device agrees on: the oldest, with the lower id breaking
     /// a tie.
     ///

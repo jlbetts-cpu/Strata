@@ -29,6 +29,22 @@ struct DateKeyTests {
         return g.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 12))!
     }
 
+    @Test("a day key follows the phone's zone as it changes (a flight with the app suspended)")
+    func followsZoneChange() {
+        let saved = NSTimeZone.default
+        defer { NSTimeZone.default = saved }
+        // 2026-10-17 05:30 UTC: still the 16th in Los Angeles, the 17th in New York... and the 17th in Tokyo.
+        let moment = Date(timeIntervalSince1970: 1_792_215_000)
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+        let west = DateUtils.dateString(from: moment)
+        NSTimeZone.default = TimeZone(identifier: "Asia/Tokyo")!
+        let east = DateUtils.dateString(from: moment)
+        #expect(west != east)
+        #expect(DateUtils.date(from: east).map(DateUtils.dateString(from:)) == east)
+        #expect(DateUtils.date(from: "2026-02-30") == nil)
+        #expect(DateUtils.date(from: "26-10-16") == nil)
+    }
+
     @Test("the key formatter is Gregorian and POSIX whatever the phone says")
     func theFormatterIsFixed() {
         let f = DateUtils.keyFormatter("yyyy-MM-dd")

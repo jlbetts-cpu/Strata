@@ -234,11 +234,19 @@ final class SocialStore {
             return
         case .signedIn(let who):
             defaults.set(who, forKey: Self.accountKey)
+            // Back after signing out: what this phone kept for this account
+            // comes back with it.
+            if was == nil { takeBackSetAside(for: who) }
             // First seen (a phone updated from before this was kept): the
             // crews on it are this account's.
             guard let was, was != who else { return }
         case .signedOut:
             defaults.removeObject(forKey: Self.accountKey)
+            // **Kept aside, not deleted** (the rare-bug hunt, 2026-10-16):
+            // the crews' day counts are kept on this phone for good, and the
+            // cloud holds two weeks; signing out and back in reset every
+            // streak and dropped every line written offline.
+            if let was { setAside(for: was) }
         }
         cloud.reset()
         // **Another account's username is not this one's** (the username
@@ -261,6 +269,54 @@ final class SocialStore {
         sent = [:]
         try? FileManager.default.removeItem(at: directory)
         await refresh()
+    }
+
+    /// Where an account's crew history and unsent lines wait while it is
+    /// signed out of this phone.
+    private func asideFolder(for account: String) -> URL {
+        let safe = account.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "_" }
+        return directory.deletingLastPathComponent().appending(path: "crews-kept-\(String(String.UnicodeScalarView(safe)))")
+    }
+
+    private func setAside(for account: String) {
+        let aside = asideFolder(for: account)
+        try? FileManager.default.createDirectory(at: aside, withIntermediateDirectories: true)
+        // The history as this phone holds it now, whatever reached the disk.
+        let keyed = Dictionary(uniqueKeysWithValues: history.map { ($0.key.rawValue, $0.value) })
+        if !keyed.isEmpty { try? JSONEncoder().encode(keyed).write(to: aside.appending(path: "history.json"), options: .atomic) }
+        history = [:]
+        for name in ["outbox.json"] {
+            let from = directory.appending(path: name), to = aside.appending(path: name)
+            guard FileManager.default.fileExists(atPath: from.path) else { continue }
+            try? FileManager.default.removeItem(at: to)
+            try? FileManager.default.copyItem(at: from, to: to)
+        }
+    }
+
+    private func takeBackSetAside(for account: String) {
+        let aside = asideFolder(for: account)
+        guard FileManager.default.fileExists(atPath: aside.path) else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if let data = try? Data(contentsOf: aside.appending(path: "history.json")),
+           let kept = try? JSONDecoder().decode([String: CrewHistory].self, from: data) {
+            // Merged under what has been counted since: a day this phone
+            // knows again is its newer count, the rest come back.
+            var next = history
+            for (key, old) in kept {
+                let id = CrewID(rawValue: key)
+                var merged = next[id] ?? old
+                for (day, counts) in old.days where merged.days[day] == nil { merged.days[day] = counts }
+                next[id] = merged
+            }
+            history = next
+            let keyed = Dictionary(uniqueKeysWithValues: next.map { ($0.key.rawValue, $0.value) })
+            try? JSONEncoder().encode(keyed).write(to: directory.appending(path: "history.json"), options: .atomic)
+        }
+        if outbox.entries.isEmpty {
+            let kept = CrewOutbox.load(from: aside.appending(path: "outbox.json"))
+            if !kept.entries.isEmpty { outbox = kept; persistOutbox() }
+        }
+        try? FileManager.default.removeItem(at: aside)
     }
 
     init(cloud: CrewCloud, defaults: UserDefaults, directory: URL) {

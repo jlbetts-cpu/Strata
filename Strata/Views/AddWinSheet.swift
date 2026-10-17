@@ -2433,6 +2433,14 @@ struct AddWinSheet: View {
         // already gone is the shape of the bug that left Reset All Data
         // deleting pictures and keeping wins; here the files only ever go
         // after the rows did.
+        // **Where it was shared, kept for Undo** (the rare-bug hunt,
+        // 2026-10-16): deleting takes it out of every crew and off the story,
+        // and Undo only put it back on your tower. As the viewer's delete
+        // does, Undo now sends it back where it was.
+        let social = SocialStore.shared
+        let shared: [(id: UUID, crews: Set<CrewID>, story: Bool)] = (habit.logs ?? []).map {
+            ($0.id, social.crews(holding: $0.id), social.isOnStory($0.id))
+        }
         let pending: WinDeletion.Pending
         do {
             pending = try WinDeletion.delete(habit, in: modelContext)
@@ -2444,8 +2452,19 @@ struct AddWinSheet: View {
         }
         HapticsEngine.tick()
         let changed = onDeleted
+        let context = modelContext
         UndoLine.shared.show("Win deleted",
-                             undo: { pending.undo(); changed() },
+                             undo: {
+                                 pending.undo()
+                                 for item in shared where !item.crews.isEmpty || item.story {
+                                     let id = item.id
+                                     guard let back = try? context.fetch(FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == id })).first
+                                     else { continue }
+                                     if !item.crews.isEmpty { CrewSync.post(back, to: item.crews) }
+                                     if item.story { CrewSync.setStory(back, on: true) }
+                                 }
+                                 changed()
+                             },
                              expire: pending.finish)
         onDeleted()
         dismiss()

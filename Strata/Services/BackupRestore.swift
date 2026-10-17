@@ -400,6 +400,9 @@ enum BackupRestore {
 
         var daysAdded = Set<String>()
         for (exported, target) in plan.logsToAdd {
+            // Here since the plan was made (an iCloud import landing while
+            // the confirm screen was open): never added twice.
+            if let id = exported.id, logsByID[id] != nil { continue }
             let habit: Habit?
             switch target {
             case .existing(let id): habit = habitsByID[id]

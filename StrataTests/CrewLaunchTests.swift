@@ -52,6 +52,26 @@ struct CrewLaunchTests {
         #expect(other.crews.isEmpty)
     }
 
+    @Test("signing out and back in keeps the crews' history this phone counted")
+    func historySurvivesSignOut() async throws {
+        let world = FakeCrewWorld()
+        let suite = "launch-\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appending(path: suite).appending(path: "crews")
+        let cloud = FakeCrewCloud(world: world, me: UUID())
+        let store = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        store.isEnabled = { true }
+        let (crew, _) = try await store.createCrew(name: "Roommates")
+        await store.refresh()
+        var history = CrewHistory()
+        history.days["2026-09-01"] = [UUID().uuidString: 2]
+        store.debugSetHistory(history, for: crew.id)
+        cloud.signedIn = .signedOut
+        await store.accountChanged()
+        cloud.signedIn = .signedIn("fake-account")
+        await store.accountChanged()
+        #expect(store.history[crew.id]?.days["2026-09-01"] != nil)
+    }
+
     @Test("a phone that never saw an account shows nothing from the cache")
     func noAccountNoSeed() async throws {
         let world = FakeCrewWorld()
