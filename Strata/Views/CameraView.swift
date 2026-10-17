@@ -120,8 +120,6 @@ struct CameraView: View {
     static let drawCueKey = "camera.drawCueShown"
     static let drawTaughtKey = "camera.drawTaught"
     @State private var shutterDown = false
-    /// The rest that chooses a drawn size (`HoldLock`), as on the tower.
-    @State private var shutterLock = HoldLock()
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
     @State private var focusPoint: CGPoint?
@@ -1847,7 +1845,7 @@ struct CameraView: View {
         // One control, drawn in one place. See `ShutterBlock`: this and the
         // head maker's were two copies of the same rim and block, and the
         // audit improved one of them and left them disagreeing.
-        let block = ShutterBlock(size: drawnSize, lit: true, scale: shutterScale, fill: shutterLock.fill)
+        let block = ShutterBlock(size: drawnSize, lit: true, scale: shutterScale)
         return block
         .animation(GridConstants.slotSnap, value: drawnSize)
         // **THE ONE PIECE OF CHROME HERE THAT HAD NO ANSWER FOR A WHITE WALL.**
@@ -1912,56 +1910,38 @@ struct CameraView: View {
     }
 
     /// Press, and pull to draw the block out: the tower's gesture, on the
-    /// camera's button, **with the tower's rule** (`HoldLock`, the owner,
-    /// 2026-10-16: "nothing happens by accident").
+    /// camera's button. **A plain drag, no rest to lock** (the owner,
+    /// 2026-10-17: "Hold-to-commit was right for blocks on the tower ... On
+    /// the camera shutter it just makes the motion slow, because you're
+    /// already holding it down"). Let go and it shoots at the size drawn.
     ///
-    /// A tap is the ordinary shot, at once, and the only thing that respects
-    /// the timer's cancel. A bigger size is chosen by resting on it until the
-    /// rim fills; let go before that and it springs back to one cell and
-    /// nothing is taken. A wobble that never left one cell is still a tap,
-    /// because a one-cell shot is what a tap takes anyway.
-    ///
-    /// No arm here, unlike the slot: nothing under the shutter scrolls, so a
-    /// finger that moves is drawing.
+    /// A tap is the ordinary shot. Every release goes through the same door,
+    /// `shutterPressed`, so the timer and the flash hold for a drawn size
+    /// exactly as for a tap (the owner: "with the timer on, even if you
+    /// resize the win the timer should still go").
     private var draw: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !shutterDown {
                     shutterDown = true
                     HapticsEngine.tick()
-                    shutterLock.begin(at: value.location)
                 }
                 guard !reduceMotion else { return }
                 let (lateral, up) = BlockSizeDraw.axes(translation: value.translation)
                 let next = BlockSizeDraw.size(lateral: lateral, up: up, from: drawnSize)
-                guard next != drawnSize else {
-                    shutterLock.moved(to: value.location, sizeChanged: false)
-                    return
-                }
-                // A soft tick on every crossing: looking, not choosing.
-                HapticsEngine.tick()
+                guard next != drawnSize else { return }
+                // A haptic on every crossing, in both directions.
+                HapticsEngine.snap()
                 withAnimation(GridConstants.slotSnap) { drawnSize = next }
-                shutterLock.moved(to: value.location, sizeChanged: true)
             }
             .onEnded { value in
                 // A gesture that never began cannot take a photograph.
-                // `minimumDistance: 0` can deliver `onEnded` with no matching
-                // `onChanged` when the view rebuilds under a touch.
                 guard shutterDown else { return }
                 shutterDown = false
-                let locked = shutterLock.end()
-                // **Every release that shoots goes through the same door**,
-                // `shutterPressed`, so the timer and the flash hold for a
-                // drawn size exactly as for a tap (the owner: "with the timer
-                // on, even if you resize the win the timer should still go").
                 let moved = hypot(value.translation.width, value.translation.height) > 6
-                if drawnSize != .small, !locked {
-                    // Drawn and let go before the rim filled: back to one
-                    // cell, nothing taken, nothing to undo.
-                    withAnimation(GridConstants.slotSnap) { drawnSize = .small }
-                } else if moved, countdownTask != nil {
+                if moved, countdownTask != nil {
                     // Drawing while a countdown runs re-sizes the shot in
-                    // flight rather than cancelling it. The count keeps going.
+                    // flight rather than cancelling it.
                 } else {
                     shutterPressed()
                 }

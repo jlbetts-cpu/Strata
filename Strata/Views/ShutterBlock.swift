@@ -46,9 +46,6 @@ struct ShutterBlock: View {
     var lit: Bool = true
     /// The press squash, 1 at rest.
     var scale: CGFloat = 1
-    /// The rest that chooses a drawn size, filling round the rim
-    /// (`HoldLock`). Zero draws nothing.
-    var fill: CGFloat = 0
 
     static let rim: CGFloat = 14
     static let cornerFraction: CGFloat = 0.147
@@ -107,9 +104,6 @@ struct ShutterBlock: View {
                 .frame(width: inner.width, height: inner.height)
                 .scaleEffect(scale)
                 .opacity(lit ? 1 : 0)
-
-            HoldLockEdge(shape: shape, fill: fill, color: .white)
-                .frame(width: bounds.width, height: bounds.height)
         }
     }
 }

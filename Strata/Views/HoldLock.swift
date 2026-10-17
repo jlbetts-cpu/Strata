@@ -6,11 +6,12 @@ import SwiftUI
 /// fills and a firmer one when it locks in. Let go before it fills and the
 /// block springs back").
 ///
-/// One rule for every control a block is drawn out of: the tower's slot and
-/// the camera's shutter, on the Camera tab and in the inline camera. Each
-/// owns one of these, tells it where the finger is and when the size changed,
-/// and draws `fill` round its own edge. `locked` is the only thing that may
-/// let a drawn size through.
+/// The tower's rule, where blocks were resized by accident: the slot owns
+/// one, tells it where the finger is and when the size changed, and draws
+/// `fill` round its own edge. `locked` is the only thing that may let a
+/// drawn size through. **Not the camera's shutter** (the owner, 2026-10-17:
+/// "On the camera shutter it just makes the motion slow, because you're
+/// already holding it down"), which is a plain drag again.
 @MainActor
 @Observable
 final class HoldLock {

@@ -158,7 +158,6 @@ struct InlineCameraCard: View {
     @State private var place: WinPlace?
     @State private var drag: CGFloat = 0
     @State private var down = false
-    @State private var lock = HoldLock()
     @State private var shutterScale: CGFloat = 1
     @State private var picking = false
     @State private var picked: PhotosPickerItem?
@@ -505,7 +504,7 @@ struct InlineCameraCard: View {
     // MARK: The shutter
 
     private var shutter: some View {
-        ShutterBlock(size: size, lit: true, scale: shutterScale, fill: lock.fill)
+        ShutterBlock(size: size, lit: true, scale: shutterScale)
             .animation(GridConstants.slotSnap, value: size)
             .legibleOnImagery()
             .frame(width: CameraView.shutterBounds(.hard).width, height: CameraView.shutterBounds(.hard).height)
@@ -525,36 +524,26 @@ struct InlineCameraCard: View {
         #endif
     }
 
-    /// The Camera tab's shutter, with its rule (`HoldLock`): a tap shoots
-    /// one cell at once; a drawn size has to be rested on until the rim fills.
+    /// The Camera tab's shutter: a tap shoots one cell, and a drag draws the
+    /// size and shoots on release (a plain drag, the owner, 2026-10-17).
     private var shutterDraw: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !down {
                     down = true
                     HapticsEngine.tick()
-                    lock.begin(at: value.location)
                 }
                 guard !reduceMotion else { return }
                 let (lateral, up) = BlockSizeDraw.axes(translation: value.translation)
                 let next = BlockSizeDraw.size(lateral: lateral, up: up, from: size)
-                guard next != size else {
-                    lock.moved(to: value.location, sizeChanged: false)
-                    return
-                }
-                HapticsEngine.tick()
+                guard next != size else { return }
+                HapticsEngine.snap()
                 withAnimation(GridConstants.slotSnap) { size = next }
-                lock.moved(to: value.location, sizeChanged: true)
             }
             .onEnded { _ in
                 guard down else { return }
                 down = false
-                let locked = lock.end()
-                if size != .small, !locked {
-                    withAnimation(GridConstants.slotSnap) { size = .small }
-                } else {
-                    shoot()
-                }
+                shoot()
             }
     }
 
