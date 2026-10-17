@@ -323,6 +323,20 @@ final class FeedbackShots: XCTestCase {
         wait(2); snap("tabcard-3-back")
     }
 
+    /// The camera card at the largest text, for everyone (5½).
+    func testInlineCameraLargeText() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-cameraTimerSeconds", "0",
+                          "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6); slot.tap(); wait(1.5); snap("big-0-lens")
+        app.buttons["Take photo"].firstMatch.tap(); wait(1.5); snap("big-1-shot")
+        app.buttons["Close"].firstMatch.tap(); wait(1)
+        slot.tap(); wait(1.2)
+        app.buttons["Just Words"].firstMatch.tap(); wait(1.2); snap("big-2-words")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

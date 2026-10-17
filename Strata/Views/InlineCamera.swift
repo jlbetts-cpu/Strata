@@ -471,6 +471,11 @@ struct InlineCameraCard: View {
             }
         }
         .padding(GridConstants.gapItem)
+        // **A camera's controls hold their size**, as Apple's Camera does at
+        // every text size: grown, the pill covered the picture and the glyphs
+        // left their discs (filmed at the largest size, 2026-10-17). Their
+        // names stay readable through the large content viewer.
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
     }
 
     private var flashSymbol: String {
@@ -711,6 +716,7 @@ struct InlineCameraCard: View {
             }
             .padding(GridConstants.gapItem)
             .opacity(open ? 1 : 0)
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
         }
         .frame(width: size.width, height: size.height)
     }
@@ -817,6 +823,10 @@ struct InlineCameraCard: View {
     }
 
     private var photoTools: some View {
+        tools.dynamicTypeSize(...DynamicTypeSize.xLarge)
+    }
+
+    private var tools: some View {
         HStack(spacing: GridConstants.gapTight) {
             toolGlyph("camera.filters", label: "Looks", on: choosingLook || lookRaw != FilmLook.Kind.none.rawValue) {
                 withAnimation(GridConstants.motionSnappy) { choosingLook.toggle() }
@@ -885,6 +895,8 @@ struct InlineCameraCard: View {
                        fills: true)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Size")
+            // Three words that must each be whole: no larger than they fit.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     /// **Words are written on the block** (the owner, 2026-10-17: "it should
@@ -1250,6 +1262,9 @@ private struct WordBlock: View {
                 TextField("", text: $title, prompt: Text("What went right?").foregroundStyle(.white.opacity(0.6)),
                           axis: .vertical)
                     .font(BlockContentOverlay.titleFont)
+                    // As the tower holds a block's title (`BlockContent`), so
+                    // the words land the size they were written.
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                     .foregroundStyle(.white)
                     .tint(.white)
                     .lineLimit(1...3)
