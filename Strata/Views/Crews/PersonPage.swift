@@ -31,6 +31,10 @@ struct PersonPage: View {
     private var story: StoryPerson? {
         store.storyPeople().first { $0.profileID == friend && $0.phase == .open }
     }
+    /// A story of theirs waiting for 8pm.
+    private var storyTonight: Bool {
+        store.storyPeople().contains { $0.profileID == friend && $0.phase == .waiting }
+    }
     private var store: SocialStore { SocialStore.shared }
 
     /// Who they are, as the crew you share names them.
@@ -56,7 +60,8 @@ struct PersonPage: View {
         Group {
             if let member, let shared {
                 FriendProfileSheet(member: member, crewID: shared, embedded: true,
-                                   story: story.map { tonight in (fresh: !tonight.watched, open: { watching = true }) })
+                                   story: story.map { tonight in (fresh: !tonight.watched, open: { watching = true }) },
+                                   storyTonight: storyTonight)
                     .pinnedFoot { foot }
             } else {
                 // **The conversation stays yours when the crew does not**

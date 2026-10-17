@@ -130,6 +130,10 @@ struct ProfileTop: View {
     /// the head, ink while it is new and quiet once watched, and a tap on
     /// the head plays it. Nil: no story tonight, no ring.
     var story: (fresh: Bool, open: () -> Void)? = nil
+    /// **A story coming tonight**, before 8pm: the quiet, unlit ring the
+    /// Crews row draws, and nothing to press yet (the launch pass, 3½:
+    /// "everywhere the ring appears ... profiles").
+    var storyTonight = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let headSide: CGFloat = 76
@@ -211,6 +215,11 @@ struct ProfileTop: View {
             }
             .buttonStyle(.press)
             .accessibilityLabel(story.fresh ? "Watch \(name)'s story" : "Watch \(name)'s story again")
+        } else if storyTonight {
+            head
+                .overlay { Circle().strokeBorder(AppColors.inkTertiary, lineWidth: GridConstants.strokeThin) }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue("A story tonight")
         } else {
             head
         }

@@ -27,6 +27,8 @@ struct FriendProfileSheet: View {
     var embedded = false
     /// Their story tonight, ringed on their head (`ProfileTop.story`).
     var story: (fresh: Bool, open: () -> Void)? = nil
+    /// A story of theirs coming tonight, before 8pm (`ProfileTop.storyTonight`).
+    var storyTonight = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -262,7 +264,7 @@ struct FriendProfileSheet: View {
                            // that feels like a stats page or a score").
                            chips: embedded ? [] : chips(today: today.count),
                            handle: Usernames.shown ? store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member) : nil,
-                           story: story)
+                           story: story, storyTonight: storyTonight)
                 if member.profileID != store.me, store.canReply(), !embedded { messageButton }
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
