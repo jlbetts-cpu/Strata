@@ -21,6 +21,7 @@ final class CameraService: NSObject {
     private(set) var facing: Facing = .back
     private(set) var isAuthorized = false
     private(set) var isConfigured = false
+    @ObservationIgnored private var configureFailed = false
     /// True while a capture is in flight, so the shutter cannot be re-fired.
     private(set) var isCapturing = false
     /// **Off, Auto, On** (the owner, 2026-10-12: the camera "should have
@@ -174,7 +175,13 @@ final class CameraService: NSObject {
     func prepare() async -> Bool {
         await requestAccess()
         guard isAuthorized else { return false }
-        if !isConfigured { configure() }
+        // A phone with no camera (the simulator) fails the same way every
+        // time; looking for one again on every open was main-thread work on
+        // the first frame of the inline camera's motion.
+        if !isConfigured, !configureFailed {
+            configure()
+            configureFailed = !isConfigured
+        }
         return isConfigured
     }
 
@@ -187,6 +194,14 @@ final class CameraService: NSObject {
     /// the app died on "Make My Head". The simulator has no camera and never
     /// got there.
     func run() async {
+        // **One camera running in the app at a time** (the owner, 2026-10-17:
+        // "make sure the inline camera and the Camera tab never fight over the
+        // camera"). Each camera has its own session, and a second one started
+        // while the first still runs interrupts it rather than stopping it, so
+        // the first could come back underneath when the second closed. The
+        // one starting now stops the last one, and waits for it to stop.
+        if let other = Self.running, other !== self { await other.halt() }
+        Self.running = self
         let session = session
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
             queue.async {
@@ -208,6 +223,22 @@ final class CameraService: NSObject {
     func stop() {
         let session = session
         queue.async { if session.isRunning { session.stopRunning() } }
+        if Self.running === self { Self.running = nil }
+    }
+
+    /// The camera most recently started, while it is.
+    @ObservationIgnored private static weak var running: CameraService?
+
+    /// Stopped, and only returns once it has.
+    func halt() async {
+        let session = session
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            queue.async {
+                if session.isRunning { session.stopRunning() }
+                done.resume()
+            }
+        }
+        if Self.running === self { Self.running = nil }
     }
 
     /// Waits for a start or stop still on `queue` to finish: called before

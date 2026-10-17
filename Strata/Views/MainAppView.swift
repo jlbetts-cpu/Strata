@@ -226,6 +226,9 @@ struct MainAppView: View {
     /// `.sheet(item:)` makes the payload the identity of the presentation, so
     /// there is nothing left for anything else to null out.
     @State private var winDraft: WinDraft?
+    /// Add a Win as the inline camera, grown out of what was tapped
+    /// (`InlineCameraCard`). Nil when the card is away.
+    @State private var inlineOpening: AddWinOpening?
     /// The planned win whose camera is open, and the one being changed.
     @State private var capturingPlan: PlanItem?
     @State private var pickingPlan: PlanItem?
@@ -629,7 +632,7 @@ struct MainAppView: View {
                 .modifier(CrewDestinations(path: $crewPath,
                                            listIsRoot: true,
                                            isShown: selectedTab == .crews,
-                                           addWin: { winDraft = WinDraft(crews: [$0]) },
+                                           addWin: { openAddWin(from: AddWinFrom.take(), radius: GridConstants.cornerRadius, crews: [$0]) },
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) },
                                            planned: { planned($0, $1, $2) }))
         }
@@ -726,6 +729,19 @@ struct MainAppView: View {
             // reopened on the Plan. A new opening is a new sheet.
             .id("\(dayOpeningTab)|\(planOpeningScope.map { "\($0)" } ?? "")")
         }
+        // **Over everything, the tab bar too, with the page left showing**:
+        // a cover with no background and no slide of its own, so the only
+        // motion is the card's own, out of the slot.
+        .fullScreenCover(item: $inlineOpening) { opening in
+            InlineCameraCard(opening: opening) { result in inlineFinished(result, from: opening) }
+                .presentationBackground(.clear)
+        }
+        // The inline camera made ready (configured, not running) once the
+        // app has settled, so a tap on the slot only has to start it.
+        .task {
+            try? await Task.sleep(for: .seconds(2))
+            await InlineCamera.shared.warm()
+        }
         .sheet(item: $winDraft, onDismiss: {
             // **To the plan, on the day chosen on Now.** Words already in
             // the name field are the first line.
@@ -773,6 +789,7 @@ struct MainAppView: View {
                 tower: towerManager.activeTower,
                 initialTitle: draft.title,
                 initialPhoto: draft.photo,
+                opensDrawing: draft.opensDrawing,
                 initialSize: draft.size,
                 initialPlace: draft.place,
                 initialCrop: draft.crop,
@@ -2709,7 +2726,47 @@ struct MainAppView: View {
         }
     }
 
-    private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false) {
+    // MARK: - Add a Win, opening on the camera
+
+    /// Add a Win from something tapped at `rect`: the inline camera grown out
+    /// of it (`CameraFirst`), or the sheet when that is off or there is no
+    /// rectangle to grow from.
+    func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil) {
+        guard CameraFirst.on, let rect, rect.width > 0, inlineOpening == nil else {
+            winDraft = WinDraft(crews: crews)
+            return
+        }
+        withTransaction(Self.still) {
+            inlineOpening = AddWinOpening(from: rect, radius: radius, colour: nextWinCategory, crews: crews)
+        }
+    }
+
+    /// A cover put up or taken down with no animation of its own.
+    private static var still: SwiftUI.Transaction {
+        var t = SwiftUI.Transaction()
+        t.disablesAnimations = true
+        return t
+    }
+
+    private func inlineFinished(_ result: InlineCameraResult?, from opening: AddWinOpening) {
+        switch result {
+        case nil:
+            withTransaction(Self.still) { inlineOpening = nil }
+        case .sheet(let draft)?:
+            withTransaction(Self.still) { inlineOpening = nil }
+            // After the cover has gone: a sheet asked for while a cover is
+            // still leaving is dropped.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                winDraft = draft
+            }
+        case .drop(let photo, let size, let title, let place)?:
+            logWin(size: size, photo: photo, title: title, place: place, crews: opening.crews)
+        }
+    }
+
+    private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false,
+                        title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil) {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
@@ -2717,6 +2774,7 @@ struct MainAppView: View {
         do {
             // The colour the slot has been showing, not a fresh roll.
             let win = try QuickWinService.logWin(
+                title: title.isEmpty ? QuickWinService.untitled : title,
                 size: size,
                 spontaneous: nextWinCategory,
                 context: modelContext,
@@ -2729,7 +2787,16 @@ struct MainAppView: View {
             if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                 // Drawn out of the slot: your tower only, until the sheet's
                 // confirm sends it (`CrewHold`).
-                if holdFromCrews { CrewHold.hold(log.id) } else { CrewSync.post(log) }
+                // From the inline camera, its place goes with its photo, and a
+                // crew's own camera sends to that crew alone, as its sheet does.
+                if photo != nil, let place {
+                    log.latitude = place.latitude
+                    log.longitude = place.longitude
+                    log.locationAccuracy = place.accuracy
+                }
+                if holdFromCrews { CrewHold.hold(log.id) }
+                else if let crews { CrewSync.post(log, to: crews, with: []) }
+                else { CrewSync.post(log) }
             }
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.
@@ -3946,7 +4013,8 @@ struct MainAppView: View {
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
                     action: { logWin(size: $0, holdFromCrews: true) },
-                    onOpenMenu: { winDraft = WinDraft() }
+                    onOpenMenu: { winDraft = WinDraft() },
+                    onOpenAt: { openAddWin(from: $0, radius: cornerRadius) }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
@@ -4104,7 +4172,8 @@ struct MainAppView: View {
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
             action: { logWin(size: $0, holdFromCrews: true) },
-            onOpenMenu: { winDraft = WinDraft() }
+            onOpenMenu: { winDraft = WinDraft() },
+            onOpenAt: { openAddWin(from: $0, radius: cornerRadius) }
         )
         .frame(width: f.width, height: f.height)
         // **The sentence stands on the slot it names** (2026-10-02).

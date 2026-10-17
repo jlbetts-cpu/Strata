@@ -1061,7 +1061,8 @@ struct CrewTowerView: View {
                                            withAnimation(GridConstants.slotSnap) { drawingSize = .small }
                                        }
                                    },
-                                   onOpenMenu: addWin)
+                                   onOpenMenu: addWin,
+                                   onOpenAt: { AddWinFrom.set($0); addWin() })
                         .frame(width: f.width, height: f.height)
                         .offset(x: f.minX, y: gridH - f.minY - f.height)
                 }

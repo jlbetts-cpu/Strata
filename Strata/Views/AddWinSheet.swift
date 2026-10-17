@@ -34,6 +34,8 @@ struct AddWinSheet: View {
     /// Pre-filled title, when the win is being written from a plan line.
     var initialTitle: String? = nil
     var initialPhoto: UIImage? = nil
+    /// Opened from the inline camera's Draw It: the drawing opens first.
+    var opensDrawing: Bool = false
     /// The size drawn out of the camera's shutter, if the photograph came from
     /// there. Defaulted, so no other call site changes.
     var initialSize: BlockSize = .small
@@ -2064,6 +2066,14 @@ struct AddWinSheet: View {
         if let initialPhoto {
             photo = initialPhoto
             photoChanged = true
+        }
+        if opensDrawing {
+            Task { @MainActor in
+                // After the sheet has landed: a sheet asked for while another
+                // is still arriving is dropped.
+                try? await Task.sleep(for: .milliseconds(450))
+                doodling = true
+            }
         }
         // Before the editing branch below, which must still win: a habit being
         // edited already has a size and nobody drew a new one.

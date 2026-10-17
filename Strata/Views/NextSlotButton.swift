@@ -40,6 +40,12 @@ struct NextSlotButton: View {
     let action: (BlockSize) -> Void
     /// A quick tap: open the menu rather than logging anything.
     let onOpenMenu: () -> Void
+    /// A quick tap, told where the slot is in the window, so Add a Win can
+    /// grow out of it (`InlineCameraCard`). Used instead of `onOpenMenu`
+    /// when given.
+    var onOpenAt: ((CGRect) -> Void)? = nil
+    /// Where the slot is in the window, kept for `onOpenAt`.
+    @State private var placed: CGRect = .zero
 
 
     /// -1 = compressing under the finger, +1 = released.
@@ -286,6 +292,7 @@ struct NextSlotButton: View {
         //
         // The irreversible action is the one that cannot happen by accident,
         // and it is the one with somewhere to put progress.
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { placed = $0 }
         .onTapGesture(perform: tapped)
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
@@ -410,7 +417,7 @@ struct NextSlotButton: View {
             try? await Task.sleep(for: .milliseconds(60))
             withAnimation(GridConstants.tapPopSpring) { charge = 0 }
         }
-        onOpenMenu()
+        if let onOpenAt { onOpenAt(placed) } else { onOpenMenu() }
     }
 
     private func fire(size: BlockSize, velocity: CGFloat, felt: Bool = true) {

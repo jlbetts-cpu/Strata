@@ -106,6 +106,72 @@ final class FeedbackShots: XCTestCase {
         wait(5); snap("onbblocks-1"); app.terminate()
     }
 
+    /// Add a Win as the inline camera (2026-10-17): open from the slot, shoot,
+    /// name, drop; then words; then a refused camera.
+    func testInlineCamera() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6); snap("inline-0-tower")
+        slot.tap()
+        wait(1.2); snap("inline-1-open")
+        let shutter = app.buttons["Take photo"]
+        if shutter.waitForExistence(timeout: 5) { shutter.tap() }
+        wait(1.5); snap("inline-2-shot")
+        let field = app.textFields.firstMatch
+        if field.waitForExistence(timeout: 3) { field.tap(); field.typeText("Ate something green") }
+        wait(1); snap("inline-3-named")
+        app.buttons["Drop it on the tower"].tap()
+        wait(0.25); snap("inline-4-closing")
+        wait(3); snap("inline-5-dropped")
+        app.buttons["Log a win"].firstMatch.tap()
+        wait(1.2)
+        app.buttons["Just Words"].tap()
+        wait(1.2); snap("inline-6-words")
+        app.buttons["Close"].firstMatch.tap()
+        wait(1.2); snap("inline-7-closed")
+        app.terminate()
+        let refused = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCameraDenied", "1"])
+        if refused.buttons["Wins"].waitForExistence(timeout: 10) { refused.buttons["Wins"].tap() }
+        let again = refused.buttons["Log a win"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 30))
+        wait(5); again.tap()
+        wait(1.5); snap("inline-8-refused")
+    }
+
+    /// The card's open and close, slowly, for filming (`simctl io recordVideo`).
+    func testInlineMotion() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6)
+        FileManager.default.createFile(atPath: "/tmp/claude-501/overnight/motion-go", contents: nil)
+        wait(1)
+        slot.tap()
+        wait(2.5)
+        app.buttons["Close"].firstMatch.tap()
+        wait(2)
+        snap("motion-end")
+    }
+
+    /// The system sheet opening, filmed the same way, to calibrate the film.
+    func testSheetMotion() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCameraFirst", "0"])
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30))
+        wait(6)
+        FileManager.default.createFile(atPath: "/tmp/claude-501/overnight/motion-go", contents: nil)
+        wait(1)
+        slot.tap()
+        wait(3)
+        snap("sheet-end")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

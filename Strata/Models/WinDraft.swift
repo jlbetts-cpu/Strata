@@ -35,4 +35,6 @@ struct WinDraft: Identifiable {
     var planItemID: UUID?
     /// Opened from a crew's tower: ticked for that crew, and only that crew.
     var crews: Set<CrewID>? = nil
+    /// From the inline camera's Draw It: the sheet opens on its drawing.
+    var opensDrawing = false
 }

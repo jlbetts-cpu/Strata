@@ -29,6 +29,7 @@ struct SettingsView: View {
     // MARK: - Notification State
 
     @AppStorage(QuickPost.key) private var quickPost = false
+    @AppStorage(CameraFirst.key) private var cameraFirst = true
     @AppStorage(TabNames.key) private var tabNamesShown = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
@@ -410,6 +411,17 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+
+                // Add a Win opens on the camera, inside the screen (`CameraFirst`).
+                Toggle(isOn: $cameraFirst) {
+                    Label {
+                        Text("Add Wins with the Camera")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "camera")
                     }
                 }
                 .tint(AppColors.switchTrack)
