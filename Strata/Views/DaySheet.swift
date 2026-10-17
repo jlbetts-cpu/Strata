@@ -268,6 +268,9 @@ struct DaySheet: View {
     /// place. When you plan something, you can share it with a crew"). The
     /// next line goes to this crew too, as its plan; nil keeps it yours.
     @State private var planCrew: CrewID?
+    /// A shared line the crew did not get (paced, or not allowed), named so
+    /// it never looks shared when it is not (the second reader, 2026-10-17).
+    @State private var shareMissed: String?
     @State private var planComposerID = UUID()
     /// Which day of the plan is on the page, or the repeating lines.
     @State private var planScope: PlanScope = DaySheet.openingScope
@@ -404,6 +407,11 @@ struct DaySheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .alert("Not shared yet", isPresented: Binding(get: { shareMissed != nil }, set: { if !$0 { shareMissed = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\"\(shareMissed ?? "")\" is in your plan, but your crew didn't get it. Try sharing it again in a moment.")
+        }
         .fullScreenCover(isPresented: $sketching) {
             JournalSketchEditor(title: title, drawing: sketchAtOpen, stickers: sketchStickersAtOpen) { drawn in
                 keepSketch(drawn)
@@ -646,7 +654,7 @@ struct DaySheet: View {
         Task {
             for (id, text) in lines {
                 let (_, plan) = await SocialStore.shared.sendPlan(title: text, when: when, in: crew)
-                if let plan { GroupPlanBook.keep(plan, planItem: id, today: today) }
+                if let plan { GroupPlanBook.keep(plan, planItem: id, today: today) } else { shareMissed = text }
             }
         }
     }
