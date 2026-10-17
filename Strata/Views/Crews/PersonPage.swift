@@ -109,6 +109,8 @@ struct PersonPage: View {
             }
         }
         .onChange(of: showsChat) { _, up in NativeChatPresence.shared.up = up }
+        // Blocked from inside the conversation: nothing left to show.
+        .onChange(of: thread == nil) { _, gone in if gone { showsChat = false } }
         .fullScreenCover(isPresented: $watching) {
             if let story {
                 StoryViewer(people: [story], start: story.profileID, onClose: { watching = false })
@@ -136,6 +138,9 @@ struct PersonPage: View {
                 Spacer(minLength: 0)
                 // **Report and Block, on the person** (the App Store audit,
                 // 2026-10-17, Guideline 1.2): their page had neither.
+                // Reported where you share a crew; blocked in your conversation
+                // when there is one, so a block never also removes them from a
+                // group you run without saying so (the second reader).
                 if let member, let crew = shared ?? thread {
                     Menu {
                         Button("Report", systemImage: "exclamationmark.bubble") { reportingPerson = true }
@@ -157,11 +162,15 @@ struct PersonPage: View {
                     }
                     .confirmationDialog("Block \(name)?", isPresented: $blockingPerson, titleVisibility: .visible) {
                         Button("Block", role: .destructive) {
-                            Task { await CrewSafety.block(friend, from: crew) }
+                            Task { await CrewSafety.block(friend, from: thread ?? crew) }
                             onBack()
                         }
                     } message: {
-                        Text("You won't see their wins, stories or messages. Some Wins hears about it. They are not told.")
+                        if thread == nil, let group = store.crew(crew), !group.isPersonal, group.isOwner(store.me) {
+                            Text("You won't see their wins, stories or messages, and they leave \(group.displayName(excluding: store.me)). Some Wins hears about it. They are not told.")
+                        } else {
+                            Text("You won't see their wins, stories or messages. Some Wins hears about it. They are not told.")
+                        }
                     }
                 }
             }

@@ -1139,9 +1139,11 @@ struct InlineCameraCard: View {
     private func toSheet(drawing: Bool = false) {
         var draft = WinDraft(title: title.isEmpty ? nil : title, photo: mode == .shot ? shot : nil,
                              size: size, place: mode == .shot ? place : nil)
-        draft.colour = nil
+        draft.colour = opening.planItemID == nil ? nil : opening.colour
         draft.crews = opening.crews
         draft.opensDrawing = drawing
+        // A plan line's photo, finished in the sheet, still ticks its line.
+        draft.planItemID = opening.planItemID
         leave(with: .sheet(draft))
     }
 

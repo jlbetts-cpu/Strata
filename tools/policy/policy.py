@@ -227,7 +227,8 @@ SECTIONS = [
         "drawing, sticker and strip, your name and every head, from "
         "this device and from your iCloud, takes every win, reaction, message "
         "and story you sent back from your crews, and takes you out of every "
-        "crew and conversation. Crews you started end.",
+        "crew you joined. Crews you started stay for the people in them, "
+        "without your wins or your name; end one in its details to remove it.",
         "Deleting the app removes it from this device only: what is in your "
         "iCloud stays there and comes back if you reinstall. What you posted to "
         "crews also stays, sealed, until you reinstall and leave them. To remove "

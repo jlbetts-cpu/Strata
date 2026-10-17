@@ -623,6 +623,13 @@ final class SocialStore {
 
     func block(_ profileID: UUID, name: String = "") {
         blocked.insert(profileID)
+        // A conversation you started with them is not handed back after an
+        // unblock (the second reader): a new one starts fresh.
+        if personalStarted[profileID.uuidString] != nil {
+            var started = personalStarted
+            started[profileID.uuidString] = nil
+            personalStarted = started
+        }
         defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
         // Their name, kept so the Blocked list can say who it is after they
         // have left every crew you share.
@@ -1210,12 +1217,36 @@ final class SocialStore {
         // Your name off your member record first, so a leave that fails
         // (offline) still leaves nothing of you behind.
         await shareMyself()
-        // **And out of every crew** (the App Store audit, 2026-10-17: Reset
-        // All Data left your member record, your score and the crews you
-        // started). Leaving takes your record and stories with it; a crew you
-        // started ends, as leaving one you own always has. A conversation is
-        // a crew of two and goes the same way.
-        for crew in crews { try? await leave(crew.id) }
+        // **And out of every crew you joined** (the App Store audit,
+        // 2026-10-17: Reset All Data left your member record). Leaving takes
+        // your record and stories with it. **Not the crews you started**
+        // (the second reader): leaving one you own ends it for everyone in
+        // it, their tower and chat with it, and that is the owner's call to
+        // make, not a reset's. Your wins, words and name are already out of
+        // those. The leaving is kept until it is done (`payPendingLeaves`),
+        // so a reset offline or before the crews load still finishes.
+        defaults.set(crews.filter { !$0.isOwner(me) }.map(\.id.rawValue), forKey: Self.pendingLeavesKey)
+        await payPendingLeaves()
+        // A fresh start: nobody you had a conversation with is refused for it.
+        defaults.removeObject(forKey: Self.personalLeftKey)
+        defaults.removeObject(forKey: Self.personalStartedKey)
+    }
+
+    static let pendingLeavesKey = "crews.pendingLeaves"
+
+    /// The crews a reset still owes a leaving, left now; each is cleared as
+    /// it succeeds, and the rest wait for the next refresh.
+    func payPendingLeaves() async {
+        var owed = defaults.stringArray(forKey: Self.pendingLeavesKey) ?? []
+        guard !owed.isEmpty else { return }
+        for raw in owed {
+            let id = CrewID(rawValue: raw)
+            guard crew(id) != nil else { continue }
+            if (try? await leave(id)) != nil { owed.removeAll { $0 == raw } }
+        }
+        // A crew this phone no longer holds is not one to wait on forever.
+        owed.removeAll { raw in crew(CrewID(rawValue: raw)) == nil && hasFetchedCrews }
+        defaults.set(owed, forKey: Self.pendingLeavesKey)
     }
 
     /// Your head, as friends see it. Nil takes it away.
@@ -2073,6 +2104,7 @@ final class SocialStore {
             await refreshOnce()
         } while refreshAgain
         await payHandleReleases()
+        await payPendingLeaves()
         await checkHandles()
         if sendsPings {
             writeNoteCache()

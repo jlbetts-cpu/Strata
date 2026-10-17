@@ -783,7 +783,7 @@ struct SettingsView: View {
                         runReset()
                     }
                 } message: {
-                    Text("This permanently deletes every win, photo, drawing and sticker, your name and profile photo, and your head, and takes you out of every crew and conversation. Crews you started end. It cannot be undone.")
+                    Text("This permanently deletes every win, photo, drawing and sticker, your name and profile photo, and your head, and takes you out of every crew you joined. Crews you started stay for the people in them, without your wins or name. It cannot be undone.")
                 }
             } footer: {
                 // Said where the two rows are, because the fear this answers is

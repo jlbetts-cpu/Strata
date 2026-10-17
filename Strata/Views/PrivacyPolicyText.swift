@@ -74,7 +74,7 @@ nonisolated enum PrivacyPolicyText {
             "Crews are for 13 and up. The first time you open Crews, Some Wins asks for your age range through Apple, never your birthday, and keeps the answer on your phone. Under 13, Crews do not open. From 13 to 15, crews work, but your photos and your head are never sent. If you would rather not say, Some Wins treats you as 13 to 15.",
         ]),
         ("Deleting everything", [
-            "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, drawing, sticker and strip, your name and every head, from this device and from your iCloud, takes every win, reaction, message and story you sent back from your crews, and takes you out of every crew and conversation. Crews you started end.",
+            "Profile, Settings, Data, Reset All Data deletes every win, photo, journal entry, drawing, sticker and strip, your name and every head, from this device and from your iCloud, takes every win, reaction, message and story you sent back from your crews, and takes you out of every crew you joined. Crews you started stay for the people in them, without your wins or your name; end one in its details to remove it.",
             "Deleting the app removes it from this device only: what is in your iCloud stays there and comes back if you reinstall. What you posted to crews also stays, sealed, until you reinstall and leave them. To remove what is in your iCloud without the app, open the Settings app, your name, iCloud, and manage the storage Some Wins uses.",
         ]),
         ("Your rights", [
