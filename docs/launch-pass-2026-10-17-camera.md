@@ -26,3 +26,10 @@ Tags: (a) research, (b) seen in a shipping app, (c) my inference.
 - A friend's: Snapchat lets a friend save a snap in chat and tells the sender it was saved; Instagram tells the sender when a disappearing photo is screenshotted and lets nothing be saved; Locket keeps everything and tells no one. (b)
 - Recommendation: let a friend keep your photo, and say so in your chat as a quiet line ("Sam kept your photo"), as Snapchat does. It is honest without watching anyone, and it lets a moment be kept on purpose. Built: the keeping, behind Keep Friends' Chat Photos (off). Not built: the line to the sender, which should come with the switch if you want it. (c)
 - Hold vs open: the keep actions are in the photo's own menu (open it, then ⋯), because holding a chat line already opens its reactions. (c)
+
+## One camera, checked
+- The Camera tab is the card, docked: the same controls, page and tools; a win drops on Wins and the tab returns to the lens. The black bar drawing applies only to the old camera (with the card off). (your ask: "the same camera with the same controls")
+- At the largest text the camera's controls hold their size, as Apple's Camera does; the size bar stops where its words fit. Seen at Accessibility XXXL. (seen)
+- Light and dark both checked on the lens, the shot page, More and words. (seen)
+- Squeezed by the keyboard, the photo hides its tools rather than floating them over a sliver. (seen)
+- Device-only, not measurable here: tap to live picture on a real lens, 120Hz smoothness. The lens is configured early and never started before a tap, so no camera dot shows while you look at your tower; starting it on touch-down would save a few tenths but would light the dot on every scroll that brushes the slot, which reads as watching. Not done, on purpose. (c)
