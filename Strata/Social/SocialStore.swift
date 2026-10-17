@@ -3551,6 +3551,30 @@ extension SocialStore {
             || storiesByCrew[crewID]?.contains(where: { $0.id == winID }) == true
     }
 
+    /// **The story a reply in a conversation of two answers** (the stories
+    /// standard, rule 9: a reply lands in your conversation "the way story
+    /// replies land in DMs on Instagram", with the story beside it). Found on
+    /// this phone, which holds tonight's stories from the crews you share, by
+    /// who posted it and the title the reply carries, while it is still on;
+    /// after, the reply stands with its words alone. Nothing new is sent: the
+    /// message has carried `storyQuote` since 2026-10-15.
+    func storyAnswered(_ message: CrewMessage) -> SharedWin? {
+        guard let words = message.storyQuote, crew(message.crewID)?.isPersonal == true else { return nil }
+        let poster = message.senderProfileID == me ? directFriend(message.crewID)?.profileID : me
+        guard let poster, !blocked.contains(poster) else { return nil }
+        let at = now()
+        for list in storiesByCrew.values {
+            for story in list where story.sender == poster && at < story.endsAt {
+                let title = String(story.win.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(StoryLine.limit))
+                guard (title.isEmpty ? "a win" : title) == words else { continue }
+                var win = story.win
+                if win.senderProfileID != me, let photo = win.photo, !photoIsShown(photo) { win.photo = nil }
+                return win
+            }
+        }
+        return nil
+    }
+
     /// A story the crew holds, by its win, while it has not ended: what a
     /// reply to it quotes in the chat.
     func storyWin(_ winID: UUID, in crewID: CrewID) -> SharedWin? {

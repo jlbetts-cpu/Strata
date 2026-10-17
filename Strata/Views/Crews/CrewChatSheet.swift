@@ -1276,12 +1276,20 @@ struct CrewChatSheet: View {
         let big = quote == nil && message.sketch == nil && ChatEmoji.isBig(message.text)
         return VStack(alignment: .leading, spacing: GridConstants.spacing) {
             if let quote, !saysWin {
-                // U+FE0E: the arrow as type, never the emoji tile it draws as bare.
-                Text("\u{21AA}\u{FE0E} \(quote)")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(quoteInk)
-                    .lineLimit(1)
-                    .fitsLargeType(.subheadline)
+                let answered = store.storyAnswered(message)
+                HStack(spacing: GridConstants.gapTight) {
+                    // The story it answers, small, while the story is on.
+                    if let answered { StoryThumb(win: answered) }
+                    // U+FE0E: the arrow as type, never the emoji tile it draws as bare.
+                    // Two lines beside the story, so its title is not the
+                    // part cut off.
+                    Text("\u{21AA}\u{FE0E} \(quote)")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(quoteInk)
+                        .lineLimit(answered == nil ? 1 : 2)
+                        .fixedSize(horizontal: false, vertical: answered != nil)
+                        .fitsLargeType(.subheadline)
+                }
             }
             if let sketch = message.sketch {
                 InkImage(url: sketch, tint: mine ? ink : AppColors.drawingInk)
@@ -2178,5 +2186,29 @@ private struct ChatTextInput: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { old, new in
                 if new > old + 1 { grew() }
             }
+    }
+}
+
+/// **The story a reply answers, small** (`SocialStore.storyAnswered`): its
+/// photograph, or the block's colour, a story's shape, at the quote line's
+/// head, as Instagram puts the story beside a reply in the conversation.
+private struct StoryThumb: View {
+    let win: SharedWin
+    private static let size = CGSize(width: 30, height: 40)
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
+        Group {
+            if let photo = win.photo {
+                CrewPhotoView(url: photo, width: Self.size.width, height: Self.size.height,
+                              crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
+            } else {
+                win.colour.style.baseColor
+            }
+        }
+        .frame(width: Self.size.width, height: Self.size.height)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(AppColors.quietFill, lineWidth: 1))
+        .accessibilityHidden(true)
     }
 }

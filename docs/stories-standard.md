@@ -54,9 +54,11 @@ Then, fixed and measured the same day:
   back to them now.
 - A two-person chat read "New Crew" over a story reply until the friend's
   phone joined it: `chatName` names it for the friend.
-- Not built, proposed: a story reply carrying the story's photo in the chat
-  (Instagram's thumbnail). Quotes show titles only, for every win; adding a
-  picture is a chat change and crew messaging code.
+- A story reply carries the story beside it in the conversation, its photo
+  or its colour, while the story is on (`SocialStore.storyAnswered`): found
+  on each phone from the stories it already holds, by who posted it and the
+  title the reply carries, so nothing new is sent and no record changes. The
+  quote wraps to two lines beside it so the title is not what is cut.
 
 ## Research, in short
 
