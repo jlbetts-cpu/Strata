@@ -420,14 +420,21 @@ struct InlineCameraCard: View {
         .padding(.bottom, GridConstants.gapSection)
     }
 
+    /// **Drop is the block itself**: the shutter's own shape at the size
+    /// drawn, with the way it goes on it. It was a white circle in the place
+    /// the shutter's rounded block had just been, two shapes for one role
+    /// (2026-10-17, looking at the card whole rather than piece by piece).
     private var dropButton: some View {
         Button(action: drop) {
-            Image(systemName: "arrow.down")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.black)
-                .frame(width: 72, height: 72)
-                .background(Circle().fill(.white))
-                .contentShape(Circle())
+            ZStack {
+                ShutterBlock(size: size, lit: true)
+                Image(systemName: "arrow.down")
+                    .iconSize(22, relativeTo: .body, weight: .semibold)
+                    .foregroundStyle(.black)
+            }
+            .legibleOnImagery()
+            .frame(width: CameraView.shutterBounds(.hard).width, height: CameraView.shutterBounds(.hard).height)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.press)
         .accessibilityLabel("Drop it on the tower")
@@ -438,6 +445,7 @@ struct InlineCameraCard: View {
     private var shutter: some View {
         ShutterBlock(size: size, lit: true, scale: shutterScale, fill: lock.fill)
             .animation(GridConstants.slotSnap, value: size)
+            .legibleOnImagery()
             .frame(width: CameraView.shutterBounds(.hard).width, height: CameraView.shutterBounds(.hard).height)
             .contentShape(Rectangle())
             .gesture(shutterDraw, isEnabled: camera.isLive || Self.fakeLens)
