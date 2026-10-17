@@ -109,5 +109,25 @@ Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs
 ## Profile as the relationship, ranked (built: 1 to 3)
 1. No score or count on a person's page. 2. The crews you share, by name, and "Friends here since". 3. Between you two: cheers traded and things you both did the same day. 4. (next) Photos from your conversation, under theirs, while they last. 5. (later) A colour of your own for that person's page, chosen by you, seen only by you.
 
+## 10. App Store blockers (audited 2026-10-17)
+- Report and Block: stories, crew chat, crew wins and crews had both. Fixed tonight: Block on any line of a person's in a chat, and Report or Block on a person's page.
+- Filtering: the word list both ways and Apple's sensitive content check when it is on. Weak for adults with the check off; acceptable, worth knowing.
+- Contact: Send Feedback and the policy's address. App Store Connect still needs a Support URL (yours).
+- Reports: you read them with tools/cloudkit/reports.sh; nothing alerts you, and the app promises "looked at within a day". Run it daily.
+- Delete everything: Reset All Data now takes you out of every crew and conversation too (crews you started end). Tested.
+- Privacy policy: regenerated and true of tonight's app, dated 17 October.
+- Privacy labels: the manifest now declares Emails or Text Messages (a reported message reaches you). Match it in App Store Connect: Emails or Text Messages, App Functionality, Linked, not tracking.
+- Age gate: present and holds for stories and messages.
+- CloudKit, for you to deploy (production schema, Console only): `tools/cloudkit/ban.sh` writes a `BanNote` record type that production does not have, so a ban saves and then the script errors. Add: `RECORD TYPE BanNote (account STRING, reason STRING, GRANT CREATE, READ, WRITE TO "Moderator")`. Nothing else in the app needs a schema change tonight.
+- Naming: no user-facing "Strata" left; Plus is "Some Wins Plus" in the app. SomeWins.storekit has only the tips (no Plus group to test locally); check the Plus group's names in App Store Connect.
+
+### The Meta App ID, for Instagram Stories
+1. developers.facebook.com, log in, register as a developer (free).
+2. My Apps, Create App, use case Other, type Consumer, name "Some Wins", your email.
+3. App settings, Basic: privacy policy URL https://somewins.xyz/privacy.html; add the iOS platform with bundle ID JaydenBetts.Strata.
+4. Copy the numeric App ID (not the secret).
+5. Put it in Strata/Social/InstagramShare.swift, `static let appID = "<ID>"`. The Share to Instagram button appears once it is set.
+6. Test on a phone with Instagram. If Instagram says the app is not supported, switch the Meta app to Live (it needs the policy URL from step 3).
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).
