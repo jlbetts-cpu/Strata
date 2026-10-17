@@ -193,9 +193,9 @@ private struct StoryPage: View {
     /// **A finger on the picture, until it lifts** (the stories standard,
     /// rule 1). It was `onLongPressGesture`'s pressing, which ends when the
     /// hold is recognised, a quarter of a second in: an 8 second hold moved
-    /// the story on (measured, 2026-10-17). A gesture state ends when the
+    /// the story on (measured, 2026-10-17). `TouchHeld` ends when the
     /// finger lifts, and on a cancel, so it never sticks.
-    @GestureState private var touching = false
+    @State private var touching = false
     /// Held past a tap: the bar, the name and the reply step aside so the
     /// picture is alone (rule 3; b: WhatsApp and Instagram on a hold).
     @State private var holding = false
@@ -349,6 +349,7 @@ private struct StoryPage: View {
         // Back to the first page not yet watched, as a story resumes.
         .onChange(of: isCurrent, initial: true) { _, now in
             busy = false
+            touching = false
             guard now else { return }
             // The first page not yet watched, the words page among them.
             page = keys.firstIndex { !store.storiesSeen.contains($0) } ?? 0
@@ -579,13 +580,10 @@ private struct StoryPage: View {
             // **Tap on, tap back, hold to pause.** The left third goes back,
             // as every story does; the rest goes on.
             .contentShape(shape)
-            .onTapGesture(coordinateSpace: .local) { point in
+            .gesture(TouchHeld(changed: { touching = $0 }) { point in
                 HapticsEngine.tick()
                 if point.x < geo.size.width / 3 { backward() } else { forward() }
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0).updating($touching) { _, touching, _ in touching = true }
-            )
+            })
         }
         .animation(GridConstants.crossFade, value: page)
         .accessibilityElement()

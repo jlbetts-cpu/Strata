@@ -200,4 +200,32 @@ final class StoryStandardTests: XCTestCase {
         XCTAssertTrue(view.isHittable, "the reply field is gone at the largest text")
         XCTAssertGreaterThanOrEqual(view.frame.width, 120, "the reply field is squeezed at the largest text")
     }
+
+    /// The moves that share the touch with a hold: a tap on the right goes
+    /// on, on the left goes back, a swipe across is the next friend, and a
+    /// swipe down closes.
+    func testTapsSwipesAndTheCloseStillWork() {
+        let app = night()
+        let card = openFirstStory(app)
+        let first = where_(app)
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        let on = where_(app)
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        let back = where_(app)
+        print("STORYSTD taps '\(first)' -> '\(on)' -> '\(back)'")
+        XCTAssertNotEqual(first, on, "a tap on the right did not go on")
+        XCTAssertEqual(first, back, "a tap on the left did not go back")
+        app.swipeLeft()
+        Thread.sleep(forTimeInterval: 1.2)
+        let across = where_(app)
+        print("STORYSTD across '\(first)' -> '\(across)'")
+        XCTAssertNotEqual(first.components(separatedBy: "'").first, across.components(separatedBy: "'").first,
+                          "a swipe across did not go to the next friend")
+        app.swipeDown(velocity: .fast)
+        Thread.sleep(forTimeInterval: 1.5)
+        print("STORYSTD closed \(!self.card(app).exists)")
+        XCTAssertFalse(self.card(app).exists, "a swipe down did not close the story")
+    }
 }
