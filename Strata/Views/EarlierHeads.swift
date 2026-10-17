@@ -12,7 +12,9 @@ enum EarlierHeads {
     static let title = "Earlier Heads"
     static let broughtBack = "Head brought back"
     /// Under the row in Profile: what they are, and the one press.
-    static let footer = "Your last three, kept on this phone and never sent. Press one to use it again."
+    /// **Says how to delete one** (the launch pass, 5½: nothing a person
+    /// needs may hide behind a gesture nobody is told about).
+    static let footer = "Your last three, kept on this phone and never sent. Press one to use it again, or hold it to delete it."
     /// Over the row on a page that asks you to make a head.
     static let instead = "Or use one you made before."
 
@@ -89,6 +91,7 @@ struct EarlierHeadsRow: View {
         }
         .accessibilityLabel(Self.name(of: entry))
         .accessibilityHint("Use this head again")
+        .accessibilityAction(named: "Delete for Good") { forgetting = entry }
     }
 
     /// A name somebody chose, or when it was made: a face is not a label

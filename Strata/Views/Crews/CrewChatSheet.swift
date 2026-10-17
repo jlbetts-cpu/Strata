@@ -393,6 +393,17 @@ struct CrewChatSheet: View {
         // Open is seen: the dot goes, and the hour's held alert with it. And
         // again as lines arrive while it is open, from the crew screen's
         // live sync underneath (`refreshLive`, every 3 seconds).
+        // One of the hold tip's three showings, counted once a chat.
+        .onAppear {
+            if !holdTipCounted, !UserDefaults.standard.bool(forKey: Self.holdTaughtKey),
+               store.messages(in: crewID).contains(where: { $0.senderProfileID != store.me }) {
+                let shown = UserDefaults.standard.integer(forKey: Self.holdTipShownKey)
+                if shown < 3 {
+                    UserDefaults.standard.set(shown + 1, forKey: Self.holdTipShownKey)
+                    holdTipCounted = true
+                }
+            }
+        }
         .onAppear {
             guard visible else { return }
             // **In the crew's native sheet it appears already open**, so it
@@ -898,6 +909,7 @@ struct CrewChatSheet: View {
         // interaction audit, 2026-10-15). Reply stays in the hold menu too.
         .modifier(SwipeToReply { if store.canReply() { reply(to: message) } })
         .simultaneousGesture(LongPressGesture(minimumDuration: Self.holdToReact).onEnded { _ in
+            UserDefaults.standard.set(true, forKey: Self.holdTaughtKey)
             openMenu(on: message, fromQuote: quote != nil || answered != nil)
         })
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { lineFrames.mid[id] = $0 }
@@ -1359,12 +1371,37 @@ struct CrewChatSheet: View {
         return parts.joined(separator: ", ")
     }
 
+    // MARK: - The hold, said once
+
+    /// **A line can be held: said, on the first few chats** (the launch pass,
+    /// 5½: nothing a person needs may hide behind a gesture nobody is told
+    /// about). Over the field while a friend's line is there to hold, on the
+    /// first three chats opened, and never again once a line has been held.
+    static let holdTaughtKey = "chat.holdTaught"
+    static let holdTipShownKey = "chat.holdTipShown"
+    @State private var holdTipCounted = false
+
+    private var showsHoldTip: Bool {
+        guard !UserDefaults.standard.bool(forKey: Self.holdTaughtKey),
+              UserDefaults.standard.integer(forKey: Self.holdTipShownKey) < 3 || holdTipCounted else { return false }
+        return store.messages(in: crewID).contains { $0.senderProfileID != store.me }
+    }
+
     // MARK: - The field
 
     @ViewBuilder
     private var composer: some View {
         if store.canReply() {
           VStack(spacing: 0) {
+            if showsHoldTip, replyingTo == nil, replyingToWin == nil {
+                Text("Hold a message to react or reply.")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, GridConstants.spacing)
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+            }
             if let replyingTo {
                 replyQuote(replyingTo)
                     // A fade, so nothing travels against the keys (fix 6).
