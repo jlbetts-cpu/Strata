@@ -317,7 +317,7 @@ struct CameraTabBarSkin: View {
         .task {
             for _ in 0..<20 {
                 measure()
-                if bar != nil, tabs.count == StrataTab.allCases.count { return }
+                if bar != nil, tabs.count == StrataTab.visible.count { return }
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
@@ -325,11 +325,11 @@ struct CameraTabBarSkin: View {
 
     private func measure() {
         bar = TabGlyph.barFrame()
-        tabs = StrataTab.allCases.compactMap { tab in
+        tabs = StrataTab.visible.compactMap { tab in
             TabGlyph.frames(of: tab).map { (tab, $0.button, $0.picture) }
         }
         titles = TabNames.shown
-            ? Dictionary(uniqueKeysWithValues: StrataTab.allCases.compactMap { tab in TabGlyph.title(of: tab).map { (tab, $0) } })
+            ? Dictionary(uniqueKeysWithValues: StrataTab.visible.compactMap { tab in TabGlyph.title(of: tab).map { (tab, $0) } })
             : [:]
     }
 }

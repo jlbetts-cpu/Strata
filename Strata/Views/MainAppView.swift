@@ -748,8 +748,10 @@ struct MainAppView: View {
                     .id(opening.id)
             }
         }
-        .onChange(of: selectedTab) { _, _ in
+        .onChange(of: selectedTab, initial: true) { _, tab in
             if inlineOpening != nil { withTransaction(Self.still) { inlineOpening = nil } }
+            // No Camera tab to be on: Wins, with its slot and the card.
+            if tab == .camera, !CameraTab.shown { selectedTab = .tower }
         }
         // The inline camera made ready (configured, not running) once the
         // app has settled, so a tap on the slot only has to start it.
@@ -1066,10 +1068,14 @@ struct MainAppView: View {
                     StrataTab.crews.label(news: crewsWithNews, lit: crewsNeverOpened, scheme: colorScheme)
                 }
             }
-            Tab(value: StrataTab.camera) {
-                cameraTab
-            } label: {
-                StrataTab.camera.label
+            // **Kept while `CameraTab.shown`** (the owner, 2026-10-17): off,
+            // the bar is Wins, Crews and Memories and the camera is the card.
+            if CameraTab.shown {
+                Tab(value: StrataTab.camera) {
+                    cameraTab
+                } label: {
+                    StrataTab.camera.label
+                }
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot.undoLine()

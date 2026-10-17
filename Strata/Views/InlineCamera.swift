@@ -20,6 +20,33 @@ enum CameraFirst {
     }
 }
 
+/// **The Camera tab, while it is kept** (the owner, 2026-10-17: "Research
+/// whether we need a Camera tab at all ... build the three-tab version behind
+/// a switch that's off"). On: four tabs, as today. Off: Wins, Crews and
+/// Memories, the camera card reachable everywhere a photo is made.
+enum CameraTab {
+    static let key = "cameraTabShown"
+    static var shown: Bool {
+        #if DEBUG
+        if let forced = DebugHarness.argument("-strataCameraTab") { return forced == "1" }
+        #endif
+        return UserDefaults.standard.object(forKey: key) as? Bool ?? true
+    }
+}
+
+extension StrataTab {
+    /// The tabs the bar shows, in its order.
+    static var visible: [StrataTab] {
+        allCases.filter { tab in
+            switch tab {
+            case .crews: CrewsFlag.isOn
+            case .camera: CameraTab.shown
+            default: true
+            }
+        }
+    }
+}
+
 // MARK: - The camera behind it
 
 /// The inline camera's lens: the app's own `CameraService`, the same preview,

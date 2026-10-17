@@ -64,13 +64,15 @@ enum TabGlyph {
                 }
             }
             columns.sort { $0.x < $1.x }
-            guard columns.count == StrataTab.allCases.count, columns.indices.contains(index) else { return [] }
+            guard columns.count == StrataTab.visible.count, columns.indices.contains(index) else { return [] }
             return columns[index].views
         }
         return []
     }
 
-    static func index(of tab: StrataTab) -> Int { StrataTab.allCases.firstIndex(of: tab) ?? 0 }
+    /// Where the tab stands in the bar as it is drawn: without Crews, or
+    /// without the Camera tab, the later ones move left.
+    static func index(of tab: StrataTab) -> Int { StrataTab.visible.firstIndex(of: tab) ?? 0 }
 
     /// The bar's own glass shape, in the window: the widest visible view
     /// inside the tab bar.

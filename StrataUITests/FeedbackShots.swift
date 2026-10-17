@@ -235,6 +235,16 @@ final class FeedbackShots: XCTestCase {
         if grouped.exists { grouped.tap(); wait(1.5); snap("activity-1-open") }
     }
 
+    /// The three-tab version (`CameraTab` off), and the card from Wins.
+    func testThreeTabs() {
+        let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "3", "-strataCameraTab", "0",
+                          "-strataFakeLens", "/Users/jaydenbetts/Developer/Strata/docs/site/memories.mp4"])
+        _ = app.buttons["Log a win"].firstMatch.waitForExistence(timeout: 30)
+        wait(6); snap("three-0")
+        app.buttons["Log a win"].firstMatch.tap()
+        wait(1.5); snap("three-1-card")
+    }
+
     func testTabSwitch() {
         let app = launch(["-strataStartTab", "tower", "-strataSeedWins", "4", "-strataFakeLens", "1"])
         if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }

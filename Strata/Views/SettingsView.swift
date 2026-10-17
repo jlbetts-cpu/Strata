@@ -30,6 +30,7 @@ struct SettingsView: View {
 
     @AppStorage(QuickPost.key) private var quickPost = false
     @AppStorage(CameraFirst.key) private var cameraFirst = true
+    @AppStorage(CameraTab.key) private var cameraTabShown = true
     @AppStorage(TabNames.key) private var tabNamesShown = true
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
@@ -422,6 +423,17 @@ struct SettingsView: View {
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "camera")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+
+                // The Camera tab, or three tabs and the card (`CameraTab`).
+                Toggle(isOn: $cameraTabShown) {
+                    Label {
+                        Text("Show the Camera Tab")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "camera.viewfinder")
                     }
                 }
                 .tint(AppColors.switchTrack)
