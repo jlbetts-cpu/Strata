@@ -110,8 +110,19 @@ enum CrewSync {
             default: break
             }
         }
-        let deleted = context.deletedModelsArray.compactMap { ($0 as? HabitLog)?.id }
+        // **A twin deleted is not the win deleted** (the second reader,
+        // 2026-10-17). Merging duplicate rows (`StoreDedupe`) deletes one of
+        // two logs with the same id; read as a delete, it withdrew the win
+        // from every crew and the story while the kept twin lived on. A
+        // deleted id that still has a live log is no delete at all.
+        let gone = Set(context.deletedModelsArray.compactMap { ($0 as? HabitLog)?.id })
+        let deleted = gone
             .filter { !store.crews(holding: $0).isEmpty || store.isOnStory($0) }
+            .filter { id in
+                var twin = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.id == id })
+                twin.fetchLimit = 4
+                return !((try? context.fetch(twin)) ?? []).contains { !$0.isDeleted }
+            }
         guard !changed.isEmpty || !deleted.isEmpty else { return }
         if !deleted.isEmpty {
             Task { for id in deleted { await store.deleteEverywhere(winID: id) } }

@@ -117,13 +117,21 @@ enum StoreDedupe {
         guard let habits = try? context.fetch(FetchDescriptor<Habit>()),
               let logs = try? context.fetch(FetchDescriptor<HabitLog>()) else { return 0 }
         var merged = 0
+        var emptied: [Habit] = []
         for (_, twins) in Dictionary(grouping: habits, by: \.id) where twins.count > 1 {
             let keep = twins.min { ($0.logs?.count ?? 0) > ($1.logs?.count ?? 0) } ?? twins[0]
             for other in twins where other !== keep {
                 for log in other.logs ?? [] { log.habit = keep }
-                context.delete(other)
+                emptied.append(other)
                 merged += 1
             }
+        }
+        // **Moved, saved, and only then deleted** (the second reader,
+        // 2026-10-17): a kind of win cascades its logs, so deleting it before
+        // the move had settled could take the logs just handed to its twin.
+        if !emptied.isEmpty {
+            try? context.save()
+            for other in emptied where (other.logs ?? []).isEmpty { context.delete(other) }
         }
         func weight(_ log: HabitLog) -> Int {
             (log.imageFileName != nil ? 4 : 0) + (log.doodleFileName != nil ? 2 : 0) + (log.completed ? 1 : 0)
