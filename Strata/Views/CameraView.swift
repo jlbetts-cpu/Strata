@@ -2179,7 +2179,7 @@ struct CameraPreview: UIViewRepresentable {
 /// app: a person pointing a camera has a lifetime of knowing what a yellow
 /// square on a viewfinder means, and spending that to make the reticle pink
 /// would buy nothing.
-private struct FocusReticle: View {
+struct FocusReticle: View {
     let bias: Float
     let range: ClosedRange<Float>
 

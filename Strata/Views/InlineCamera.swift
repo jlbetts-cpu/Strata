@@ -243,7 +243,12 @@ struct InlineCameraCard: View {
     @State private var shutterScale: CGFloat = 1
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
-    @State private var frontFlash = false
+    /// The lens row written out, and a pinch or the focus square up (the
+    /// card's swipe down waits for those).
+    @State private var lensesOpen = false
+    @State private var lensBusy = false
+    /// "Drag out for a bigger block", over the shutter, the first few times.
+    @State private var drawCue = false
 
     @State private var picking = false
     @State private var picked: PhotosPickerItem?
@@ -266,6 +271,9 @@ struct InlineCameraCard: View {
     @State private var barTop: CGFloat? = TabGlyph.barFrame()?.minY
 
     private var camera: CameraService { InlineCamera.shared.camera }
+    /// The ring is lit: the lens faces you, the flash is on, the card is on
+    /// the lens.
+    private var ringIsArmed: Bool { mode == .lens && open && !closing && camera.isFlashOn && camera.usesScreenFlash }
     private var crews: [Crew] { CrewsFlag.isOn ? SocialStore.shared.groupCrews : [] }
 
     var body: some View {
@@ -307,14 +315,16 @@ struct InlineCameraCard: View {
                             .position(x: frame.midX, y: frame.midY + drag)
                     }
 
-                // The front camera's flash is the screen, lit warm for the
-                // shot, as the Camera tab's is (`WarmRingLight`).
-                if frontFlash {
-                    WarmRingLight(fillOpacity: 1)
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
+                // **The front flash is the ring, held while you compose**
+                // (the old camera's, and the owner's: "The ring is enough
+                // ... the person still needs to be visible enough to admire
+                // themselves"). No blast at the shot, and no wait for one.
+                WarmRingLight(fillOpacity: WarmRingLight.modellingFill)
+                    .opacity(ringIsArmed ? WarmRingLight.modellingLevel : 0)
+                    .animation(GridConstants.screenFlashOut, value: ringIsArmed)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             .frame(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
                    height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
@@ -327,10 +337,14 @@ struct InlineCameraCard: View {
             countdownTask?.cancel()
             camera.stop()
             LocationService.shared.stop()
+            RingBrightness.restore()
         }
+        // The screen at full brightness while the ring is lit, as the old
+        // camera's (`RingBrightness`), and back after.
+        .onChange(of: ringIsArmed) { _, armed in if armed { RingBrightness.raise() } else { RingBrightness.restore() } }
         // **The volume buttons and Camera Control take the shot**, as every
         // camera on the phone, the Camera tab's included (`docs/camera.md`).
-        .onCameraCaptureEvent(isEnabled: mode == .lens && open && !closing) { event in
+        .onCameraCaptureEvent(isEnabled: mode == .lens && open && !closing && (camera.isLive || Self.fakeLens)) { event in
             if event.phase == .ended { shutterPressed() }
         }
         .onChange(of: picked) { _, item in Task { await take(item) } }
@@ -383,9 +397,15 @@ struct InlineCameraCard: View {
                         .accessibilityHidden(true)
                 }
                 if camera.showsGuides { guides }
+                // Pinch, tap to focus, drag to expose, double tap to flip.
+                LensGestureLayer(camera: camera, box: InlineCamera.shared.box,
+                                 lensesOpen: $lensesOpen, busy: $lensBusy)
+                    .frame(width: size.width, height: size.height)
+                    .allowsHitTesting(live && countdown == nil)
                 if let countdown {
                     Text("\(countdown)")
-                        .font(.system(size: 96, weight: .semibold, design: .rounded))
+                        // The owner's own numerals, as the old camera's.
+                        .font(Typography.numeral(96))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                         .legibleOnImagery()
@@ -461,14 +481,31 @@ struct InlineCameraCard: View {
                 extras
             }
             Spacer(minLength: 0)
+            // Stacked above the pill, never on it (the pill's row was hidden
+            // under it, 2026-10-18).
+            if drawCue {
+                Text("Drag out for a bigger block")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(.white)
+                    .fixedSize()
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .frame(height: 30)
+                    .lensGlass()
+                    .padding(.bottom, GridConstants.gapTight)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+            LensPill(camera: camera, open: $lensesOpen)
+                .padding(.bottom, GridConstants.gapTight)
             HStack {
-                glassGlyph(flashSymbol, label: flashLabel) {
+                glassGlyph(CameraView.flashSymbol(camera.flash), label: flashLabel, dim: !camera.isFlashOn) {
                     camera.cycleFlash()
                 }
                 Spacer(minLength: 0)
                 shutter
                 Spacer(minLength: 0)
                 glassGlyph("arrow.triangle.2.circlepath", label: "Switch camera") {
+                    if lensesOpen { withAnimation(GridConstants.motionSnappy) { lensesOpen = false } }
                     withAnimation(GridConstants.motionSnappy) { camera.flip() }
                 }
             }
@@ -479,14 +516,6 @@ struct InlineCameraCard: View {
         // left their discs (filmed at the largest size, 2026-10-17). Their
         // names stay readable through the large content viewer.
         .dynamicTypeSize(...DynamicTypeSize.xLarge)
-    }
-
-    private var flashSymbol: String {
-        switch camera.flash {
-        case .off: "bolt.slash"
-        case .auto: "bolt.badge.automatic"
-        case .on: "bolt.fill"
-        }
     }
 
     private var flashLabel: String {
@@ -520,7 +549,8 @@ struct InlineCameraCard: View {
                 Button("Today's Photos", systemImage: "photo.stack") { leave(with: .quickAdd) }
             }
         } label: {
-            glyphFace(camera.timerSeconds > 0 ? "timer" : "ellipsis")
+            glyphFace(camera.timerSeconds > 0 ? "timer" : "ellipsis",
+                      badge: camera.timerSeconds > 0 ? camera.timerSeconds : nil)
         }
         .accessibilityLabel("More")
         .accessibilityValue(camera.timerSeconds > 0 ? "Timer \(camera.timerSeconds) seconds" : "")
@@ -528,22 +558,36 @@ struct InlineCameraCard: View {
 
     /// A glyph on a soft glass disc, white, held legible over any picture as
     /// the Camera tab holds its own (`legibleOnImagery`).
-    private func glassGlyph(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+    private func glassGlyph(_ symbol: String, label: String, dim: Bool = false,
+                            action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
             action()
         } label: {
-            glyphFace(symbol)
+            glyphFace(symbol, dim: dim)
         }
-        .buttonStyle(.plain)
+        // The app's press, as the old camera's glyphs had.
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 
-    private func glyphFace(_ symbol: String) -> some View {
+    /// `dim`: off (the flash), at the old camera's quieter white.
+    private func glyphFace(_ symbol: String, dim: Bool = false, badge: Int? = nil) -> some View {
         Image(systemName: symbol)
             .iconSize(19, relativeTo: .body, weight: .semibold)
-            .foregroundStyle(.white)
+            .foregroundStyle(.white.opacity(dim ? 0.6 : 1))
             .legibleOnImagery()
+            // The timer's seconds, beside its glyph, as the old camera's.
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    Text(verbatim: "\(badge)")
+                        .font(Typography.headerSmall)
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .legibleOnImagery()
+                        .offset(x: 10, y: -8)
+                }
+            }
             .frame(width: 44, height: 44)
             .inlineGlass(in: Circle())
             .contentShape(Circle())
@@ -563,7 +607,7 @@ struct InlineCameraCard: View {
                 .inlineGlass(in: Capsule())
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     // MARK: The shutter
@@ -574,6 +618,23 @@ struct InlineCameraCard: View {
             .legibleOnImagery()
             .frame(width: CameraView.shutterBounds(.hard).width, height: CameraView.shutterBounds(.hard).height)
             .contentShape(Rectangle())
+            // **What it does, said once, small, where it is** (the old
+            // camera's cue): over the shutter, the first three visits, until
+            // a block has been drawn out once.
+            .task {
+                let seen = UserDefaults.standard.integer(forKey: CameraView.drawCueKey)
+                guard purpose == .win, seen < 3, !UserDefaults.standard.bool(forKey: CameraView.drawTaughtKey) else { return }
+                UserDefaults.standard.set(seen + 1, forKey: CameraView.drawCueKey)
+                try? await Task.sleep(for: .seconds(1))
+                withAnimation(GridConstants.crossFade) { drawCue = true }
+                try? await Task.sleep(for: .seconds(5))
+                withAnimation(GridConstants.crossFade) { drawCue = false }
+            }
+            .onChange(of: size) { _, now in
+                guard now != .small, mode == .lens else { return }
+                UserDefaults.standard.set(true, forKey: CameraView.drawTaughtKey)
+                withAnimation(GridConstants.crossFade) { drawCue = false }
+            }
             .gesture(shutterDraw, isEnabled: camera.isLive || Self.fakeLens)
             .accessibilityLabel("Take photo")
             .accessibilityValue(size.effortLabel)
@@ -605,9 +666,13 @@ struct InlineCameraCard: View {
                 HapticsEngine.snap()
                 withAnimation(GridConstants.slotSnap) { size = next }
             }
-            .onEnded { _ in
+            .onEnded { value in
                 guard down else { return }
                 down = false
+                // Drawn while a countdown runs: the shot in flight changes
+                // size rather than stopping (the old camera's rule).
+                let moved = hypot(value.translation.width, value.translation.height) > 6
+                if moved, countdownTask != nil { return }
                 shutterPressed()
             }
     }
@@ -641,18 +706,12 @@ struct InlineCameraCard: View {
 
     private func shoot() {
         guard !camera.isCapturing else { return }
-        HapticsEngine.lightTap()
+        HapticsEngine.snap()
         withAnimation(GridConstants.shutterPress) { shutterScale = 0.86 }
         withAnimation(GridConstants.shutterRelease.delay(0.08)) { shutterScale = 1 }
         place = purpose == .win ? LocationService.shared.place() : nil
-        let lit = camera.facing == .front && camera.flash == .on
         Task { @MainActor in
-            if lit {
-                withAnimation(GridConstants.crossFade) { frontFlash = true }
-                try? await Task.sleep(for: .milliseconds(250))
-            }
             camera.capture { image in Task { @MainActor in
-                if lit { withAnimation(GridConstants.crossFade) { frontFlash = false } }
                 guard let image else {
                     withAnimation(GridConstants.slotSnap) { size = .small }
                     return
@@ -661,6 +720,7 @@ struct InlineCameraCard: View {
                     PortraitPolish.apply(to: image)
                 }.value
                 fromCamera = true
+                HapticsEngine.lightTap()
                 // Held on the lens for a frame, then grown into the hero.
                 shot = polished
                 camera.stop()
@@ -801,7 +861,16 @@ struct InlineCameraCard: View {
             if HeadStore.shared.head != nil {
                 toolGlyph("face.smiling", label: sticker == nil ? "Add your head" : "Take your head off", on: sticker != nil) {
                     withAnimation(GridConstants.motionSnappy) {
-                        sticker = sticker == nil ? StickerPlacement() : nil
+                        // Inside what the block shows now, wherever the photo
+                        // has been moved or zoomed to (the old camera's rule).
+                        if sticker == nil, let photo = shot {
+                            let shown = CachedImageView.visibleRect(
+                                crop: crop, photo: photo.size,
+                                frame: CGSize(width: size.cropAspectRatio, height: 1), zoom: zoom)
+                            sticker = StickerPlacement(crop: shown, photoAspect: photo.size.width / max(photo.size.height, 1))
+                        } else {
+                            sticker = nil
+                        }
                     }
                 }
             }
@@ -1376,10 +1445,11 @@ struct InlineCameraCard: View {
     private var swipeDown: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
-                guard mode == .lens || !naming else { return }
+                guard mode == .lens || !naming, !lensBusy else { return }
                 drag = max(0, value.translation.height)
             }
             .onEnded { value in
+                guard !lensBusy else { withAnimation(GridConstants.slotSnap) { drag = 0 }; return }
                 if value.translation.height > 120 || value.predictedEndTranslation.height > 260 {
                     close()
                 } else {
