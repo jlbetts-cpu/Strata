@@ -1384,13 +1384,17 @@ final class SocialStore {
     /// Deleting a win deletes every copy of it, everywhere.
     func deleteEverywhere(winID: UUID) async {
         guard isEnabled() else { return }
-        // Off tonight's story as well, at once (R3).
-        if isOnStory(winID) { await withdrawStory(winID: winID) }
+        // **Every delete queued before anything waits** (the rare-bug hunt,
+        // 2026-10-16): the story's withdrawal sends before it returns, and
+        // an app killed during that send never queued the crews' deletes,
+        // so friends saw a deleted win for two weeks. The outbox is on disk.
         for crewID in crews(holding: winID) {
             winsByCrew[crewID]?.removeAll { $0.winID == winID }
             enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: nil))
         }
         unrecord(winID)
+        // Off tonight's story as well, at once (R3).
+        if isOnStory(winID) { await withdrawStory(winID: winID) }
         await flush()
     }
 
@@ -1398,7 +1402,7 @@ final class SocialStore {
     /// photo removal rule (CLAUDE.md) is that a photo is never the win.
     func removePhotoEverywhere(winID: UUID) async {
         guard isEnabled() else { return }
-        if isOnStory(winID) { await removeStoryPhoto(winID: winID) }
+        let onStory = isOnStory(winID)
         for crewID in crews(holding: winID) {
             guard var shared = winsByCrew[crewID]?.first(where: { $0.winID == winID }) else { continue }
             if let photo = shared.photo { try? FileManager.default.removeItem(at: photo) }
@@ -1407,6 +1411,8 @@ final class SocialStore {
             upsertLocal(shared)
             enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: CrewRecords.fields(shared)))
         }
+        // The story's after the crews' are queued, as a delete is.
+        if onStory { await removeStoryPhoto(winID: winID) }
         await flush()
     }
 
@@ -2504,7 +2510,7 @@ final class SocialStore {
     /// back `quotaExceeded`. New wins wait in the outbox until a save goes
     /// through again; the crew screen says so in one line (`fullWords`).
     private(set) var fullCrews: Set<CrewID> = []
-    static let fullWords = "The crew's iCloud is full, so new wins wait to send."
+    static let fullWords = "Crews are full for a moment, so new wins wait to send."
     /// When a full crew's saves are next tried.
     @ObservationIgnored private var quotaWait: [CrewID: Date] = [:]
 

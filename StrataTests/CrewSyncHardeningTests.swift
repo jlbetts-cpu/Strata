@@ -80,7 +80,11 @@ struct CrewSyncHardeningTests {
         let (crew, _) = try await a.createCrew(name: "One")
         #expect(a.crews.map(\.id) == [crew.id])
         #expect(world.zones.count == 1)
-        #expect(SocialStore.fullToStartWords.contains("iCloud storage is full"))
+        // Crews live in the app's shared space in iCloud, not the person's
+        // (the rare-bug hunt, 2026-10-16): the words never send anyone to
+        // free iCloud space that would not help.
+        #expect(!SocialStore.fullToStartWords.contains("iCloud storage"))
+        #expect(SocialStore.fullToStartWords.contains("waits"))
         #expect(!SocialStore.fullToStartWords.contains("\u{2014}"))
     }
 

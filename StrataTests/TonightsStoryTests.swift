@@ -60,13 +60,23 @@ struct TonightsStoryTests {
 
     @Test("the sealed end wins over any clock, and a night days away never lights a ring")
     func hardEnd() {
-        let ends = date("2026-10-16", 12, in: la)
-        #expect(StoryClock.endsAt(of: "2026-10-15", in: la) == ends)
-        // Far to the west, 9am comes after the poster's noon: the end decides.
+        // The sealed end is noon the next day where the day ends last
+        // (UTC-12), so every friend anywhere gets their own 8pm to 9am; it was
+        // noon in the poster's zone, and a friend far west never saw it.
+        let ends = StoryClock.endsAt(of: "2026-10-15", in: la)!
+        #expect(ends == Date(timeIntervalSince1970: 1_792_195_200)) // 2026-10-17 00:00 UTC
+        // Far to the west, their own 9am closes it.
         let honolulu = TimeZone(identifier: "Pacific/Honolulu")!
-        let s = story(sam, made: date("2026-10-15", 14, in: la))
-        #expect(StoryClock.phase(of: s, at: ends.addingTimeInterval(-60), in: honolulu) == .open)
+        let s = story(sam, made: date("2026-10-15", 14, in: la), ends: ends)
+        let nine = date("2026-10-16", 9, in: honolulu)
+        #expect(StoryClock.phase(of: s, at: nine.addingTimeInterval(-60), in: honolulu) == .open)
+        #expect(StoryClock.phase(of: s, at: nine, in: honolulu) == .gone)
         #expect(StoryClock.phase(of: s, at: ends, in: honolulu) == .gone)
+        // Sydney's story reaches San Francisco at San Francisco's 8pm.
+        let sydney = TimeZone(identifier: "Australia/Sydney")!
+        let sf = story(sam, day: "2026-10-16", made: date("2026-10-16", 18, in: sydney),
+                       ends: StoryClock.endsAt(of: "2026-10-16", in: sydney))
+        #expect(StoryClock.phase(of: sf, at: date("2026-10-16", 20, 30, in: la), in: la) == .open)
         let ahead = story(sam, day: "2026-10-18", made: date("2026-10-15", 14, in: la))
         #expect(StoryClock.phase(of: ahead, at: date("2026-10-15", 15, in: la), in: la) == .gone)
     }

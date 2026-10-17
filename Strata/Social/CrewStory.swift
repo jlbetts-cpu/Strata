@@ -80,12 +80,16 @@ nonisolated enum StoryClock {
     }
 
     /// The sealed end the poster's phone writes: noon on the day after
-    /// `day`, in the poster's zone, so the 9am close has three hours of
-    /// slack for a friend a zone or two to the west.
+    /// `day` **where the day ends last** (UTC-12), so every friend anywhere
+    /// gets their whole 8pm to 9am; each viewer's own 9am still closes it for
+    /// them. It was noon in the poster's zone, and a friend sixteen hours
+    /// west never saw a story at all (the rare-bug hunt, 2026-10-16).
+    /// `zone` is kept for the callers; the day is the poster's date.
     static func endsAt(of day: String, in zone: TimeZone) -> Date? {
-        guard let start = CrewDay.start(of: day, in: zone),
-              let next = calendar(zone).date(byAdding: .day, value: 1, to: start) else { return nil }
-        return calendar(zone).date(bySettingHour: 12, minute: 0, second: 0, of: next)
+        let westmost = TimeZone(secondsFromGMT: -12 * 3600)!
+        guard let start = CrewDay.start(of: day, in: westmost),
+              let next = calendar(westmost).date(byAdding: .day, value: 1, to: start) else { return nil }
+        return calendar(westmost).date(bySettingHour: 12, minute: 0, second: 0, of: next)
     }
 
     /// Whether a win made at `createdAt` can still go on a story at `now`:

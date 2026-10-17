@@ -403,7 +403,11 @@ struct PlannedCapture: ViewModifier {
                     let data = try? await chosen.loadTransferable(type: Data.self)
                     picked = nil
                     picking.wrappedValue = nil
-                    guard let data, let image = UIImage(data: data) else { return }
+                    // Never decoded whole: a 48MP shot or a panorama is
+                    // hundreds of MB drawn (the rare-bug hunt, 2026-10-16),
+                    // read here as Add a Win reads one.
+                    guard let data, let image = await ImageManager.downsampled(data, maxPixel: ImageManager.storedMaxDimension)
+                    else { return }
                     try? await Task.sleep(for: .milliseconds(500))
                     onCaptured(item, image, item.size, nil, .zero, 1)
                 }

@@ -20,8 +20,12 @@ nonisolated enum CrewErrorWords {
     static let offline = "You're offline. Connect to Wi-Fi or mobile data and try again."
     static let signedOut = "Sign in to iCloud in Settings to use crews."
     static let busy = "iCloud is busy right now. Try again in a minute."
-    static let yourICloudFull = "Your iCloud storage is full, so this can't be saved. Free up space in Settings, under your name, then iCloud."
-    static let starterICloudFull = "The person who started this crew is out of iCloud space. Ask them to free some up, then tap the link again."
+    /// **Not your iCloud, and not theirs** (the rare-bug hunt, 2026-10-16):
+    /// crews live in Some Wins' own shared space in iCloud, whose limit is
+    /// the app's, so a full one is said as a wait, and nobody is sent to
+    /// free space that would not help.
+    static let yourICloudFull = "Crews are full for a moment, so this waits and tries again on its own."
+    static let starterICloudFull = "Crews are full for a moment. Try the link again in a little while."
     static let wrongAccount = "This invite was sent to a different Apple Account. Ask your friend to invite the phone number or email this iPhone uses."
     static let ended = "This crew has ended, or the link is old. Ask for a new one."
     static let fullCrew = "That crew already has eight people, the most a crew can have."
