@@ -86,6 +86,14 @@ struct CrewsListView: View {
             } else if Self.debugState == "joining"
                         || (store.crews.isEmpty && (CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil)) {
                 joiningState
+            } else if store.crews.isEmpty, !store.hasFetchedCrews, store.holdsCrewKeys {
+                // **Your crews are on their way, not gone** (the 2026-10-16
+                // update report): a phone that holds crews never offers to
+                // start one while the first read is still out.
+                ProgressView()
+                    .controlSize(.regular)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Loading your crews")
             } else if store.crews.isEmpty {
                 empty
             } else {
@@ -563,8 +571,11 @@ struct CrewsListView: View {
             if DebugHarness.argument("-strataCrewsSignedIn") == "1" { return }
             #endif
             guard let cloud = store.cloud as? PublicCrewCloud else { return }
+            // Only a phone with no account is signed out: iCloud says "could
+            // not determine" or "for now unavailable" for a while after an
+            // install or update, and that is not a reason to ask.
             let status = try? await cloud.container.accountStatus()
-            signedOut = status != .available
+            signedOut = status == .noAccount
         }
     }
 }

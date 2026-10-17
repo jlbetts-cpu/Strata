@@ -175,9 +175,14 @@ final class FakeCrewCloud: CrewCloud {
         Set(world.zones.filter { $0.value.participants.contains(myProfileID) }.keys)
     }
 
+    /// What the last `fetchCrews` returned, as the real cloud keeps its read
+    /// on disk (`cachedCrews`).
+    private(set) var cached: [Crew] = []
+    func cachedCrews() -> [Crew] { cached }
+
     func fetchCrews() async throws -> [Crew] {
         try touch()
-        return world.zones.compactMap { id, zone -> Crew? in
+        let crews = world.zones.compactMap { id, zone -> Crew? in
             guard !unreadable.contains(id), zone.participants.contains(myProfileID),
                   let fields = zone.records["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"]
             else { return nil }
@@ -187,6 +192,8 @@ final class FakeCrewCloud: CrewCloud {
             return CrewRecords.crew(fields, id: id, members: CrewRecords.withScores(members, from: zone.records))
         }
         .sorted { $0.createdAt < $1.createdAt }
+        cached = crews
+        return crews
     }
 
     func fetchWins(in crew: CrewID) async throws -> [SharedWin] {

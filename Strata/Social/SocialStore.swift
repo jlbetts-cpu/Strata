@@ -2056,6 +2056,38 @@ final class SocialStore {
         var stories: [CrewStory]
     }
 
+    /// **Your crews the moment the app opens**, from what this phone last
+    /// read (`CrewCloud.cachedCrews`), before the trip to iCloud: an update
+    /// opens cold, and the list stood empty, saying to start a crew, until
+    /// that trip came back. Only once an account has been seen here, so a
+    /// changed account (whose cache `reset` cleared) never shows the last
+    /// one's crews.
+    private func seedFromCache() async {
+        guard crews.isEmpty, defaults.string(forKey: Self.accountKey) != nil else { return }
+        let cached = cloud.cachedCrews()
+        guard !cached.isEmpty else { return }
+        var wins: [CrewID: [SharedWin]] = [:], reactions: [CrewID: [Reaction]] = [:]
+        var messages: [CrewID: [CrewMessage]] = [:], stories: [CrewID: [CrewStory]] = [:]
+        for crew in cached {
+            let held = await held(in: crew)
+            wins[crew.id] = held.wins ?? []
+            reactions[crew.id] = held.reactions
+            messages[crew.id] = held.messages
+            stories[crew.id] = held.stories
+        }
+        // A refresh that finished meanwhile knows better.
+        guard crews.isEmpty else { return }
+        crews = Self.personalNamedFromShared(cached.map(withEdits), me: me)
+        winsByCrew = wins
+        reactionsByCrew = reactions
+        messagesByCrew = messages
+        storiesByCrew = stories
+    }
+
+    /// Whether this phone holds the key to any crew: the list waits quietly
+    /// for the first read rather than offering to start one.
+    var holdsCrewKeys: Bool { !(cloud.heldCrews() ?? []).isEmpty }
+
     private func held(in crew: Crew) async -> Held {
         let people = Set(crew.members.map(\.profileID))
         var wins: [SharedWin]?
@@ -2163,6 +2195,7 @@ final class SocialStore {
     }
 
     private func refreshOnce() async {
+        await seedFromCache()
         // CloudKit said to wait: nothing is asked until it has passed.
         guard now() >= syncRetryAfter else { return }
         await cloud.prepare()
@@ -2238,8 +2271,22 @@ final class SocialStore {
         } catch {
             Self.log.error("fetching crews failed: \(error)")
             noteBackoff(error)
+            // **iCloud not ready yet is not signed out** (the 2026-10-16
+            // update report): right after an install it answers "could not
+            // determine" for a moment. Asked again shortly, a few times,
+            // rather than at the next return to the app.
+            if case CrewError.notSignedIn = error, transientRetries < 3, case .unknown = await cloud.account() {
+                transientRetries += 1
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(4))
+                    await self?.refresh()
+                }
+            }
         }
     }
+
+    /// Retries after iCloud said it could not tell yet, this launch.
+    @ObservationIgnored private var transientRetries = 0
 
     /// Crews this session has tried to write your Member record into.
     @ObservationIgnored private var memberRepairs: Set<CrewID> = []

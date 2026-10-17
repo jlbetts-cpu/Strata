@@ -45,6 +45,9 @@ protocol CrewCloud: AnyObject {
     /// could read them this time. Nil when the cloud cannot tell the two
     /// apart, and then a crew missing from `fetchCrews` is gone.
     func heldCrews() -> Set<CrewID>?
+    /// The crews as this phone last read them, from its own disk, with no
+    /// network: what the list shows the moment the app opens.
+    func cachedCrews() -> [Crew]
     /// One crew, with its members, as last synced: what a live sync reads
     /// after `syncOnly` brought its zone up to date. Nil when it is gone.
     func fetchCrew(_ crew: CrewID) async throws -> Crew?
@@ -151,5 +154,6 @@ extension CrewCloud {
     }
     func settle(_ crew: CrewID) async {}
     func heldCrews() -> Set<CrewID>? { nil }
+    func cachedCrews() -> [Crew] { [] }
     func willLeave(_ crew: CrewID) async throws {}
 }

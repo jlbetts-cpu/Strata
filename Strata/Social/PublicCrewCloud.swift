@@ -639,6 +639,18 @@ final class PublicCrewCloud: CrewCloud {
     /// could be read this time (`SocialStore.refreshOnce`).
     func heldCrews() -> Set<CrewID>? { Set(keys.all.keys) }
 
+    /// **The list on opening, from this phone's own copy** (the owner's
+    /// sister, 2026-10-16: "every time she updates it looks like she needs
+    /// to start a new club for a little bit"). An update always opens cold,
+    /// and the crews used to wait for a full trip to iCloud. Only crews still
+    /// held and not ended, left or removed; the refresh after puts it right.
+    func cachedCrews() -> [Crew] {
+        keys.all.keys
+            .filter { !isEnded($0) && !isRemoved(myProfileID, from: $0) && leftAt($0) == nil }
+            .compactMap(cachedCrew)
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
     func fetchCrew(_ crew: CrewID) async throws -> Crew? {
         guard keys.key(for: crew) != nil, !isEnded(crew) else { return nil }
         return cachedCrew(crew)
