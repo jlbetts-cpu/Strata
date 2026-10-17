@@ -2146,7 +2146,7 @@ final class FeedbackShots: XCTestCase {
 
     /// The black bar over the camera and the way back (2026-10-16 prototype).
     func testCameraBar() {
-        let app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3", "-strataDarkCameraBar"])
+        var app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3"])
         wait(6); snap("bar-0-camera")
         app.tabBars.buttons["Wins"].firstMatch.tap()
         snap("bar-1-leaving")
@@ -2155,6 +2155,10 @@ final class FeedbackShots: XCTestCase {
         app.tabBars.buttons["Camera"].firstMatch.tap()
         snap("bar-4-entering")
         wait(0.3); snap("bar-5-in")
+        app.terminate()
+        // A photograph on review: the page's own bar, in light mode too.
+        app = launch(["-strataStartTab", "camera", "-strataSeedWins", "3", "-strataOpenReview", "small"])
+        wait(6); snap("bar-6-review")
     }
 
     /// Tonight's Story with no wins today: its empty state (2026-10-16).

@@ -1939,7 +1939,7 @@ struct MainAppView: View {
     /// the owner has seen it.
     @ViewBuilder
     var cameraBarSkin: some View {
-        if CameraTabBarSkin.isOn, selectedTab == .camera {
+        if CameraTabBarSkin.isOn, selectedTab == .camera, !CameraReviewState.shared.reviewing {
             CameraTabBarSkin()
                 .transition(.opacity.animation(.easeOut(duration: 0.18)))
         }

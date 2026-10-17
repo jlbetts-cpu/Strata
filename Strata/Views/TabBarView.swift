@@ -222,15 +222,26 @@ enum StrataTab: String, CaseIterable {
 ///
 /// **Off until the owner has seen it** (his rule: camera changes go to him
 /// first): `-strataDarkCameraBar` turns it on.
+/// Whether the camera is showing a photograph just taken: the review stands
+/// on the page in the phone's own appearance, so the black bar steps aside.
+@MainActor @Observable
+final class CameraReviewState {
+    static let shared = CameraReviewState()
+    var reviewing = false
+}
+
 struct CameraTabBarSkin: View {
     @State private var bar: CGRect?
     @State private var tabs: [(tab: StrataTab, button: CGRect, picture: CGRect)] = []
 
+    /// **On** (the owner, 2026-10-16, asked: "Turn it on"). It was behind
+    /// `-strataDarkCameraBar` until he had seen it; `-strataLightCameraBar`
+    /// puts the plain bar back, for comparing.
     static var isOn: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-strataDarkCameraBar")
+        return !ProcessInfo.processInfo.arguments.contains("-strataLightCameraBar")
         #else
-        return false
+        return true
         #endif
     }
 

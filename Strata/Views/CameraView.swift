@@ -477,6 +477,11 @@ struct CameraView: View {
         }
         .onAppear { isOnScreen = true }
         .onDisappear { isOnScreen = false }
+        // The tab's camera tells the drawn black bar when a photograph is
+        // on review, so it steps aside for the page (`CameraTabBarSkin`).
+        .onChange(of: review != nil && isOnScreen && !fillsScreen, initial: true) { _, reviewing in
+            CameraReviewState.shared.reviewing = reviewing
+        }
         // The camera went back to focusing by itself: the square no longer
         // says where it is looking.
         .onChange(of: camera.focusReleases) { _, _ in
