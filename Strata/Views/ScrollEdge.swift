@@ -79,7 +79,7 @@ extension View {
     @ViewBuilder
     func pinnedFoot<Foot: View>(@ViewBuilder _ foot: @escaping () -> Foot) -> some View {
         if #available(iOS 26.0, *) {
-            self.safeAreaBar(edge: .bottom, spacing: 0, content: foot)
+            modifier(PinnedFoot(foot: foot))
         } else {
             self.safeAreaInset(edge: .bottom, spacing: 0, content: foot)
         }
@@ -140,6 +140,7 @@ private struct EdgeFade: ViewModifier {
 }
 
 private struct PinnedBar<Bar: View, Below: View>: ViewModifier {
+    @Environment(\.colorScheme) private var pageScheme
     @ViewBuilder let bar: () -> Bar
     @ViewBuilder let below: () -> Below
     /// Where the bar ends, in this view's own space: where `below` begins.
@@ -164,6 +165,30 @@ private struct PinnedBar<Bar: View, Below: View>: ViewModifier {
     }
 
     private var measured: some View {
-        bar().onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { barFoot = $0 }
+        bar()
+            // The page's appearance, held inside the bar (`PinnedFoot`).
+            .environment(\.colorScheme, pageScheme)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { barFoot = $0 }
+    }
+}
+
+/// **A foot bar keeps the page's appearance** (the owner, 2026-10-18: "the
+/// message bar turns dark mode when it scrolls over the recent photos. It
+/// must stay our light glass and blur at all times").
+///
+/// iOS 26's bar turns what it holds to dark when dark content scrolls under
+/// it: measured on a person's page, the message field went from 253 to 94,
+/// and a page-coloured ground inside it to 39, because the colour itself
+/// resolved dark. So the page's own appearance is read outside the bar and
+/// set again inside it.
+@available(iOS 26.0, *)
+private struct PinnedFoot<Foot: View>: ViewModifier {
+    @ViewBuilder let foot: () -> Foot
+    @Environment(\.colorScheme) private var pageScheme
+
+    func body(content: Content) -> some View {
+        content.safeAreaBar(edge: .bottom, spacing: 0) {
+            foot().environment(\.colorScheme, pageScheme)
+        }
     }
 }
