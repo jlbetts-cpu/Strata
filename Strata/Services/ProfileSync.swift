@@ -24,6 +24,11 @@ final class ProfileSync {
 
     static let cloudKey = "profile.sync"
     private static let stampsKey = "profile.sync.stamps"
+    /// **Reset All Data, on any of your phones**: an entry with its time.
+    /// Everything older is gone everywhere, and stays gone (the review,
+    /// 2026-10-16: deleting the copy let your other phone put it all back).
+    static let resetKey = "reset"
+    private static let resetSeenKey = "profile.sync.resetSeen"
 
     let cloud: KeyValueCloud
     let defaults: UserDefaults
@@ -128,9 +133,10 @@ final class ProfileSync {
     /// Every stamped field this phone is ahead on, into iCloud.
     func push() {
         var remote = cloud.dictionary(forKey: Self.cloudKey) as? [String: [String: Any]] ?? [:]
+        let reset = CrewChoicesSync.stamp(remote[Self.resetKey])
         var wrote = false
         for (key, stamp) in localStamps {
-            guard let field = Field(key: key), stamp > CrewChoicesSync.stamp(remote[key]),
+            guard let field = Field(key: key), stamp > reset, stamp > CrewChoicesSync.stamp(remote[key]),
                   let value = localValue(field) else { continue }
             remote[key] = ["v": value, "t": stamp]
             wrote = true
@@ -152,9 +158,19 @@ final class ProfileSync {
         var touchedYou = false
         applying = true
         defer { applying = false }
+        // Reset on another phone of yours since this one last looked: its
+        // choices go too, and nothing older comes back.
+        let reset = CrewChoicesSync.stamp(remote[Self.resetKey])
+        if reset > defaults.double(forKey: Self.resetSeenKey) {
+            defaults.set(reset, forKey: Self.resetSeenKey)
+            store.clearChoices()
+            stamps = stamps.filter { $0.value > reset }
+            touchedYou = true
+        }
         for (key, entry) in remote {
             guard let field = Field(key: key) else { continue }
             let theirs = CrewChoicesSync.stamp(entry)
+            guard theirs > reset else { continue }
             let mine = stamps[key] ?? -1
             guard theirs >= mine, let value = entry["v"] else { continue }
             switch field {
@@ -223,19 +239,33 @@ final class ProfileSync {
         started = true
         useStore(container)
         NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
-                                               object: nil, queue: .main) { _ in
-            Task { @MainActor in ProfileSync.shared.pull() }
+                                               object: nil, queue: .main) { note in
+            let reason = note.userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
+            Task { @MainActor in
+                // **Another Apple ID**: what it holds replaces this phone's
+                // choices' stamps, so this phone's never go up into it.
+                if reason == NSUbiquitousKeyValueStoreAccountChange { ProfileSync.shared.forgetStamps() }
+                ProfileSync.shared.pull()
+            }
         }
         adoptOldChoices()
         cloud.synchronize()
         pull()
     }
 
-    /// Reset All Data empties the profile everywhere it is kept, iCloud's
-    /// copy with it, as the privacy policy says.
+    /// Reset All Data empties the profile everywhere it is kept, as the
+    /// privacy policy says: iCloud's copy becomes one dated reset entry,
+    /// which your other phones apply, and which nothing older can undo.
     func forget() {
-        defaults.removeObject(forKey: Self.stampsKey)
-        cloud.set(nil, forKey: Self.cloudKey)
+        let now = Date().timeIntervalSince1970
+        defaults.set(now, forKey: Self.resetSeenKey)
+        defaults.set([String: Double](), forKey: Self.stampsKey)
+        cloud.set([Self.resetKey: ["t": now]], forKey: Self.cloudKey)
         cloud.synchronize()
+    }
+
+    /// This phone's stamps, dropped: whatever iCloud holds wins.
+    func forgetStamps() {
+        defaults.set([String: Double](), forKey: Self.stampsKey)
     }
 }

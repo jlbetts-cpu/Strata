@@ -54,6 +54,9 @@ struct PersonalChatTests {
         #expect(b.directFriend(dm.id)?.profileID == jayden)
         // A message thread is never a crew to send wins or plans to.
         #expect(!a.groupCrews.contains { $0.id == dm.id })
+        // Someone blocked is nobody in it.
+        a.block(sam, name: "Sam")
+        #expect(a.directFriend(dm.id) == nil)
     }
 
     @Test("a message thread keeps two weeks of lines; a crew's chat is today's")
@@ -67,8 +70,16 @@ struct PersonalChatTests {
         // A day later, by the store's clock.
         let tomorrow = Date().addingTimeInterval(86_400)
         a.now = { tomorrow }
+        // The midnight sweep keeps a conversation's lines, here and in the
+        // cloud (the review: it cleared them as a crew's chat).
+        a.prune()
+        await a.flush()
         #expect(a.messages(in: dm.id).map(\.text).contains("yesterday's"))
         #expect(!a.messages(in: crew.id).map(\.text).contains("crew yesterday"))
+        b.now = { tomorrow }
+        b.prune()
+        await b.flush()
+        #expect(!world.records(of: .message, in: dm.id).isEmpty, "the sender's phone kept its line in the cloud")
         // Past two weeks, gone from the thread too.
         a.now = { Date().addingTimeInterval(86_400 * 16) }
         #expect(!a.messages(in: dm.id).map(\.text).contains("yesterday's"))

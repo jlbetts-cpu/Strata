@@ -65,6 +65,28 @@ struct ProfileSyncTests {
         }
     }
 
+    @Test("Reset All Data on one phone clears the other's choices, and nothing older comes back")
+    func resetEverywhere() {
+        keeping {
+            let a = UUID()
+            let cloud = MemoryKeyValueCloud()
+            let old = Date().timeIntervalSince1970 - 60
+            cloud.set(["featured": ["v": [a.uuidString], "t": old]], forKey: ProfileSync.cloudKey)
+            let mine = sync(cloud, files: [a: "a.jpg"])
+            mine.pull()
+            #expect(ProfileStore.shared.featuredFiles == ["a.jpg"])
+            // The other phone resets.
+            let other = sync(cloud, files: [a: "a.jpg"])
+            other.forget()
+            mine.pull()
+            #expect(ProfileStore.shared.featuredFiles.isEmpty)
+            // This phone's older stamps never put it back.
+            mine.push()
+            let remote = cloud.dictionary(forKey: ProfileSync.cloudKey) as? [String: [String: Any]]
+            #expect(remote?["featured"] == nil)
+        }
+    }
+
     @Test("a change here goes up, by win id, and an older one there does not overwrite it")
     func goesUp() {
         keeping {

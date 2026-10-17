@@ -29,7 +29,18 @@ struct DirectChatView: View {
         .background { WarmBackground().ignoresSafeArea() }
         .toolbar(.hidden, for: .navigationBar)
         .modifier(CrewLiveSync(crewID: crewID))
-        .onAppear { store.markSeen(crewID) }
+        .onAppear {
+            store.markSeen(crewID)
+            // Quiet for the conversation on screen, as a crew is (the review).
+            CrewNotifications.visibleCrew = crewID
+            // A tower's errands, never this page's: left set, they opened the
+            // next crew's chat unasked (the review, 2026-10-16).
+            CrewRouter.shared.openChat = false
+            CrewRouter.shared.openWin = nil
+        }
+        .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
+        // Ended or left from elsewhere: back to the list, not a broken page.
+        .onChange(of: store.crew(crewID) == nil) { _, gone in if gone { onBack() } }
         .sheet(isPresented: $profile) {
             if let friend, let shared = sharedCrew(of: friend) {
                 NavigationStack { FriendProfileSheet(member: friend, crewID: shared) }
@@ -65,7 +76,7 @@ struct DirectChatView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press)
-            .disabled(friend == nil)
+            .disabled(friend.flatMap(sharedCrew(of:)) == nil)
             .accessibilityLabel(name)
             .accessibilityHint("Opens their profile.")
         }

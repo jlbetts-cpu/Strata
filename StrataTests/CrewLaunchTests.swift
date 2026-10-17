@@ -29,6 +29,29 @@ struct CrewLaunchTests {
         #expect(again.crews.first?.name == "Roommates")
     }
 
+    @Test("signed out, or another account, while the app was closed: nothing of the last one's crews")
+    func signedOutNoSeed() async throws {
+        let world = FakeCrewWorld()
+        let suite = "launch-\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appending(path: suite)
+        let cloud = FakeCrewCloud(world: world, me: UUID())
+        let first = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        first.isEnabled = { true }
+        _ = try await first.createCrew(name: "Roommates")
+        await first.refresh()
+        cloud.offline = true
+        cloud.signedIn = .signedOut
+        let out = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        out.isEnabled = { true }
+        await out.refresh()
+        #expect(out.crews.isEmpty)
+        cloud.signedIn = .signedIn("someone-else")
+        let other = SocialStore(cloud: cloud, defaults: UserDefaults(suiteName: suite)!, directory: dir)
+        other.isEnabled = { true }
+        await other.refresh()
+        #expect(other.crews.isEmpty)
+    }
+
     @Test("a phone that never saw an account shows nothing from the cache")
     func noAccountNoSeed() async throws {
         let world = FakeCrewWorld()

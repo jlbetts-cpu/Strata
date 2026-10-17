@@ -20,7 +20,7 @@ struct NewMessageSheet: View {
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return all }
         return all.filter { $0.member.firstName.localizedCaseInsensitiveContains(words)
-            || ($0.member.handle ?? "").localizedCaseInsensitiveContains(words) }
+            || (store.shownHandle(of: $0.member) ?? "").localizedCaseInsensitiveContains(words) }
     }
 
     var body: some View {

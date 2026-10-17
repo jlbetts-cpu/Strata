@@ -93,7 +93,7 @@ struct CrewsListView: View {
             } else if Self.debugState == "joining"
                         || (store.crews.isEmpty && (CrewRouter.shared.joining || CrewRouter.shared.pendingInvite != nil)) {
                 joiningState
-            } else if store.crews.isEmpty, !store.hasFetchedCrews, store.holdsCrewKeys {
+            } else if store.crews.isEmpty, !store.hasFetchedCrews, !store.crewsLoadFailed, store.holdsCrewKeys {
                 // **Your crews are on their way, not gone** (the 2026-10-16
                 // update report): a phone that holds crews never offers to
                 // start one while the first read is still out.
@@ -116,7 +116,8 @@ struct CrewsListView: View {
                     // **Newest first, as Messages** (the owner's pick,
                     // 2026-10-13): the crew with the latest win, line or
                     // reaction on top, so the one you came for leads.
-                    ForEach(store.crews.sorted { a, b in
+                    // A thread with someone you blocked is not shown.
+                    ForEach(store.crews.filter { !$0.isPersonal || store.directFriend($0.id) != nil }.sorted { a, b in
                         (store.activity(in: a.id)?.date ?? .distantPast) > (store.activity(in: b.id)?.date ?? .distantPast)
                     }) { crew in
                         Button {
@@ -284,6 +285,11 @@ struct CrewsListView: View {
                         problem = "That did not work just now. Try again in a moment."
                     }
                 }
+            }
+        } message: { crew in
+            // What it means, said plainly (the review, 2026-10-16).
+            if crew.isPersonal {
+                Text(crew.isOwner(store.me) ? "It's deleted for both of you." : "You leave the chat, and its lines go with you.")
             }
         }
         }

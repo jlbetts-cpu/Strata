@@ -817,9 +817,13 @@ final class SocialStore {
     /// named as the crew you share names them.
     func directFriend(_ crewID: CrewID) -> CrewMember? {
         guard let crew = crew(crewID), crew.isPersonal else { return nil }
-        if let other = crew.members.first(where: { $0.profileID != me }) { return other }
+        // Never someone blocked (the review, 2026-10-16): their thread
+        // shows nobody, and the list leaves it out.
+        if let other = crew.members.first(where: { $0.profileID != me }) {
+            return blocked.contains(other.profileID) ? nil : other
+        }
         guard let started = personalStarted.first(where: { $0.value.crew == crewID.rawValue }),
-              let friend = UUID(uuidString: started.key) else { return nil }
+              let friend = UUID(uuidString: started.key), !blocked.contains(friend) else { return nil }
         return groupCrews.lazy.compactMap { $0.member(friend) }.first
     }
 
@@ -2093,7 +2097,16 @@ final class SocialStore {
     /// changed account (whose cache `reset` cleared) never shows the last
     /// one's crews.
     private func seedFromCache() async {
-        guard crews.isEmpty, defaults.string(forKey: Self.accountKey) != nil else { return }
+        guard crews.isEmpty, let known = defaults.string(forKey: Self.accountKey) else { return }
+        // **Only the account that read them** (the review, 2026-10-16): an
+        // iCloud signed out, or another one signed in, while the app was
+        // closed never sees the last one's crews. Not sure yet is allowed:
+        // that is the update this is for.
+        switch await cloud.account() {
+        case .signedOut: return
+        case .signedIn(let who) where who != known: return
+        default: break
+        }
         let cached = cloud.cachedCrews()
         guard !cached.isEmpty else { return }
         var wins: [CrewID: [SharedWin]] = [:], reactions: [CrewID: [Reaction]] = [:]
@@ -2113,6 +2126,22 @@ final class SocialStore {
         messagesByCrew = messages
         storiesByCrew = stories
     }
+
+    /// **A conversation the other person left is ended** (the review,
+    /// 2026-10-16): a thread with only you in it and no invitation out was
+    /// a row reading "New Crew" with your own face. Made a minute ago, or
+    /// with its invitation still waiting, it is left alone.
+    private func endThreadsLeftAlone() async {
+        let waiting = Set(personalStarted.values.map(\.crew))
+        for crew in crews where crew.isPersonal && crew.members.count == 1 && crew.isOwner(me)
+            && !waiting.contains(crew.id.rawValue) && now().timeIntervalSince(crew.createdAt) > 600 {
+            try? await end(crew.id)
+        }
+    }
+
+    /// A read of the crews has failed this launch: the list stops waiting
+    /// and says what it can (signed out, or empty) rather than spin.
+    var crewsLoadFailed = false
 
     /// Whether this phone holds the key to any crew: the list waits quietly
     /// for the first read rather than offering to start one.
@@ -2277,6 +2306,8 @@ final class SocialStore {
             let merged = Self.personalNamedFromShared((fetched.map(withEdits) + crews.filter { unread.contains($0.id) })
                 .sorted { $0.createdAt < $1.createdAt }, me: me)
             if crews != merged { crews = merged }
+            crewsLoadFailed = false
+            await endThreadsLeftAlone()
             await repairMissingMembership(in: fetched)
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
@@ -2301,6 +2332,7 @@ final class SocialStore {
         } catch {
             Self.log.error("fetching crews failed: \(error)")
             noteBackoff(error)
+            crewsLoadFailed = true
             // **iCloud not ready yet is not signed out** (the 2026-10-16
             // update report): right after an install it answers "could not
             // determine" for a moment. Asked again shortly, a few times,
@@ -2495,8 +2527,12 @@ final class SocialStore {
             // to today's line is live, and one to a line whose day has ended
             // goes with it, its sticker and all. Without this every line's
             // reactions were orphans of no win, deleted the moment they came.
+            // **A conversation's lines keep two weeks** (the review,
+            // 2026-10-16: this cleared a message thread at midnight like a
+            // crew's chat, and deleted your lines from the cloud with it).
+            let lineCutoff = crew.isPersonal ? (CrewDay.oldestKept(today: today, in: crew.timeZone) ?? today) : today
             let live = Set((winsByCrew[crew.id] ?? []).filter { $0.crewDay >= cutoff }.map(\.winID))
-                .union((messagesByCrew[crew.id] ?? []).filter { $0.crewDay >= today }.map(\.messageID))
+                .union((messagesByCrew[crew.id] ?? []).filter { $0.crewDay >= lineCutoff }.map(\.messageID))
                 // A story's reactions live while it does; the poster's phone
                 // has kept its own copy by then (`keepStoryReactions`).
                 .union((storiesByCrew[crew.id] ?? []).filter { now() < $0.endsAt }.map(\.id))
@@ -2532,9 +2568,9 @@ final class SocialStore {
             // its own lines (only a record's writer may), doodle and all;
             // anyone else's leave this phone's list, and no screen shows
             // another day's line before then (`messages(in:)`).
-            let ended = (messagesByCrew[crew.id] ?? []).filter { $0.crewDay < today }
+            let ended = (messagesByCrew[crew.id] ?? []).filter { $0.crewDay < lineCutoff }
             if !ended.isEmpty {
-                messagesByCrew[crew.id]?.removeAll { $0.crewDay < today }
+                messagesByCrew[crew.id]?.removeAll { $0.crewDay < lineCutoff }
                 for message in ended where message.senderProfileID == me {
                     if let sketch = message.sketch { try? FileManager.default.removeItem(at: sketch) }
                     enqueue(.init(crew: crew.id, type: .message, name: CrewRecords.name(of: message), fields: nil))

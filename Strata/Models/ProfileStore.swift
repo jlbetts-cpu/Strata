@@ -228,6 +228,17 @@ final class ProfileStore {
         ProfileSync.shared.changed(.banner(month))
     }
 
+    /// **Your choices gone, without a word to iCloud** (`ProfileSync`, when
+    /// Reset All Data on another phone of yours arrives): banners, their
+    /// arrangements, featured wins and their words. The name stays: nobody
+    /// is left without one on a phone that did not ask.
+    func clearChoices() {
+        for key in [Self.bannerKey, Self.bannerLayoutKey, Self.featuredKey, Self.featuredPromptsKey, Self.featuredSharedKey] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        bannerChanged += 1
+    }
+
     /// The months with a banner, or an arrangement, chosen (`ProfileSync`).
     var bannerMonths: [String] {
         Array(((UserDefaults.standard.dictionary(forKey: Self.bannerKey) as? [String: [String]]) ?? [:]).keys)
