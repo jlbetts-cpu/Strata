@@ -338,11 +338,13 @@ struct PlanLines: View {
     /// The quiet line under a plan line: when, and how often.
     static func subtitle(for item: PlanItem, calendar: Calendar) -> String? {
         // A plan shared with a crew says so (the one planner, 2026-10-16).
-        let crew: String? = CrewsFlag.isOn
-            ? GroupPlanBook.crew(forPlanItem: item.id).flatMap { SocialStore.shared.crew($0) }
-                .map { "With \($0.displayName(excluding: SocialStore.shared.me))" }
-            : nil
-        let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar), crew].compactMap { $0 }
+        let store = SocialStore.shared
+        let shared = CrewsFlag.isOn ? GroupPlanBook.crew(forPlanItem: item.id).flatMap { store.crew($0) } : nil
+        let crew = shared.map { "With \($0.displayName(excluding: store.me))" }
+        // And who in it has done it today (2026-10-17): their part, ticked.
+        let done = shared.map { store.didToday(PlanTime.title(item.text), in: $0.id) } ?? []
+        let doneWords = done.isEmpty ? nil : store.names(done, in: shared!.id) + " did it"
+        let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar), crew, doneWords].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

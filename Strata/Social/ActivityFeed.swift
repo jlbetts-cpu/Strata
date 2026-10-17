@@ -205,6 +205,23 @@ extension SocialStore {
         activityRevision &+= 1
     }
 
+    /// **Who in a crew did a shared plan today** (the add-on: "see when a
+    /// friend checks their part off"): crew-mates whose win today, on the
+    /// crew's own day, has the plan's words. Read from what the crew already
+    /// holds; joining a plan is never sent, so this is what can be known.
+    func didToday(_ title: String, in crewID: CrewID) -> [UUID] {
+        guard let crew = crew(crewID) else { return [] }
+        let words = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !words.isEmpty else { return [] }
+        let today = CrewDay.string(for: now(), in: crew.timeZone)
+        var seen = Set<UUID>()
+        return wins(in: crewID, on: today)
+            .filter { $0.senderProfileID != me && !blocked.contains($0.senderProfileID)
+                && $0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == words }
+            .map(\.senderProfileID)
+            .filter { seen.insert($0).inserted }
+    }
+
     /// "Sam", "Sam and Ana", "Sam, Ana and Leo", "Kai, Leo and 2 others"
     /// (the owner's own wording for a grouped row, 2026-10-17).
     func names(_ people: [UUID], in crew: CrewID) -> String {
