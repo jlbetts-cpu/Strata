@@ -1424,7 +1424,7 @@ struct SettingsIcon: View {
 /// **`Section("Name")` is the platform's heading, not this app's.** It arrives
 /// in SF Pro at a size and a case iOS picks, so Settings, Profile and a plan
 /// line each named their sections in a face the app uses nowhere else, while
-/// `AddWinSheet` set its own labels from `Typography.sectionLabel` by hand.
+/// `EditWinSheet` set its own labels from `Typography.sectionLabel` by hand.
 /// Three screens, three answers to one question.
 ///
 /// `docs/design-system-future.md` section 2 settles which: "A label that wants

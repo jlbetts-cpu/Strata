@@ -17,7 +17,7 @@ struct FlowFixTests {
 
     @Test("in Add a Win, every menu waits for the keyboard to go")
     func menusAfterTheKeyboard() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         // The block's menu from a press, from the photo's Replace, and from
         // the hold's two Replaces; and the names of who was there.
         #expect(add.components(separatedBy: "afterKeyboard { choosingSource = true }").count - 1 == 4)
@@ -31,7 +31,7 @@ struct FlowFixTests {
 
     @Test("Add waits for a photo chosen from the library")
     func addWaitsForTheLibrary() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         #expect(add.contains("photoLoading = loading"))
         #expect(add.contains("if photoLoading == loading { photoLoading = nil }"))
     }
@@ -158,7 +158,7 @@ struct FlowFixTests {
         let after = chat[field.upperBound...].prefix(600)
         #expect(after.contains(".glassField()") && !after.contains(".glassCapsule("))
         // And nothing else that grows sits in a capsule.
-        for path in ["Strata/Views/AddWinSheet.swift", "Strata/Views/DayWinNotes.swift", "Strata/Views/PlanItemDetailSheet.swift"] {
+        for path in ["Strata/Views/EditWinSheet.swift", "Strata/Views/DayWinNotes.swift", "Strata/Views/PlanItemDetailSheet.swift"] {
             let source = try code(path)
             for piece in source.components(separatedBy: "axis: .vertical").dropFirst() {
                 #expect(!piece.prefix(500).contains(".glassCapsule("), "\(path)")

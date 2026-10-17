@@ -132,8 +132,11 @@ struct PhotoMarksTests {
             #expect(body.contains(gone), "Retake keeps \(gone)")
         }
         // The zoom reaches the win: the sheet opens holding it.
-        #expect(try code("Strata/Views/AddWinSheet.swift").contains("zoom = pinched"))
-        #expect(try code("Strata/Views/MainAppView.swift").contains("initialZoom: draft.zoom"))
-        #expect(try code("Strata/Views/PlannedBlocks.swift").contains("onCaptured(shot.item, shot.photo, shot.size, shot.place, shot.crop, shot.zoom)"))
+        #expect(try code("Strata/Views/EditWinSheet.swift").contains("zoom = pinched"))
+        // Through the card since 2026-10-18 (the old sheet and the plan's
+        // own camera are gone): the card hands its zoom to the win.
+        #expect(try code("Strata/Views/InlineCamera.swift").contains("win.zoom = PhotoWindow.zoom(zoom)"))
+        #expect(try code("Strata/Views/MainAppView.swift").contains("window: win.window, zoom: win.zoom"))
+        #expect(!(try code("Strata/Views/PlannedBlocks.swift").contains("CameraView(")), "a plan line has its own camera again")
     }
 }

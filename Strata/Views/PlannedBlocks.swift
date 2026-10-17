@@ -360,7 +360,6 @@ struct CrewPlannedLayer: View {
 /// of `MainAppView`'s body, which is at the type checker's ceiling, and on
 /// the screen's root, so neither goes away with the tower's layers.
 struct PlannedCapture: ViewModifier {
-    @Binding var capturing: PlanItem?
     @Binding var editing: PlanItem?
     /// The planned win a photo is being chosen for, from the library.
     var picking: Binding<PlanItem?> = .constant(nil)
@@ -368,29 +367,10 @@ struct PlannedCapture: ViewModifier {
 
     @State private var picked: PhotosPickerItem?
 
-    /// What the shutter took, held until the camera has gone.
-    @State private var taken: (item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint, zoom: CGFloat)?
-
     func body(content: Content) -> some View {
         content
-            // **The add sheet opens once the camera has left** (found by
-            // review): asked for in the same moment, a sheet presented over
-            // one still going away is dropped without a word, and the
-            // photograph with it. The plan's own tick does the same
-            // (`pendingDraft`).
-            .fullScreenCover(item: $capturing, onDismiss: {
-                guard let shot = taken else { return }
-                taken = nil
-                onCaptured(shot.item, shot.photo, shot.size, shot.place, shot.crop, shot.zoom)
-            }) { item in
-                CameraView(
-                    onCaptured: { image, drawn, place, crop, zoom in
-                        taken = (item, image, drawn, place, crop, zoom)
-                        capturing = nil
-                    },
-                    onClose: { capturing = nil }
-                )
-            }
+            // The camera a planned win opened went with the old camera: a
+            // plan line's Take Photo is the card (`MainAppView.presentAddWin`).
             // **A photo from the library finishes it too.** The picker, then
             // the add sheet holding the photo once the picker has left, as
             // the camera's does.

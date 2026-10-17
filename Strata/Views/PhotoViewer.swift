@@ -287,13 +287,16 @@ struct PhotoViewer: View {
         }
         .photoSaveFailed($saveFailed)
         .sheet(item: $editingLog) { log in
-            AddWinSheet(modelContext: modelContext,
-                        tower: log.habit?.tower,
-                        editing: log.habit,
-                        editingLog: log,
-                        onSaved: { _ in onWinChanged() },
-                        // The win is gone, and its photograph with it.
-                        onDeleted: { onWinChanged(); onClose() })
+            // A log whose win has gone has nothing to change.
+            if let habit = log.habit {
+                EditWinSheet(modelContext: modelContext,
+                             tower: habit.tower,
+                             win: habit,
+                             editingLog: log,
+                             onSaved: { _ in onWinChanged() },
+                             // The win is gone, and its photograph with it.
+                             onDeleted: { onWinChanged(); onClose() })
+            }
         }
     }
 
@@ -1315,7 +1318,7 @@ enum PhotoRemoval {
             try context.transaction {
                 for log in try context.fetch(descriptor) {
                     log.imageFileName = nil
-                    // Its window goes with it (`AddWinSheet.writePhoto`).
+                    // Its window goes with it (`EditWinSheet.writePhoto`).
                     log.cropPositionX = nil
                     log.cropPositionY = nil
                     log.cropZoom = 1

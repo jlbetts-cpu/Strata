@@ -21,41 +21,46 @@ import UIKit
 /// The controls are the same ones the block's own card uses — six colour
 /// circles and three size buttons — so the thing you are making looks like the
 /// thing it becomes.
-struct AddWinSheet: View {
+struct EditWinSheet: View {
 
     let modelContext: ModelContext
     let tower: Tower?
-    /// When set, the sheet edits this block's habit instead of creating one.
-    var editing: Habit? = nil
+    /// **The win being changed: always one** (the owner, 2026-10-18: "Delete
+    /// the old Add a Win sheet and anything that can still present it. Not
+    /// hidden, not behind a flag. Gone"). This sheet made new wins too; that
+    /// half is gone, and a new win is the camera card's alone
+    /// (`MainAppView.presentAddWin`). It cannot be opened without a win.
+    let win: Habit
+    private var editing: Habit? { win }
     var editingLog: HabitLog? = nil
     /// A photograph the sheet opens already holding — a shot just taken on
     /// the camera tab, which lands here to be named and sized rather than
     /// going straight onto the tower unnamed.
     /// Pre-filled title, when the win is being written from a plan line.
-    var initialTitle: String? = nil
-    var initialPhoto: UIImage? = nil
+    private let initialTitle: String? = nil
+    private let initialPhoto: UIImage? = nil
     /// Opened from the inline camera's Draw It: the drawing opens first.
-    var opensDrawing: Bool = false
+    private let opensDrawing: Bool = false
     /// The size drawn out of the camera's shutter, if the photograph came from
     /// there. Defaulted, so no other call site changes.
-    var initialSize: BlockSize = .small
+    private let initialSize: BlockSize = .small
     /// Where the photograph was taken, if it came from the camera.
-    var initialPlace: WinPlace? = nil
+    private let initialPlace: WinPlace? = nil
     /// Which part of the photograph the block shows, if it was moved on the
     /// review.
-    var initialCrop: CGPoint = .zero
-    var initialZoom: CGFloat = 1
+    private let initialCrop: CGPoint = .zero
+    private let initialZoom: CGFloat = 1
     /// The colour to open on instead of the tower's least-used one. Worn as a
     /// colour, not claimed as a category: a plan line's colour may have been
     /// assigned rather than picked, and nothing records which.
-    var initialColour: HabitCategory? = nil
+    private let initialColour: HabitCategory? = nil
     /// The crews to tick, when the sheet is opened from a crew's tower. Not
     /// remembered as next time's choice: the choice made from a crew is that
     /// crew's.
-    var initialCrews: Set<CrewID>? = nil
+    private let initialCrews: Set<CrewID>? = nil
     /// The plan line this win is being made from (its box, or its outline
     /// on the tower). The caller ticks that line; nothing is ticked by name.
-    var plannedLine: UUID? = nil
+    private let plannedLine: UUID? = nil
     /// The crew a group plan ticked for this win alone (`GroupPlanBook`).
     @State private var groupPlanCrew: CrewID?
     /// **A day chosen on Now goes to the plan sheet** (the owner's pick,
@@ -66,7 +71,7 @@ struct AddWinSheet: View {
     /// second time in here, choosing a day closes this sheet and opens that
     /// one, on that day, ready to write. Anything already typed goes with
     /// it as the first line. Nil keeps the old in-sheet mode.
-    var onPlan: ((PlanScope, String) -> Void)? = nil
+    private let onPlan: ((PlanScope, String) -> Void)? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -2678,7 +2683,7 @@ private struct TodaysPhotoTile: View {
     }
 }
 
-/// No iOS 26 soft scroll edge on the photo strip (`AddWinSheet.photoStrip`).
+/// No iOS 26 soft scroll edge on the photo strip (`EditWinSheet.photoStrip`).
 private struct NoScrollEdgeEffect: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {

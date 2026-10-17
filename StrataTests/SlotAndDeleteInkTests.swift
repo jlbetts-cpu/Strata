@@ -48,8 +48,8 @@ struct SlotAndDeleteInkTests {
     /// makes the dark red darker than the night ground and this goes red.
     @Test("the delete red inverts with the scheme")
     func destructiveRedInverts() {
-        let light = luminance(resolved(AddWinSheet.destructiveTint, .light))
-        let dark = luminance(resolved(AddWinSheet.destructiveTint, .dark))
+        let light = luminance(resolved(EditWinSheet.destructiveTint, .light))
+        let dark = luminance(resolved(EditWinSheet.destructiveTint, .dark))
         // The night ground is about rgb(29) and the day page about rgb(247).
         let nightGround = luminance((29 / 255, 29 / 255, 29 / 255))
         let dayPage = luminance((247 / 255, 247 / 255, 247 / 255))
@@ -67,7 +67,7 @@ struct SlotAndDeleteInkTests {
     /// cannot quietly take the daylight with it.
     @Test("the light red is still B3000F")
     func theLightRedIsUnchanged() {
-        let c = resolved(AddWinSheet.destructiveTint, .light)
+        let c = resolved(EditWinSheet.destructiveTint, .light)
         #expect(abs(c.r - 0.702) < 0.004, "red is \(c.r)")
         #expect(abs(c.g - 0.0) < 0.004, "green is \(c.g)")
         #expect(abs(c.b - 0.059) < 0.004, "blue is \(c.b)")
@@ -81,7 +81,7 @@ struct SlotAndDeleteInkTests {
     /// `ReplayLoadingSlot`'s own note said "resting, the two match". It was
     /// true of the recess and stopped being true of the edge the day
     /// `NextSlotButton` went 0.26 to 0.80 — the value both that file and
-    /// `AddWinSheet`'s photo well name as the known-bad one. Photographed with
+    /// `EditWinSheet`'s photo well name as the known-bad one. Photographed with
     /// `-strataReplayHoldLoad`, the waiting slot's dash peaked at rgb(191) on a
     /// 247 page: **1.73:1**, under the 3:1 WCAG asks of a shape, on a page with
     /// nothing else drawn on it at all.

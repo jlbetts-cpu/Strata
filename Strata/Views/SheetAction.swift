@@ -28,7 +28,7 @@ import SwiftUI
 /// **The ink step is the thing that says which word is the button**, and it is
 /// the part that does not come free. Where a sheet has two words, Cancel is
 /// `.cancel` at `inkSecondary` and the confirm is `.confirm` at `inkPrimary`,
-/// which is the step `AddWinSheet` settled. Where a sheet has only a confirm —
+/// which is the step `EditWinSheet` settled. Where a sheet has only a confirm —
 /// Profile, the plan line — the word is the same ink as the title beside it, and
 /// §2.7 of the audit is still open on that: it is a question about `StrataTitle`,
 /// not about this modifier, and it wants the owner's eye rather than a guess.

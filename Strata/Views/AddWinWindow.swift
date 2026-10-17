@@ -58,3 +58,19 @@ final class PassthroughWindow: UIWindow {
         return super.hitTest(point, with: event)
     }
 }
+
+/// **Add a Win, asked for from anywhere**: a chat, a crew, a person's page.
+/// They hand the opening here and Wins presents it through its one way in
+/// (`MainAppView.presentAddWin`).
+@MainActor @Observable
+final class AddWinRouter {
+    static let shared = AddWinRouter()
+    private(set) var request: AddWinOpening?
+
+    func open(_ opening: AddWinOpening) { request = opening }
+
+    func take() -> AddWinOpening? {
+        defer { request = nil }
+        return request
+    }
+}

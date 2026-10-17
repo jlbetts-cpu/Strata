@@ -93,7 +93,7 @@ struct AlbumsAndCropTests {
 
     @Test("Move Photo is on the block's menu and the strip's, and both draw what was chosen")
     func cropIsWired() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         #expect(add.contains("Button(\"Move Photo\""))
         // Each call hands over the zoom as well since 2026-10-13, when a
         // photo could be pinched in its frame (`PhotoWindowTests`): the same
@@ -109,7 +109,7 @@ struct AlbumsAndCropTests {
 
     @Test("a plain press of the shutter does not undo the size chosen on the sheet")
     func sizeStays() throws {
-        #expect(try code("Strata/Views/AddWinSheet.swift").contains("if drawn != .small { size = drawn }"))
+        #expect(try code("Strata/Views/EditWinSheet.swift").contains("if drawn != .small { size = drawn }"))
     }
 
     @Test("every hint waits for a clear tower and the ring, and says what the app does")
@@ -193,7 +193,7 @@ struct AlbumsAndCropTests {
         #expect(PlanScope.day(1).prompt() == "Plan for tomorrow")
         #expect(PlanScope.repeating.prompt() == "Plan something that repeats")
         #expect(try code("Strata/Views/DaySheet.swift").contains("private var planPlaceholder: String { planScope.prompt() }"))
-        #expect(try code("Strata/Views/AddWinSheet.swift").contains("planFor?.prompt() ?? \"What did you do?\""))
+        #expect(try code("Strata/Views/EditWinSheet.swift").contains("planFor?.prompt() ?? \"What did you do?\""))
     }
 
     @Test("your three are not listed twice, not offered while planning, and reachable from the plan")
@@ -201,7 +201,7 @@ struct AlbumsAndCropTests {
         let lines = try code("Strata/Views/PlanLines.swift")
         #expect(lines.contains("three.filter { !planned.contains("))
         #expect(lines.contains("Button(\"Change Your Three\", systemImage: \"pencil\") { choosingThree = true }"))
-        #expect(try code("Strata/Views/AddWinSheet.swift").contains("if !isEditing, !isPlanning, !ideas.isEmpty { ideaRow }"))
+        #expect(try code("Strata/Views/EditWinSheet.swift").contains("if !isEditing, !isPlanning, !ideas.isEmpty { ideaRow }"))
     }
 }
 

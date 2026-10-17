@@ -80,7 +80,7 @@ struct BlockDoodleTests {
 
     @Test("the Add sheet keeps a block to one or the other, and draws in white")
     func addSheetWiring() throws {
-        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         // **The pen tile is gone, on purpose** (the owner, 2026-10-10: the
         // dedicated doodle block "wastes space on a sheet that otherwise
         // shows the day's recent photos"). This line used to demand the

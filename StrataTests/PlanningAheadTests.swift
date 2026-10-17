@@ -222,7 +222,7 @@ struct PlanningAheadTests {
         #expect(sheet.contains("repeatDays: repeatDays)"), "the plan's own lines are told the days")
         let lines = SourceSweep.code(try SourceSweep.read("Strata/Views/PlanLines.swift"))
         #expect(lines.contains("line.repeatDays = repeatDays.isEmpty ? PlanScope.everyDay : repeatDays"))
-        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         #expect(add.contains("WeekdayChips(days: $planDays)"))
         #expect(add.contains("repeatDays: scope == .repeating ? planDays : []"))
         // Never no day at all: the last one on cannot be pressed off.
@@ -354,7 +354,7 @@ struct PlanningAheadTests {
 
     @Test("the review's fixes are where the code is")
     func reviewFixesArePinned() throws {
-        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         let made = try #require(add.range(of: "WinIdeas.winMade(win.habit, from: plannedLine, named: title, context: modelContext)"))
         let attach = try #require(add.range(of: "guard await attach(photo, to: log) else {"))
         #expect(made.lowerBound < attach.lowerBound, "the plan hears of the win before a photo can fail")
@@ -366,7 +366,8 @@ struct PlanningAheadTests {
         #expect(main.contains("onCamera: { planned(nil, $0, .camera) }"))
         // The camera card since 2026-10-17, behind the same guard.
         #expect(main.contains("case .camera:\n            guard stillThere(item), !alreadyWon(item) else { return }"))
-        #expect(main.contains("plannedLine: draft.planItemID"))
+        // The card since 2026-10-18: the line rides on the opening.
+        #expect(main.contains("title: PlanTime.title(item.text), size: item.size, planItemID: item.id, words: true"))
         #expect(main.contains("PlanTickPending.hold(item.id)"))
         let settle = try #require(main.range(of: "PlanTickPending.settle(context: modelContext)"))
         let sweep = try #require(main.range(of: "PlanItem.sweep(context: modelContext)"))

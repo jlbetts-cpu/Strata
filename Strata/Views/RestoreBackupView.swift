@@ -54,7 +54,7 @@ struct RestoreBackupView: View {
             // the confirm button in `contents(of:)` has nothing to expand into
             // and the button stays where it was, with the page's biggest break
             // under it. See that `Spacer` for the measurement; the pattern is
-            // `AddWinSheet`'s and the Plan sheet's `content`'s.
+            // `EditWinSheet`'s and the Plan sheet's `content`'s.
             GeometryReader { proxy in
             // **A failure is a drawn moment** (`DrawnMoment`, the owner,
             // 2026-10-14: "there needs to be consistency"): his cat in the
@@ -246,7 +246,7 @@ struct RestoreBackupView: View {
             // the screen, which is also where a break belongs on a page that
             // asks you to read before you press.
             //
-            // The pattern is `AddWinSheet`'s and the Plan sheet's `content`'s, not a
+            // The pattern is `EditWinSheet`'s and the Plan sheet's `content`'s, not a
             // new one: the stack is held to at least the viewport's height by
             // the `GeometryReader` in `body` and the `Spacer` is the only
             // flexible thing in it. With a backup that carries warnings the

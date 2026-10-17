@@ -94,7 +94,7 @@ struct OwnerMorningCallsTests {
 
     @Test("Delete is the red word, not the bordered pill")
     func deleteIsAWord() throws {
-        let text = try source("Views/AddWinSheet.swift")
+        let text = try source("Views/EditWinSheet.swift")
         let body = text.components(separatedBy: "private var deleteButton: some View {").last ?? ""
         let button = body.components(separatedBy: "// MARK:").first ?? ""
         #expect(!button.contains(".buttonStyle(.bordered)"))
@@ -151,7 +151,7 @@ struct LastFourToTenTests {
     /// pins its absence, so it cannot quietly come back.
     @Test("while typing, the block keeps its size: the keyboard stands over it")
     func wellKeepsItsSizeOverTheKeyboard() throws {
-        let text = try MorningSource.read("Views/AddWinSheet.swift")
+        let text = try MorningSource.read("Views/EditWinSheet.swift")
         #expect(!text.contains("func wellFit("))
         #expect(text.contains("return (CGSize(width: fullW, height: fullH),"))
     }

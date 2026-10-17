@@ -165,12 +165,15 @@ struct DayAlbumDetailView: View {
         // The same sheet the tower's long press opens, in edit mode, and the
         // same one the viewer's Edit opens for a photographed win.
         .sheet(item: $editingLog) { log in
-            AddWinSheet(modelContext: modelContext,
-                        tower: log.habit?.tower,
-                        editing: log.habit,
-                        editingLog: log,
-                        onSaved: { _ in reload() },
-                        onDeleted: { reload() })
+            // A log whose win has gone has nothing to change.
+            if let habit = log.habit {
+                EditWinSheet(modelContext: modelContext,
+                             tower: habit.tower,
+                             win: habit,
+                             editingLog: log,
+                             onSaved: { _ in reload() },
+                             onDeleted: { reload() })
+            }
         }
     }
 

@@ -295,7 +295,7 @@ struct PhotoWindowTests {
 
     @Test("every place a win's photo is drawn in a block is given its zoom")
     func wired() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         #expect(add.contains("zoom = CGFloat(log.cropZoom)"), "a win being edited opens on the middle again")
         #expect(add.contains("if !photoChanged, photo != nil, log.imageFileName != nil { writeWindow(to: log) }"),
                 "Move Photo on a win already logged saves nothing")

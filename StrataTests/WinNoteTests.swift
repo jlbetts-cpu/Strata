@@ -75,7 +75,7 @@ struct WinNoteTests {
 
     @Test("it is written at the win after the win exists, never in a fresh Add, and never leaves for a crew")
     func whereItLives() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         // Only on a win being edited, and not past a locked journal.
         #expect(add.contains("if editingLog != nil, !(journalLocked && !JournalLock.shared.isUnlocked) {\n                            TextField(WinNote.prompt"))
         #expect(add.components(separatedBy: "WinNote.prompt").count == 3, "one field, and its prompt")

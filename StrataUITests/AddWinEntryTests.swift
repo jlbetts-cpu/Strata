@@ -80,7 +80,11 @@ final class AddWinEntryTests: XCTestCase {
                           "-strataSeedCrews", "2", "-strataSeedCrewWins", "6", "-strataOpenCrew", "0"])
         let slot = app.buttons["Log a win"].firstMatch
         XCTAssertTrue(slot.waitForExistence(timeout: 30))
-        Thread.sleep(forTimeInterval: 5)
+        // Settled: the crew's chat comes up at its foot as a sheet after the
+        // tower, and UIKit takes no touch while a sheet is arriving (one run
+        // in five pressed into that and nothing opened, 2026-10-18; never the
+        // old sheet).
+        Thread.sleep(forTimeInterval: 8)
         snap("addwin-crew-tower")
         for i in 1...4 {
             app.buttons["Log a win"].firstMatch.tap()

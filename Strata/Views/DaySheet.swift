@@ -403,7 +403,7 @@ struct DaySheet: View {
         }
         // Full height, stated; the drag indicator; the page's own ground as
         // the sheet's material. Through the default frosted glass the
-        // tower's colours bled up behind the controls (`AddWinSheet`).
+        // tower's colours bled up behind the controls (`EditWinSheet`).
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground { WarmBackground().ignoresSafeArea() }

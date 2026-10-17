@@ -19,7 +19,7 @@ import UIKit
 /// never grants read access. The app has no business enumerating your library,
 /// so it does not ask to.
 ///
-/// **Only photographs the app took.** A picture chosen through `AddWinSheet`'s
+/// **Only photographs the app took.** A picture chosen through `EditWinSheet`'s
 /// photo picker is already in the library; writing it back would duplicate it.
 enum PhotoLibrarySaver {
 

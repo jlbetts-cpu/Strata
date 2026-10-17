@@ -21,7 +21,7 @@ import SwiftUI
 /// here now, and this type is the only thing that draws them.
 ///
 /// **The shape is the CIRCLE, and that is the owner's own call rather than a
-/// tie-break.** `AddWinSheet` records it: "These were briefly blocks, on the
+/// tie-break.** `EditWinSheet` records it: "These were briefly blocks, on the
 /// rule that every surface you can act on is one. The owner preferred the
 /// circles (2026-09-09) and that settles it: a swatch is not a block you are
 /// placing, it is a property of the block you are describing, and a round chip
@@ -309,7 +309,7 @@ struct ColourSwatchRow: View {
         // **The word "Colour" is gone from the page and kept for VoiceOver**, on
         // both sheets now.
         //
-        // The rule is `AddWinSheet`'s: cut a label when the screen performs it,
+        // The rule is `EditWinSheet`'s: cut a label when the screen performs it,
         // keep it when the screen only states it. The plan line kept its
         // `FormSectionLabel("Colour")` on the argument that nothing on that sheet
         // demonstrated what the row set — true of a row of six bare pastels. With

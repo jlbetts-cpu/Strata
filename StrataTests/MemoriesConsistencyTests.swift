@@ -262,7 +262,7 @@ struct MemoriesConsistencyTests {
                 "Cancel is not quieter than the confirm, so nothing in the bar says which word is the button")
         let step = Contrast.ratio(confirm, cancel)
         #expect(step >= 2.0,
-                "the step between the two words is \(step):1, and `AddWinSheet` settled it at about 2.4 (14.4:1 beside 6.1:1)")
+                "the step between the two words is \(step):1, and `EditWinSheet` settled it at about 2.4 (14.4:1 beside 6.1:1)")
     }
 
     /// Every confirm or cancel word in a sheet's title row goes through the
@@ -359,7 +359,7 @@ struct MemoriesConsistencyTests {
             "HeadMakerView.swift": "the shutter hand-rolls its own press, measured, because a disabled plain button is dimmed by the environment and the block came out at 128 of 255",
             "CameraView.swift": "the shutter, the same reason",
             "HeadSticker.swift": "not this worker's file",
-            "AddWinSheet.swift": "not this worker's file",
+            "EditWinSheet.swift": "not this worker's file",
             "LogWinWidgets.swift": "a widget's button: WidgetKit draws the press itself, and an app press style cannot run in a widget",
             "CrewReactions.swift": "labels are Liquid Glass, which answers the press itself; a scaling press style on interactive glass cancelled taps on a real phone (2026-10-05)",
             "CrewTowerView.swift": "the name capsule is `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06 audit)",

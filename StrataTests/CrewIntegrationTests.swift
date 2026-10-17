@@ -17,7 +17,7 @@ struct CrewIntegrationTests {
     @Test func everyPlaceAPersonLogsAWinSendsIt() throws {
         // "with: withPeople" since 2026-10-05: Add Win sends who the win was
         // with (shared wins). Still the one call that posts a new win.
-        #expect(try Self.source("Strata/Views/AddWinSheet.swift")
+        #expect(try Self.source("Strata/Views/EditWinSheet.swift")
             .contains("CrewSync.post(log, to: crewChoice, with: withPeople)"))
         #expect(try Self.source("Strata/Views/MainAppView.swift").contains("CrewSync.post(log)"))
         #expect(try Self.source("Strata/Intents/LogWinIntent.swift").contains("CrewSync.post(log)"))

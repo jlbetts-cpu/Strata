@@ -78,7 +78,7 @@ struct WinsSideSecondPassTests {
         #expect(bottom < keyboardTop - GridConstants.gapWide,
                 "the block's bottom is at \(bottom), within \(GridConstants.gapWide) of the keyboard at \(keyboardTop)")
 
-        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         #expect(!code.contains("Spacer(minLength: titleFocused"), "the floored block came back")
         #expect(code.contains(".padding(.top, GridConstants.gapSection)"))
     }
@@ -129,7 +129,7 @@ struct WinsSideSecondPassTests {
 
     @Test("no save or photo write on the add sheet fails in silence")
     func noSilentFailures() throws {
-        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         #expect(Self.silentFailures(code).isEmpty, "silent: \(Self.silentFailures(code))")
         #expect(code.contains("fail(.win)"))
         #expect(code.contains("fail(.photo)"))

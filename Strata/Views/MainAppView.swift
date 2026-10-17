@@ -226,7 +226,6 @@ struct MainAppView: View {
     ///
     /// `.sheet(item:)` makes the payload the identity of the presentation, so
     /// there is nothing left for anything else to null out.
-    @State private var winDraft: WinDraft?
     /// Add a Win as the inline camera, grown out of what was tapped
     /// (`InlineCameraCard`). Nil when the card is away.
     @State private var inlineOpening: AddWinOpening?
@@ -237,10 +236,9 @@ struct MainAppView: View {
     @State private var firstCheer: String?
     @State private var showsActivity = false
     /// The planned win whose camera is open, and the one being changed.
-    @State private var capturingPlan: PlanItem?
     @State private var pickingPlan: PlanItem?
     /// A day chosen on the add sheet's Now, and any words typed there: the
-    /// plan sheet opens on it once the add sheet has left (`AddWinSheet
+    /// plan sheet opens on it once the add sheet has left (`EditWinSheet
     /// .onPlan`).
     @State private var planHandoff: (scope: PlanScope, words: String)?
     @State private var planOpeningScope: PlanScope?
@@ -283,9 +281,9 @@ struct MainAppView: View {
     @State private var handoffLogs: [HabitLog]?
     @State private var dayOnScreen = DateUtils.dateString(from: Date())
     @State private var eveningDecided = ""
-    /// Held while the plan sheet is still on screen, and promoted to
-    /// `winDraft` once it has finished dismissing.
-    @State private var pendingDraft: WinDraft?
+    /// A win the plan page asked for, held while the plan is on screen and
+    /// opened once it has gone.
+    @State private var pendingOpening: AddWinOpening?
     /// A plan line ticked optimistically, still waiting to become a block.
     ///
     /// **The tick has to be able to go back.** Pressing a line checks it
@@ -708,9 +706,9 @@ struct MainAppView: View {
             scheduleReminder()
             // The next opening is an ordinary one: on today, keyboard down.
             planOpeningScope = nil
-            if let pending = pendingDraft {
-                winDraft = pending
-                pendingDraft = nil
+            if let pending = pendingOpening {
+                pendingOpening = nil
+                presentAddWin(pending)
             }
         }) {
             // **The day's sheet: a Plan tab and a Journal tab** (the owner,
@@ -724,15 +722,17 @@ struct MainAppView: View {
                 let colour = three.category
                     ?? WinIdeas.candidates(context: modelContext).three
                         .first { $0.title.lowercased() == three.id && !$0.keepsColour }?.category
-                pendingDraft = WinDraft(title: three.title, size: .small, colour: colour)
+                pendingOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                               colour: colour ?? nextWinCategory, title: three.title, words: true)
                 returnsToPlan = true
                 isPlanning = false
             }) { item in
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
-                pendingDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category,
-                                        planItemID: item.id)
+                pendingOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                               colour: item.category, title: PlanTime.title(item.text), size: item.size,
+                                               planItemID: item.id, words: true)
                 tickAwaitingWin = item.id
                 PlanTickPending.hold(item.id)
                 returnsToPlan = true
@@ -766,8 +766,7 @@ struct MainAppView: View {
         // **No Camera tab, and the camera still a button away** (2026-10-17):
         // with three tabs, a press of Camera Control on Wins opens the card,
         // which then takes the shot on the next press.
-        .onCameraCaptureEvent(isEnabled: selectedTab == .tower && inlineOpening == nil
-                                && winDraft == nil) { event in
+        .onCameraCaptureEvent(isEnabled: selectedTab == .tower && inlineOpening == nil) { event in
             if event.phase == .ended { openAddWin(from: nil, radius: GridConstants.radiusSurface) }
         }
         .sheet(isPresented: $showsActivity) { ActivitySheet() }
@@ -798,75 +797,20 @@ struct MainAppView: View {
             try? await Task.sleep(for: .seconds(2))
             await InlineCamera.shared.warm()
         }
-        .sheet(item: $winDraft, onDismiss: {
-            // **To the plan, on the day chosen on Now.** Words already in
-            // the name field are the first line.
-            if planHandoff != nil {
-                openPlanHandoff()
-                return
-            }
-            let saved = tickAwaitingWin == nil
-            // Closed without saving: put the line back the way it was.
-            if let id = tickAwaitingWin {
-                // Its win may be there all the same: saved, its photograph
-                // failed, and the sheet swiped away. Then the tick is earned.
-                if !hasWinToday(for: id) { setPlanItemDone(id, false) }
-                tickAwaitingWin = nil
-            }
-            PlanTickPending.clear()
-            // **Back to the plan it came from** (the owner, 2026-10-06).
-            // Ticking three lines was three trips: tick, Add, open the plan
-            // again. A saved win gets a moment to drop onto the tower first;
-            // backing out goes straight back. From the dismissal, as the add
-            // sheet itself opens from the plan's.
-            if returnsToPlan {
-                Task { @MainActor in
-                    if saved { try? await Task.sleep(for: .milliseconds(900)) }
-                    // Held true until the plan is back: the ring's moment
-                    // reads it (`ringIsClear`) and must not start in the gap.
-                    returnsToPlan = false
-                    dayOpeningTab = .plan
-                    isPlanning = true
-                }
-            }
-        }) { draft in
-            AddWinSheet(
-                modelContext: modelContext,
-                tower: towerManager.activeTower,
-                initialTitle: draft.title,
-                initialPhoto: draft.photo,
-                opensDrawing: draft.opensDrawing,
-                initialSize: draft.size,
-                initialPlace: draft.place,
-                initialCrop: draft.crop,
-                initialZoom: draft.zoom,
-                initialColour: draft.colour,
-                initialCrews: draft.crews,
-                plannedLine: draft.planItemID,
-                onPlan: { scope, words in planHandoff = (scope, words) },
-                onSaved: { habit in
-                    if let id = draft.planItemID {
-                        // The win remembers the line, so deleting it later can
-                        // put the line back.
-                        habit.planItemID = id
-                        setPlanItemDone(id, true)
-                        // Saved, so the tick is earned and must not be undone
-                        // by the dismissal that follows.
-                        tickAwaitingWin = nil
-                        PlanTickPending.clear()
-                    }
-                    scheduleRefresh()
-                }
-            )
+        // **Asked for from anywhere**: a chat, a crew, a person's page
+        // (`AddWinRouter`), through the one way in.
+        .onChange(of: AddWinRouter.shared.request?.id) { _, id in
+            guard id != nil, let request = AddWinRouter.shared.take() else { return }
+            presentAddWin(request)
         }
         // Long-pressing an outlined block opens the same sheet, in edit mode.
         // One sheet for making a thing and for changing it, because they are
         // the same four questions.
         .sheet(item: $editingHabit) { habit in
-            AddWinSheet(
+            EditWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
-                editing: habit,
+                win: habit,
                 onSaved: { _ in scheduleRefresh() },
                 onDeleted: { scheduleRefresh() }
             )
@@ -893,16 +837,18 @@ struct MainAppView: View {
     private func finishPlanned(_ item: PlanItem, photo: UIImage, size: BlockSize, place: WinPlace?, crop: CGPoint,
                                zoom: CGFloat = 1) {
         guard stillThere(item) else { return }
-        winDraft = WinDraft(title: PlanTime.title(item.text), photo: photo, size: size, place: place, crop: crop,
-                            zoom: zoom, colour: item.category, planItemID: item.id, crews: planCrew.map { [$0] })
+        presentAddWin(AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                    colour: item.category, crews: planCrew.map { [$0] },
+                                    title: PlanTime.title(item.text), size: size, planItemID: item.id, photo: photo))
     }
 
     /// The same, with no photo: the sheet a plan line's tick always opened.
     private func logPlanned(_ item: PlanItem) {
         guard stillThere(item), !alreadyWon(item) else { return }
         // At the line's own size, as its box in the plan logs it.
-        winDraft = WinDraft(title: PlanTime.title(item.text), size: item.size, colour: item.category, planItemID: item.id,
-                            crews: planCrew.map { [$0] })
+        presentAddWin(AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                    colour: item.category, crews: planCrew.map { [$0] },
+                                    title: PlanTime.title(item.text), size: item.size, planItemID: item.id, words: true))
     }
 
     /// A planned win's box on a crew's tower (`CrewPlannedLayer`) does what
@@ -920,15 +866,9 @@ struct MainAppView: View {
             guard stillThere(item), !alreadyWon(item) else { return }
             // **The camera card, with the line's words on it** (2026-10-17:
             // one camera everywhere a photo is taken).
-            if inlineOpening == nil {
-                withTransaction(Self.still) {
-                    inlineOpening = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
-                                                  colour: item.category, crews: crew.map { [$0] },
-                                                  title: PlanTime.title(item.text), size: item.size, planItemID: item.id)
-                }
-            } else {
-                capturingPlan = item
-            }
+            presentAddWin(AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                        colour: item.category, crews: crew.map { [$0] },
+                                        title: PlanTime.title(item.text), size: item.size, planItemID: item.id))
         case .library: if stillThere(item), !alreadyWon(item) { pickingPlan = item }
         case .log: logPlanned(item)
         case .edit: editingPlan = item
@@ -1156,7 +1096,7 @@ struct MainAppView: View {
         // Friends' reactions to your wins, onto their blocks (`MyWinReactions`).
         .modifier(MyWinReactionsWatch { _ = refreshData() })
         // The camera a planned win opens, and the sheet that changes one.
-        .modifier(PlannedCapture(capturing: $capturingPlan, editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
+        .modifier(PlannedCapture(editing: $editingPlan, picking: $pickingPlan) { item, photo, size, place, crop, zoom in
             finishPlanned(item, photo: photo, size: size, place: place, crop: crop, zoom: zoom)
         })
         .overlay {
@@ -2212,14 +2152,16 @@ struct MainAppView: View {
                 },
                 set: { if $0 == nil { dismissCard() } }
             )) { block in
-                AddWinSheet(
-                    modelContext: modelContext,
-                    tower: towerManager.activeTower,
-                    editing: block.habit,
-                    editingLog: block.log,
-                    onSaved: { _ in repackTower() },
-                    onDeleted: { repackTower() }
-                )
+                if let habit = block.habit {
+                    EditWinSheet(
+                        modelContext: modelContext,
+                        tower: towerManager.activeTower,
+                        win: habit,
+                        editingLog: block.log,
+                        onSaved: { _ in repackTower() },
+                        onDeleted: { repackTower() }
+                    )
+                }
             }
     }
 
@@ -2469,8 +2411,8 @@ struct MainAppView: View {
         // its way back to the plan: the sheet returns in under a second
         // and cut the ring off mid-air.
         selectedTab == .tower && scenePhase == .active
-            && handoffLogs == nil && winDraft == nil && !isPlanning && !returnsToPlan
-            && editingHabit == nil && capturingPlan == nil && editingPlan == nil && pickingPlan == nil
+            && handoffLogs == nil && inlineOpening == nil && !isPlanning && !returnsToPlan
+            && editingHabit == nil && editingPlan == nil && pickingPlan == nil
             && expandedBlockID == nil && booth == nil && !showsYourDay && !showsTipAsk
     }
 
@@ -2559,7 +2501,7 @@ struct MainAppView: View {
         // showed today's empty slot for a second and then put yesterday's
         // tower on top of it (seen frame by frame, 2026-10-09).
         // `DayHandoffLayer` holds its own departure until the launch is over.
-        guard !Self.somethingIsPresented, winDraft == nil else { return }
+        guard !Self.somethingIsPresented, inlineOpening == nil else { return }
         handoffDecidedDay = today
         guard blocksToday == 0 else { return }
         UserDefaults.standard.set(day, forKey: DayHandoff.arrivedKey)
@@ -2751,20 +2693,31 @@ struct MainAppView: View {
 
     /// Add a Win from something tapped at `rect`: the inline camera grown out
     /// of it, or out of the foot of the screen when nothing was tapped.
-    func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil) {
+    func openAddWin(from rect: CGRect?, radius: CGFloat, crews: Set<CrewID>? = nil, words: Bool = false) {
+        // Nothing tapped to grow out of (a chat's Add a Win, the day's cue):
+        // it rises from the foot of the screen, where the card will stand.
+        let from = rect.flatMap { $0.width > 0 ? $0 : nil } ?? AddWinOpening.foot()
+        presentAddWin(AddWinOpening(from: from, radius: rect == nil ? GridConstants.radiusSurface : radius,
+                                    colour: nextWinCategory, crews: crews, words: words))
+    }
+
+    /// **The one way into Add a Win** (the owner, 2026-10-18: "Route every
+    /// one of them through ONE single function that opens the new
+    /// camera-first sheet, with the right context passed in"). Every entry
+    /// point builds an `AddWinOpening` (where it grew from, the crew, the
+    /// size, the plan line, a photo, words or the pen) and comes here. There
+    /// is no other presentation of a new win in the app.
+    func presentAddWin(_ opening: AddWinOpening) {
+        var opening = opening
+        // Asked for without a colour (a chat): the slot's next, as a tap on it.
+        if opening.colour == .unlabeled, opening.planItemID == nil { opening.colour = nextWinCategory }
         // **Never the old sheet** (the owner, 2026-10-18): a card already
         // up is the one being made; a second press does not open another.
         // Said open with nothing on screen: never again a press that does
         // nothing. It opens fresh.
         if inlineOpening != nil, !AddWinWindow.shared.isShowing { inlineOpening = nil }
         guard inlineOpening == nil else { return }
-        // Nothing tapped to grow out of (a chat's Add a Win, the day's cue):
-        // it rises from the foot of the screen, where the card will stand.
-        let from = rect.flatMap { $0.width > 0 ? $0 : nil } ?? AddWinOpening.foot()
-        withTransaction(Self.still) {
-            inlineOpening = AddWinOpening(from: from, radius: rect == nil ? GridConstants.radiusSurface : radius,
-                                          colour: nextWinCategory, crews: crews)
-        }
+        withTransaction(Self.still) { inlineOpening = opening }
     }
 
     /// A cover put up or taken down with no animation of its own.
@@ -2778,14 +2731,14 @@ struct MainAppView: View {
         switch result {
         case nil:
             withTransaction(Self.still) { inlineOpening = nil }
-        case .sheet(let draft)?:
-            withTransaction(Self.still) { inlineOpening = nil }
-            // After the cover has gone: a sheet asked for while a cover is
-            // still leaving is dropped.
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(80))
-                winDraft = draft
+            // A plan line ticked for this win and closed without one: the
+            // line goes back the way it was (as the old sheet's dismissal did).
+            if let id = tickAwaitingWin, id == opening.planItemID {
+                if !hasWinToday(for: id) { setPlanItemDone(id, false) }
+                tickAwaitingWin = nil
+                PlanTickPending.clear()
             }
+            backToPlanIfAsked(saved: false)
         case .send?:
             break
         case .plan(let scope, let words)?:
@@ -2805,7 +2758,13 @@ struct MainAppView: View {
         case .drop(let win)?:
             let made = logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
                               undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
-                              with: win.with, story: win.story, window: win.window, zoom: win.zoom)
+                              with: win.with, story: win.story, window: win.window, zoom: win.zoom, doodle: win.doodle)
+            if let made { opening.afterSaved?(made) }
+            if opening.planItemID != nil, opening.planItemID == tickAwaitingWin {
+                tickAwaitingWin = nil
+                PlanTickPending.clear()
+            }
+            backToPlanIfAsked(saved: made != nil)
             // A plan line photographed from its box: the line is done, and
             // the win remembers it, as the add sheet does for a plan.
             if let made, let line = opening.planItemID {
@@ -2814,6 +2773,19 @@ struct MainAppView: View {
                 setPlanItemDone(line, true)
                 try? modelContext.save()
             }
+        }
+    }
+
+    /// **Back to the plan it came from** (the owner, 2026-10-06): a win made
+    /// from a plan line goes back to the plan, a saved one after a moment to
+    /// drop onto the tower.
+    private func backToPlanIfAsked(saved: Bool) {
+        guard returnsToPlan else { return }
+        Task { @MainActor in
+            if saved { try? await Task.sleep(for: .milliseconds(900)) }
+            returnsToPlan = false
+            dayOpeningTab = .plan
+            isPlanning = true
         }
     }
 
@@ -2840,7 +2812,7 @@ struct MainAppView: View {
                         title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil,
                         undoable: Bool = false, colour: HabitCategory? = nil, colourChosen: Bool = false,
                         note: String? = nil, with people: [UUID] = [], story: Bool = false,
-                        window: CGPoint = .zero, zoom: CGFloat = 1) -> Habit? {
+                        window: CGPoint = .zero, zoom: CGFloat = 1, doodle: InkDoodle? = nil) -> Habit? {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
@@ -2879,7 +2851,12 @@ struct MainAppView: View {
                     if PhotoWindow.zoom(zoom) != 1 { log.cropZoom = Double(zoom) }
                 }
                 if let note { log.note = note }
-                if note != nil || photo != nil { try? modelContext.save() }
+                // A drawn block (Draw It): its files, before any crew copy.
+                if let doodle, !doodle.isEmpty,
+                   let name = BlockDoodles.save(doodle.drawing, stickers: doodle.stickers, canvas: doodle.canvas, replacing: nil) {
+                    log.doodleFileName = name
+                }
+                if note != nil || photo != nil || doodle != nil { try? modelContext.save() }
                 if holdFromCrews { CrewHold.hold(log.id) }
                 // Named on the card; none named is your tower only.
                 else if let crews { if !crews.isEmpty { CrewSync.post(log, to: crews, with: people) } }
@@ -2892,7 +2869,7 @@ struct MainAppView: View {
                 let id = log.id
                 // Stored whole. The block crops to its own shape when it draws
                 // (`scaledToFill`), so cropping to disk as well only made a
-                // later resize crop the crop — see `AddWinSheet.attach`.
+                // later resize crop the crop — see `EditWinSheet.attach`.
                 Task { @MainActor in
                     if let name = try? await ImageManager.shared.save(image: photo, for: id) {
                         log.imageFileName = name
@@ -3192,14 +3169,16 @@ struct MainAppView: View {
         case "profile":  selectedTab = .memories; profileOrigin = .memories
         // The tip ask, with `-strataTipThanked` its thanks (`TipAskSheet`).
         case "tipask":   showsTipAsk = true
-        case "add":      selectedTab = .tower; winDraft = WinDraft()
+        case "add":      selectedTab = .tower; openAddWin(from: nil, radius: GridConstants.radiusSurface)
         // The booth, printing as at the goal (`-strataOpenSheet booth`), or
         // opened from Your day (`booth-open`).
         case "booth":    selectedTab = .tower; booth = BoothOpening(prints: true)
         // `-strataOpenSheet addphoto`: Add holding a picture, so the block's
         // menu and Move Photo can be photographed on a simulator, which has
         // no camera and no photo library a script can reach.
-        case "addphoto": selectedTab = .tower; winDraft = WinDraft(photo: DebugHarness.addSheetPhoto())
+        case "addphoto": selectedTab = .tower
+                         presentAddWin(AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                                     colour: nextWinCategory, photo: DebugHarness.addSheetPhoto()))
         case "booth-open": selectedTab = .tower; booth = BoothOpening(prints: false)
         // Your day (`-strataOpenSheet yourday`), and with its three being
         // chosen (`yourthree`): both are behind a tap on the crest.
@@ -3210,20 +3189,11 @@ struct MainAppView: View {
         // off its source instead of off its pixels, which is how the add
         // sheet sat 49% empty without anybody noticing.
         case "plan":     selectedTab = .tower; openDay()
-        // **The add sheet HOLDING a photograph, which is a different page from
-        // the fresh one and had never been photographed** (2026-10-01). With a
-        // picture in it the colour row disappears — `AddWinSheet`'s own "no
-        // colour question while you are taking the photo" — so the fresh
-        // sheet's measurements say nothing about this one. The only route a
-        // person has is the camera's Use Photo, and the simulator has no
-        // capture device, so without this the state is unreachable here for the
-        // same reason `-strataOpenReview` exists.
-        case "addphoto": selectedTab = .tower
-                         winDraft = WinDraft(photo: DebugHarness.placeholderPhoto())
-        // The Deep block drawn out of the shutter, which is the one state whose
-        // well (370pt) cannot fit above a keyboard (2026-10-02).
+        // The card holding a Deep photograph (2026-10-02's tallest well).
         case "adddeep":  selectedTab = .tower
-                         winDraft = WinDraft(photo: DebugHarness.placeholderPhoto(), size: .hard)
+                         presentAddWin(AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
+                                                     colour: nextWinCategory, size: .hard,
+                                                     photo: DebugHarness.placeholderPhoto()))
         // The plan's line detail, which is behind a tap on a line. `PlanLines`
         // reads the same value and opens its first line; both halves are
         // needed, because the sheet has to be up before anything in it can be
@@ -4103,7 +4073,7 @@ struct MainAppView: View {
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
                     action: { logWin(size: $0, holdFromCrews: true) },
-                    onOpenMenu: { winDraft = WinDraft() },
+                    onOpenMenu: { openAddWin(from: nil, radius: GridConstants.radiusSurface, words: true) },
                     onOpenAt: { openAddWin(from: $0, radius: cornerRadius) }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
@@ -4262,7 +4232,7 @@ struct MainAppView: View {
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
             action: { logWin(size: $0, holdFromCrews: true) },
-            onOpenMenu: { winDraft = WinDraft() },
+            onOpenMenu: { openAddWin(from: nil, radius: GridConstants.radiusSurface, words: true) },
             onOpenAt: { openAddWin(from: $0, radius: cornerRadius) }
         )
         .frame(width: f.width, height: f.height)

@@ -118,7 +118,7 @@ struct HeadPickerRow: View {
                 .frame(width: Self.side, height: Self.side)
                 .overlay {
                     // **0.55 ink, not full strength, and the system's own
-                    // stroke width.** `AddWinSheet` settled what a selection
+                    // stroke width.** `EditWinSheet` settled what a selection
                     // ring is on 2026-10-01: "a full-strength `inkPrimary` ring
                     // is a hard black outline floating off the thing it selects,
                     // the only pure ink ring in the app". These two pickers were
@@ -136,7 +136,7 @@ struct HeadPickerRow: View {
                     // So the ring at 0.55 is carrying it, and it is measured:
                     // 4.0:1 on the light card, 5.0:1 on the dark one, against the
                     // 3.0 a shape is held to. It stays at 0.55 rather than going
-                    // back up, because the thing `AddWinSheet` settled is still
+                    // back up, because the thing `EditWinSheet` settled is still
                     // true — "a full-strength `inkPrimary` ring is a hard black
                     // outline floating off the thing it selects" — and this one
                     // goes round a photograph of somebody's face.

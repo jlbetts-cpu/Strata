@@ -120,9 +120,7 @@ struct CrewChatSheet: View {
     @State private var choosingMemory = false
     /// **Add a Win, over the chat** (the plus row's Win, and the empty
     /// strip's way forward). The chat stays open underneath.
-    @State private var addingWin = false
     /// A chat photo being kept as a win (`ChatPictureViewer.onAddWin`).
-    @State private var addingWinPhoto: UIImage?
     /// A sticker just lifted out of a photo: shown chosen in the grid, and
     /// sent only by a tap on it (the research, section 3, item 3: it sent on
     /// the lift, a sticker nobody had seen yet).
@@ -495,15 +493,6 @@ struct CrewChatSheet: View {
                 choosingSticker = true
             }
         }
-        .sheet(isPresented: $addingWin) {
-            // A kept chat photo goes on your tower only (the second reader,
-            // 2026-10-17: it posted to this crew, or in a conversation to the
-            // two of you as a win, with nothing on screen naming it).
-            AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,
-                        initialCrews: addingWinPhoto == nil ? [crewID] : [],
-                        onSaved: { habit in sayWin(habit) })
-                .onDisappear { addingWinPhoto = nil }
-        }
         .sheet(isPresented: $doodling) {
             DoodleSheet(owner: store.chatName(crewID)) { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
@@ -517,7 +506,7 @@ struct CrewChatSheet: View {
             // **Today's strip, shown, and Send puts it in this chat**
             // (`CrewStripSendSheet`). It opened the booth, which on most
             // days would not develop, and sent from a share sheet.
-            CrewStripSendSheet(send: { png in sendStrip(png) }, addWin: { afterSheet { addingWin = true } })
+            CrewStripSendSheet(send: { png in sendStrip(png) }, addWin: { afterSheet { addWin(photo: nil) } })
         }
         .alert(stripProblem ?? "", isPresented: Binding(get: { stripProblem != nil },
                                                         set: { if !$0 { stripProblem = nil } })) {
@@ -534,8 +523,7 @@ struct CrewChatSheet: View {
                               },
                               onAddWin: { image in
                                   viewingPicture = nil
-                                  addingWinPhoto = image
-                                  afterSheet { addingWin = true }
+                                  afterSheet { addWin(photo: image) }
                               })
         }
         .fullScreenCover(item: $planStrip) { plan in
@@ -1626,7 +1614,7 @@ struct CrewChatSheet: View {
 
     /// Something presented from the chat is up.
     private var presenting: Bool {
-        addingWin || planning || showsStrip || doodling || choosingSticker || makingSticker || choosingMemory
+        planning || showsStrip || doodling || choosingSticker || makingSticker || choosingMemory
             || profileOf != nil
     }
 
@@ -1653,7 +1641,7 @@ struct CrewChatSheet: View {
     private func open(_ choice: ChatPlusRow.Choice) {
         switch choice {
         // Over the chat, which stays open: the win lands here as a line.
-        case .win: addingWin = true
+        case .win: addWin(photo: nil)
         case .camera: snapping = AddWinOpening(from: AddWinOpening.foot(), radius: GridConstants.radiusSurface,
                                                colour: .unlabeled, crews: [crewID])
         case .photo: pickingPhoto = true
@@ -1687,6 +1675,19 @@ struct CrewChatSheet: View {
     /// a moment after Add (its photo is checked first), so the line waits
     /// for it, fifteen seconds at most. A win whose crew was unticked on the
     /// sheet never arrives here, and nothing is said.
+    /// **Add a Win from a chat: the camera card, as from everywhere** (the
+    /// owner, 2026-10-18: one way in, never the old sheet). It stands over
+    /// the chat in its own window. A win for the crew is said here once it
+    /// lands; a kept chat photo goes on your tower only (the second reader,
+    /// 2026-10-17: nothing reaches a crew without naming it on screen).
+    private func addWin(photo: UIImage?) {
+        let crew = crewID
+        AddWinRouter.shared.open(AddWinOpening(
+            from: AddWinOpening.foot(), radius: GridConstants.radiusSurface, colour: .unlabeled,
+            crews: photo == nil ? [crew] : [], photo: photo,
+            afterSaved: photo == nil ? { habit in sayWin(habit) } : nil))
+    }
+
     private func sayWin(_ habit: Habit) {
         guard let id = (habit.logs ?? []).max(by: { $0.createdAt < $1.createdAt })?.id else { return }
         Task {

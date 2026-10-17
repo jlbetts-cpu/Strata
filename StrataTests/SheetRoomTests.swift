@@ -63,9 +63,9 @@ struct SheetRoomTests {
         // 38 wide, which is what the add sheet always opens showing (15.0pt
         // measured); the worst case is a bare 34pt circle in the same box, and
         // that is the 17.0 that sits exactly on the clause's line.
-        let ringedAir = (AddWinSheet.swatchTarget - AddWinSheet.selectionRingSide) / 2
-        let bareAir = (AddWinSheet.swatchTarget - AddWinSheet.swatchSide) / 2
-        // `ColourSwatch.inset`, and it was `AddWinSheet.swatchInset`. The
+        let ringedAir = (EditWinSheet.swatchTarget - EditWinSheet.selectionRingSide) / 2
+        let bareAir = (EditWinSheet.swatchTarget - EditWinSheet.swatchSide) / 2
+        // `ColourSwatch.inset`, and it was `EditWinSheet.swatchInset`. The
         // swatch became a shared component and took its three sizes with it;
         // the sheet keeps aliases for them and the inset was not one. **This
         // one line held the whole test target uncompilable for over an hour**,

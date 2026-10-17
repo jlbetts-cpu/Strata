@@ -23,7 +23,7 @@ struct TodaysPhotosTests {
 
     @Test("every photograph is the block's exact size and corner")
     func tilesAreTheBlocksShape() throws {
-        let sheet = SourceSweep.code(try MorningSource.read("Views/AddWinSheet.swift"))
+        let sheet = SourceSweep.code(try MorningSource.read("Views/EditWinSheet.swift"))
         let strip = try #require(sheet.components(separatedBy: "private func photoStrip(").dropFirst().first)
         let body = strip.components(separatedBy: "private func askTile(").first ?? ""
         #expect(body.contains("let well = wellGeometry(pageWidth: pageWidth, visibleHeight: visibleHeight)"))
@@ -37,7 +37,7 @@ struct TodaysPhotosTests {
 
     @Test("the library is asked only after a press, and the reason is plain")
     func askedOnPress() throws {
-        let sheet = SourceSweep.code(try MorningSource.read("Views/AddWinSheet.swift"))
+        let sheet = SourceSweep.code(try MorningSource.read("Views/EditWinSheet.swift"))
         #expect(sheet.components(separatedBy: "TodaysPhotos.requestAccess()").count - 1 == 1)
         let ask = try #require(sheet.components(separatedBy: "private func askTile(").dropFirst().first)
         #expect(ask.prefix(400).contains("Task { photoAccess = await TodaysPhotos.requestAccess() }"),
@@ -52,7 +52,7 @@ struct TodaysPhotosTests {
 
     @Test("the starter words are gone: the owner called them clutter")
     func noStarters() throws {
-        let sheet = SourceSweep.code(try MorningSource.read("Views/AddWinSheet.swift"))
+        let sheet = SourceSweep.code(try MorningSource.read("Views/EditWinSheet.swift"))
         #expect(!sheet.contains("WinStarters"))
         #expect(!sheet.contains("startersRow"))
     }

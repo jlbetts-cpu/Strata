@@ -44,7 +44,7 @@ struct QoLFixTests {
 
     @Test("Add waits for a photo from the strip, and so does the return key")
     func addWaitsForThePhoto() throws {
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         #expect(sheet.contains("private var canSave: Bool { !isSaving && photoLoading == nil }"))
         let save = try body(of: "private func save() async {", until: "let typed", in: sheet)
         #expect(save.contains("guard canSave else { return }"))
@@ -64,7 +64,7 @@ struct QoLFixTests {
         #expect(AddWinFailure.deletion.message == "Couldn't delete this win. Nothing changed.")
         #expect(AddWinFailure.deletion.retry == "Save")
         #expect(AddWinFailure.deletion.winIsSaved)
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         let delete = try body(of: "private func deleteIt() {", until: "for name in names", in: sheet)
         #expect(delete.contains("fail(.deletion)"))
     }

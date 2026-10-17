@@ -329,7 +329,8 @@ struct GroupPlanTests {
         #expect(chat.contains("action: { bringBack(found) }"))
         #expect(chat.contains("CrewMemorySheet(crewID: crewID) { found in bringBack(found) }"))
         // Win opens over the chat, which stays open: it no longer closes it.
-        #expect(chat.contains("case .win: addingWin = true"))
+        // The camera card since 2026-10-18 (one way into Add a Win).
+        #expect(chat.contains("case .win: addWin(photo: nil)"))
         #expect(!chat.contains("dismiss()\n            onAddWin()"))
         // The sticker sheet has the app's layout, and New Sticker is looked at first.
         #expect(chat.contains(".sheetTitle(\"Stickers\", drawn: false)"))
@@ -337,7 +338,7 @@ struct GroupPlanTests {
         #expect(!chat.contains(".stickerMaking(isPresented: $makingSticker) { symbol in sendSticker(symbol) }"))
         #expect(!chat.contains(".task { bringBack"))
         // A group plan's crew is ticked for that win and is not made your usual.
-        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let add = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         #expect(add.contains("GroupPlanBook.crew(forPlanItem: line)"))
         #expect(add.contains("groupPlanCrew.map { crewChoice.subtracting([$0]) } ?? crewChoice"))
     }

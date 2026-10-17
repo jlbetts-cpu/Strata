@@ -20,7 +20,7 @@ struct DesignReviewWinsSideTests {
     /// the plan line's prompts, the plan's repeat summary and done lines, and
     /// the replay's "wins", date and "Sample". The dark scheme hid it, at 6.0.
     static let screens = [
-        "Strata/Views/AddWinSheet.swift",
+        "Strata/Views/EditWinSheet.swift",
         // The Plan sheet's lines, part of the day's page since 2026-10-05.
         "Strata/Views/PlanLines.swift",
         "Strata/Views/DaySheet.swift",
@@ -108,7 +108,7 @@ struct DesignReviewWinsSideTests {
     /// the photo well is declared and before the next member begins.
     @Test("the photo menu belongs to the photo well")
     func photoMenuOnTheWell() throws {
-        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         let well = try #require(code.range(of: "func photoWell("))
         let menu = try #require(code.range(of: ".contextMenu {"))
         #expect(menu.lowerBound > well.lowerBound, "the menu is attached above the well, at sheet level")

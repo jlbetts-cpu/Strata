@@ -920,7 +920,7 @@ final class ReplayShareItem: NSObject, UIActivityItemSource {
 /// **"Resting, the two match" was half true and this is the half that was
 /// not** (2026-10-01). The recess matched and still does. The EDGE stopped
 /// matching the day the real slot went 0.26 to 0.80, and this one kept the
-/// 0.26 that `NextSlotButton` and `AddWinSheet`'s photo well both name in
+/// 0.26 that `NextSlotButton` and `EditWinSheet`'s photo well both name in
 /// their own notes as the known-bad number.
 ///
 /// Photographed with `-strataReplayHoldLoad`, which is the only way to reach

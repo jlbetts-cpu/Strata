@@ -114,9 +114,12 @@ struct ChatPlusRowTests {
         #expect(CrewStripSendSheet.empty == "No photos today")
         #expect(CrewStripSendSheet.addWord == "Add a Win")
         let chat = SourceSweep.code(try SourceSweep.read("Strata/Views/Crews/CrewChatSheet.swift"))
-        #expect(chat.contains("addWin: { afterSheet { addingWin = true } }"), "the strip's Add a Win goes somewhere else")
-        // Holding a kept chat photo since 2026-10-17 (`addingWinPhoto`),
-        // which goes on your tower only; the chat's own Add a Win, to it.
-        #expect(chat.contains("AddWinSheet(modelContext: modelContext, tower: activeTower, initialPhoto: addingWinPhoto,\n                        initialCrews: addingWinPhoto == nil ? [crewID] : []"))
+        #expect(chat.contains("addWin: { afterSheet { addWin(photo: nil) } }"), "the strip's Add a Win goes somewhere else")
+        // **The camera card since 2026-10-18** (the owner: one way into Add a
+        // Win, the old sheet gone). A kept chat photo still goes on your tower
+        // only; the chat's own Add a Win, to it.
+        #expect(chat.contains("AddWinRouter.shared.open(AddWinOpening("))
+        #expect(chat.contains("crews: photo == nil ? [crew] : [], photo: photo"))
+        #expect(!chat.contains("EditWinSheet("), "the chat opens the old sheet again")
     }
 }

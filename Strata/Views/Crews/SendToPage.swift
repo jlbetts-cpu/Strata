@@ -16,7 +16,7 @@ struct SendToPage: View {
     @Binding var crews: Set<CrewID>
     @Binding var onStory: Bool
     @Binding var withPeople: [UUID]
-    /// Today's win, with a friend to see it (`AddWinSheet.storyCanTakeIt`).
+    /// Today's win, with a friend to see it (`EditWinSheet.storyCanTakeIt`).
     let storyAllowed: Bool
     let hasPhoto: Bool
     let sending: Bool

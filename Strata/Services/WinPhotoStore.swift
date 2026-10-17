@@ -77,7 +77,7 @@ nonisolated enum WinPhotoPayload {
 ///
 /// **Every write of `imageFileName` for a new or replaced photograph comes
 /// through `attach`** (2026-10-08), so a photograph is in the sync from the
-/// moment it is on its block: `AddWinSheet`, the one-tap win in `MainAppView`,
+/// moment it is on its block: `EditWinSheet`, the one-tap win in `MainAppView`,
 /// `TaggedWinKeeper`, and the undo in `WinDeletion`. A restore from a backup
 /// file does not attach one by one; it asks `PhotoSync` for a backfill pass,
 /// which finds every photographed win with no copy, and the backfill is also

@@ -76,7 +76,7 @@ struct WinIdeasTests {
 
     @Test("the add sheet carries the row over its keyboard, and ticks the plan on save")
     func wired() throws {
-        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
+        let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/EditWinSheet.swift"))
         #expect(sheet.contains("ToolbarItemGroup(placement: .keyboard)"))
         // The win is handed over too (2026-10-11), so it remembers the line
         // it ticked; what is pinned is the same: saving ticks the plan.

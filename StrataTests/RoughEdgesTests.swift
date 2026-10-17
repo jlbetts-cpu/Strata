@@ -23,7 +23,7 @@ struct RoughEdgesTests {
 
     @Test("Add a win holds a swipe while it has unsaved edits, and Cancel asks first")
     func addSheetGuardsEdits() throws {
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         #expect(sheet.contains(".interactiveDismissDisabled(hasUnsavedEdits || isSaving)"),
                 "a swipe down closes the sheet over a typed name or a photo again")
         let cancel = try body(of: "private var cancelButton: some View {", until: "} label: {", in: sheet)
@@ -115,7 +115,7 @@ struct RoughEdgesTests {
         let camera = try code("Strata/Views/CameraView.swift")
         #expect(!camera.contains("CrewPicker("), "the camera asks which crews again")
         #expect(!camera.contains("var crews:"))
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         #expect(sheet.contains("CrewPicker(selection:"), "the sheet's own crew row is gone, so nothing asks")
         // The sticky choice the camera's row used to save is what the sheet
         // opens on for a new win, and saves with it.
@@ -139,7 +139,7 @@ struct RoughEdgesTests {
         let lines = try code("Strata/Views/PlanLines.swift")
         let complete = try body(of: "private func complete(_ item: PlanItem) {", until: "onComplete(item)", in: lines)
         #expect(!complete.contains("HapticsEngine.success()"), "a plan tick plays the success before Add does")
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         let finish = try body(of: "private func finish(_ habit: Habit) {", until: "private func fail(", in: sheet)
         #expect(finish.contains("HapticsEngine.success()"), "the save lost the one success it keeps")
     }
@@ -226,7 +226,7 @@ struct RoughEdgesTests {
     @Test("every icon-only button on the main screens has a name")
     func iconButtonsNamed() throws {
         let screens = ["Strata/Views/MainAppView.swift", "Strata/Views/DaySheet.swift",
-                       "Strata/Views/PlanLines.swift", "Strata/Views/AddWinSheet.swift",
+                       "Strata/Views/PlanLines.swift", "Strata/Views/EditWinSheet.swift",
                        "Strata/Views/MemoriesView.swift", "Strata/Views/DayAlbumDetailView.swift",
                        "Strata/Views/PhotoViewer.swift", "Strata/Views/Crews/CrewsListView.swift",
                        "Strata/Views/Crews/CrewTowerView.swift", "Strata/Views/Crews/CrewChatSheet.swift",

@@ -44,7 +44,7 @@ struct TenTests {
     /// in the first place because I asked for a consistency pass".
     @Test("rule 1: a block's menu is one drawing, on the add sheet and on a planned win")
     func oneBlockMenu() throws {
-        let add = try code("Strata/Views/AddWinSheet.swift")
+        let add = try code("Strata/Views/EditWinSheet.swift")
         #expect(add.contains("BlockMenuList {") && add.contains("BlockMenuRow(\"Take Photo\", \"camera\")"))
         #expect(!add.contains("private func menuRow("), "the add sheet draws its own rows again")
         let planned = try code("Strata/Views/PlannedBlocks.swift")

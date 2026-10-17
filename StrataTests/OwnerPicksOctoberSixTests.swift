@@ -14,7 +14,7 @@ struct OwnerPicksOctoberSixTests {
 
     @Test("a delete happens at once and offers Undo; the dialog is gone")
     func deleteOffersUndo() throws {
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         #expect(!sheet.contains("Delete this?"), "the confirm came back in front of Undo")
         #expect(sheet.contains("WinDeletion.delete(habit, in: modelContext)"))
         #expect(sheet.contains("UndoLine.shared.show(\"Win deleted\""))
@@ -91,7 +91,7 @@ struct OwnerPicksOctoberSixTests {
 
     @Test("who it was with is one tag button, not a row between the crews and the photos")
     func withIsATagButton() throws {
-        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        let sheet = try code("Strata/Views/EditWinSheet.swift")
         #expect(sheet.contains("CrewWithRow(crews: crewChoice, selection: $withPeople, stacked: true)"))
         #expect(!sheet.contains("CrewWithRow(crews: crewChoice, selection: $withPeople)\n"),
                 "the With row is back on the page (the owner, 2026-10-06)")

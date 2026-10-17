@@ -79,6 +79,16 @@ struct AddWinOpening: Identifiable, Equatable {
     var title = ""
     var size: BlockSize = .small
     var planItemID: UUID? = nil
+    /// A photograph to begin from (a plan line's from the library, a chat's
+    /// picture kept as a win): the card opens on it, ready to name.
+    var photo: UIImage? = nil
+    /// Opens on the block to write on, no camera (a plan line logged
+    /// without a photo, one of your three).
+    var words = false
+    /// Opens on the block with the pen out (Draw It).
+    var drawing = false
+    /// Told of the win once it is made (a chat says it in the chat).
+    var afterSaved: ((Habit) -> Void)? = nil
 
     static func == (a: Self, b: Self) -> Bool { a.id == b.id }
 
@@ -133,6 +143,8 @@ struct DroppedWin {
     /// Which part of the photograph the block shows, and how far in.
     var window: CGPoint = .zero
     var zoom: CGFloat = 1
+    /// A drawn block (Draw It): its strokes and stickers.
+    var doodle: InkDoodle? = nil
 }
 
 /// What the card hands back.
@@ -146,8 +158,6 @@ enum InlineCameraResult {
     /// **Planned instead** (the owner, 2026-10-18: "Put 'plan this instead'
     /// in the '...' of the Add sheet"): the words, for the day chosen.
     case plan(PlanScope, String)
-    /// Everything else: the full sheet, holding whatever the card had.
-    case sheet(WinDraft)
 }
 
 // MARK: - The card
@@ -187,6 +197,9 @@ struct InlineCameraCard: View {
     @Environment(\.colorScheme) private var pageScheme
     @State private var open = false
     @State private var mode: Mode = InlineCamera.refused ? .words : .lens
+    /// A drawn block (Draw It), and its pen open.
+    @State private var doodle: InkDoodle?
+    @State private var doodling = false
     @State private var live = false
     @State private var shot: UIImage?
     @State private var place: WinPlace?
@@ -503,7 +516,7 @@ struct InlineCameraCard: View {
             Divider()
             Button("Choose a Photo", systemImage: "photo.on.rectangle") { picking = true }
             if purpose == .win {
-                Button("Draw It", systemImage: "scribble") { toSheet(drawing: true) }
+                Button("Draw It", systemImage: "scribble") { drawIt() }
                 Button("Today's Photos", systemImage: "photo.stack") { leave(with: .quickAdd) }
             }
         } label: {
@@ -876,6 +889,12 @@ struct InlineCameraCard: View {
             .animation(GridConstants.motionSnappy, value: naming)
         }
         .frame(width: card.width, height: card.height)
+        .sheet(isPresented: $doodling) {
+            BlockDoodleSheet(aspect: size.cropAspectRatio, colour: colour, towerHeight: towerBlockHeight,
+                             drawing: doodle?.drawing, stickers: doodle?.stickers ?? [], drawnOn: doodle?.canvas) { drawn in
+                withAnimation(GridConstants.motionSnappy) { doodle = drawn.isEmpty ? nil : drawn }
+            }
+        }
     }
 
     /// One clear close, who sees it in the middle, and the camera named.
@@ -931,9 +950,25 @@ struct InlineCameraCard: View {
                             .fill(colour.style.baseColor)
                             .contentShape(Rectangle())
                             .onTapGesture { naming = true }
+                        if let picture = doodlePicture {
+                            Image(uiImage: picture)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: width, height: width / aspect)
+                                .allowsHitTesting(false)
+                                .accessibilityLabel("Your drawing")
+                        }
                         WinHeroTitle(title: $title, size: size, width: width, onPhoto: false, focus: $naming)
                     }
                     .frame(width: width, height: width / aspect)
+                    .overlay(alignment: .topTrailing) {
+                        if !naming {
+                            toolGlyph("scribble", label: "Draw", on: doodle != nil) { doodling = true }
+                                .padding(GridConstants.gapTight)
+                                .dynamicTypeSize(...DynamicTypeSize.xLarge)
+                                .transition(.opacity)
+                        }
+                    }
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("Your block")
                 }
@@ -1053,8 +1088,6 @@ struct InlineCameraCard: View {
                     Button(scope == .day(0) ? "Later Today" : scope.title()) { planInstead(scope) }
                 }
             }
-            Divider()
-            Button("All Details", systemImage: "slider.horizontal.3") { toSheet() }
         } label: {
             Image(systemName: "ellipsis")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .semibold)
@@ -1069,6 +1102,31 @@ struct InlineCameraCard: View {
             WinDetailsSheet(which: which, note: $note, high: $high, low: $low, buffalo: $buffalo,
                             recipients: recipients, with: $with)
         }
+    }
+
+    /// The drawing as the block shows it.
+    private var doodlePicture: UIImage? {
+        guard let doodle, !doodle.isEmpty, doodle.canvas.width > 0 else { return nil }
+        return InkExport.image(of: doodle.drawing, in: CGRect(origin: .zero, size: doodle.canvas), scale: 2)
+    }
+
+    /// **Draw It, on the card** (the old sheet's, 2026-10-18: the old Add a
+    /// Win sheet is gone): the block to write on, with the pen out.
+    private func drawIt() {
+        toWords()
+        naming = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            doodling = true
+        }
+    }
+
+    /// The block's height on the tower, for the pen's width.
+    private var towerBlockHeight: CGFloat {
+        let cell = GridConstants.cellSize(
+            forGridWidth: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2)
+        let rows = CGFloat(size.rowSpan)
+        return rows * cell + (rows - 1) * GridConstants.spacing
     }
 
     /// The words, planned for the day chosen, instead of a win now.
@@ -1128,6 +1186,17 @@ struct InlineCameraCard: View {
         colour = opening.colour
         if !opening.title.isEmpty { title = opening.title }
         size = opening.size
+        if let photo = opening.photo {
+            (mode, shot, fromCamera, place) = (.shot, photo, false, nil)
+        } else if opening.words || opening.drawing {
+            mode = .words
+        }
+        if opening.drawing {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                doodling = true
+            }
+        }
         if opening.planItemID != nil { colourChosen = opening.colour != .unlabeled }
         HapticsEngine.lightTap()
         if mode == .lens {
@@ -1144,7 +1213,7 @@ struct InlineCameraCard: View {
                 // A chat's photo carries no place: no location for it.
                 if !closing, purpose == .win { LocationService.shared.start() }
             }
-        } else {
+        } else if !opening.drawing {
             naming = true
         }
         if docked {
@@ -1188,7 +1257,7 @@ struct InlineCameraCard: View {
 
     private func drop() {
         let photo = mode == .shot ? shot : nil
-        guard photo != nil || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard photo != nil || doodle != nil || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             naming = true
             return
         }
@@ -1207,7 +1276,11 @@ struct InlineCameraCard: View {
                              crews: crews.isEmpty ? [] : recipients, colour: colour,
                              colourChosen: colourChosen || mode == .words,
                              note: kept.isEmpty ? nil : kept, with: with, story: onStory)
-        guard let photo else { leave(with: .drop(win)); return }
+        guard let photo else {
+            win.doodle = mode == .words ? doodle : nil
+            leave(with: .drop(win))
+            return
+        }
         // The photograph as the tools left it: the head, then the look, then
         // the drawing, as the Camera tab's Use Photo makes it, and its window.
         dropping = true
@@ -1237,17 +1310,6 @@ struct InlineCameraCard: View {
             FilmLookRenderer.shared.render(base, look: look)
         }.value
         return marks.map { PhotoMarks.composite(graded, marks: $0) } ?? graded
-    }
-
-    private func toSheet(drawing: Bool = false) {
-        var draft = WinDraft(title: title.isEmpty ? nil : title, photo: mode == .shot ? shot : nil,
-                             size: size, place: mode == .shot ? place : nil)
-        draft.colour = opening.planItemID == nil ? nil : opening.colour
-        draft.crews = opening.crews
-        draft.opensDrawing = drawing
-        // A plan line's photo, finished in the sheet, still ticks its line.
-        draft.planItemID = opening.planItemID
-        leave(with: .sheet(draft))
     }
 
     private func take(_ item: PhotosPickerItem?) async {
@@ -1305,7 +1367,7 @@ struct InlineCameraCard: View {
         (title, size, note, with, high, low, buffalo) = ("", .small, "", [], "", "", "")
         (lookRaw, looked, choosingLook, marks, markLayer, sticker, crop, zoom) =
             (FilmLook.Kind.none.rawValue, nil, false, nil, nil, nil, .zero, 1)
-        (dropping, colourChosen) = (false, false)
+        (dropping, colourChosen, doodle) = (false, false, nil)
         recipients = opening.crews ?? CrewChoice.load()
         if restart, mode == .lens { Task { await camera.start() } }
     }

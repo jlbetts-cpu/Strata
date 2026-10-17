@@ -529,7 +529,7 @@ enum AppColors {
 
     /// **The one red a destructive word is written in.**
     ///
-    /// Promoted here 2026-10-02 from `AddWinSheet.destructiveTint`, where it was
+    /// Promoted here 2026-10-02 from `EditWinSheet.destructiveTint`, where it was
     /// a colour living on a view that three other files reached across for. The
     /// full argument — why 4.5:1 is unreachable for a `.bordered` destructive
     /// button, and why the number to beat was the 2.20:1 it replaced rather than

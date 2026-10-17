@@ -51,11 +51,11 @@ struct ConsistencyTests {
     }
 
     /// Both sheets reach the row, which is the half a "nothing else draws it"
-    /// test cannot see. If `AddWinSheet` dropped its colour row entirely the test
+    /// test cannot see. If `EditWinSheet` dropped its colour row entirely the test
     /// above would still pass.
     @Test("both sheets draw the shared row")
     func bothSheetsDrawTheSharedRow() throws {
-        for path in ["Strata/Views/AddWinSheet.swift",
+        for path in ["Strata/Views/EditWinSheet.swift",
                      "Strata/Views/PlanItemDetailSheet.swift"] {
             let code = SourceSweep.code(try SourceSweep.read(path))
             #expect(code.contains("ColourSwatchRow("), "\(path) stopped using the shared row")
@@ -85,7 +85,7 @@ struct ConsistencyTests {
     // MARK: - The plan line's delete
 
     /// §1.5. It deleted the line, committed and dismissed on ONE press, from
-    /// `ToolbarItem(placement: .topBarLeading)` — the slot `AddWinSheet` gives to
+    /// `ToolbarItem(placement: .topBarLeading)` — the slot `EditWinSheet` gives to
     /// Cancel and `PlanSheet`, directly behind it, gives to ＋. Four of the app's
     /// six deletes confirm; this was one of the two that did not.
     ///
@@ -272,8 +272,10 @@ enum ConsistencySweep {
         // the same answer as Message above it (2026-10-16).
         "Strata/Views/Crews/PersonPage.swift": 1,
         // The inline camera's glyph discs, its two pills and its Settings
-        // capsule, all on `inlineGlass` / `glassCapsule` (2026-10-17).
-        "Strata/Views/InlineCamera.swift": 4,
+        // capsule, all on `inlineGlass` / `glassCapsule` (2026-10-17); five
+        // since 2026-10-18, the edit screen's labelled Retake or Camera pill
+        // on `glassCapsule(onPage:)`.
+        "Strata/Views/InlineCamera.swift": 5,
         // The crew page's name capsule, `glassCapsule(onPage:)`, and the day
         // sheet's emoji disc on `glassCircle(onPage:)`: the same fault as the
         // reaction face, found in the 2026-10-06 cohesion audit. And the back

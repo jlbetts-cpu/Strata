@@ -70,7 +70,7 @@ struct PlanItemDetailSheet: View {
                     // between the two screens. It is also rarely seen — you
                     // arrive at this sheet from a line you already typed.
                     //
-                    // **The two fixes `AddWinSheet.nameField` already carries,
+                    // **The two fixes `EditWinSheet.nameField` already carries,
                     // which this field did not** (2026-10-01, from the owner's
                     // "make sure screens are consistent"). They are the same
                     // two faults, measured there and never applied here:
@@ -255,7 +255,7 @@ struct PlanItemDetailSheet: View {
             .sheetTitle("Line", drawn: false)
             .toolbar { detailToolbar }
         }
-        // Half height first, because this sheet is four controls. `AddWinSheet`
+        // Half height first, because this sheet is four controls. `EditWinSheet`
         // and `PlanLines` are `[.large]` and say why; a detail sheet is the one
         // shape in the family that is allowed to be shorter than the page it
         // came from.
@@ -318,7 +318,7 @@ struct PlanItemDetailSheet: View {
     ///
     /// It held a trash glyph that deleted the line, committed and dismissed in
     /// one press — from the position every other sheet in the app uses to back
-    /// out of itself. `AddWinSheet` puts Cancel there and `PlanLines`, which is
+    /// out of itself. `EditWinSheet` puts Cancel there and `PlanLines`, which is
     /// the sheet directly behind this one, puts ＋ there. A thumb that has
     /// learned either of those finds a delete with no confirmation.
     ///
@@ -376,7 +376,7 @@ struct PlanItemDetailSheet: View {
     /// both a `Form` row with `Button(role: .destructive)`, a `SettingsIcon` in
     /// `warmRed` and the word in `warmRed` too, and both confirm. This sheet is a
     /// `Form`, so it gets the `Form` shape. **The shape follows the container**,
-    /// which is a rule rather than a tie-break, and it is why `AddWinSheet`'s
+    /// which is a rule rather than a tie-break, and it is why `EditWinSheet`'s
     /// delete is the platform's `.bordered` button instead: that sheet is a
     /// `ScrollView`.
     ///
@@ -385,7 +385,7 @@ struct PlanItemDetailSheet: View {
     /// #FF3B30, four points off the glyph's red, so the glyph and the word beside
     /// it were two reds on one line.
     ///
-    /// **And the red is `AddWinSheet.destructiveTint`, not `AppColors.warmRed`,
+    /// **And the red is `EditWinSheet.destructiveTint`, not `AppColors.warmRed`,
     /// which is where this row leaves its two siblings — on a measurement.**
     /// Matching them was the plan, and then the ink was sampled off the built
     /// sheet against the `Form` card it actually stands on, rgb(228) in light:
@@ -414,9 +414,9 @@ struct PlanItemDetailSheet: View {
             confirmingDelete = true
         } label: {
             Label {
-                Text("Delete Line").foregroundStyle(AddWinSheet.destructiveTint)
+                Text("Delete Line").foregroundStyle(EditWinSheet.destructiveTint)
             } icon: {
-                SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
+                SettingsIcon(systemName: "trash", tint: EditWinSheet.destructiveTint)
             }
         }
         .confirmationDialog("Delete this line?",
