@@ -89,8 +89,8 @@ enum StrataTab: String, CaseIterable {
     /// has to guess what an icon means ... decide with research"). Apple's
     /// HIG asks for a label on every tab, NN/g finds icon-only navigation
     /// unclear, and older people misread unlabelled icons; the owner chose
-    /// icons only the same day, so it waits for him in Settings, Show Tab
-    /// Names (`TabNames`), off.
+    /// icons only the same day, so it waited for him in Settings; on
+    /// 2026-10-17 he chose it on by default (`TabNames`).
     @ViewBuilder
     var label: some View {
         if TabNames.shown {
@@ -246,6 +246,8 @@ final class CameraReviewState {
 struct CameraTabBarSkin: View {
     @State private var bar: CGRect?
     @State private var tabs: [(tab: StrataTab, button: CGRect, picture: CGRect)] = []
+    /// The tabs' names, when Show Tab Names puts them under the pictures.
+    @State private var titles: [StrataTab: (frame: CGRect, font: UIFont)] = [:]
 
     /// **On** (the owner, 2026-10-16, asked: "Turn it on"). It was behind
     /// `-strataDarkCameraBar` until he had seen it; `-strataLightCameraBar`
@@ -290,6 +292,16 @@ struct CameraTabBarSkin: View {
                             .foregroundStyle(Color.white.opacity(item.tab == .camera ? 1 : 0.6))
                             .frame(width: item.picture.width, height: item.picture.height)
                             .offset(x: item.picture.minX - origin.x, y: item.picture.minY - origin.y)
+                        // The name, where the real bar says it (on by default
+                        // since 2026-10-17), or the drawing hid it.
+                        if let title = titles[item.tab] {
+                            Text(item.tab.rawValue)
+                                .font(Font(title.font))
+                                .foregroundStyle(Color.white.opacity(item.tab == .camera ? 1 : 0.6))
+                                .fixedSize()
+                                .frame(width: title.frame.width, height: title.frame.height)
+                                .offset(x: title.frame.minX - origin.x, y: title.frame.minY - origin.y)
+                        }
                     }
                 }
             }
@@ -313,14 +325,19 @@ struct CameraTabBarSkin: View {
         tabs = StrataTab.allCases.compactMap { tab in
             TabGlyph.frames(of: tab).map { (tab, $0.button, $0.picture) }
         }
+        titles = TabNames.shown
+            ? Dictionary(uniqueKeysWithValues: StrataTab.allCases.compactMap { tab in TabGlyph.title(of: tab).map { (tab, $0) } })
+            : [:]
     }
 }
 
 
-/// **Show Tab Names**, a setting, off by default (see `StrataTab.label`).
+/// **Show Tab Names**, a setting, on by default since 2026-10-17 (see
+/// `StrataTab.label`).
 enum TabNames {
     static let key = "tabNamesShown"
-    static var shown: Bool { UserDefaults.standard.bool(forKey: key) }
+    /// **On unless turned off** (the owner, 2026-10-17: on by default).
+    static var shown: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
 }
 
 /// The tab's word under its drawing when Show Tab Names is on.

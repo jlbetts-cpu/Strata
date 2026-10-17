@@ -90,6 +90,16 @@ enum TabGlyph {
         return (button.convert(button.bounds, to: nil), image.convert(image.bounds, to: nil))
     }
 
+    /// The tab's name under its picture, when Show Tab Names has put one
+    /// there: its frame in the window and its font, so a drawing of the bar
+    /// can say it in the same place (`CameraTabBarSkin`).
+    static func title(of tab: StrataTab) -> (frame: CGRect, font: UIFont)? {
+        guard let image = pictures(at: index(of: tab)).first, let button = image.superview,
+              let label = first(in: button, where: { ($0 as? UILabel)?.text?.isEmpty == false }) as? UILabel
+        else { return nil }
+        return (label.convert(label.bounds, to: nil), label.font)
+    }
+
     /// The tab's picture, in the window.
     static func frame(of tab: StrataTab) -> CGRect? {
         guard let image = pictures(at: index(of: tab)).first else { return nil }

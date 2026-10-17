@@ -30,7 +30,7 @@ struct SettingsView: View {
 
     @AppStorage(QuickPost.key) private var quickPost = false
     @AppStorage(CameraFirst.key) private var cameraFirst = true
-    @AppStorage(TabNames.key) private var tabNamesShown = false
+    @AppStorage(TabNames.key) private var tabNamesShown = true
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
     @AppStorage("reminderMinute") private var reminderMinute = 0
