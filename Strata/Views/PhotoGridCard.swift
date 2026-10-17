@@ -9,16 +9,27 @@ import SwiftUI
 struct PhotoGridCard: View {
     let title: String
     let pictures: [(id: String, picture: BannerPicture)]
+    /// **The Photos grid** (the owner's launch pass, 1: "the Deep, Regular
+    /// and Quick photos go back to the Apple Photos look"): square photos a
+    /// hairline apart, edge to edge in the card, as Photos lays its library.
+    /// The columns keep the three sizes readable: a deep moment gets a
+    /// bigger tile than a quick one. Nil keeps the tower's gap and corners
+    /// (a friend's recent photos).
+    var photosColumns: Int? = nil
     var onSelect: (String) -> Void
 
+    private var asPhotos: Bool { photosColumns != nil }
+
     var body: some View {
-        let gap = GridConstants.spacing
+        let gap: CGFloat = asPhotos ? 2 : GridConstants.spacing
+        let corner: CGFloat = asPhotos ? 0 : GridConstants.cornerRadius
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             Text(title)
                 .font(Typography.headerSmall)
                 .foregroundStyle(AppColors.inkSecondary)
                 .accessibilityAddTraits(.isHeader)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: 3), spacing: gap) {
+                .padding(asPhotos ? [.horizontal, .top] : [], PageCard.inset)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: photosColumns ?? 3), spacing: gap) {
                 ForEach(pictures, id: \.id) { item in
                     Button {
                         HapticsEngine.lightTap()
@@ -31,10 +42,10 @@ struct PhotoGridCard: View {
                                     switch item.picture {
                                     case let .mine(file):
                                         CachedImageView(fileName: file, width: geo.size.width, height: geo.size.height,
-                                                        cornerRadius: GridConstants.cornerRadius)
+                                                        cornerRadius: corner)
                                     case let .theirs(url):
                                         CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height)
-                                            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+                                            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
                                     }
                                 }
                             }
@@ -45,8 +56,9 @@ struct PhotoGridCard: View {
                 }
             }
         }
-        .padding(PageCard.inset)
+        .padding(asPhotos ? 0 : PageCard.inset)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
         .pageCard()
     }
 }

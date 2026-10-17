@@ -119,6 +119,15 @@ struct MemoriesView: View {
         }
     }
 
+    /// Deep two across, Regular three, Quick four (`PhotoGridCard`).
+    static func photoColumns(_ title: String) -> Int {
+        switch title.lowercased() {
+        case let t where t.hasPrefix("deep"): 2
+        case let t where t.hasPrefix("quick"): 4
+        default: 3
+        }
+    }
+
     var body: some View {
         #if DEBUG
         let _ = PerfProbe.count("MemoriesView")
@@ -251,7 +260,8 @@ struct MemoriesView: View {
                                 let photos = section.photos.filter { $0.block == nil }
                                 if !photos.isEmpty {
                                     PhotoGridCard(title: section.title,
-                                                  pictures: photos.map { ($0.fileName, BannerPicture.mine($0.fileName)) }) { id in
+                                                  pictures: photos.map { ($0.fileName, BannerPicture.mine($0.fileName)) },
+                                                  photosColumns: Self.photoColumns(section.title)) { id in
                                         viewing = ViewedPhoto(id: id, title: photos.first { $0.fileName == id }?.title)
                                     }
                                     .padding(.horizontal, GridConstants.horizontalPadding)
