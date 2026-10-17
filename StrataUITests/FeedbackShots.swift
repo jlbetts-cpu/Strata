@@ -185,6 +185,7 @@ final class FeedbackShots: XCTestCase {
         app.buttons["Just Words"].tap()
         wait(0.8)
         app.textFields.firstMatch.typeText("Answered one email")
+        snap("crewcam-15-words")
         app.buttons["Drop it on the tower"].tap()
         wait(3); snap("crewcam-2-dropped")
     }

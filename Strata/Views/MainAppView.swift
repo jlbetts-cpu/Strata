@@ -2772,13 +2772,14 @@ struct MainAppView: View {
                 try? await Task.sleep(for: .milliseconds(80))
                 winDraft = draft
             }
-        case .drop(let photo, let size, let title, let place)?:
-            logWin(size: size, photo: photo, title: title, place: place, crews: opening.crews)
+        case .drop(let photo, let size, let title, let place, let crews)?:
+            logWin(size: size, photo: photo, title: title, place: place, crews: crews, undoable: true)
         }
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false,
-                        title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil) {
+                        title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil,
+                        undoable: Bool = false) {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
@@ -2807,7 +2808,8 @@ struct MainAppView: View {
                     log.locationAccuracy = place.accuracy
                 }
                 if holdFromCrews { CrewHold.hold(log.id) }
-                else if let crews { CrewSync.post(log, to: crews, with: []) }
+                // Named on the card; none named is your tower only.
+                else if let crews { if !crews.isEmpty { CrewSync.post(log, to: crews, with: []) } }
                 else { CrewSync.post(log) }
             }
             // Written before the drop is queued, so the block arrives with its
@@ -2834,7 +2836,7 @@ struct MainAppView: View {
             // a held press or a stray drag on the slot logs a win, and taking
             // it back was find it, open it, delete it. Only from the slot:
             // pressing Add on the sheet is not an accident.
-            if holdFromCrews {
+            if holdFromCrews || undoable {
                 let habit = win.habit
                 UndoLine.shared.show("Win added", undo: {
                     guard let pending = try? WinDeletion.delete(habit, in: modelContext) else { return }

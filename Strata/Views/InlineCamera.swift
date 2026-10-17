@@ -112,8 +112,9 @@ enum AddWinFrom {
 
 /// What the card hands back.
 enum InlineCameraResult {
-    /// Drop it: a photograph (or none), the size drawn, its name, where.
-    case drop(photo: UIImage?, size: BlockSize, title: String, place: WinPlace?)
+    /// Drop it: a photograph (or none), the size drawn, its name, where, and
+    /// the crews named on the card (empty: your tower only).
+    case drop(photo: UIImage?, size: BlockSize, title: String, place: WinPlace?, crews: Set<CrewID>)
     /// Everything else: the full sheet, holding whatever the card had.
     case sheet(WinDraft)
 }
@@ -143,6 +144,12 @@ struct InlineCameraCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var open = false
+    /// **Who sees it, named on the card before Drop** (the second reader,
+    /// 2026-10-17: Drop sent to your last crews with nothing saying so, which
+    /// is the owner's CrewHold rule broken: nothing reaches a crew before a
+    /// yes). The chip is the naming; Drop is the yes, as Quick Post's "To"
+    /// and Post are on the sheet.
+    @State private var recipients: Set<CrewID> = []
     @State private var mode: Mode = InlineCamera.refused ? .words : .lens
     @State private var live = false
     @State private var shot: UIImage?
@@ -301,7 +308,10 @@ struct InlineCameraCard: View {
             top
             Spacer(minLength: 0)
             if mode == .words && InlineCamera.refused { cameraOff }
-            if mode != .lens { nameRow }
+            if mode != .lens {
+                recipientsChip
+                nameRow
+            }
             bottom
         }
         .padding(GridConstants.gapItem)
@@ -392,6 +402,42 @@ struct InlineCameraCard: View {
             case .words:
                 Color.clear.frame(width: 44, height: 44)
             }
+        }
+    }
+
+    private var crews: [Crew] { CrewsFlag.isOn ? SocialStore.shared.groupCrews : [] }
+
+    @ViewBuilder
+    private var recipientsChip: some View {
+        if !crews.isEmpty {
+            let store = SocialStore.shared
+            let names = crews.filter { recipients.contains($0.id) }.map { $0.displayName(excluding: store.me) }
+            let words = names.isEmpty ? "Just you" : names.count == 1 ? names[0] : "\(names[0]) and \(names.count - 1) more"
+            Menu {
+                Toggle("Just Me", isOn: Binding(get: { recipients.isEmpty },
+                                                set: { if $0 { recipients = [] } }))
+                ForEach(crews) { crew in
+                    Toggle(crew.displayName(excluding: store.me),
+                           isOn: Binding(get: { recipients.contains(crew.id) },
+                                         set: { if $0 { recipients.insert(crew.id) } else { recipients.remove(crew.id) } }))
+                }
+            } label: {
+                HStack(spacing: GridConstants.spacing) {
+                    Text("To").foregroundStyle(AppColors.onDarkSecondary)
+                    Text(words).foregroundStyle(.white).lineLimit(1)
+                    Image(systemName: "chevron.down").foregroundStyle(AppColors.onDarkSecondary)
+                }
+                .font(Typography.headerSmall)
+                .legibleOnImagery()
+                .padding(.horizontal, GridConstants.gapLabel)
+                .frame(minHeight: 44)
+                .inlineGlass(in: Capsule())
+            }
+            .menuActionDismissBehavior(.disabled)
+            .accessibilityLabel("Sending to \(words)")
+            .accessibilityHint("Choose who sees it.")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, GridConstants.gapTight)
         }
     }
 
@@ -535,6 +581,7 @@ struct InlineCameraCard: View {
 
     private func arrive() {
         opened = CACurrentMediaTime()
+        recipients = opening.crews ?? CrewChoice.load()
         HapticsEngine.lightTap()
         if mode == .lens {
             Task {
@@ -587,7 +634,10 @@ struct InlineCameraCard: View {
             return
         }
         HapticsEngine.snap()
-        leave(with: .drop(photo: photo, size: size, title: title, place: photo == nil ? nil : place))
+        // Your usual next time, unless a crew's own camera chose for you.
+        if opening.crews == nil, !crews.isEmpty { CrewChoice.save(recipients) }
+        leave(with: .drop(photo: photo, size: size, title: title, place: photo == nil ? nil : place,
+                          crews: crews.isEmpty ? [] : recipients))
     }
 
     private func toSheet(drawing: Bool = false) {
