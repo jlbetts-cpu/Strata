@@ -16,7 +16,10 @@ final class FeedbackShots: XCTestCase {
 
     private func launch(_ args: [String]) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = args
+        // No camera timer left over from another walk: a shutter that starts
+        // a countdown shoots nothing in a walk's second (2026-10-18). A walk
+        // that wants the timer passes its own after this.
+        app.launchArguments = ["-cameraTimerSeconds", "0"] + args
         app.launch()
         return app
     }

@@ -33,7 +33,17 @@ struct GlassChoiceBar<Item: Hashable>: View {
     /// dark one (dark on dark: never white there).
     static var lens: Color {
         Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 1, alpha: 0.95)
+            traits.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.26) : UIColor(white: 1, alpha: 1)
+        })
+    }
+    /// **The track has a ground of its own** (the owner, 2026-10-18: "isn't
+    /// readable, and I can't tell which one is selected"): on a white card
+    /// the glass track went white too and the white lens vanished into it.
+    /// A quiet fill under the words, as iOS's own segmented track is grey,
+    /// so the lens stands out on a card, on the page, light or dark.
+    static var track: Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.07) : UIColor(white: 0, alpha: 0.11)
         })
     }
     private static var inset: CGFloat { 4 }
@@ -47,6 +57,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
             }
             .padding(.horizontal, Self.inset)
             .frame(height: Self.height)
+            .background(Capsule(style: .continuous).fill(Self.track))
             .clipShape(Capsule(style: .continuous))
             .glassCapsule(onPage: true, interactive: false)
             .overlay(Capsule(style: .continuous).strokeBorder(AppColors.quietFill, lineWidth: 1))
@@ -73,6 +84,7 @@ struct GlassChoiceBar<Item: Hashable>: View {
             }
         }
         .frame(height: Self.height)
+        .background(Capsule(style: .continuous).fill(Self.track))
         .clipShape(Capsule(style: .continuous))
         // Holds buttons rather than being one: not interactive glass, which
         // would take their taps (`glassCapsule`).
