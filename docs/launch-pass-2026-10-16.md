@@ -59,5 +59,23 @@ Tags: (a) research, (b) seen in a shipping app, (c) my inference.
 ## The black tab bar on the Camera tab
 - It is a drawing over the real bar (`CameraTabBarSkin`), so the real bar's own drag-between-tabs response happens underneath, unseen. The root fix is the system bar owning the dark look, which is the forced-scheme lag you rejected (0.8s). Not changed tonight; needs a phone to judge. Options: keep the drawing (today), or drop it and let the bar stay light. (c)
 
+## No counts on posts
+- A crew block's reactions show one emoji, or two overlapping when more than one person cheered; no number on screen or aloud. Who reacted reads "Sam, Jo and others". (add-on brief)
+
+## Second reader (independent review of crew and messaging since 861aae5), 2026-10-17
+Found and fixed:
+1. A conversation became unreachable once you no longer shared a group crew: it stays reachable now.
+2. Merging duplicate wins withdrew them from every crew and the story: a twin deleted while its id lives is ignored, and the merge saves before deleting the emptied kind of win.
+3. Watched stories never left iCloud's shared key-value table (1 MB, shared with blocks): pruned both ways; test added.
+4. The camera card's Drop sent to your last crews unnamed: a To chip names them, Drop is the yes, Undo follows.
+5. Your own story kept yesterday's wins all of today after the end-time change: yours ends at your own 9am; test added.
+6. Unsent crew photos were lost across sign-out: set aside with the outbox, outboxes merged; test added.
+7. A plan line the crew didn't get looked shared: it says so now.
+8. The Activity dot rebuilt the whole feed every render: cached.
+9. A busy camera at warm-up disabled the card for the app's life: only "no camera" is remembered.
+10. Undo of a delete dropped who the win was with: kept.
+11. A person's page skipped the crews gate: it goes through it.
+Not fixed: deleting a shared plan line leaves its line in the crew's chat (needs a withdraw path); the duplicate-merge fix has no end-to-end test (it needs the shared store's save notifications). Checked sound: no schema change, no new server, blocked people unreachable, no presence or read receipts.
+
 ## Waiting for your call
 - Show Tab Names on by default (recommended).
