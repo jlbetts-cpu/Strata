@@ -337,7 +337,12 @@ struct PlanLines: View {
     /// The empty plan's one line, for the day on the page.
     /// The quiet line under a plan line: when, and how often.
     static func subtitle(for item: PlanItem, calendar: Calendar) -> String? {
-        let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar)].compactMap { $0 }
+        // A plan shared with a crew says so (the one planner, 2026-10-16).
+        let crew: String? = CrewsFlag.isOn
+            ? GroupPlanBook.crew(forPlanItem: item.id).flatMap { SocialStore.shared.crew($0) }
+                .map { "With \($0.displayName(excluding: SocialStore.shared.me))" }
+            : nil
+        let parts = [PlanTime.label(for: item.text), item.repeatSummary(calendar: calendar), crew].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

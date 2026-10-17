@@ -675,6 +675,25 @@ final class FeedbackShots: XCTestCase {
         wait(1.5); snap("activity-1-sheet")
     }
 
+    /// One planner, shared with a crew (the add-on to the launch pass).
+    func testOnePlanner() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1",
+                          "-strataSeedWins", "2", "-strataOpenSheet", "plan"])
+        wait(9); snap("planner-0")
+        let share = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'The next plan' OR label BEGINSWITH 'Sharing'")).firstMatch
+        print("PLANNING-planner share \(share.exists)")
+        if share.exists { share.tap() }
+        wait(1); snap("planner-1-menu")
+        let crew = app.buttons["Roommates"].firstMatch
+        if crew.exists { crew.tap() }
+        wait(1)
+        let field = (app.textFields.allElementsBoundByIndex + app.textViews.allElementsBoundByIndex).filter { $0.isHittable }.last
+        field?.tap(); wait(0.6)
+        app.typeText("Run at 7")
+        app.typeText("\n")
+        wait(2.5); snap("planner-2-shared")
+    }
+
     /// Show Tab Names, on (the launch pass, 5½; off by default).
     func testTabNames() {
         let app = launch(["-tabNamesShown", "YES", "-strataSeedWins", "3", "-strataStartTab", "tower"])

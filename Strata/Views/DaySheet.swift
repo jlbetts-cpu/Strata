@@ -263,6 +263,11 @@ struct DaySheet: View {
     /// What is being typed in the Plan's bar (`DayComposer`). It shares the
     /// lines' focus: the bar owns the keyboard when `planFocus` is its id.
     @State private var planDraft = ""
+    /// **The one planner shares with a crew** (the owner's add-on to the
+    /// launch pass: "your own plans and your crew plans live together in one
+    /// place. When you plan something, you can share it with a crew"). The
+    /// next line goes to this crew too, as its plan; nil keeps it yours.
+    @State private var planCrew: CrewID?
     @State private var planComposerID = UUID()
     /// Which day of the plan is on the page, or the repeating lines.
     @State private var planScope: PlanScope = DaySheet.openingScope
@@ -562,6 +567,11 @@ struct DaySheet: View {
                         .padding(.bottom, GridConstants.gapTight)
                         .transition(.opacity)
                 }
+                if CrewsFlag.isOn, !SocialStore.shared.groupCrews.isEmpty, SocialStore.shared.canReply() {
+                    planShareRow
+                        .padding(.horizontal, GridConstants.horizontalPadding)
+                        .padding(.bottom, GridConstants.gapTight)
+                }
                 planComposer
             }
         }
@@ -582,6 +592,36 @@ struct DaySheet: View {
         }
     }
 
+    /// Who the next line is for: just you, or one of your crews.
+    private var planShareRow: some View {
+        let store = SocialStore.shared
+        let chosen = planCrew.flatMap { store.crew($0) }
+        return HStack {
+            Menu {
+                Button { planCrew = nil } label: {
+                    if planCrew == nil { Label("Just Me", systemImage: "checkmark") } else { Text("Just Me") }
+                }
+                ForEach(store.groupCrews) { crew in
+                    Button { planCrew = crew.id } label: {
+                        if planCrew == crew.id { Label(crew.displayName(excluding: store.me), systemImage: "checkmark") }
+                        else { Text(crew.displayName(excluding: store.me)) }
+                    }
+                }
+            } label: {
+                Label(chosen.map { "With \($0.displayName(excluding: store.me))" } ?? "Just me",
+                      systemImage: chosen == nil ? "person" : "person.2")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .padding(.horizontal, GridConstants.gapItem)
+                    .frame(minHeight: 36)
+                    .glassCapsule(onPage: true, carriesType: true)
+            }
+            .accessibilityLabel(chosen.map { "Sharing the next plan with \($0.displayName(excluding: store.me))" } ?? "The next plan is just yours")
+            .accessibilityHint("Choose a crew to share it with.")
+            Spacer(minLength: 0)
+        }
+    }
+
     /// What the bar says it adds to: today's plan, tomorrow's, a day's, or
     /// the lines that repeat.
     private var planPlaceholder: String { planScope.prompt() }
@@ -591,10 +631,23 @@ struct DaySheet: View {
         planDraft = ""
         guard DayComposing.hasWords(words) else { return }
         HapticsEngine.tick()
+        var made: [PlanItem] = []
         withAnimation(motion) {
-            _ = DayComposing.addPlanLines(words, after: allItems, habits: habits, context: modelContext,
-                                          day: planScope.date() ?? Date(),
-                                          repeatDays: planScope == .repeating ? repeatDays : [])
+            made = DayComposing.addPlanLines(words, after: allItems, habits: habits, context: modelContext,
+                                             day: planScope.date() ?? Date(),
+                                             repeatDays: planScope == .repeating ? repeatDays : [])
+        }
+        // Shared: each line goes to the crew as its plan, and stays yours here.
+        guard let crew = planCrew else { return }
+        let when: GroupPlan.When = planScope == .repeating
+            ? .weekdays(repeatDays.sorted()) : .day(DateUtils.dateString(from: planScope.date() ?? Date()))
+        let today = DateUtils.dateString(from: Date())
+        let lines = made.map { ($0.id, $0.text) }
+        Task {
+            for (id, text) in lines {
+                let (_, plan) = await SocialStore.shared.sendPlan(title: text, when: when, in: crew)
+                if let plan { GroupPlanBook.keep(plan, planItem: id, today: today) }
+            }
         }
     }
 
