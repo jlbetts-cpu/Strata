@@ -322,6 +322,40 @@ struct TonightsStoryTests {
         #expect(b.storyPeople(at: tonight).first?.stories.count == 1)
     }
 
+    @Test("two phones: a page made yours reaches a friend, words, photo behind and drawing, and their check holds the drawing")
+    func pageReachesAFriend() async throws {
+        let a = store(jayden), b = store(sam)
+        let (_, link) = try await a.createCrew(name: "Roommates")
+        _ = try await b.accept(CrewInvite(url: link))
+        await a.refresh()
+        let jpeg = try #require(UIGraphicsImageRenderer(size: CGSize(width: 40, height: 40)).image { ctx in
+            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 40))
+        }.jpegData(compressionQuality: 0.8))
+        let run = win(photo: jpeg)
+        await a.postStory(run)
+        let day = CrewDay.string(for: .now, in: .current)
+        let art = try #require(StoryPageFiles.keepArt(drawing: InkSamples.sunOverHill(in: CGSize(width: 360, height: 300)),
+                                                      stickers: [], canvas: CGSize(width: 360, height: 640)))
+        defer { try? FileManager.default.removeItem(at: StoryPageFiles.directory.appending(path: art)) }
+        #expect(await a.setStoryWords(StoryWords(high: "Ran the loop", low: "Rain", buffalo: "Honey keeps",
+                                                 photo: run.winID, art: art, artWins: [run.winID]), on: day) == .sent)
+        await b.refresh()
+        await b.checkArrivedPhotos()
+        let tonight = date(day, 21, in: .current)
+        let sam = try #require(b.storyPeople(at: tonight).first)
+        #expect(sam.line == "Ran the loop" && sam.low == "Rain" && sam.buffalo == "Honey keeps")
+        #expect(sam.wordsPicture != nil)
+        let arrived = try #require(sam.wordsArt)
+        // The friend's phone holds the drawing itself, decodable, at most the page's edge.
+        let image = try #require(StoryArtImage.decode(arrived))
+        #expect(max(image.size.width, image.size.height) * image.scale <= StoryPageFiles.longestEdge + 1)
+        #expect(!sam.watched)
+        // Their phone's check holds a page back as it holds a photo.
+        b.incomingPolicy = { .hide }
+        #expect(b.storyPeople(at: tonight).first?.wordsArt == nil)
+        #expect(b.storyPeople(at: tonight).first?.line == "Ran the loop")
+    }
+
     @Test("reactions read after the story's end are kept, not lost")
     func reactionsAfterTheEnd() async throws {
         let a = store(jayden), b = store(sam)

@@ -99,6 +99,33 @@ struct PublicCrewTests {
         #expect(CrewItemRecord.strings(in: sealed.box, key: CrewKey.new(), recordName: name).isEmpty)
     }
 
+    @Test("a story's photo and page picture go up sealed in their own slots; a file named in the words is dropped")
+    func storyPageSealed() throws {
+        let key = CrewKey.new()
+        let folder = FileManager.default.temporaryDirectory.appending(path: "box-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let photo = folder.appending(path: "photo.jpg"), art = folder.appending(path: "art.png")
+        try Data(repeating: 7, count: 2048).write(to: photo)
+        try Data(repeating: 9, count: 2048).write(to: art)
+        let win = UUID()
+        let name = CrewItemRecord.name(crew: crew.rawValue, kind: "Story", name: win.uuidString)
+        let sealed = try CrewItemBox.seal(["winID": .uuid(win), "low": .string("Rain"), "photo": .asset(photo), "sketch": .asset(art)],
+                                          key: key, recordName: name, folder: folder.appending(path: "out"))
+        #expect(sealed.assets.count == 2)
+        let opened = try CrewItemBox.open(sealed.box, assets: sealed.assets, key: key, recordName: name,
+                                          into: folder.appending(path: "in"), stem: "s-1")
+        #expect(try Data(contentsOf: try #require(opened["photo"]?.asset)) == Data(repeating: 7, count: 2048))
+        #expect(try Data(contentsOf: try #require(opened["sketch"]?.asset)) == Data(repeating: 9, count: 2048))
+        #expect(opened["low"] == .string("Rain"))
+        // Written by hand: a box whose words name a file on the reader's phone.
+        let hostile: RecordFields = ["winID": .uuid(win), "sketch": .asset(art)]
+        let box = try key.seal(try JSONEncoder().encode(hostile), context: name)
+        let read = try CrewItemBox.open(box, assets: [:], key: key, recordName: name,
+                                        into: folder.appending(path: "in2"), stem: "s-2")
+        #expect(read["sketch"] == nil)
+        #expect(read["winID"]?.uuid == win)
+    }
+
     @Test("keys are kept per crew and only for crews you are in")
     func keyStore() {
         let store = CrewKeyStore(suite: "public-crew-tests-\(UUID().uuidString)")
