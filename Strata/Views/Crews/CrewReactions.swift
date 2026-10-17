@@ -599,7 +599,8 @@ struct CrewReactionsPanel: View {
         for r in reactions where !emoji.contains(r.emoji) { emoji.append(r.emoji) }
         let names = reactions.map { name($0.profileID, crewID: crewID) }
         let words = names.count > 3
-            ? "\(names.prefix(2).joined(separator: ", ")) and \(names.count - 2) others"
+            // Names, never a tally (no counts on posts, 2026-10-16).
+            ? "\(names.prefix(2).joined(separator: ", ")) and others"
             : names.formatted(.list(type: .and))
         return HStack(spacing: 8) {
             HStack(spacing: -4) {

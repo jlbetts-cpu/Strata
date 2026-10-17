@@ -324,9 +324,8 @@ struct FlippableBlockView: View {
     }
 }
 
-/// A crew block's reactions, in its corner: up to three emoji overlapping, and
-/// the count when more people reacted than there are emoji shown. Small glass,
-/// so it reads on a colour and on a photograph alike.
+/// A crew block's reactions, in its corner: one emoji, or two overlapping when
+/// more than one person reacted. Never a number.
 struct ReactionBadge: View {
     let emoji: [String]
     let count: Int
@@ -340,34 +339,30 @@ struct ReactionBadge: View {
     /// when more than one person reacted. Yours sits on a soft white dot, so
     /// you can tell at a glance without it shouting. Who gave what is in the
     /// carousel's line.
+    ///
+    /// **No number** (the owner's add-on, 2026-10-16: "Nobody is grading it.
+    /// No counts on posts, ever"). A second emoji, tucked behind the first,
+    /// says more than one of you cheered; how many is nobody's score.
     var body: some View {
-        HStack(spacing: 3) {
-            if let first = emoji.first {
-                Text(first)
+        HStack(spacing: -6) {
+            ForEach(Array(emoji.prefix(count > 1 ? 2 : 1).enumerated()), id: \.offset) { index, face in
+                Text(face)
                     .font(Typography.screenSubtitle)
                     .padding(2)
                     .background {
-                        if mine { Circle().fill(AppColors.onDarkQuiet) }
+                        if mine && index == 0 { Circle().fill(AppColors.onDarkQuiet) }
                     }
-            }
-            if count > 1 {
-                Text("\(count)")
-                    .font(Typography.headerSmall)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.white.opacity(0.92))
-                    .contentTransition(.numericText())
+                    .zIndex(Double(-index))
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel((count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
-                                        : "\(count) reactions, \(emoji.joined(separator: " "))")
-                            + (mine ? ", yours among them" : ""))
+        .accessibilityLabel("Reactions, \(emoji.joined(separator: " "))" + (mine ? ", yours among them" : ""))
     }
 }
 
 
 /// **A crew block, said aloud** (the 2026-10-03 audit). Whose win it is, what,
-/// and how many reacted, as one element; Open and React as actions, because
+/// and whether it was cheered, as one element; Open and React as actions, because
 /// a hold and a double tap are gestures VoiceOver users cannot make. Your own
 /// tower's blocks speak too, whenever a tap opens them (2026-10-08): they were
 /// folded into one "Today's tower" element, so no win could be reached or
@@ -400,8 +395,8 @@ private struct CrewBlockSpeech: ViewModifier {
     private var label: String {
         let who = look.sender.map { look.isTagged ? $0 : "\($0)'s win" } ?? "Your win"
         let what = look.title.isEmpty ? (look.hasPhoto ? "a photo" : "untitled") : look.title
-        let reactions = look.reactionCount == 0 ? ""
-            : (look.reactionCount == 1 ? ", 1 reaction" : ", \(look.reactionCount) reactions")
+        // Cheered or not, never how many (no counts on posts).
+        let reactions = look.reactionCount == 0 ? "" : ", cheered"
         let yours = look.myReaction.map { ", you reacted \($0)" } ?? ""
         return "\(who), \(what)\(reactions)\(yours)"
     }
