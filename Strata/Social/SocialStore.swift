@@ -3616,9 +3616,21 @@ extension SocialStore {
     /// Whether this win of yours is on a story that has not ended: the
     /// ledger first, which this phone keeps, then what the crews hold.
     func isOnStory(_ winID: UUID) -> Bool {
-        if let entry = storyLedger[winID] { return now() < entry.endsAt }
         let t = now()
-        return storiesByCrew.values.contains { $0.contains { $0.id == winID && $0.sender == me && t < $0.endsAt } }
+        if let entry = storyLedger[winID] { return Self.ownStoryLive(day: entry.day, endsAt: entry.endsAt, at: t) }
+        return storiesByCrew.values.contains {
+            $0.contains { $0.id == winID && $0.sender == me && Self.ownStoryLive(day: $0.day, endsAt: $0.endsAt, at: t) }
+        }
+    }
+
+    /// **Your story is the night's, by your own clock** (the second reader,
+    /// 2026-10-17). The sealed end moved to noon where the day ends last, so
+    /// friends far west get their whole night; read by that end alone, your
+    /// own story carried yesterday's wins through all of today. Yours ends at
+    /// your own 9am, as it does for anyone watching where you are.
+    nonisolated static func ownStoryLive(day: String, endsAt: Date, at t: Date, in zone: TimeZone = .current) -> Bool {
+        guard t < endsAt, let window = StoryClock.window(of: day, endsAt: endsAt, in: zone) else { return false }
+        return t < window.upperBound
     }
 
     /// Your story tonight, each win once, oldest first.
@@ -3626,7 +3638,7 @@ extension SocialStore {
         let t = now()
         var seen: Set<UUID> = []
         return crews.flatMap { storiesByCrew[$0.id] ?? [] }
-            .filter { $0.sender == me && t < $0.endsAt && seen.insert($0.id).inserted }
+            .filter { $0.sender == me && Self.ownStoryLive(day: $0.day, endsAt: $0.endsAt, at: t) && seen.insert($0.id).inserted }
             .sorted { ($0.win.createdAt, $0.id.uuidString) < ($1.win.createdAt, $1.id.uuidString) }
     }
 

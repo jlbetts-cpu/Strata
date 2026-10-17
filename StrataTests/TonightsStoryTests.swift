@@ -133,6 +133,21 @@ struct TonightsStoryTests {
         #expect(PublicCrewCloud.family(.story, name: "w") != PublicCrewCloud.family(.sharedWin, name: "w"))
     }
 
+    /// The second reader, 2026-10-17: with the sealed end at noon where the
+    /// day ends last, your own story read by that end alone carried
+    /// yesterday's wins through today. Yours ends at your own 9am.
+    @Test("your own story is tonight's by your own clock")
+    func ownStoryByYourClock() throws {
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let ends = try #require(StoryClock.endsAt(of: "2026-10-15", in: tokyo))
+        #expect(SocialStore.ownStoryLive(day: "2026-10-15", endsAt: ends, at: date("2026-10-15", 15, in: tokyo), in: tokyo))
+        #expect(SocialStore.ownStoryLive(day: "2026-10-15", endsAt: ends, at: date("2026-10-15", 23, in: tokyo), in: tokyo))
+        #expect(!SocialStore.ownStoryLive(day: "2026-10-15", endsAt: ends, at: date("2026-10-16", 10, in: tokyo), in: tokyo),
+                "yesterday's story was still yours the next morning")
+        #expect(ends > date("2026-10-16", 10, in: tokyo), "the case only matters while the sealed end is later")
+    }
+
+    // MARK: Posting
     // MARK: Posting
 
     @Test("a story reaches a friend, once, and comes off at once")
