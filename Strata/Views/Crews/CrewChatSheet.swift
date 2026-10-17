@@ -386,7 +386,7 @@ struct CrewChatSheet: View {
         let messages = store.messages(in: crewID)
         let reactions = store.messageReactions(in: crewID)
         framed(chatPage(messages, reactions: reactions, crew: crew),
-               name: crew?.displayName(excluding: store.me) ?? "")
+               name: crew == nil ? "" : store.chatName(crewID))
         // As a sheet of its own; in the crew's native sheet the crew sets
         // the heights (`CrewTowerView.nativeChat`).
         .modifier(OwnChatDetents(on: !native, detent: $detent))
@@ -476,7 +476,7 @@ struct CrewChatSheet: View {
             lookBack = CrewLookBack.find(for: crewID, context: modelContext)
         }
         .sheet(isPresented: $planning) {
-            GroupPlanSheet(crewName: store.crew(crewID)?.displayName(excluding: store.me) ?? "Your Crew",
+            GroupPlanSheet(crewName: store.crew(crewID) == nil ? "Your Crew" : store.chatName(crewID),
                            title: $planDraft) { title, choice in
                 propose(title, choice)
             }
@@ -505,7 +505,7 @@ struct CrewChatSheet: View {
                 .onDisappear { addingWinPhoto = nil }
         }
         .sheet(isPresented: $doodling) {
-            DoodleSheet(owner: store.crew(crewID)?.displayName(excluding: store.me) ?? "") { drawing in
+            DoodleSheet(owner: store.chatName(crewID)) { drawing in
                 guard let png = InkExport.doodlePNG(drawing) else { return }
                 Task { answer(await store.sendDoodle(png, in: crewID)) }
             }

@@ -922,6 +922,15 @@ final class SocialStore {
         return groupCrews.lazy.compactMap { $0.member(friend) }.first
     }
 
+    /// **What a chat is called on screen**: a conversation of two is the
+    /// other person, as the Crews list names its row, even before their phone
+    /// has joined it (until then you are its only member, and the crew's own
+    /// name read "New Crew" over your talk with Ana; seen, 2026-10-17).
+    func chatName(_ crewID: CrewID) -> String {
+        if let friend = directFriend(crewID) { return friend.shortName.isEmpty ? "A friend" : friend.shortName }
+        return crew(crewID)?.displayName(excluding: me) ?? ""
+    }
+
     /// Everyone you share a crew with, once each, for a new message: not
     /// you, not anyone blocked, named as a crew names them.
     var messageablePeople: [(member: CrewMember, crew: CrewID)] {

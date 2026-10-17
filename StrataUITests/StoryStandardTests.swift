@@ -262,6 +262,12 @@ final class StoryStandardTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         snap("std-layer-4-back-on-person")
         print("STORYSTD layer back-on-page \(!card(app).exists)")
+        // The conversation, risen: the reply carries the story it answers.
+        if reply.exists { reply.tap() }
+        Thread.sleep(forTimeInterval: 1.5)
+        app.swipeUp()
+        Thread.sleep(forTimeInterval: 1.5)
+        snap("std-layer-5-conversation")
         XCTAssertFalse(card(app).exists, "their name in their story did not bring you back to them")
     }
 }
