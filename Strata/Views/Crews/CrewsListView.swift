@@ -26,6 +26,7 @@ struct CrewsListView: View {
     @State private var atCap = false
     @State private var leaving: Crew?
     @State private var composing = false
+    @State private var showsActivity = false
     @State private var problem: String?
     private var store: SocialStore { SocialStore.shared }
 
@@ -48,13 +49,18 @@ struct CrewsListView: View {
                     // two presses to plan with a crew. The same glyph and word
                     // as Plan on Wins. Only for someone who can write in a
                     // crew: a plan is a line in its chat.
-                    if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty, store.canReply() {
-                        GlassIconButton(systemName: DayIcon.name, onPage: true, accessibilityLabel: "Plan") {
-                            // The button ticks itself (`GlassIconButton`).
-                            choosePlanCrew()
-                            planning = true
+                    // **Your notifications, top left** (the owner's add-on to
+                    // the launch pass: "the Crews top-left corner becomes your
+                    // notifications ... a quiet dot when something's new").
+                    // Plan moved to the one planner, on Wins.
+                    if age.opensCrews, CrewsFlag.osSupportsCrews, !store.crews.isEmpty {
+                        GlassIconButton(systemName: "bell", onPage: true, accessibilityLabel: "Activity") {
+                            showsActivity = true
                         }
-                        .accessibilityHint("Plan something with a crew.")
+                        .overlay(alignment: .topTrailing) {
+                            if store.hasNewActivity { NewsDot(ringed: true).offset(x: 1, y: -1) }
+                        }
+                        .accessibilityValue(store.hasNewActivity ? "Something new" : "")
                     }
                     Spacer(minLength: 0)
                     // **One way to a new crew: New Crew, top right** (the
@@ -295,6 +301,10 @@ struct CrewsListView: View {
                 Text(crew.isOwner(store.me) ? "It's deleted for both of you." : "You leave the chat, and its lines go with you.")
             }
         }
+        }
+        .sheet(isPresented: $showsActivity) {
+            ActivitySheet()
+                .presentationBackground { WarmBackground().ignoresSafeArea() }
         }
         .sheet(isPresented: $composing) {
             NewMessageSheet(newCrew: {

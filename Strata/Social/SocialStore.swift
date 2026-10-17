@@ -136,10 +136,12 @@ final class SocialStore {
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
     /// yet" and stop saying it.
     private(set) var outboxRevision = 0
+    /// Bumped when the activity corner is looked at (`ActivityFeed`).
+    var activityRevision = 0
     private(set) var isRefreshing = false
 
     let cloud: CrewCloud
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     let directory: URL
     @ObservationIgnored private var outbox: CrewOutbox
 

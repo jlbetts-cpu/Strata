@@ -34,7 +34,9 @@ struct NewCrewOneWayTests {
         // a new crew. Invite a Friend must not come back there.
         #expect(list.components(separatedBy: ".topBarLeading").count - 1 == 1, "a second corner button is here")
         #expect(list.contains(".pinnedBar { listHeader }"))
-        #expect(list.contains("accessibilityLabel: \"Plan\""))
+        // The corner Plan stood in is the notifications now (the owner's
+        // add-on to the launch pass): one planner, on Wins.
+        #expect(list.contains("accessibilityLabel: \"Activity\""))
         #expect(!list.contains("person.badge.plus"), "a second way to a new crew is back in the corner")
         // Kept on the empty page (the owner's ask).
         #expect(list.contains("Text(CrewLine.linkAgain)"))

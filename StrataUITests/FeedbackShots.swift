@@ -664,6 +664,17 @@ final class FeedbackShots: XCTestCase {
         wait(1); snap("sendto-1-words")
     }
 
+    /// The Crews corner's notifications (the add-on to the launch pass).
+    func testActivityCorner() {
+        let app = launch(["-strataCrews", "1", "-strataSeedCrew", "4", "-strataSeedCrews", "1", "-strataStartTab", "crews",
+                          "-strataSeedDM", "1", "-strataSeedWins", "2"])
+        wait(12); snap("activity-0-corner")
+        let bell = app.buttons["Activity"].firstMatch
+        print("PLANNING-activity bell \(bell.exists) \(bell.value as? String ?? "")")
+        if bell.exists { bell.tap() }
+        wait(1.5); snap("activity-1-sheet")
+    }
+
     /// Show Tab Names, on (the launch pass, 5½; off by default).
     func testTabNames() {
         let app = launch(["-tabNamesShown", "YES", "-strataSeedWins", "3", "-strataStartTab", "tower"])
