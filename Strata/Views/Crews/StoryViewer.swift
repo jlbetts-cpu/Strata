@@ -67,6 +67,7 @@ struct StoryViewer: View {
         TabView(selection: Binding(get: { shown }, set: { current = $0 })) {
             ForEach(people) { person in
                 StoryPage(person: person, isCurrent: shown == person.id && !opening, dragging: drop > 0,
+                          upNext: upNext(after: person.id),
                           edit: { onEdit?() },
                           profile: onProfile,
                           next: { step(from: person.id, by: 1) },
@@ -141,6 +142,16 @@ struct StoryViewer: View {
         }
     }
 
+    /// The next friend's first page not yet watched, if it is a photograph:
+    /// decoded while this friend plays (rule 7).
+    private func upNext(after id: UUID) -> URL? {
+        let people = live
+        guard let i = people.firstIndex(where: { $0.id == id }), people.indices.contains(i + 1) else { return nil }
+        let next = people[i + 1]
+        let story = next.stories.first { !store.storiesSeen.contains($0.id) } ?? next.stories.first
+        return story?.win.photo
+    }
+
     /// The night these stories belong to.
     static func night(of people: [StoryPerson]) -> String? {
         people.first { $0.profileID != SocialStore.shared.me }?.stories.first?.day
@@ -169,6 +180,8 @@ private struct StoryPage: View {
     let isCurrent: Bool
     /// Being dragged down to close: the story waits.
     var dragging = false
+    /// The next friend's first photograph, decoded ahead.
+    var upNext: URL? = nil
     /// Opens Tonight's Story over your own story, to change it.
     var edit: () -> Void = {}
     var profile: ((CrewMember, CrewID) -> Void)? = nil
@@ -196,6 +209,13 @@ private struct StoryPage: View {
     /// The reply row's own height, kept under the picture so the picture's
     /// size never changes with what the row is doing.
     @State private var footRoom: CGFloat = 60
+    /// **The picture is on screen** (rule 6): a photograph's page waits for
+    /// it, up to `StoryTiming.photoWait`, so its time is not spent on a
+    /// blank. The page's id when it arrived.
+    @State private var drawn: UUID?
+    @State private var waitedOut: UUID?
+    @State private var cardSize: CGSize = .zero
+    @Environment(\.displayScale) private var displayScale
     /// The reaction bar, Reply, a doodle or a sticker is open: the story waits.
     @State private var busy = false
     @State private var reporting: SharedWin?
@@ -236,11 +256,19 @@ private struct StoryPage: View {
     @State private var showing: UUID?
     private let hPad = GridConstants.horizontalPadding
 
-    /// How long a page stands before the next.
-    static let pageLength: TimeInterval = 5
+    /// How long this page stands before the next (`StoryTiming`).
+    private var pageLength: TimeInterval {
+        isWords ? StoryTiming.words([person.line, person.low, person.buffalo]) : StoryTiming.photo
+    }
+
+    /// A photograph's page whose picture is not on screen yet.
+    private var waitingForPicture: Bool {
+        guard !isWords, story.win.photo != nil, let key = showing else { return false }
+        return drawn != key && waitedOut != key
+    }
 
     private var paused: Bool {
-        touching || busy || menuOpen || dragging || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
+        touching || busy || menuOpen || waitingForPicture || dragging || !isCurrent || scenePhase != .active || reporting != nil || blocking || voiceOver
     }
 
     private var member: CrewMember? {
@@ -325,12 +353,34 @@ private struct StoryPage: View {
             showing = (keys.indices.contains(page) ? keys[page] : nil)
             seen()
         }
+        // A picture that does not come still lets the page go on, and the
+        // next ones are decoded while this one stands (rules 6 and 7).
+        .task(id: "\(showing?.uuidString ?? "")-\(isCurrent)") {
+            guard isCurrent, let key = showing else { return }
+            await prefetchAhead()
+            try? await Task.sleep(for: .seconds(StoryTiming.photoWait))
+            guard !Task.isCancelled else { return }
+            waitedOut = key
+        }
         .onChange(of: keys) { _, now in
             guard let showing, let at = now.firstIndex(of: showing) else {
                 page = min(page, max(now.count - 1, 0))
                 return
             }
             if at != page { page = at }
+        }
+    }
+
+    /// This friend's next photograph and the next friend's first, at the
+    /// card's size, into `CrewPhotoView`'s cache.
+    private func prefetchAhead() async {
+        guard cardSize.width >= 1 else { return }
+        var urls: [URL] = []
+        let after = storyIndex(page) + 1
+        if person.stories.indices.contains(after), let url = person.stories[after].win.photo { urls.append(url) }
+        if let upNext { urls.append(upNext) }
+        for url in urls {
+            await CrewPhotoView.prefetch(url, width: cardSize.width, height: cardSize.height, scale: displayScale)
         }
     }
 
@@ -356,7 +406,7 @@ private struct StoryPage: View {
     private var top: some View {
         VStack(spacing: GridConstants.gapTight) {
             StoryProgress(count: pageCount, index: page, paused: paused,
-                          length: Self.pageLength, finished: forward)
+                          length: pageLength, finished: forward)
                 .id("\(person.id)-\(page)-\(isCurrent)")
                 .padding(.top, GridConstants.gapTight)
             HStack(spacing: GridConstants.gapTight) {
@@ -490,8 +540,15 @@ private struct StoryPage: View {
                         }
                     }
                 } else if let url = story.win.photo {
-                    CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height,
-                                  crop: CGPoint(x: story.win.cropX ?? 0, y: story.win.cropY ?? 0))
+                    let key = story.id
+                    // The words page's own dark while it arrives, never the
+                    // block's colour: no flash of colour before a photograph.
+                    ZStack {
+                        Color(white: 0.09)
+                        CrewPhotoView(url: url, width: geo.size.width, height: geo.size.height,
+                                      crop: CGPoint(x: story.win.cropX ?? 0, y: story.win.cropY ?? 0),
+                                      shown: { drawn = key })
+                    }
                 } else {
                     // A doodle, a plain block, or anyone under 16: the block.
                     ZStack {
@@ -506,6 +563,7 @@ private struct StoryPage: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipShape(shape)
+            .onGeometryChange(for: CGSize.self, of: { $0.size }) { cardSize = $0 }
             .id(isWords ? "words" : story.id.uuidString)
             .transition(.opacity)
             // **Tap on, tap back, hold to pause.** The left third goes back,
@@ -857,7 +915,9 @@ private struct StoryReplyBar: View {
         writing = false
         withAnimation(motion) { said = words }
         Task {
-            try? await Task.sleep(for: .seconds(1.2))
+            // Long enough to be read by someone looking at the picture, not
+            // the field (the stories standard, rule 5).
+            try? await Task.sleep(for: .seconds(1.8))
             withAnimation(motion) { said = nil }
         }
     }

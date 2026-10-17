@@ -13,6 +13,9 @@ struct CrewPhotoView: View {
     let width: CGFloat
     let height: CGFloat
     var crop: CGPoint = .zero
+    /// Told once the picture is on screen (the stories standard, rule 6: a
+    /// story's timer waits for it).
+    var shown: (() -> Void)? = nil
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -39,10 +42,11 @@ struct CrewPhotoView: View {
         .task(id: "\(url.path)@\(Int(max(width, height) * displayScale))") {
             guard max(width, height) >= 1 else { return }
             let side = max(width, height) * displayScale
-            if let cached = Self.cache.object(forKey: Self.key(url, side)) { image = cached; return }
+            if let cached = Self.cache.object(forKey: Self.key(url, side)) { image = cached; shown?(); return }
             let decoded = await Self.decode(url, side: side)
             if let decoded { Self.cache.setObject(decoded, forKey: Self.key(url, side)) }
             image = decoded
+            if decoded != nil { shown?() }
         }
     }
 
@@ -51,6 +55,16 @@ struct CrewPhotoView: View {
         cache.countLimit = 60
         return cache
     }()
+
+    /// **Ready before it is reached** (the stories standard, rule 7; a:
+    /// Meta's adjacent preload, 2026): decoded into the cache at the size a
+    /// view of `width` by `height` will ask for, so it shows at once.
+    static func prefetch(_ url: URL, width: CGFloat, height: CGFloat, scale: CGFloat) async {
+        let side = max(width, height) * scale
+        guard side >= 1, cache.object(forKey: key(url, side)) == nil,
+              let decoded = await decode(url, side: side) else { return }
+        cache.setObject(decoded, forKey: key(url, side))
+    }
 
     private static func key(_ url: URL, _ side: CGFloat) -> NSString {
         "\(url.path)@\(Int(side))" as NSString

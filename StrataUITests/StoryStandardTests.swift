@@ -140,10 +140,27 @@ final class StoryStandardTests: XCTestCase {
         XCTAssertTrue(fire.waitForExistence(timeout: 3), "no quick reactions over the field")
         XCTAssertTrue(fire.isHittable, "the quick reactions cannot be tapped")
         fire.tap()
-        Thread.sleep(forTimeInterval: 0.4)
+        var said = ""
+        for _ in 0..<10 where !said.contains("Sent") {
+            said = (view.placeholderValue ?? "") + " " + (view.value as? String ?? "")
+            if !said.contains("Sent") { Thread.sleep(forTimeInterval: 0.1) }
+        }
         snap("std-reacted")
-        let said = (view.placeholderValue ?? "") + " " + (view.value as? String ?? "")
         print("STORYSTD reacted '\(said)'")
         XCTAssertTrue(said.contains("Sent"), "nothing said the reaction was sent")
+    }
+
+    /// Rules 6 and 7, the other way: left alone, a photograph's page still
+    /// goes on in about five seconds, its picture ready, and the waits added
+    /// for a slow picture never stall it.
+    func testLeftAloneItGoesOn() {
+        let app = night()
+        openFirstStory(app)
+        let before = where_(app)
+        Thread.sleep(forTimeInterval: pastAPage)
+        let after = where_(app)
+        snap("std-left-alone")
+        print("STORYSTD alone '\(before)' -> '\(after)'")
+        XCTAssertNotEqual(before, after, "left alone, the story never went on")
     }
 }

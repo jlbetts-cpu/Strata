@@ -198,6 +198,24 @@ nonisolated struct StoryPerson: Identifiable, Equatable, Sendable {
     }
 }
 
+/// **How long a page stands** (the stories standard, rule 4). A photograph,
+/// five seconds, as every story app; the words page by its length, so three
+/// lines are read and not chased (a: WCAG 2.2.2 asks that moving content can
+/// be paused, and a hold does; c: about three words a second at a glance,
+/// after two to find the first line).
+nonisolated enum StoryTiming {
+    static let photo: TimeInterval = 5
+    static let longest: TimeInterval = 12
+    /// How long a page that waits for its photograph waits at most before
+    /// it starts anyway: a file that never arrives cannot stall the night.
+    static let photoWait: TimeInterval = 2.5
+
+    static func words(_ lines: [String?]) -> TimeInterval {
+        let count = lines.compactMap { $0 }.reduce(0) { $0 + $1.split(whereSeparator: \.isWhitespace).count }
+        return min(longest, max(photo, 2 + Double(count) / 3))
+    }
+}
+
 /// The line's own rules, kept in one place.
 nonisolated enum StoryLine {
     /// One line, not a caption essay.
