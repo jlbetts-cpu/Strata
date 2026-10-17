@@ -163,4 +163,41 @@ final class StoryStandardTests: XCTestCase {
         print("STORYSTD alone '\(before)' -> '\(after)'")
         XCTAssertNotEqual(before, after, "left alone, the story never went on")
     }
+
+    /// Rule 3, looked at: held, the picture alone. (Shot with the held look
+    /// forced on, as a test cannot take a screenshot while it holds.)
+    func testHeldShowsThePictureAlone() {
+        let app = night(["-strataStoryHeld", "1"])
+        openFirstStory(app)
+        Thread.sleep(forTimeInterval: 1)
+        snap("std-held")
+        // Only the page on screen: the pager keeps its neighbours alive off
+        // to the side, each with its own close.
+        let screen = app.windows.firstMatch.frame
+        let shown = app.buttons.matching(identifier: "Close story").allElementsBoundByIndex.filter {
+            $0.exists && screen.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && $0.isHittable
+        }
+        print("STORYSTD held closes \(app.buttons.matching(identifier: "Close story").count) on screen \(shown.map(\.frame))")
+        // What a finger meets: a tap where the close stands, held, must not
+        // close the story.
+        if let close = shown.first {
+            close.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            Thread.sleep(forTimeInterval: 1.5)
+        }
+        let stillOpen = card(app).exists
+        print("STORYSTD held tap-at-close open=\(stillOpen)")
+        XCTAssertTrue(stillOpen, "held, an unseen close closed the story")
+    }
+
+    /// Rule 12: the largest text keeps the reply row whole.
+    func testTheReplyRowAtTheLargestText() {
+        let app = night(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+        openFirstStory(app)
+        Thread.sleep(forTimeInterval: 1)
+        snap("std-largest-text")
+        let field = app.textFields.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        let view = field.exists ? field : app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Reply to'")).firstMatch
+        XCTAssertTrue(view.isHittable, "the reply field is gone at the largest text")
+        XCTAssertGreaterThanOrEqual(view.frame.width, 120, "the reply field is squeezed at the largest text")
+    }
 }

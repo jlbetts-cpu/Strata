@@ -284,8 +284,8 @@ private struct StoryPage: View {
     var body: some View {
         VStack(spacing: 0) {
             card
-                .overlay(alignment: .top) { top.opacity(holding ? 0 : 1) }
-                .overlay(alignment: .bottomLeading) { label.opacity(holding ? 0 : 1) }
+                .overlay(alignment: .top) { top.stepsAside(holding) }
+                .overlay(alignment: .bottomLeading) { label.stepsAside(holding) }
                 // Answering, the story dims and waits under the reply
                 // (b: Instagram's reply).
                 .overlay {
@@ -297,6 +297,9 @@ private struct StoryPage: View {
         }
         .overlay(alignment: .bottom) {
             foot
+                // As the camera card's controls: past this the + and the
+                // heart outgrew their glass and the field cut its words.
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                 .padding(.horizontal, hPad)
                 .padding(.top, GridConstants.gapTight)
                 .padding(.bottom, GridConstants.gapTight)
@@ -306,7 +309,7 @@ private struct StoryPage: View {
                     if keyboard == 0, !busy { footRoom = height }
                 }
                 .offset(y: -max(0, keyboard - bottomInset))
-                .opacity(holding ? 0 : 1)
+                .stepsAside(holding)
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.bottom }) { bottomInset = $0 }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
@@ -339,6 +342,10 @@ private struct StoryPage: View {
         } message: {
             Text("They're hidden from you everywhere, and they are not told.")
         }
+        #if DEBUG
+        // The held look, for a screenshot: a test cannot shoot while it holds.
+        .onAppear { if DebugHarness.argument("-strataStoryHeld") != nil { holding = true } }
+        #endif
         // Back to the first page not yet watched, as a story resumes.
         .onChange(of: isCurrent, initial: true) { _, now in
             busy = false
@@ -442,6 +449,9 @@ private struct StoryPage: View {
                 actions
                 StoryGlyph(systemName: "xmark", tint: .white, label: "Close story", action: close)
             }
+            // **The camera's cap** (the camera card's controls, 2026-10-17):
+            // at the largest sizes the ... and the close ran into each other.
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         }
         .padding(.horizontal, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapWide)
@@ -681,6 +691,16 @@ private struct StoryPage: View {
             StoryReplyBar(story: story, name: name, busy: { busy = $0 })
                 .id(story.id)
         }
+    }
+}
+
+private extension View {
+    /// Held, a story's chrome is gone in every way: unseen, untouchable and
+    /// unspoken, so nothing invisible can be tapped over the picture.
+    func stepsAside(_ aside: Bool) -> some View {
+        opacity(aside ? 0 : 1)
+            .allowsHitTesting(!aside)
+            .accessibilityHidden(aside)
     }
 }
 
