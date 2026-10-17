@@ -126,9 +126,15 @@ struct CrewsListView: View {
                     // 2026-10-13): the crew with the latest win, line or
                     // reaction on top, so the one you came for leads.
                     // A thread with someone you blocked is not shown.
-                    ForEach(store.crews.filter { !$0.isPersonal || store.directFriend($0.id) != nil }.sorted { a, b in
-                        (store.activity(in: a.id)?.date ?? .distantPast) > (store.activity(in: b.id)?.date ?? .distantPast)
-                    }) { crew in
+                    // **Crews, then Messages, each newest first** (the owner,
+                    // 2026-10-17: "keep the rows in crew but there has to be a
+                    // distinction in how they look"). A conversation is one
+                    // person and a crew is a group: they stay in one list, as
+                    // he chose, under their own quiet heading, so one is never
+                    // mistaken for the other. Within each, the crew or person
+                    // with the latest win, line or reaction leads (2026-10-13).
+                    // A thread with someone you blocked is not shown.
+                    ForEach(listed(personal: false)) { crew in
                         Button {
                             HapticsEngine.lightTap()
                             // **Into the chat when a message is the news** (the
@@ -166,6 +172,56 @@ struct CrewsListView: View {
                                           systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash")
                                 }
                             }
+                    }
+                    let conversations = listed(personal: true)
+                    if !conversations.isEmpty {
+                        Section {
+                            ForEach(conversations) { crew in
+                                Button {
+                                    HapticsEngine.lightTap()
+                                    // **Into the chat when a message is the news** (the
+                                    // owner, 2026-10-13: "if the notification is for a
+                                    // chat message when you open that crew it should
+                                    // just open with the crew chat"). The way a tapped
+                                    // notification opens it (`CrewRouter.openChat`).
+                                    if store.unreadChats.contains(crew.id), Self.newsIsChat(store.activity(in: crew.id)) {
+                                        CrewRouter.shared.openChat = true
+                                    }
+                                    open(crew.id)
+                                } label: { row(store.visible(crew.id) ?? crew) }
+                                    .buttonStyle(.pressSurface)
+                                    .listRowBackground(Color.clear)
+                                    // Space between crews, never a rule: the app
+                                    // separates with room, not lines (the owner,
+                                    // 2026-10-03: "we dont use lines we use space").
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 16))
+                                    .contextMenu {
+                                        Button(store.isMuted(crew.id) ? "Unmute" : "Mute",
+                                               systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash") {
+                                            store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
+                                        }
+                                        Button(crew.isPersonal ? "Delete Chat" : crew.isOwner(store.me) ? "End Crew" : "Leave Crew",
+                                               systemImage: crew.isPersonal ? "trash" : "rectangle.portrait.and.arrow.right",
+                                               role: .destructive) { leaving = crew }
+                                    }
+                                    .swipeActions(edge: .trailing) {
+                                        Button(crew.isPersonal ? "Delete" : crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
+                                        Button {
+                                            store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
+                                        } label: {
+                                            Label(store.isMuted(crew.id) ? "Unmute" : "Mute",
+                                                  systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash")
+                                        }
+                                    }
+                            }
+                        } header: {
+                            Text("Messages")
+                                .font(Typography.headerSmall)
+                                .foregroundStyle(AppColors.inkSecondary)
+                                .textCase(nil)
+                                .accessibilityAddTraits(.isHeader)
+                        }
                     }
                     // Under the crews, the owner's drawing of three friends
                     // and its line (2026-10-03): what a crew is for, said
@@ -432,6 +488,15 @@ struct CrewsListView: View {
             if said.hasPrefix(prefix) { return String(said.dropFirst(prefix.count)) }
         }
         return said
+    }
+
+    /// Your crews, or your conversations, newest first. A conversation with
+    /// someone you blocked is not one.
+    private func listed(personal: Bool) -> [Crew] {
+        store.crews.filter { $0.isPersonal == personal && (!personal || store.directFriend($0.id) != nil) }
+            .sorted { a, b in
+                (store.activity(in: a.id)?.date ?? .distantPast) > (store.activity(in: b.id)?.date ?? .distantPast)
+            }
     }
 
     /// Whether the newest thing in a crew is said in its chat: a line, or a
