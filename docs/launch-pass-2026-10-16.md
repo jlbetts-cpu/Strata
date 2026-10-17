@@ -1,0 +1,42 @@
+# Launch pass, 2026-10-16: decision log
+
+Tags: (a) research, (b) seen in a shipping app, (c) my inference.
+
+## 0. The floating tower
+- Not reproducible in the simulator at 1, 3, 10 or 30 wins, after home and back, across tabs, with a sheet and the keyboard. (c)
+- Root cause found by forcing it: the tower's minimum height came from a page measurement taken outside its scroll view. A scroll view's content shorter than the view sits at the top, so whenever that measurement came back short the tower rose with a gap below. Forced short, it floats 300pt: the screenshot's symptom. (c, measured)
+- Fix: the scroll view's own visible height is the floor (`TowerFloor`, `containerRelativeFrame`), on the Wins tower and every crew tower. Walk `testTowerFloorAfterReturning` measures the tower's foot; its self-test turns the floor off and sees it float, so it can fail.
+
+## 10. Rare bugs that lose data or trust (audit, then fixed)
+- Restore during an iCloud import doubled every win for good: merged by id after each import; restore skips a win that arrived meanwhile.
+- Undo after delete didn't re-share to crews or the story: it does now.
+- Signing out of iCloud and back in erased crew history and offline lines: set aside per account and merged back.
+- Day keys froze in the zone the app started in (a flight): read the zone per call, reset the system zone on change.
+- "Your iCloud is full" for crews was wrong: crews live in the app's shared space, so it's said as a wait.
+- A delete killed mid-send could miss crew copies: every delete is queued before the first wait.
+- A planned win's photo was decoded whole: downsampled.
+- A story never reached a friend 16+ hours west: the sealed end is the westmost noon; each viewer's 9am still closes it.
+- Not fixed, low: two people accepting at the same moment can make a crew of nine (no server to arbitrate). (c)
+
+## 3 and 3½. Stories, profiles and messages as one place
+- A person's page is their profile with your conversation resting at its foot, rising into the full chat like a crew's (`PersonPage`). No separate message thread screen. (b: Instagram story replies land in DMs; Hinge ties a match's profile to the chat)
+- Kept: conversations stay as rows in the Crews list, newest first, so an unread one can be found; the row opens the person's page, not a thread. The brief says "no separate DM inbox"; a row in the same list is not a separate inbox. (c) Recommend keeping.
+- Their story plays over their page ("Watch Sam's story") and closes back onto it.
+- The story timer already freezes for the keyboard, a doodle, a sticker and the reaction bar (`busy`). Verified in code. (c)
+- Rings: your own goes quiet once watched; watched on one phone is watched on the other (iCloud key-value store); the nightly sweep no longer forgets the words page's mark.
+- High, low and buffalo: a visible, optional row under Tonight's Story on Send To; still in Tonight's Story; editable from your own story.
+
+## 5. Crews
+- A crew explains itself: where it is named (what it is, and that one person is a message), and once ever on the first shared tower.
+
+## 5½. Parents
+- A slow tap on the empty slot no longer logs a win (0.28s to 0.5s, the system long press). (a: Apple's long-press duration)
+- The largest text grows controls instead of clipping; a crew row stacks at accessibility sizes.
+- Show Tab Names: a setting, off. Recommend ON by default. (a: Apple HIG tab bars, "Include tab labels"; NN/g icon usability; older adults misread unlabelled icons)
+
+## Add-on: notifications and one planner
+- Crews top-left is Activity: reactions and replies to your wins and story, messages, plans, someone joining, grouped, newest first, a quiet dot, no counts.
+- One planner on Wins: share the next line with a crew; shared lines say "With Roommates". Crew plans you joined were already lines of your plan, so none moved or were lost.
+
+## Waiting for your call
+- Show Tab Names on by default (recommended).
