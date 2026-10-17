@@ -124,6 +124,9 @@ struct DroppedWin {
     var note: String?
     var with: [UUID]
     var story: Bool
+    /// Which part of the photograph the block shows, and how far in.
+    var window: CGPoint = .zero
+    var zoom: CGFloat = 1
 }
 
 /// What the card hands back.
@@ -182,6 +185,22 @@ struct InlineCameraCard: View {
     @State private var buffalo = ""
     /// The rest of the details, tucked away until wanted.
     @State private var more = false
+
+    // The photograph's tools, the Camera tab's review in one quiet row
+    // (the owner, 2026-10-17: "crop, film looks/filters, doodle, stickers,
+    // and adding your head. None of that goes away").
+    @State private var lookRaw = FilmLook.Kind.none.rawValue
+    @State private var looked: UIImage?
+    @State private var choosingLook = false
+    @State private var marks: InkDoodle?
+    @State private var markLayer: UIImage?
+    @State private var marking: PhotoMarksSheet.Opening?
+    @State private var sticker: StickerPlacement?
+    @State private var crop: CGPoint = .zero
+    @State private var zoom: CGFloat = 1
+    @State private var dropping = false
+    /// Taken here rather than chosen from the library.
+    @State private var fromCamera = false
 
     // The camera.
     @State private var down = false
@@ -563,6 +582,7 @@ struct InlineCameraCard: View {
                 let polished = await Task.detached(priority: .userInitiated) {
                     PortraitPolish.apply(to: image)
                 }.value
+                fromCamera = true
                 withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
                     shot = polished
                     mode = .shot
@@ -593,24 +613,124 @@ struct InlineCameraCard: View {
     /// wanted"). Name, size and who sees it, then More; the photograph under
     /// them, nothing written on it.
     private var shotPage: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: GridConstants.gapItem) {
+        VStack(spacing: GridConstants.gapItem) {
+            // **More takes the photograph's room while it is open**: the
+            // details scroll there, and Less brings the picture back. Both
+            // at once ran the page off the card under the keyboard.
+            if more {
+                ScrollView(.vertical, showsIndicators: false) { details }
+                    .scrollDismissesKeyboard(.interactively)
+                    .softScrollEdge([.top, .bottom])
+            } else {
                 details
-                if let shot {
-                    Image(uiImage: shot)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(size.cropAspectRatio, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 120),
-                                                    style: .continuous))
-                        .animation(GridConstants.slotSnap, value: size)
-                        .accessibilityLabel("Your photo")
+            }
+            // The photograph in the room that is left, whole, never scrolled:
+            // a drag on it moves the picture under the block's frame.
+            if let shot, !more {
+                GeometryReader { g in
+                    let width = min(g.size.width, g.size.height * size.cropAspectRatio)
+                    photoStage(shot, width: max(width, 1))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .animation(GridConstants.slotSnap, value: size)
+                if choosingLook {
+                    FilmLookStrip(photo: shot, selection: Binding(
+                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                        set: { lookRaw = $0.rawValue }))
+                        .transition(.opacity)
                 }
             }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .softScrollEdge([.top, .bottom])
+    }
+
+    /// **The photograph as the block will show it**: the block's frame, the
+    /// picture moved and pinched under it (the head overlay carries both
+    /// gestures, as on the Camera tab's review), the drawing and the head on
+    /// it, the look on it. The tools stand along its foot, small and quiet,
+    /// and each opens only when pressed.
+    private func photoStage(_ image: UIImage, width: CGFloat) -> some View {
+        let box = CGSize(width: width, height: width / max(size.cropAspectRatio, 0.01))
+        let rests = CachedImageView.filled(image.size, in: box)
+        let shift = CachedImageView.shift(crop: crop, photo: image.size, frame: box, zoom: zoom)
+        return ZStack(alignment: .bottomLeading) {
+            Image(uiImage: looked ?? image)
+                .resizable()
+                .frame(width: rests.width, height: rests.height)
+                .overlay {
+                    if let markLayer {
+                        Image(uiImage: markLayer).resizable()
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .overlay {
+                    HeadStickerOverlay(
+                        rig: sticker == nil ? nil : HeadStore.shared.head,
+                        placement: $sticker, crop: $crop, zoom: $zoom,
+                        photo: image.size, box: box,
+                        look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
+                }
+                .scaleEffect(PhotoWindow.zoom(zoom))
+                .offset(shift)
+                .frame(width: box.width, height: box.height)
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
+                .accessibilityLabel("Your photo")
+            photoTools
+                .padding(GridConstants.gapTight)
+        }
+        .frame(width: box.width, height: box.height)
+        .task(id: lookRaw) { await showLook(on: image) }
+        .sheet(item: $marking) { opening in
+            PhotoMarksSheet(photo: looked ?? image, marks: marks, opening: opening) { made in
+                marks = made
+                markLayer = made.flatMap { PhotoMarks.layer($0) }
+            }
+        }
+    }
+
+    private var photoTools: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            toolGlyph("camera.filters", label: "Looks", on: choosingLook || lookRaw != FilmLook.Kind.none.rawValue) {
+                withAnimation(GridConstants.motionSnappy) { choosingLook.toggle() }
+            }
+            toolGlyph("pencil.tip", label: "Draw", on: marks != nil) { marking = .pen }
+            toolGlyph("sparkles", label: "Stickers", on: false) { marking = .stickers }
+            if HeadStore.shared.head != nil {
+                toolGlyph("face.smiling", label: sticker == nil ? "Add your head" : "Take your head off", on: sticker != nil) {
+                    withAnimation(GridConstants.motionSnappy) {
+                        sticker = sticker == nil ? StickerPlacement() : nil
+                    }
+                }
+            }
+        }
+    }
+
+    private func toolGlyph(_ symbol: String, label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.tick()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .iconSize(16, relativeTo: .body, weight: .semibold)
+                .foregroundStyle(on ? Color.black : .white)
+                .frame(width: 36, height: 36)
+                .background { if on { Circle().fill(.white) } }
+                .inlineGlass(in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func showLook(on image: UIImage) async {
+        let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        guard look.kind != .none else { looked = nil; return }
+        let rendered = await Task.detached(priority: .userInitiated) {
+            FilmLookRenderer.shared.render(image.scaledDown(to: 1400), look: look)
+        }.value
+        if !Task.isCancelled { looked = rendered }
     }
 
     /// The essentials in one container, the rest under More.
@@ -764,7 +884,7 @@ struct InlineCameraCard: View {
 
     /// One tap posts: Add, or Post when it goes to a crew or the story.
     private var pageFoot: some View {
-        PrimaryCapsule(title: !recipients.isEmpty || onStory ? "Post" : "Add") { drop() }
+        PrimaryCapsule(title: !recipients.isEmpty || onStory ? "Post" : "Add") { if !dropping { drop() } }
             .accessibilityLabel("Drop it on the tower")
     }
 
@@ -820,6 +940,8 @@ struct InlineCameraCard: View {
             mode = .lens
             size = .small
         }
+        (lookRaw, looked, choosingLook, marks, markLayer, sticker, crop, zoom) =
+            (FilmLook.Kind.none.rawValue, nil, false, nil, nil, nil, .zero, 1)
         Task { await camera.start() }
     }
 
@@ -840,10 +962,34 @@ struct InlineCameraCard: View {
             Task { await SocialStore.shared.setStoryWords(words, on: today) }
         }
         let kept = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        leave(with: .drop(DroppedWin(photo: photo, size: size, title: title, place: photo == nil ? nil : place,
-                                     crews: crews.isEmpty ? [] : recipients, colour: colour,
-                                     colourChosen: colourChosen || mode == .words,
-                                     note: kept.isEmpty ? nil : kept, with: with, story: onStory)))
+        var win = DroppedWin(photo: nil, size: size, title: title, place: photo == nil ? nil : place,
+                             crews: crews.isEmpty ? [] : recipients, colour: colour,
+                             colourChosen: colourChosen || mode == .words,
+                             note: kept.isEmpty ? nil : kept, with: with, story: onStory)
+        guard let photo else { leave(with: .drop(win)); return }
+        // The photograph as the tools left it: the head, then the look, then
+        // the drawing, as the Camera tab's Use Photo makes it, and its window.
+        dropping = true
+        let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        let head = sticker.flatMap { placement in HeadStore.shared.head.map { (rig: $0, placement: placement) } }
+        let drawn = marks
+        win.window = CachedImageView.held(crop, photo: photo.size, frame: CGSize(width: size.cropAspectRatio, height: 1),
+                                          zoom: PhotoWindow.zoom(zoom))
+        win.zoom = PhotoWindow.zoom(zoom)
+        Task { @MainActor in
+            var composed = photo
+            if let head { composed = HeadSticker.composite(photo, rig: head.rig, placement: head.placement) }
+            let base = composed
+            let graded = look.kind == .none ? base : await Task.detached(priority: .userInitiated) {
+                FilmLookRenderer.shared.render(base, look: look)
+            }.value
+            let finished = drawn.map { PhotoMarks.composite(graded, marks: $0) } ?? graded
+            // A photograph taken here is kept in the library, as the Camera
+            // tab keeps its own; one chosen from the library is already there.
+            if fromCamera { Task { await PhotoLibrarySaver.save(finished) } }
+            win.photo = finished
+            leave(with: .drop(win))
+        }
     }
 
     private func toSheet(drawing: Bool = false) {
@@ -859,6 +1005,7 @@ struct InlineCameraCard: View {
         guard let item, let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else { return }
         camera.stop()
+        fromCamera = false
         withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardOpen) {
             shot = image
             mode = .shot

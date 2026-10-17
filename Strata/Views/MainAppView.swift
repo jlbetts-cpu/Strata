@@ -2782,14 +2782,15 @@ struct MainAppView: View {
         case .drop(let win)?:
             logWin(size: win.size, photo: win.photo, title: win.title, place: win.place, crews: win.crews,
                    undoable: true, colour: win.colour, colourChosen: win.colourChosen, note: win.note,
-                   with: win.with, story: win.story)
+                   with: win.with, story: win.story, window: win.window, zoom: win.zoom)
         }
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil, holdFromCrews: Bool = false,
                         title: String = "", place: WinPlace? = nil, crews: Set<CrewID>? = nil,
                         undoable: Bool = false, colour: HabitCategory? = nil, colourChosen: Bool = false,
-                        note: String? = nil, with people: [UUID] = [], story: Bool = false) {
+                        note: String? = nil, with people: [UUID] = [], story: Bool = false,
+                        window: CGPoint = .zero, zoom: CGFloat = 1) {
         #if DEBUG
         let probeStart = CACurrentMediaTime()
         defer { PerfProbe.duration("MainAppView.logWin", since: probeStart) }
@@ -2821,10 +2822,14 @@ struct MainAppView: View {
                     log.longitude = place.longitude
                     log.locationAccuracy = place.accuracy
                 }
-                if let note {
-                    log.note = note
-                    try? modelContext.save()
+                // The block's window on the photograph, chosen on the card.
+                if photo != nil {
+                    log.cropPositionX = window.x == 0 ? nil : window.x
+                    log.cropPositionY = window.y == 0 ? nil : window.y
+                    if PhotoWindow.zoom(zoom) != 1 { log.cropZoom = Double(zoom) }
                 }
+                if let note { log.note = note }
+                if note != nil || photo != nil { try? modelContext.save() }
                 if holdFromCrews { CrewHold.hold(log.id) }
                 // Named on the card; none named is your tower only.
                 else if let crews { if !crews.isEmpty { CrewSync.post(log, to: crews, with: people) } }
