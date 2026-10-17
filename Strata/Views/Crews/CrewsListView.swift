@@ -7,6 +7,8 @@ import SwiftUI
 nonisolated enum CrewRoute: Hashable {
     case list
     case crew(CrewID)
+    /// A person: their profile, and your conversation underneath (`PersonPage`).
+    case person(UUID)
 }
 
 /// Your crews, as Messages lists conversations: the crew's picture, its name,
@@ -847,18 +849,27 @@ struct CrewDestinations: ViewModifier {
                     // conversation, never a tower. The same route, so the
                     // list, a tapped notification and a reply all land right.
                     if SocialStore.shared.crew(id)?.isPersonal == true {
-                        DirectChatView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } })
+                        // A conversation is the person's (the launch pass, 3).
+                        PersonPage(friend: SocialStore.shared.directFriend(id)?.profileID ?? UUID(),
+                                   onBack: { if !path.isEmpty { path.removeLast() } })
                     } else {
                         CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
                                       onAddWin: { addWin(id) },
                                       onLogWin: { logWin(id, $0, $1) },
                                       onPlanned: { planned(id, $0, $1) })
                     }
+                case .person(let friend):
+                    PersonPage(friend: friend, onBack: { if !path.isEmpty { path.removeLast() } })
                 }
             }
             .onChange(of: router.open) { _, crew in
                 guard let crew else { return }
                 route(to: crew)
+            }
+            .onChange(of: router.openPerson) { _, friend in
+                guard let friend else { return }
+                router.openPerson = nil
+                path = listIsRoot ? [.person(friend)] : [.list, .person(friend)]
             }
             .onChange(of: router.opensList) { _, opens in
                 guard opens else { return }

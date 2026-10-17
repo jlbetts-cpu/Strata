@@ -20,6 +20,8 @@ final class CrewRouter {
     /// The crew's chat to open in it, when a chat notification was tapped.
     /// Cleared by the crew's tower when it has opened it.
     var openChat = false
+    /// A person's page to open in Crews (`PersonPage`).
+    var openPerson: UUID?
     /// Tonight's stories to open on the Crews row (the 8pm cue, tapped).
     var openStories = false
     /// Something went wrong joining, in words a person can read.

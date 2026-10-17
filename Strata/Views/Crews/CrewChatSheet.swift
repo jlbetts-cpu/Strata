@@ -332,7 +332,7 @@ struct CrewChatSheet: View {
     /// its heights and keeps it up; this view brings only its content.
     var native = false
     /// **The whole page of a message thread to one person**
-    /// (`DirectChatView`, 2026-10-16): no frame of its own, the thread's
+    /// (2026-10-16): no frame of its own, the page's
     /// header is the page's.
     var direct = false
 

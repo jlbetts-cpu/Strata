@@ -803,12 +803,20 @@ final class FeedbackShots: XCTestCase {
         let thread = row.last { $0.label.contains("proud") || $0.label.contains("tomorrow") }
         if let thread { thread.tap() } else { row.last?.tap() }
         wait(2.5); snap("dm-1-thread")
+        // The conversation rests at the foot of their page; a tap raises it.
+        let rest = app.buttons.matching(NSPredicate(format: "label CONTAINS 'tomorrow' OR label BEGINSWITH 'Chat' OR label BEGINSWITH 'Message'")).allElementsBoundByIndex.filter { $0.isHittable }
+        print("PLANNING-dm rest \(rest.map(\.label))")
+        app.swipeUp(); wait(1); snap("dm-1b-profile-scrolled"); app.swipeDown(); wait(1)
+        let fieldsAtRest = (app.textFields.allElementsBoundByIndex + app.textViews.allElementsBoundByIndex).filter { $0.isHittable }
+        if let field = fieldsAtRest.last { field.tap() } else { rest.last?.tap() }
+        wait(1.5); snap("dm-1c-chat-up")
         let fields = (app.textFields.allElementsBoundByIndex + app.textViews.allElementsBoundByIndex).filter { $0.isHittable }
         print("PLANNING-dm fields \(fields.map { "\($0.label)|\($0.placeholderValue ?? "")" })")
         if let field = fields.last { field.tap(); wait(0.6); app.typeText("Yes, 7am?") }
         let send = app.buttons["Send"].firstMatch
         if send.exists { send.tap() }
         wait(1.5); snap("dm-2-sent")
+        app.swipeDown(velocity: .fast); wait(1.5); snap("dm-2b-chat-down")
         let back = app.buttons["Back"].firstMatch
         if back.exists { back.tap() }
         wait(1.5)

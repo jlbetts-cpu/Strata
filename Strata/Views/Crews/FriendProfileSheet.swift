@@ -22,6 +22,9 @@ struct FriendProfileSheet: View {
     /// Pushed inside a sheet's own stack (the crew card): the glass back,
     /// not Done.
     var pushed = false
+    /// **The top of a person's page** (`PersonPage`): no bar of its own and
+    /// no Message, since the conversation rests at the page's foot.
+    var embedded = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -149,7 +152,7 @@ struct FriendProfileSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1).accessibilityHidden(true) }
-            if !pushed {
+            if !pushed, !embedded {
                 BareToolbarItem(placement: .confirmationAction) {
                     Button {
                         HapticsEngine.lightTap()
@@ -255,7 +258,7 @@ struct FriendProfileSheet: View {
                                .compactMap(\.photo).prefix(ProfileBanner.most).map(BannerPicture.theirs),
                            chips: chips(today: today.count),
                            handle: store.shownHandle(of: store.crew(crewID)?.member(member.profileID) ?? member))
-                if member.profileID != store.me, store.canReply() { messageButton }
+                if member.profileID != store.me, store.canReply(), !embedded { messageButton }
                 if !facts.isEmpty {
                     InfoCard(rows: facts, contained: true)
                 }

@@ -203,11 +203,11 @@ struct TodayHeads: View {
                                     composing = true
                                 }
                             },
-                            onProfile: { member, crew in
+                            onProfile: { member, _ in
                                 self.watching = nil
                                 Task { @MainActor in
                                     try? await Task.sleep(for: .milliseconds(450))
-                                    profile = Person(member: member, crew: crew, newest: nil, wins: 0)
+                                    CrewRouter.shared.openPerson = member.profileID
                                 }
                             })
             }
@@ -275,7 +275,9 @@ struct TodayHeads: View {
             // (the owner, 2026-10-15: "you should be able to see other
             // people's profiles"), with their newest win first in it.
             HapticsEngine.lightTap()
-            if showing { watching = Watching(people: open, start: person.id) } else { profile = person }
+            // Their page: profile, and your conversation under it (the
+            // launch pass, 3).
+            if showing { watching = Watching(people: open, start: person.id) } else { CrewRouter.shared.openPerson = person.member.profileID }
         } label: {
             VStack(spacing: GridConstants.spacing) {
                 Group {
@@ -325,7 +327,7 @@ struct TodayHeads: View {
         // swapped the head for a new view the moment the story opened, and
         // the 8pm unlock lost its timing with it.
         .contextMenu {
-            Button { profile = person } label: { Label("View Profile", systemImage: "person.crop.circle") }
+            Button { CrewRouter.shared.openPerson = person.member.profileID } label: { Label("View Profile", systemImage: "person.crop.circle") }
             // **Message them, from their head** (2026-10-16: "make sure
             // everything is connected"): their conversation, started if
             // there is none.
